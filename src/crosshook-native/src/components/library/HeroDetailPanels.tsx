@@ -1,16 +1,15 @@
-import type { ReactNode } from 'react';
 import type { GameDetailsProfileLoadState } from '@/hooks/useGameDetailsProfile';
 import type { UseGameMetadataResult } from '@/hooks/useGameMetadata';
 import { useLaunchHistoryForProfile } from '@/hooks/useLaunchHistoryForProfile';
 import type { OfflineReadinessReport } from '@/types';
 import type { EnrichedProfileHealthReport } from '@/types/health';
-import type { LaunchPreview, LaunchRequest, PreviewEnvVar } from '@/types/launch';
+import type { LaunchPreview, LaunchRequest } from '@/types/launch';
 import type { LibraryCardData, ProfileSummary } from '@/types/library';
 import type { GameProfile } from '@/types/profile';
-import { groupPreviewEnvBySource, launchMethodLabel } from '@/utils/launchPreviewPresentation';
 import { GameDetailsCompatibilitySection } from './GameDetailsCompatibilitySection';
 import { GameDetailsHealthSection } from './GameDetailsHealthSection';
 import { GameDetailsMetadataSection } from './GameDetailsMetadataSection';
+import { HeroDetailLaunchTab } from './HeroDetailLaunchTab';
 import { HeroDetailProfilesTab } from './HeroDetailProfilesTab';
 import type { HeroDetailTabId } from './hero-detail-model';
 import { displayPath } from './hero-detail-model';
@@ -37,6 +36,10 @@ export interface HeroDetailPanelsProps {
   profileList?: ProfileSummary[];
   /** Phase 1 channel: panel-body → shell request, distinct from `HeroDetailTabs#onActiveTabChange`. Consumed by Phase 7 Overview deep-links. */
   onSetActiveTab?: (tab: HeroDetailTabId) => void;
+  onPreviewLaunch?: (request: LaunchRequest) => void | Promise<void>;
+  onLaunch?: (name: string) => void | Promise<void>;
+  launchingName?: string;
+  displayProfileName?: string;
 }
 
 function formatLaunchTime(iso: string): string {
@@ -60,257 +63,6 @@ function launchStatusLabel(status: string): string {
     default:
       return status;
   }
-}
-
-function groupEnvBySource(vars: PreviewEnvVar[]): Array<{ label: string; vars: PreviewEnvVar[] }> {
-  return groupPreviewEnvBySource(vars).map(([label, entries]) => ({
-    label,
-    vars: [...entries].sort((a, b) => a.key.localeCompare(b.key)),
-  }));
-}
-
-function formatGeneratedAt(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) {
-    return iso;
-  }
-  return date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' });
-}
-
-function issueTone(severity: 'fatal' | 'warning' | 'info'): string {
-  if (severity === 'fatal') return 'Error';
-  if (severity === 'warning') return 'Warning';
-  return 'Info';
-}
-
-function formatEnvDump(vars: PreviewEnvVar[]): string {
-  return vars.map((envVar) => `${envVar.key} = ${JSON.stringify(envVar.value)}`).join('\n');
-}
-
-function LaunchPreviewSection({
-  title,
-  ariaLabel,
-  children,
-}: {
-  title: string;
-  ariaLabel: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="crosshook-hero-detail__section crosshook-hero-detail__section--card" aria-label={ariaLabel}>
-      <h3 className="crosshook-hero-detail__section-title">{title}</h3>
-      {children}
-    </section>
-  );
-}
-
-function LaunchPreviewSummarySection({ preview }: { preview: LaunchPreview }) {
-  return (
-    <LaunchPreviewSection title="Summary" ariaLabel="Summary">
-      <div className="crosshook-hero-detail__kv-list">
-        <p className="crosshook-hero-detail__kv-item">
-          <span className="crosshook-hero-detail__kv-key">Method</span>
-          <span className="crosshook-hero-detail__kv-value">{launchMethodLabel(preview.resolved_method)}</span>
-        </p>
-        <p className="crosshook-hero-detail__kv-item">
-          <span className="crosshook-hero-detail__kv-key">Game executable</span>
-          <span className="crosshook-hero-detail__kv-value crosshook-hero-detail__mono">
-            {preview.game_executable_name || preview.game_executable}
-          </span>
-        </p>
-        <p className="crosshook-hero-detail__kv-item">
-          <span className="crosshook-hero-detail__kv-key">Working directory</span>
-          <span className="crosshook-hero-detail__kv-value crosshook-hero-detail__mono">
-            {preview.working_directory || 'Not set'}
-          </span>
-        </p>
-        <p className="crosshook-hero-detail__kv-item">
-          <span className="crosshook-hero-detail__kv-key">Generated</span>
-          <span className="crosshook-hero-detail__kv-value">{formatGeneratedAt(preview.generated_at)}</span>
-        </p>
-      </div>
-    </LaunchPreviewSection>
-  );
-}
-
-function LaunchPreviewValidationSection({ preview }: { preview: LaunchPreview }) {
-  return (
-    <LaunchPreviewSection title="Validation" ariaLabel="Validation">
-      {preview.validation.issues.length === 0 ? (
-        <p className="crosshook-hero-detail__text">All checks passed.</p>
-      ) : (
-        <ul className="crosshook-hero-detail__issue-list" aria-label="Launch validation issues">
-          {preview.validation.issues.map((issue) => (
-            <li
-              key={`${issue.severity}-${issue.code ?? 'none'}-${issue.message}-${issue.help}`}
-              className="crosshook-hero-detail__issue"
-            >
-              <span className="crosshook-hero-detail__issue-severity">{issueTone(issue.severity)}:</span>{' '}
-              {issue.message}
-              {issue.help ? <span className="crosshook-hero-detail__text--small"> — {issue.help}</span> : null}
-            </li>
-          ))}
-        </ul>
-      )}
-    </LaunchPreviewSection>
-  );
-}
-
-function LaunchPreviewCommandChainSection({ preview }: { preview: LaunchPreview }) {
-  return (
-    <LaunchPreviewSection title="Command chain" ariaLabel="Command chain">
-      {preview.wrappers && preview.wrappers.length > 0 ? (
-        <p className="crosshook-hero-detail__text">
-          <span className="crosshook-hero-detail__label">Wrappers: </span>
-          <span className="crosshook-hero-detail__mono">{preview.wrappers.join(' -> ')}</span>
-        </p>
-      ) : null}
-      {preview.effective_command ? (
-        <pre className="crosshook-hero-detail__command-block">{preview.effective_command}</pre>
-      ) : (
-        <p className="crosshook-hero-detail__muted">No effective command resolved.</p>
-      )}
-      {preview.steam_launch_options ? (
-        <>
-          <p className="crosshook-hero-detail__label">Steam launch options</p>
-          <pre className="crosshook-hero-detail__command-block">{preview.steam_launch_options}</pre>
-        </>
-      ) : null}
-      {preview.directives_error ? <p className="crosshook-hero-detail__warn">{preview.directives_error}</p> : null}
-    </LaunchPreviewSection>
-  );
-}
-
-function LaunchPreviewProtonSetupSection({ preview }: { preview: LaunchPreview }) {
-  if (!preview.proton_setup) {
-    return null;
-  }
-
-  return (
-    <LaunchPreviewSection title="Proton setup" ariaLabel="Proton setup">
-      <div className="crosshook-hero-detail__kv-list">
-        <p className="crosshook-hero-detail__kv-item">
-          <span className="crosshook-hero-detail__kv-key">Proton executable</span>
-          <span className="crosshook-hero-detail__kv-value crosshook-hero-detail__mono">
-            {preview.proton_setup.proton_executable}
-          </span>
-        </p>
-        <p className="crosshook-hero-detail__kv-item">
-          <span className="crosshook-hero-detail__kv-key">Wine prefix</span>
-          <span className="crosshook-hero-detail__kv-value crosshook-hero-detail__mono">
-            {preview.proton_setup.wine_prefix_path}
-          </span>
-        </p>
-        <p className="crosshook-hero-detail__kv-item">
-          <span className="crosshook-hero-detail__kv-key">Compat data</span>
-          <span className="crosshook-hero-detail__kv-value crosshook-hero-detail__mono">
-            {preview.proton_setup.compat_data_path}
-          </span>
-        </p>
-        <p className="crosshook-hero-detail__kv-item">
-          <span className="crosshook-hero-detail__kv-key">Steam client</span>
-          <span className="crosshook-hero-detail__kv-value crosshook-hero-detail__mono">
-            {preview.proton_setup.steam_client_install_path}
-          </span>
-        </p>
-      </div>
-    </LaunchPreviewSection>
-  );
-}
-
-function LaunchPreviewTrainerSection({ preview }: { preview: LaunchPreview }) {
-  if (!preview.trainer) {
-    return null;
-  }
-
-  return (
-    <LaunchPreviewSection title="Trainer" ariaLabel="Trainer">
-      <div className="crosshook-hero-detail__kv-list">
-        <p className="crosshook-hero-detail__kv-item">
-          <span className="crosshook-hero-detail__kv-key">Path</span>
-          <span className="crosshook-hero-detail__kv-value crosshook-hero-detail__mono">{preview.trainer.path}</span>
-        </p>
-        <p className="crosshook-hero-detail__kv-item">
-          <span className="crosshook-hero-detail__kv-key">Host path</span>
-          <span className="crosshook-hero-detail__kv-value crosshook-hero-detail__mono">
-            {preview.trainer.host_path}
-          </span>
-        </p>
-        <p className="crosshook-hero-detail__kv-item">
-          <span className="crosshook-hero-detail__kv-key">Loading mode</span>
-          <span className="crosshook-hero-detail__kv-value">{preview.trainer.loading_mode}</span>
-        </p>
-        {preview.trainer.staged_path ? (
-          <p className="crosshook-hero-detail__kv-item">
-            <span className="crosshook-hero-detail__kv-key">Staged path</span>
-            <span className="crosshook-hero-detail__kv-value crosshook-hero-detail__mono">
-              {preview.trainer.staged_path}
-            </span>
-          </p>
-        ) : null}
-      </div>
-    </LaunchPreviewSection>
-  );
-}
-
-function LaunchPreviewEnvironmentSection({ preview }: { preview: LaunchPreview }) {
-  const groupedEnv = preview.environment ? groupEnvBySource(preview.environment) : [];
-
-  return (
-    <LaunchPreviewSection title="Environment" ariaLabel="Environment">
-      {groupedEnv.length > 0 ? (
-        <div className="crosshook-hero-detail__env-groups">
-          {groupedEnv.map((group) => (
-            <details key={group.label} className="crosshook-hero-detail__env-group">
-              <summary className="crosshook-hero-detail__env-group-summary">
-                {group.label} ({group.vars.length})
-              </summary>
-              <pre className="crosshook-hero-detail__command-block">{formatEnvDump(group.vars)}</pre>
-            </details>
-          ))}
-        </div>
-      ) : (
-        <p className="crosshook-hero-detail__muted">No environment variables resolved.</p>
-      )}
-      {preview.cleared_variables.length > 0 ? (
-        <details className="crosshook-hero-detail__env-group">
-          <summary className="crosshook-hero-detail__env-group-summary">
-            Cleared variables ({preview.cleared_variables.length})
-          </summary>
-          <pre className="crosshook-hero-detail__command-block">{preview.cleared_variables.join('\n')}</pre>
-        </details>
-      ) : null}
-    </LaunchPreviewSection>
-  );
-}
-
-function LaunchPreviewRawDumpSection({ preview }: { preview: LaunchPreview }) {
-  if (!preview.display_text) {
-    return null;
-  }
-
-  return (
-    <LaunchPreviewSection title="Raw preview" ariaLabel="Raw preview">
-      <details className="crosshook-hero-detail__env-group">
-        <summary className="crosshook-hero-detail__env-group-summary">Raw preview dump</summary>
-        <pre className="crosshook-hero-detail__command-block">{preview.display_text}</pre>
-      </details>
-    </LaunchPreviewSection>
-  );
-}
-
-function LaunchPreviewStructuredView({ preview }: { preview: LaunchPreview }) {
-  return (
-    <>
-      <LaunchPreviewSummarySection preview={preview} />
-      <LaunchPreviewValidationSection preview={preview} />
-      <LaunchPreviewCommandChainSection preview={preview} />
-      <LaunchPreviewProtonSetupSection preview={preview} />
-      <LaunchPreviewTrainerSection preview={preview} />
-      <LaunchPreviewEnvironmentSection preview={preview} />
-      <LaunchPreviewRawDumpSection preview={preview} />
-    </>
-  );
 }
 
 function HistoryPanel({ profileName }: { profileName: string }) {
@@ -373,6 +125,10 @@ export function HeroDetailPanels({
   preview,
   previewError,
   profileList,
+  onPreviewLaunch,
+  onLaunch,
+  launchingName,
+  displayProfileName,
 }: HeroDetailPanelsProps) {
   switch (mode) {
     case 'overview':
@@ -402,19 +158,21 @@ export function HeroDetailPanels({
         />
       );
     case 'launch-options':
+      // Deliberately does not forward `updateProfile`: HeroDetailLaunchTab reads it from
+      // useProfileContext() (GameDetail wraps the hero detail in ProfileProvider). If this panel
+      // is reused outside that tree, extend HeroDetailLaunchTab to accept an optional override.
       return (
-        <div className="crosshook-hero-detail__panel-grid">
-          {!launchRequest ? (
-            <p className="crosshook-hero-detail__muted">
-              Launch preview is unavailable until the game executable is set on this profile.
-            </p>
-          ) : null}
-          {launchRequest && previewLoading ? (
-            <p className="crosshook-hero-detail__muted">Building launch preview…</p>
-          ) : null}
-          {previewError ? <p className="crosshook-hero-detail__warn">{previewError}</p> : null}
-          {preview && launchRequest ? <LaunchPreviewStructuredView preview={preview} /> : null}
-        </div>
+        <HeroDetailLaunchTab
+          summary={summary}
+          launchRequest={launchRequest}
+          previewLoading={previewLoading}
+          preview={preview}
+          previewError={previewError}
+          onPreviewLaunch={onPreviewLaunch}
+          onLaunch={onLaunch}
+          launchingName={launchingName}
+          displayProfileName={displayProfileName}
+        />
       );
     case 'trainer':
       return (

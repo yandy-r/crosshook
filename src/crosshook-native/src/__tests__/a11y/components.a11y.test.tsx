@@ -239,29 +239,31 @@ describe('HeroDetailTabs accessibility', () => {
     const summary = makeLibraryCardData();
     renderWithMocks(
       <ProfileProvider>
-        <HeroDetailTabs
-          activeTab="launch-options"
-          onActiveTabChange={noop}
-          panelProps={{
-            summary,
-            steamAppId: summary.steamAppId ?? '',
-            meta: META_STUB,
-            profile: null,
-            loadState: 'idle',
-            profileError: null,
-            healthReport: undefined,
-            healthLoading: false,
-            offlineReport: undefined,
-            offlineError: null,
-            launchRequest: null,
-            previewLoading: false,
-            preview: null,
-            previewError: null,
-            updateProfile: undefined,
-            profileList: undefined,
-            onSetActiveTab: undefined,
-          }}
-        />
+        <PreferencesProvider>
+          <HeroDetailTabs
+            activeTab="launch-options"
+            onActiveTabChange={noop}
+            panelProps={{
+              summary,
+              steamAppId: summary.steamAppId ?? '',
+              meta: META_STUB,
+              profile: null,
+              loadState: 'idle',
+              profileError: null,
+              healthReport: undefined,
+              healthLoading: false,
+              offlineReport: undefined,
+              offlineError: null,
+              launchRequest: null,
+              previewLoading: false,
+              preview: null,
+              previewError: null,
+              updateProfile: undefined,
+              profileList: undefined,
+              onSetActiveTab: undefined,
+            }}
+          />
+        </PreferencesProvider>
       </ProfileProvider>
     );
     expect(screen.getByTestId('hero-detail-launch-tab')).toBeInTheDocument();

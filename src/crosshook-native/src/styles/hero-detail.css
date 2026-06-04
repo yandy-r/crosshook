@@ -219,6 +219,113 @@
   color: var(--crosshook-color-text-muted);
 }
 
+.crosshook-hero-detail__launch-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.crosshook-hero-detail__launch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.crosshook-hero-detail__launch-actions > .crosshook-button {
+  order: 1;
+}
+
+.crosshook-hero-detail__launch-actions > .crosshook-hero-detail__launch-status,
+.crosshook-hero-detail__launch-actions > .crosshook-hero-detail__warn {
+  order: 2;
+  flex: 1 1 100%;
+}
+
+.crosshook-hero-detail__launch-actions .crosshook-hero-detail__launch-status {
+  margin: 0;
+  font-size: 0.78rem;
+  text-transform: none;
+  color: var(--crosshook-color-text-muted);
+}
+
+.crosshook-hero-detail__highlighted-command {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  border-radius: var(--crosshook-radius-sm);
+  border: 1px solid var(--crosshook-color-border);
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--crosshook-color-text-muted);
+  font-family: var(--crosshook-font-mono);
+  font-size: 0.78rem;
+  line-height: 1.55;
+  white-space: pre;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior: contain;
+}
+
+.crosshook-hero-detail__command-figure {
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+.crosshook-hero-detail__command-token--comment {
+  color: var(--crosshook-color-text-subtle);
+}
+
+.crosshook-hero-detail__command-token--env-key {
+  color: var(--crosshook-color-success);
+}
+
+.crosshook-hero-detail__command-token--value {
+  color: var(--crosshook-color-warning);
+}
+
+.crosshook-hero-detail__command-token--binary {
+  color: var(--crosshook-color-accent-strong);
+}
+
+.crosshook-hero-detail__command-token--flag {
+  color: var(--crosshook-color-text-muted);
+}
+
+.crosshook-hero-detail__section-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.crosshook-hero-detail__hook-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px dashed var(--crosshook-color-border-muted);
+  border-radius: var(--crosshook-radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.crosshook-hero-detail__launch-tab .crosshook-dashboard-panel-section,
+.crosshook-hero-detail__launch-tab .crosshook-dashboard-panel-section__content,
+.crosshook-hero-detail__launch-tab .crosshook-install-section,
+.crosshook-hero-detail__launch-tab .crosshook-custom-env-rows,
+.crosshook-hero-detail__launch-tab .crosshook-custom-env-row,
+.crosshook-hero-detail__launch-tab .crosshook-custom-env-fields {
+  min-width: 0;
+}
+
+.crosshook-hero-detail__launch-tab .crosshook-custom-env-fields {
+  grid-template-columns: minmax(0, 1fr) minmax(7rem, min(12rem, 34%)) auto;
+}
+
 /* Detail section typography (shared by GameDetails* sections) */
 .crosshook-hero-detail__section {
   display: flex;
@@ -476,7 +583,7 @@
   font-weight: 600;
 }
 
-.crosshook-hero-detail__launch-status {
+.crosshook-hero-detail__launch-line .crosshook-hero-detail__launch-status {
   font-size: 0.72rem;
   text-transform: capitalize;
   color: var(--crosshook-color-text-muted);
@@ -604,5 +711,31 @@
 
   .crosshook-hero-detail__below-hero {
     padding: 8px 12px 10px;
+  }
+
+  .crosshook-hero-detail__launch-tab .crosshook-custom-env-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .crosshook-hero-detail__launch-tab .crosshook-custom-env-fields .crosshook-button {
+    width: 100%;
+  }
+
+  .crosshook-hero-detail__launch-tab .crosshook-dashboard-panel-section__header {
+    align-items: stretch;
+  }
+
+  .crosshook-hero-detail__launch-tab .crosshook-dashboard-panel-section__actions,
+  .crosshook-hero-detail__launch-actions {
+    justify-content: stretch;
+  }
+
+  .crosshook-hero-detail__launch-actions .crosshook-button {
+    flex: 1 1 10rem;
+  }
+
+  .crosshook-hero-detail__hook-placeholder {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

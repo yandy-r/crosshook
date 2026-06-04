@@ -1,30 +1,34 @@
 const TRAINER_SUFFIX: &str = " - Trainer";
 const FALLBACK_SLUG: &str = "crosshook-trainer";
 
+fn sanitize_display_name(value: String) -> String {
+    value.replace(['\n', '\r', '\0'], " ")
+}
+
 pub(crate) fn resolve_display_name(
     preferred_name: &str,
     steam_app_id: &str,
     trainer_path: &str,
 ) -> String {
-    if !preferred_name.trim().is_empty() {
-        return strip_trainer_suffix(preferred_name);
-    }
-
-    let trainer_name = std::path::Path::new(trainer_path)
-        .file_stem()
-        .and_then(|value| value.to_str())
-        .unwrap_or_default()
-        .trim();
-
-    if !trainer_name.is_empty() {
-        return strip_trainer_suffix(trainer_name);
-    }
-
-    if !steam_app_id.trim().is_empty() {
-        format!("steam-{steam_app_id}-trainer")
+    let raw = if !preferred_name.trim().is_empty() {
+        strip_trainer_suffix(preferred_name)
     } else {
-        FALLBACK_SLUG.to_string()
-    }
+        let trainer_name = std::path::Path::new(trainer_path)
+            .file_stem()
+            .and_then(|value| value.to_str())
+            .unwrap_or_default()
+            .trim();
+
+        if !trainer_name.is_empty() {
+            strip_trainer_suffix(trainer_name)
+        } else if !steam_app_id.trim().is_empty() {
+            format!("steam-{steam_app_id}-trainer")
+        } else {
+            FALLBACK_SLUG.to_string()
+        }
+    };
+
+    sanitize_display_name(raw)
 }
 
 pub(crate) fn strip_trainer_suffix(value: &str) -> String {
