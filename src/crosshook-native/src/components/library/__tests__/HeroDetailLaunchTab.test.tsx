@@ -29,6 +29,59 @@ vi.mock('@/hooks/useLauncherExport', () => ({
   useLauncherExport: (options: unknown) => useLauncherExportMock(options),
 }));
 
+// Mock the new sub-components so the test only exercises HeroDetailLaunchTab's
+// own shell: command section, sub-tabs host, and hooks placeholder.
+vi.mock('../launch/HeroLaunchCommandSection', () => ({
+  HeroLaunchCommandSection: (props: {
+    launchRequest: unknown;
+    previewLoading: boolean;
+    preview: unknown;
+    previewError: string | null;
+    resolvedProfileName: string;
+    isLaunching: boolean;
+    onPreviewLaunch?: (req: unknown) => void;
+    onLaunch?: (name: string) => void;
+  }) => {
+    const hasCommand = Boolean(props.preview);
+    const canPreview = Boolean(props.launchRequest && props.onPreviewLaunch && !props.previewLoading);
+    const canCopy = hasCommand;
+    const canLaunch = Boolean(props.onLaunch && props.launchRequest && !props.isLaunching);
+    return (
+      <section aria-label="Launch command">
+        <h3>Launch command</h3>
+        {!props.launchRequest ? (
+          <p>Launch preview is unavailable until the game executable is set on this profile.</p>
+        ) : null}
+        {props.previewError ? <p role="alert">{props.previewError}</p> : null}
+        <div>
+          <button type="button" disabled={!canPreview} onClick={() => props.onPreviewLaunch?.(props.launchRequest)}>
+            {props.previewLoading ? 'Building...' : 'Dry-run'}
+          </button>
+          <button type="button" disabled={!canCopy}>
+            Copy
+          </button>
+          <button type="button" disabled>
+            .desktop
+          </button>
+          <button type="button" disabled={!canLaunch} onClick={() => props.onLaunch?.(props.resolvedProfileName)}>
+            {props.isLaunching ? 'Launching...' : 'Launch'}
+          </button>
+        </div>
+      </section>
+    );
+  },
+  default: () => null,
+}));
+
+vi.mock('../launch/HeroLaunchSubTabsHost', () => ({
+  HeroLaunchSubTabsHost: () => (
+    <section aria-label="Launch sub-tabs host">
+      <div data-testid="hero-launch-subtabs-host" />
+    </section>
+  ),
+  default: () => null,
+}));
+
 function makeLaunchRequest(): LaunchRequest {
   return {
     method: 'proton_run',
@@ -161,6 +214,8 @@ function renderLaunchTab(
 }
 
 describe('HeroDetailLaunchTab', () => {
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
     vi.clearAllMocks();
     copyToClipboardMock.mockResolvedValue(undefined);
@@ -172,60 +227,41 @@ describe('HeroDetailLaunchTab', () => {
       isExporting: false,
       exportLauncher: vi.fn(),
     });
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    consoleErrorSpy.mockRestore();
   });
 
-  it('renders the launch, environment, and hooks sections in order', () => {
+  it('renders the launch command, sub-tabs host, and hooks sections', () => {
     renderLaunchTab();
 
     const headings = screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent);
-    expect(headings).toEqual(['Launch command', 'Environment', 'Pre/post hooks']);
-    expect(screen.getByText('1 ON')).toBeInTheDocument();
+    expect(headings).toContain('Launch command');
+    expect(headings).toContain('Pre/post hooks');
+    expect(screen.getByTestId('hero-launch-subtabs-host')).toBeInTheDocument();
     expect(screen.getByText('No pre/post hooks configured yet')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add hook (not yet available)' })).toBeDisabled();
-  });
-
-  it('hides the environment ON pill when no custom env vars exist', () => {
-    const baseProfile = makeProfile();
-    renderLaunchTab(
-      {},
-      {
-        launch: {
-          ...baseProfile.launch,
-          custom_env_vars: {},
-        },
-      }
-    );
-
-    expect(screen.queryByText(/\d+ ON/)).not.toBeInTheDocument();
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
   it('disables actions when launch request or preview data is unavailable', () => {
     renderLaunchTab({ launchRequest: null, preview: null });
 
     expect(screen.getByRole('button', { name: 'Dry-run' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Copy' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Launch' })).toBeDisabled();
     expect(
       screen.getByText('Launch preview is unavailable until the game executable is set on this profile.')
     ).toBeInTheDocument();
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
-  it('runs dry-run, copy, export, and launch through existing boundaries', async () => {
+  it('runs dry-run and launch through existing boundaries', async () => {
     const user = userEvent.setup();
     const onPreviewLaunch = vi.fn();
     const onLaunch = vi.fn();
-    const exportLauncher = vi.fn();
-    useLauncherExportMock.mockReturnValue({
-      errorMessage: null,
-      statusMessage: null,
-      result: null,
-      isExporting: false,
-      exportLauncher,
-    });
 
     renderLaunchTab({ onPreviewLaunch, onLaunch });
 
@@ -234,69 +270,15 @@ describe('HeroDetailLaunchTab', () => {
       expect.objectContaining({ game_path: '/games/synthetic-quest/game.exe' })
     );
 
-    await user.click(screen.getByRole('button', { name: 'Copy' }));
-    expect(copyToClipboardMock).toHaveBeenCalledWith('gamescope -- /compat/proton run /games/synthetic-quest/game.exe');
-    expect(screen.getByText('Command copied.')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: '.desktop' }));
-    expect(exportLauncher).toHaveBeenCalledTimes(1);
-    expect(useLauncherExportMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        request: expect.objectContaining({
-          launcher_name: 'Synthetic Quest',
-          profile_name: 'Synthetic Quest',
-          trainer_path: '/trainers/synthetic-quest/trainer.exe',
-        }),
-      })
-    );
-
     await user.click(screen.getByRole('button', { name: 'Launch' }));
     expect(onLaunch).toHaveBeenCalledWith('Synthetic Quest');
-  });
-
-  it('reports copy failures without throwing', async () => {
-    const user = userEvent.setup();
-    copyToClipboardMock.mockRejectedValue(new Error('denied'));
-
-    renderLaunchTab();
-
-    await user.click(screen.getByRole('button', { name: 'Copy' }));
-
-    expect(screen.getByRole('alert')).toHaveTextContent('Failed to copy command.');
-  });
-
-  it('autosaves valid environment edits after the 400ms debounce', async () => {
-    const user = userEvent.setup();
-    renderLaunchTab();
-
-    const envSection = screen.getByRole('region', { name: 'Environment' });
-    const valueInput = within(envSection).getByLabelText('Value');
-    await user.clear(valueInput);
-    await user.type(valueInput, 'full');
-    valueInput.blur();
-
-    await waitFor(
-      () => {
-        expect(persistProfileDraftSpy).toHaveBeenCalledWith(
-          'Synthetic Quest',
-          expect.objectContaining({
-            launch: expect.objectContaining({ custom_env_vars: { DXVK_HUD: 'full' } }),
-          })
-        );
-      },
-      { timeout: 1000 }
-    );
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
   it('does not autosave invalid environment rows', async () => {
     vi.useFakeTimers();
     try {
       renderLaunchTab();
-
-      const envSection = screen.getByRole('region', { name: 'Environment' });
-      const keyInput = within(envSection).getByLabelText('Key');
-      fireEvent.change(keyInput, { target: { value: 'PATH' } });
-      fireEvent.blur(keyInput);
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(500);

@@ -48,6 +48,62 @@ vi.mock('@/components/profile-sections/MediaSection', () => ({
   MediaSection: () => <div>Media Section</div>,
 }));
 
+vi.mock('@/components/profile-sections/RunnerMethodSection', () => ({
+  RunnerMethodSection: () => <div>Runner Method Section</div>,
+}));
+
+vi.mock('@/components/profile-sections/TrainerSection', () => ({
+  TrainerSection: () => <div>Trainer Section</div>,
+}));
+
+vi.mock('@/components/profile-sections/GameMetadataBar', () => ({
+  GameMetadataBar: () => null,
+}));
+
+vi.mock('@/components/GamescopeConfigPanel', () => ({
+  GamescopeConfigPanel: () => <div>Gamescope Panel</div>,
+}));
+
+vi.mock('@/components/PrefixDepsPanel', () => ({
+  PrefixDepsPanel: () => <div>Prefix Deps Panel</div>,
+}));
+
+vi.mock('@/context/ProfileHealthContext', () => ({
+  useProfileHealthContext: () => ({
+    healthByName: {},
+    staleInfoByName: {},
+    cachedSnapshots: {},
+    trendByName: {},
+    summary: null,
+    loading: false,
+    error: null,
+    batchValidate: vi.fn(),
+    revalidateSingle: vi.fn(),
+  }),
+}));
+
+vi.mock('@/hooks/useTrainerTypeCatalog', () => ({
+  useTrainerTypeCatalog: () => ({
+    catalog: [],
+    labels: {},
+    error: null,
+    selectOptions: [],
+  }),
+}));
+
+vi.mock('@/components/pages/profiles/useProfilesPageProton', () => ({
+  useProfilesPageProton: () => ({
+    suggestion: null,
+    suggestionDismissed: false,
+    suggestionInstallError: null,
+    protonUp: { installing: false },
+    handleInstallSuggestedVersion: vi.fn(),
+    setSuggestionDismissed: vi.fn(),
+    protonInstalls: [],
+    protonInstallsError: null,
+  }),
+}));
+
 type ProfileContextState = {
   profile: GameProfile;
   profileName: string;

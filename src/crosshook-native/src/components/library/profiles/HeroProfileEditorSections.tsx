@@ -1,25 +1,80 @@
-import type { ReactNode } from 'react';
-import type { GameProfile, LaunchMethod } from '@/types/profile';
+/**
+ * Ordered, prop-driven section list for the Hero Detail profile editor.
+ *
+ * Canonical section order mirrors ProfileSubTabs.tsx (lines ~184-306):
+ *
+ *   1. Identity
+ *   2. RunnerMethod
+ *   3. Runtime
+ *   4. Game
+ *   5. GameMetadataBar
+ *   6. Media
+ *   7. Trainer (hidden for native launch)
+ *   8. Trainer-Gamescope (hidden for native launch; supports derivation notice)
+ *   9. PrefixDeps (shown when required_protontricks non-empty)
+ *  10. Runtime suggestion banner (community-recommended Proton version)
+ *  11. Health section (badges, stale note, issues list)
+ *  12. LauncherExport slot (Task 3.2)
+ *
+ * Trainer-gamescope persistence: GamescopeConfigPanel.onChange is wired to
+ * onUpdateProfile so all edits flow through the 350ms draft autosave owned
+ * by useHeroProfilesAutosave — no separate granular save is used here. The
+ * derived notice mirrors ProfileSubTabs.tsx:276-279 via
+ * resolveTrainerGamescopeForDisplay (copied from ProfileSubTabs.tsx:51-83).
+ */
+import type { ReactNode, RefObject } from 'react';
+import type { TrendDirection } from '@/hooks/useProfileHealth';
+import type { CachedHealthSnapshot, EnrichedProfileHealthReport } from '@/types/health';
+import type { GameProfile, GamescopeConfig, LaunchMethod } from '@/types/profile';
+import { DEFAULT_GAMESCOPE_CONFIG } from '@/types/profile';
 import type { ProtonInstallOption } from '@/types/proton';
+import type { ProtonUpSuggestion } from '@/types/protonup';
+import type { VersionCorrelationStatus } from '@/types/version';
+import { GamescopeConfigPanel } from '../../GamescopeConfigPanel';
+import { DashboardPanelSection } from '../../layout/DashboardPanelSection';
+import { PrefixDepsPanel } from '../../PrefixDepsPanel';
+import { GameMetadataBar } from '../../profile-sections/GameMetadataBar';
 import { GameSection } from '../../profile-sections/GameSection';
 import { MediaSection } from '../../profile-sections/MediaSection';
 import { ProfileIdentitySection } from '../../profile-sections/ProfileIdentitySection';
+import { RunnerMethodSection } from '../../profile-sections/RunnerMethodSection';
 import { RuntimeSection } from '../../profile-sections/RuntimeSection';
+import { TrainerSection } from '../../profile-sections/TrainerSection';
+import { CollapsibleSection } from '../../ui/CollapsibleSection';
+import { HeroProfileEditorHealthSection, HeroProfileEditorSuggestionBanner } from './HeroProfileEditorExtras';
 
-/**
- * Canonical section order for the Hero Detail profile editor, mirroring
- * ProfileSubTabs.tsx (lines ~184-306):
- *
- *   1. Identity          — active
- *   2. RunnerMethod      — slot prop (not yet wired; Task 2.2)
- *   3. Runtime           — active
- *   4. Game              — active
- *   5. GameMetadataBar   — slot prop (not yet wired; Task 2.2)
- *   6. Media             — active
- *   7. Trainer           — slot prop (not yet wired; Task 2.2)
- *   8. Trainer-Gamescope — slot prop (not yet wired; Task 2.2)
- *   9. LauncherExport    — slot prop (not yet wired; Task 2.2)
- */
+// ── Trainer-gamescope derivation (mirrors ProfileSubTabs.tsx:51-83) ───────────
+// Must stay in sync with LaunchRequest::resolved_trainer_gamescope in crosshook-core.
+
+function resolveTrainerGamescopeForDisplay(profile: GameProfile): {
+  config: GamescopeConfig;
+  isGeneratedFromGame: boolean;
+} {
+  const trainerGamescope = profile.launch.trainer_gamescope;
+
+  if (trainerGamescope?.enabled) {
+    return { config: trainerGamescope, isGeneratedFromGame: false };
+  }
+
+  const gameGamescope = profile.launch.gamescope;
+  if (gameGamescope?.enabled) {
+    return {
+      config: {
+        ...DEFAULT_GAMESCOPE_CONFIG,
+        ...gameGamescope,
+        enabled: true,
+        fullscreen: false,
+        borderless: false,
+        extra_args: gameGamescope.extra_args ?? [],
+      },
+      isGeneratedFromGame: true,
+    };
+  }
+
+  return { config: DEFAULT_GAMESCOPE_CONFIG, isGeneratedFromGame: false };
+}
+
+// ── Props ─────────────────────────────────────────────────────────────────────
 
 export interface HeroProfileEditorSectionsProps {
   // Core props required by the always-active sections
@@ -33,28 +88,41 @@ export interface HeroProfileEditorSectionsProps {
   onUpdateProfile: (updater: (current: GameProfile) => GameProfile) => void;
   onProfileNameChange: (value: string) => void;
 
-  // Optional slot props for sections not yet shipped in Hero Detail.
-  // Pass a non-null ReactNode to activate the slot; omit or pass undefined/null to hide it.
-  /** Slot for RunnerMethodSection (Task 2.2). */
-  runnerMethodSlot?: ReactNode;
-  /** Slot for GameMetadataBar (Task 2.2). */
-  gameMetadataBarSlot?: ReactNode;
-  /** Slot for TrainerSection (Task 2.2). */
-  trainerSlot?: ReactNode;
-  /** Slot for trainer GamescopeConfigPanel (Task 2.2). */
-  trainerGamescopeSlot?: ReactNode;
-  /** Slot for LauncherExport (Task 2.2). */
+  // GameMetadataBar
+  steamAppId?: string;
+
+  // TrainerSection
+  trainerVersion?: string | null;
+  onVersionSet?: () => void;
+
+  // Health affordances (mirrors ProfilesPage health block)
+  selectedReport?: EnrichedProfileHealthReport;
+  selectedCachedSnapshot?: CachedHealthSnapshot;
+  selectedTrend?: TrendDirection | null;
+  staleInfo?: { isStale: boolean; daysAgo: number };
+  trainerTypeDisplayName?: string;
+  showNetworkIsolationBadge?: boolean;
+  versionStatus?: VersionCorrelationStatus | null;
+  healthIssuesRef?: RefObject<HTMLDivElement>;
+
+  // Runtime suggestion banner (mirrors ProfilesPage proton suggestion)
+  suggestion?: ProtonUpSuggestion | null | undefined;
+  suggestionDismissed?: boolean;
+  suggestionInstallError?: string | null;
+  protonUpInstalling?: boolean;
+  effectiveSteamClientInstallPath?: string;
+  onInstallSuggestedVersion?: () => void;
+  onDismissSuggestion?: () => void;
+
+  /**
+   * Slot for LauncherExport panel (Task 3.2 — HeroProfileActionsBar).
+   * Pass a non-null ReactNode to activate; omit/undefined/null to hide.
+   */
   launcherExportSlot?: ReactNode;
 }
 
-/**
- * Ordered, prop-driven section list for the Hero Detail profile editor.
- * Only the 4 sections Hero Detail currently renders are active:
- * Identity, Runtime, Game, Media.
- *
- * Non-shipped sections are behind optional slot props so Task 2.2 can
- * wire them incrementally without changing this component's interface.
- */
+// ── Component ─────────────────────────────────────────────────────────────────
+
 export function HeroProfileEditorSections({
   profile,
   profileName,
@@ -65,12 +133,38 @@ export function HeroProfileEditorSections({
   protonInstallsError,
   onUpdateProfile,
   onProfileNameChange,
-  runnerMethodSlot,
-  gameMetadataBarSlot,
-  trainerSlot,
-  trainerGamescopeSlot,
+  steamAppId,
+  trainerVersion,
+  onVersionSet,
+  selectedReport,
+  selectedCachedSnapshot,
+  selectedTrend,
+  staleInfo,
+  trainerTypeDisplayName,
+  showNetworkIsolationBadge = false,
+  versionStatus,
+  healthIssuesRef,
+  suggestion,
+  suggestionDismissed = false,
+  suggestionInstallError = null,
+  protonUpInstalling = false,
+  effectiveSteamClientInstallPath = '',
+  onInstallSuggestedVersion,
+  onDismissSuggestion,
   launcherExportSlot,
 }: HeroProfileEditorSectionsProps) {
+  const supportsTrainerLaunch = launchMethod !== 'native';
+
+  // Resolve trainer-gamescope display config (derivation logic mirrors ProfileSubTabs)
+  const trainerGamescopeDisplay = resolveTrainerGamescopeForDisplay(profile);
+
+  // Trainer path for health-badge trainer-type chip visibility
+  const hasTrainerPath = profile.trainer.path.trim().length > 0;
+
+  // Prefix deps: guard sparse profiles
+  const requiredProtontricks = profile.trainer?.required_protontricks ?? [];
+  const prefixPath = profile.runtime?.prefix_path ?? profile.steam?.compatdata_path ?? '';
+
   return (
     <>
       {/* 1. Identity */}
@@ -83,8 +177,8 @@ export function HeroProfileEditorSections({
         profiles={profiles}
       />
 
-      {/* 2. RunnerMethod — not yet shipped in Hero Detail */}
-      {runnerMethodSlot ?? null}
+      {/* 2. RunnerMethod */}
+      <RunnerMethodSection profile={profile} onUpdateProfile={onUpdateProfile} />
 
       {/* 3. Runtime */}
       <RuntimeSection
@@ -98,19 +192,83 @@ export function HeroProfileEditorSections({
       {/* 4. Game */}
       <GameSection profile={profile} onUpdateProfile={onUpdateProfile} launchMethod={launchMethod} />
 
-      {/* 5. GameMetadataBar — not yet shipped in Hero Detail */}
-      {gameMetadataBarSlot ?? null}
+      {/* 5. GameMetadataBar */}
+      <GameMetadataBar steamAppId={steamAppId} />
 
       {/* 6. Media */}
       <MediaSection profile={profile} onUpdateProfile={onUpdateProfile} launchMethod={launchMethod} />
 
-      {/* 7. Trainer — not yet shipped in Hero Detail */}
-      {trainerSlot ?? null}
+      {/* 7. Trainer — hidden for native launch (TrainerSection self-guards) */}
+      {supportsTrainerLaunch ? (
+        <TrainerSection
+          profile={profile}
+          onUpdateProfile={onUpdateProfile}
+          launchMethod={launchMethod}
+          profileName={profileName}
+          profileExists={profileExists}
+          trainerVersion={trainerVersion}
+          onVersionSet={onVersionSet}
+        />
+      ) : null}
 
-      {/* 8. Trainer-Gamescope — not yet shipped in Hero Detail */}
-      {trainerGamescopeSlot ?? null}
+      {/* 8. Trainer-Gamescope — mirrors ProfileSubTabs.tsx:257-284.
+           Changes flow through onUpdateProfile into the 350ms draft autosave
+           (useHeroProfilesAutosave), not a separate granular save. */}
+      {supportsTrainerLaunch ? (
+        <DashboardPanelSection titleAs="h3" eyebrow="Trainer" title="Gamescope">
+          <GamescopeConfigPanel
+            config={trainerGamescopeDisplay.config}
+            onChange={(trainerGamescope) =>
+              onUpdateProfile((current) => ({
+                ...current,
+                launch: { ...current.launch, trainer_gamescope: trainerGamescope },
+              }))
+            }
+            isInsideGamescopeSession={false}
+            enableHint="Required when the game also launches under gamescope. The trainer runs in its own compositor window so it can display alongside the game."
+            derivedConfigNotice={
+              trainerGamescopeDisplay.isGeneratedFromGame
+                ? 'Trainer gamescope is auto-generated from the game config. Edit any value here and save the profile to create a trainer-specific override.'
+                : undefined
+            }
+          />
+        </DashboardPanelSection>
+      ) : null}
 
-      {/* 9. LauncherExport — not yet shipped in Hero Detail */}
+      {/* 9. PrefixDeps — only shown when required_protontricks is non-empty.
+           Mirrors ProfilesPage.tsx:163-171. */}
+      {requiredProtontricks.length > 0 ? (
+        <CollapsibleSection title="Prefix Dependencies" className="crosshook-panel">
+          <PrefixDepsPanel profileName={profileName} prefixPath={prefixPath} requiredPackages={requiredProtontricks} />
+        </CollapsibleSection>
+      ) : null}
+
+      {/* 10. Runtime suggestion banner — mirrors ProfilesPage.tsx:173-217 */}
+      <HeroProfileEditorSuggestionBanner
+        suggestion={suggestion ?? null}
+        suggestionDismissed={suggestionDismissed}
+        suggestionInstallError={suggestionInstallError}
+        protonUpInstalling={protonUpInstalling}
+        hasEffectiveSteamClientInstallPath={effectiveSteamClientInstallPath.trim().length > 0}
+        onInstallSuggestedVersion={onInstallSuggestedVersion ?? (() => {})}
+        onDismissSuggestion={onDismissSuggestion ?? (() => {})}
+      />
+
+      {/* 11. Health section — badges, stale note, issues list */}
+      <HeroProfileEditorHealthSection
+        selectedReport={selectedReport}
+        selectedCachedSnapshot={selectedCachedSnapshot}
+        selectedTrend={selectedTrend}
+        staleInfo={staleInfo}
+        trainerTypeDisplayName={trainerTypeDisplayName}
+        hasTrainerPath={hasTrainerPath}
+        isNonNativeLaunch={supportsTrainerLaunch}
+        showNetworkIsolationBadge={showNetworkIsolationBadge}
+        versionStatus={versionStatus}
+        healthIssuesRef={healthIssuesRef}
+      />
+
+      {/* 12. LauncherExport slot — Task 3.2 (HeroProfileActionsBar) */}
       {launcherExportSlot ?? null}
     </>
   );

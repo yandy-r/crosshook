@@ -3,6 +3,7 @@ import type { ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { PreferencesProvider } from '@/context/PreferencesContext';
 import { ProfileProvider } from '@/context/ProfileContext';
+import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
 import type { UseGameMetadataResult } from '@/hooks/useGameMetadata';
 import { makeLibraryCardData } from '@/test/fixtures';
 import type { LaunchPreview, LaunchRequest } from '@/types/launch';
@@ -195,7 +196,9 @@ function renderHeroDetailPanels(
   if (options.withProviders) {
     return render(
       <PreferencesProvider>
-        <ProfileProvider>{panel}</ProfileProvider>
+        <ProfileProvider>
+          <ProfileHealthProvider>{panel}</ProfileHealthProvider>
+        </ProfileProvider>
       </PreferencesProvider>
     );
   }
