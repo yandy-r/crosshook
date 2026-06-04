@@ -7,6 +7,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const host = process.env.TAURI_DEV_HOST;
 const isDebug = !!process.env.TAURI_ENV_DEBUG;
+const tauriDevPort = Number(process.env.CROSSHOOK_TAURI_DEV_PORT ?? 1420);
+const tauriHmrPort = Number(process.env.CROSSHOOK_TAURI_HMR_PORT ?? tauriDevPort + 1);
 
 export default defineConfig(({ mode }) => ({
   plugins: [react()],
@@ -31,14 +33,14 @@ export default defineConfig(({ mode }) => ({
           },
         }
       : {
-          port: 5173,
+          port: tauriDevPort,
           strictPort: true,
           host: host || false,
           hmr: host
             ? {
                 protocol: 'ws',
                 host,
-                port: 1421,
+                port: tauriHmrPort,
               }
             : undefined,
           watch: {

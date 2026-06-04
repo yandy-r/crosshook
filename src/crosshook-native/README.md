@@ -4,8 +4,8 @@ React + Tauri workspace for the CrossHook desktop app. Run all scripts from this
 
 ## Scripts
 
-- `npm run dev` — Vite dev server with the Tauri backend
-- `npm run dev:browser` — browser-only dev mode (`--mode webdev`, mock IPC)
+- `npm run dev` — Vite dev server with the Tauri backend (via `./scripts/dev-native.sh`; picks a free port from 1420+ so it can run alongside browser dev on 5173)
+- `npm run dev:browser` — browser-only dev mode (`--mode webdev`, mock IPC at `http://127.0.0.1:5173`)
 - `npm run build` — TypeScript build + Vite production bundle
 - `npm run typecheck` — `tsc --noEmit` for app + tests
 
