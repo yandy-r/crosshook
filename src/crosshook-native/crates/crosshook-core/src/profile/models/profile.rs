@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::game_meta::{GameSection, InjectionSection, SteamSection};
-use super::hooks::LaunchHook;
+use super::hooks::{HookStage, LaunchHook};
 use super::launch::{CollectionDefaultsSection, LaunchSection};
 use super::local_override::LocalOverrideSection;
 use super::runtime::RuntimeSection;
@@ -33,6 +33,33 @@ pub struct GameProfile {
 }
 
 impl GameProfile {
+    /// Reconciles launch-hook state with the invariants the rest of the codebase
+    /// relies on after deserialization. Pure serde cannot enforce these because a
+    /// hook's `stage` and identity are independent scalar fields.
+    ///
+    /// Performed in-place:
+    /// 1. **Stage authority** — the containing vec is authoritative for `stage`
+    ///    (see [`LaunchHook`] / [`HookStage`]). Every entry in `pre_launch_hooks`
+    ///    is forced to [`HookStage::PreLaunch`] and every entry in
+    ///    `post_exit_hooks` to [`HookStage::PostExit`], so a TOML/JSON author who
+    ///    wrote a mismatched `stage` cannot persist inconsistent state.
+    /// 2. **Identity required** — a hook with an empty `id` is unusable (the
+    ///    backend never mints ids; they are client-minted at attach time), so such
+    ///    entries are dropped rather than silently kept with empty-string identity.
+    ///
+    /// Call this on every freshly-deserialized profile before downstream use
+    /// (the `ProfileStore::load` path and the JSON import path both invoke it).
+    pub fn normalize_hooks(&mut self) {
+        for hook in &mut self.pre_launch_hooks {
+            hook.stage = HookStage::PreLaunch;
+        }
+        for hook in &mut self.post_exit_hooks {
+            hook.stage = HookStage::PostExit;
+        }
+        self.pre_launch_hooks.retain(|hook| !hook.id.is_empty());
+        self.post_exit_hooks.retain(|hook| !hook.id.is_empty());
+    }
+
     /// Returns the effective profile used at runtime where local overrides take precedence
     /// over portable base values.
     ///

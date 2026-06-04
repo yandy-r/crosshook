@@ -30,7 +30,11 @@ pub enum HookStage {
 ///   user variable (not a denylisted tool name); future execution must apply
 ///   `normalize_flatpak_host_path` and route through the host gateway.
 /// - `stage` mirrors the containing profile vec (`pre_launch_hooks` /
-///   `post_exit_hooks`), which is authoritative; producers keep them aligned.
+///   `post_exit_hooks`), which is authoritative. Producers keep them aligned, and
+///   [`GameProfile::normalize_hooks`](crate::profile::GameProfile::normalize_hooks)
+///   re-derives `stage` from the container on every load/import so a mismatched
+///   serialized value can never persist. The same step drops entries with an
+///   empty `id` (identity-less hooks are unusable).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(default)]
 #[cfg_attr(feature = "ts-rs", derive(TS))]

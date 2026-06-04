@@ -126,7 +126,10 @@ enabled = true
 }
 
 #[test]
-fn malformed_hook_missing_fields_tolerated() {
+fn malformed_hook_missing_identity_dropped() {
+    // A hook entry with no `id` deserializes (serde tolerates the missing field via
+    // `#[serde(default)]`), but identity-less hooks are unusable — `normalize_hooks`
+    // drops them so inconsistent state never reaches downstream use.
     let toml = r#"
 [game]
 executable_path = "/games/test.exe"
@@ -137,10 +140,58 @@ method = "proton-run"
 [[pre_launch_hooks]]
 path = "/usr/local/bin/hook.sh"
 "#;
-    let parsed: GameProfile = toml::from_str(toml).expect("deserialize");
+    let mut parsed: GameProfile = toml::from_str(toml).expect("deserialize");
+    assert_eq!(
+        parsed.pre_launch_hooks.len(),
+        1,
+        "raw serde still yields the empty-id entry before normalization"
+    );
+
+    parsed.normalize_hooks();
+
+    assert!(
+        parsed.pre_launch_hooks.is_empty(),
+        "identity-less hook must be dropped during normalization"
+    );
+    assert!(parsed.post_exit_hooks.is_empty());
+}
+
+#[test]
+fn normalize_hooks_forces_stage_to_container() {
+    // A `[[pre_launch_hooks]]` entry authored with the wrong `stage` value must be
+    // reconciled to its container's stage — the vec is authoritative.
+    let toml = r#"
+[game]
+executable_path = "/games/test.exe"
+
+[launch]
+method = "proton-run"
+
+[[pre_launch_hooks]]
+id = "hook-1"
+name = "Hook 1"
+path = "/usr/local/bin/hook.sh"
+stage = "post-exit"
+enabled = true
+
+[[post_exit_hooks]]
+id = "hook-2"
+name = "Hook 2"
+path = "/usr/local/bin/hook2.sh"
+stage = "pre-launch"
+enabled = true
+"#;
+    let mut parsed: GameProfile = toml::from_str(toml).expect("deserialize");
+    assert_eq!(
+        parsed.pre_launch_hooks[0].stage,
+        HookStage::PostExit,
+        "raw serde preserves the mismatched stage before normalization"
+    );
+
+    parsed.normalize_hooks();
+
     assert_eq!(parsed.pre_launch_hooks.len(), 1);
-    let hook = &parsed.pre_launch_hooks[0];
-    assert_eq!(hook.id, "");
-    assert_eq!(hook.name, "");
-    assert!(!hook.enabled);
+    assert_eq!(parsed.pre_launch_hooks[0].stage, HookStage::PreLaunch);
+    assert_eq!(parsed.post_exit_hooks.len(), 1);
+    assert_eq!(parsed.post_exit_hooks[0].stage, HookStage::PostExit);
 }

@@ -106,12 +106,14 @@ useEffect(() => {
   off, global cleanup). Tests in colocated `__tests__/`. Render via `renderWithMocks`
   (`src/test/render.tsx`); pure presentational components may use bare `render` + `vi.fn()`.
 - `vi.mock('@/lib/ipc', …)` boilerplate (verbatim, `LibraryPage.test.tsx:16-19`):
+
   ```ts
   vi.mock('@/lib/ipc', async () => {
     const { mockCallCommand } = await import('@/test/render');
     return { callCommand: mockCallCommand };
   });
   ```
+
 - Intent-prop test pattern: `LibraryPage.test.tsx:225-249` (pass intent on initial render +
   `handlerOverrides` + `waitFor`). Fixture factory: `makeLibraryCardData` (`src/test/fixtures.ts:64-76`).
 - **GOTCHA**: tests touching `LibraryPage`/`AppShell` must stub `localStorage` in `beforeEach`
@@ -217,13 +219,16 @@ text-transform: uppercase; color: var(--crosshook-color-accent-strong);` on the 
 
 1. Replace `HeroDetailHeader.tsx:123` `<p className="crosshook-hero-detail__eyebrow">Library</p>`
    with:
+
    ```tsx
    <Breadcrumb
      className="crosshook-hero-detail__breadcrumb"
      segments={[{ label: 'Library', onNavigate: onBack }, { label: displayName }]}
    />
    ```
+
    Back button (`:53-55`) untouched.
+
 2. `hero-detail.css` — add `.crosshook-hero-detail__breadcrumb` override next to the old
    `__eyebrow` rule (`:39-46`) matching its metrics (`font-size: 0.72rem; letter-spacing: 0.04em;
 color: var(--crosshook-color-text-subtle);` margin reset). Keep the now-unused
@@ -251,6 +256,7 @@ color: var(--crosshook-color-text-subtle);` margin reset). Keep the now-unused
    (The `onBack`-before-`onEdit` ordering in `game-details-actions.ts` is safe — `summaries` is
    unaffected by detail teardown.)
 3. Intent consumption (durable) — new effect mirroring `:99-106`:
+
    ```ts
    useEffect(() => {
      if (!openGameDetailIntent) return;
@@ -258,8 +264,10 @@ color: var(--crosshook-color-text-subtle);` margin reset). Keep the now-unused
      void handleOpenGameDetail(openGameDetailIntent.profileName);
    }, [openGameDetailIntent, handleOpenGameDetail]);
    ```
+
    (`handleOpenGameDetail` re-creates when `summaries` changes, so the effect re-runs once
    summaries load; no separate `summaries` dep needed. Verify lint accepts the dep array.)
+
 4. Tests (extend existing harness; thread the new prop through `renderLibraryHarness` /
    `LibraryPageWithInspector`; keep `localStorage` stubs):
    - edit action calls `onNavigate` with `('profiles', { gameDetailOrigin: { profileName, displayName } })`;
@@ -294,6 +302,7 @@ color: var(--crosshook-color-text-subtle);` margin reset). Keep the now-unused
    `origin={gameDetailOrigin} onNavigate={onNavigate}` to `<ProfilesPage>` and `<LaunchPage>`
    (annotated interim on those two lines).
 3. **`game-detail-trail.ts`** (new, whole file annotated interim) — DRY helper shared by both pages:
+
    ```ts
    export function buildGameDetailTrail(
      origin: GameDetailOrigin | null | undefined,
@@ -301,19 +310,24 @@ color: var(--crosshook-color-text-subtle);` margin reset). Keep the now-unused
      terminalLabel: 'Edit profile' | 'Launch'
    ): BreadcrumbSegment[] | undefined;
    ```
+
    Returns `undefined` when `origin` or `onNavigate` is missing; else
    `[{ label: 'Library', onNavigate: () => onNavigate('library') }, { label: origin.displayName, onNavigate: () => onNavigate('library', { openGameDetail: origin.profileName }) }, { label: terminalLabel }]`.
+
 4. **LaunchPage**: add props interface `{ origin?: GameDetailOrigin | null; onNavigate?: (route: AppRoute, options?: AppNavigateOptions) => void }`
    (annotated interim); `<RouteBanner route="launch" trail={buildGameDetailTrail(origin, onNavigate, 'Launch')} />`.
 5. **ProfilesPage**: same props interface (annotated interim). At the top of
    `.crosshook-profiles-page__body`, before `<ProfilesHero …>`, conditionally render:
+
    ```tsx
    {
      trail ? <Breadcrumb segments={trail} /> : null;
    }
    ```
+
    with `const trail = buildGameDetailTrail(origin, onNavigate, 'Edit profile');` — page is
    byte-identical when no origin (R3/R7). (Spec deviation #1.)
+
 6. **AppShell.test.tsx** additions (existing harness; keep `localStorage` stubs + real-UI driving):
    - open `Test Game Alpha` detail → click `Edit profile` → assert
      `getByRole('navigation', { name: 'Breadcrumb' })` visible and contains `Library`, the game

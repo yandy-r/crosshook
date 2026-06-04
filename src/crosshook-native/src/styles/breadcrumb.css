@@ -13,6 +13,9 @@
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.35em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .crosshook-breadcrumb__item {

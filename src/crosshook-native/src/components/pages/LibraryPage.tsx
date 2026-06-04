@@ -210,13 +210,19 @@ export function LibraryPage({
     [selectProfile, summaries, setLibraryShellMode]
   );
 
+  const handledOpenGameDetailTokenRef = useRef<number | null>(null);
+
   useEffect(() => {
     if (!openGameDetailIntent) {
       return;
     }
+    if (handledOpenGameDetailTokenRef.current === openGameDetailIntent.token) {
+      return; // already consumed this intent token; don't replay on summaries changes
+    }
     if (!summaries.some((s) => s.name === openGameDetailIntent.profileName)) {
       return; // R6: unknown profile — drop the intent silently
     }
+    handledOpenGameDetailTokenRef.current = openGameDetailIntent.token;
     void handleOpenGameDetail(openGameDetailIntent.profileName);
   }, [openGameDetailIntent, handleOpenGameDetail, summaries]);
 

@@ -15,7 +15,7 @@ export function Breadcrumb({ segments, className }: BreadcrumbProps) {
     <nav className={className ? `crosshook-breadcrumb ${className}` : 'crosshook-breadcrumb'} aria-label="Breadcrumb">
       <ol className="crosshook-breadcrumb__list crosshook-list-reset">
         {segments.map(({ label, onNavigate }, index) => (
-          <li key={label || index} className="crosshook-breadcrumb__item">
+          <li key={`${index}:${label}`} className="crosshook-breadcrumb__item">
             {index > 0 && (
               <span className="crosshook-breadcrumb__separator" aria-hidden="true">
                 ›

@@ -541,6 +541,19 @@ describe('AppShell (integration)', () => {
         expect(screen.getByTestId('sidebar')).toBeInTheDocument();
       });
 
+      // First establish an origin-backed breadcrumb: open a game's detail and edit its profile.
+      const libraryTab = screen.getByRole('tab', { name: /^Library$/ });
+      await user.click(libraryTab);
+
+      await user.click(screen.getByRole('button', { name: 'View details for Test Game Alpha' }));
+
+      const gameDetail = await screen.findByTestId('game-detail');
+      await user.click(within(gameDetail).getByRole('button', { name: 'Edit profile' }));
+
+      await waitFor(() => {
+        expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toBeInTheDocument();
+      });
+
       // Navigate to Profiles via command palette (no origin) — use the exact title to avoid
       // ambiguity with other commands that mention "profiles" in their subtitle/keywords.
       await user.keyboard('{Control>}k{/Control}');

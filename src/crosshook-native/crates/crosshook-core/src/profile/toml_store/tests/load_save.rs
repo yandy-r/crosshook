@@ -120,6 +120,52 @@ fn save_load_then_merge_collection_defaults_preserves_local_override_paths() {
 }
 
 #[test]
+fn load_normalizes_hook_stage_and_drops_identity_less_hooks() {
+    let temp_dir = tempdir().unwrap();
+    let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+    let profile_path = store.base_path.join("hooks.toml");
+
+    fs::create_dir_all(&store.base_path).unwrap();
+    // `pre-a` carries a mismatched stage; `` (empty id) is identity-less and must be
+    // dropped. Both anomalies are only reconciled when the profile is loaded.
+    fs::write(
+        &profile_path,
+        r#"[game]
+executable_path = "/games/test.exe"
+
+[launch]
+method = "native"
+
+[[pre_launch_hooks]]
+id = "pre-a"
+name = "Pre A"
+path = "/usr/local/bin/pre-a.sh"
+stage = "post-exit"
+enabled = true
+
+[[pre_launch_hooks]]
+name = "No Identity"
+path = "/usr/local/bin/orphan.sh"
+enabled = true
+"#,
+    )
+    .unwrap();
+
+    let loaded = store.load("hooks").unwrap();
+    assert_eq!(
+        loaded.pre_launch_hooks.len(),
+        1,
+        "identity-less hook should be dropped on load"
+    );
+    assert_eq!(loaded.pre_launch_hooks[0].id, "pre-a");
+    assert_eq!(
+        loaded.pre_launch_hooks[0].stage,
+        crate::profile::models::HookStage::PreLaunch,
+        "stage must be forced to match the pre_launch_hooks container on load"
+    );
+}
+
+#[test]
 fn load_defaults_runtime_when_runtime_section_is_missing() {
     let temp_dir = tempdir().unwrap();
     let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));

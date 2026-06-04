@@ -46,6 +46,11 @@ pub(super) fn sanitize_profile_for_community_export(profile: &GameProfile) -> Ga
 pub(super) fn hydrate_imported_profile(profile: &GameProfile) -> GameProfile {
     let mut hydrated = profile.effective_profile();
 
+    // Reconcile hook stage with its container and drop identity-less hooks before
+    // any downstream use — JSON manifests are untrusted and may carry a mismatched
+    // `stage` or an entry missing its client-minted `id`.
+    hydrated.normalize_hooks();
+
     // Imported profiles must never auto-execute a hook, even after hook runtime lands.
     // Force-disable all hooks regardless of the `enabled` value in the manifest — an
     // attacker-controlled JSON could set `enabled = true` to gain execution on import.
