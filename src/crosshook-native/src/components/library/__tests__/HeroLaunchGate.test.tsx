@@ -14,7 +14,7 @@
  * HeroLaunchCommandSection and HeroLaunchSubTabsHost are stubbed so tests
  * stay focused on HeroLaunchGate's own orchestration logic.
  */
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeLaunchPreview, makeLaunchRequest, makeProfileDraft } from '@/test/fixtures';
@@ -44,6 +44,11 @@ vi.mock('@/context/LaunchStateContext', () => ({
 const useLaunchDepGateMock = vi.fn();
 vi.mock('@/components/pages/launch/useLaunchDepGate', () => ({
   useLaunchDepGate: (opts: unknown) => useLaunchDepGateMock(opts),
+}));
+
+const copyToClipboardMock = vi.fn();
+vi.mock('@/utils/clipboard', () => ({
+  copyToClipboard: (text: string) => copyToClipboardMock(text),
 }));
 
 // ── Sub-component mocks ───────────────────────────────────────────────────────
@@ -108,8 +113,16 @@ vi.mock('@/components/LaunchPipeline', () => ({
 }));
 
 vi.mock('@/components/launch-panel/LaunchPanelFeedback', () => ({
-  LaunchPanelFeedback: (props: { feedback: { kind: string } }) => (
-    <div role="alert" data-testid="launch-feedback" data-kind={props.feedback.kind} />
+  LaunchPanelFeedback: (props: {
+    feedback: { kind: string };
+    diagnosticCopyLabel: string;
+    onCopyDiagnosticReport: () => void;
+  }) => (
+    <div role="alert" data-testid="launch-feedback" data-kind={props.feedback.kind}>
+      <button type="button" onClick={props.onCopyDiagnosticReport}>
+        {props.diagnosticCopyLabel}
+      </button>
+    </div>
   ),
 }));
 
@@ -218,11 +231,13 @@ describe('HeroLaunchGate', () => {
     selectProfileSpy.mockResolvedValue(undefined);
     launchGameSpy.mockResolvedValue(undefined);
     launchTrainerSpy.mockResolvedValue(undefined);
+    copyToClipboardMock.mockResolvedValue(undefined);
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
     consoleErrorSpy.mockRestore();
+    vi.useRealTimers();
   });
 
   // ── Basic rendering ──────────────────────────────────────────────────────────
@@ -273,6 +288,67 @@ describe('HeroLaunchGate', () => {
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
+  it('clears stale diagnostic copy reset timers across repeated clicks and unmount', async () => {
+    vi.useFakeTimers();
+    const clearTimeoutSpy = vi.spyOn(window, 'clearTimeout');
+    const depGate = makeBaseDepGate();
+    profileContextMock.mockReturnValue(makeProfileCtx());
+    preferencesContextMock.mockReturnValue({
+      settings: { umu_preference: 'auto', auto_install_prefix_deps: false },
+    });
+    launchStateContextMock.mockReturnValue(
+      makeLaunchStateCtx({
+        feedback: {
+          kind: 'diagnostic',
+          report: {
+            summary: 'Launch failed',
+            exit_info: { description: 'Synthetic diagnostic', failure_mode: 'process_exit', code: 1, signal: null },
+            pattern_matches: [],
+            suggestions: [],
+            severity: 'warning',
+            analyzed_at: '2026-06-04T16:07:10-04:00',
+            log_tail_path: null,
+          },
+        },
+      })
+    );
+    useLaunchDepGateMock.mockReturnValue(depGate);
+
+    const { unmount } = render(
+      <HeroLaunchGate
+        launchRequest={makeLaunchRequest()}
+        previewLoading={false}
+        preview={makeLaunchPreview()}
+        previewError={null}
+        resolvedProfileName="Synthetic Quest"
+        resolvedSteamAppId="9999001"
+        hasSavedSelectedProfile={true}
+        profileMismatch={false}
+        displayProfileName="Synthetic Quest"
+        isLaunching={false}
+      />
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Copy Report' }));
+    });
+    expect(screen.getByRole('button', { name: 'Copied!' })).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Copied!' }));
+    });
+
+    expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
+    unmount();
+    expect(clearTimeoutSpy).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      vi.runOnlyPendingTimers();
+    });
+
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
+
   it('forwards isGamescopeRunning from depGate to HeroLaunchSubTabsHost', () => {
     const depGate = makeBaseDepGate({ isGamescopeRunning: true });
     profileContextMock.mockReturnValue(makeProfileCtx());
@@ -303,7 +379,7 @@ describe('HeroLaunchGate', () => {
 
   // ── selectProfile-first gate ─────────────────────────────────────────────────
 
-  it('calls selectProfile before launch when displayed ≠ selected profile', async () => {
+  it('selects the displayed profile and aborts the current launch when displayed ≠ selected profile', async () => {
     const depGate = makeBaseDepGate({ handleBeforeLaunch: vi.fn().mockResolvedValue(true) });
     profileContextMock.mockReturnValue(
       makeProfileCtx({
@@ -332,16 +408,18 @@ describe('HeroLaunchGate', () => {
       />
     );
 
-    // Trigger the before-launch hook directly.
     expect(capturedOnBeforeLaunch).toBeDefined();
+    let result: boolean | undefined;
     await act(async () => {
-      await capturedOnBeforeLaunch?.('game');
+      result = await capturedOnBeforeLaunch?.('game');
     });
 
     expect(selectProfileSpy).toHaveBeenCalledWith(
       'Synthetic Quest',
       expect.objectContaining({ collectionId: undefined })
     );
+    expect(depGate.handleBeforeLaunch).not.toHaveBeenCalled();
+    expect(result).toBe(false);
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 

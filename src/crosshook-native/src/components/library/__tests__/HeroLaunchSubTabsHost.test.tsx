@@ -3,8 +3,8 @@
  *
  * Tests:
  *  - LaunchSubTabs is rendered with correct isInsideGamescopeSession prop
- *  - profileMismatch=true renders disabled overlay with hint text and
- *    passes aria-disabled to the wrapper, but LaunchSubTabs remains in DOM
+ *  - profileMismatch=true renders disabled overlay with hint text,
+ *    passes aria-disabled to the wrapper, and unmounts LaunchSubTabs
  *  - profileMismatch=false renders without the overlay
  *
  * Strategy A: hand-rolled vi.mock of ProfileContext, LaunchSubTabs, and
@@ -136,9 +136,9 @@ describe('HeroLaunchSubTabsHost', () => {
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
-  it('LaunchSubTabs remains in the DOM when profileMismatch=true (disabled-not-removed)', () => {
+  it('unmounts LaunchSubTabs when profileMismatch=true', () => {
     renderSubTabsHost({ profileMismatch: true });
-    expect(screen.getByTestId('launch-subtabs')).toBeInTheDocument();
+    expect(screen.queryByTestId('launch-subtabs')).not.toBeInTheDocument();
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 

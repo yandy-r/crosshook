@@ -12,18 +12,18 @@
  * - Accepts `setPendingLauncherReExport` as a parameter since that's caller-owned
  *   cross-cutting UI state (launcher re-export banner after rename).
  * - The rename modal / toast / undo / F2 wiring is delegated to
- *   `useProfilesPageNotifications` (unchanged) and re-exported for callers.
+ *   `useProfileNotifications` and re-exported for callers.
  * - Single persistence path: context mutators / existing IPC hook surfaces only.
  *   No raw `invoke('profile_save*')` calls.
  */
 import { useCallback, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
-import { useProfilesPageNotifications } from '../../components/pages/profiles/useProfilesPageNotifications';
 import { suggestedCommunityExportFilename } from '../../components/pages/profiles/utils';
 import { useProfileContext } from '../../context/ProfileContext';
 import { useProfileHealthContext } from '../../context/ProfileHealthContext';
 import { chooseSaveFile } from '../../utils/dialog';
 import type { CommunityExportResult } from '../useCommunityProfiles';
+import { useProfileNotifications } from './useProfileNotifications';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -76,7 +76,7 @@ export interface UseProfileActionsResult {
   openWizard: (mode: 'create' | 'edit') => void;
   setShowWizard: (open: boolean) => void;
 
-  // --- Rename modal / toast / F2 (delegated to useProfilesPageNotifications) ---
+  // --- Rename modal / toast / F2 (delegated to useProfileNotifications) ---
   canConfirmRename: boolean;
   dismissHealthBanner: () => void;
   dismissRenameToast: () => void;
@@ -86,7 +86,7 @@ export interface UseProfileActionsResult {
   renameError: string | null;
   renameInputRef: React.RefObject<HTMLInputElement>;
   renameNameTrimmed: string;
-  renameToast: import('../../components/pages/profiles/constants').RenameToast | null;
+  renameToast: import('./profileNotificationConstants').RenameToast | null;
   renameToastDismissed: boolean;
   renameValue: string;
   setPendingRename: (name: string | null) => void;
@@ -160,7 +160,7 @@ export function useProfileActions({ setPendingLauncherReExport }: UseProfileActi
     !exportingCommunity;
 
   // --- Rename notifications (F2 / modal / toast / undo) ---
-  const notifications = useProfilesPageNotifications({
+  const notifications = useProfileNotifications({
     canRename,
     hasPendingDelete: pendingDelete !== null,
     profiles,

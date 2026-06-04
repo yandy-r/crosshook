@@ -331,6 +331,20 @@ describe('HeroProfileActionsBar', () => {
       expect(confirmDelete).toHaveBeenCalledWith(defaultSelectedProfile);
     });
 
+    it('disables delete and does not call confirmDelete when canDelete is false', async () => {
+      const user = userEvent.setup();
+      const confirmDelete = vi.fn().mockResolvedValue(undefined);
+      profileContextMock.mockImplementation(() => buildProfileContext({ confirmDelete }));
+
+      renderActionsBar({ canDelete: false });
+
+      const deleteButton = screen.getByRole('button', { name: /^delete$/i });
+      expect(deleteButton).toBeDisabled();
+      await user.click(deleteButton);
+
+      expect(confirmDelete).not.toHaveBeenCalled();
+    });
+
     it('renders delete confirm overlay when pendingDelete is set', () => {
       profileContextMock.mockImplementation(() =>
         buildProfileContext({

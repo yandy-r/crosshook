@@ -18,7 +18,7 @@
  * `useProfileActions`). The listener attaches to `document` and is cleaned up
  * on component unmount — same lifecycle as the legacy ProfilesPage approach.
  */
-import type { ComponentProps, RefObject } from 'react';
+import type { ComponentProps } from 'react';
 import { useProfileContext } from '@/context/ProfileContext';
 import { useProfileHealthContext } from '@/context/ProfileHealthContext';
 import type { UseProfileActionsResult } from '@/hooks/profile/useProfileActions';
@@ -27,8 +27,8 @@ import {
   useAcknowledgeVersionChange,
 } from '@/hooks/useAcknowledgeVersionChange';
 import type { VersionCorrelationStatus } from '@/types/version';
-import { ConfigHistoryPanel } from '../../ConfigHistoryPanel';
-import ProfilePreviewModal from '../../ProfilePreviewModal';
+import type { ConfigHistoryPanel } from '../../ConfigHistoryPanel';
+import { ProfilesOverlays } from '../../pages/profiles/ProfilesOverlays';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -84,6 +84,7 @@ export function HeroProfileActionsBar({
 
   const {
     // can-* guards
+    canDelete,
     canDuplicate,
     canRename,
     canPreview,
@@ -142,7 +143,7 @@ export function HeroProfileActionsBar({
   };
 
   const handleDelete = async () => {
-    if (!selectedProfile.trim() || deleting) return;
+    if (!selectedProfile.trim() || !canDelete || deleting) return;
     await confirmDelete(selectedProfile);
   };
 
@@ -214,7 +215,7 @@ export function HeroProfileActionsBar({
           type="button"
           className="crosshook-button crosshook-button--danger"
           onClick={() => void handleDelete()}
-          disabled={!selectedProfile.trim() || deleting}
+          disabled={!canDelete || deleting}
         >
           {deleting ? 'Deleting…' : 'Delete'}
         </button>
@@ -239,157 +240,40 @@ export function HeroProfileActionsBar({
         </p>
       ) : null}
 
-      {/* Delete confirm overlay — mirrors ProfilesOverlays.tsx */}
-      {pendingDelete ? (
-        <div className="crosshook-profile-editor-delete-overlay" data-crosshook-focus-root="modal">
-          <div className="crosshook-profile-editor-delete-dialog">
-            <h3 style={{ margin: '0 0 12px' }}>Delete Profile</h3>
-            <p>
-              Delete profile <strong>{pendingDelete.name}</strong>?
-            </p>
-            {pendingDelete.launcherInfo ? (
-              <div className="crosshook-profile-editor-delete-warning">
-                <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Launcher files will also be removed:</p>
-                <p
-                  style={{
-                    margin: '2px 0',
-                    color: '#d1d5db',
-                    wordBreak: 'break-all',
-                  }}
-                >
-                  {pendingDelete.launcherInfo.script_path}
-                </p>
-                <p
-                  style={{
-                    margin: '2px 0',
-                    color: '#d1d5db',
-                    wordBreak: 'break-all',
-                  }}
-                >
-                  {pendingDelete.launcherInfo.desktop_entry_path}
-                </p>
-              </div>
-            ) : null}
-            <div className="crosshook-profile-editor-delete-actions">
-              <button
-                type="button"
-                className="crosshook-button crosshook-button--secondary"
-                onClick={cancelDelete}
-                data-crosshook-modal-close
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="crosshook-profile-editor-delete-confirm"
-                onClick={() => void executeDelete()}
-              >
-                {pendingDelete.launcherInfo ? 'Delete Profile and Launcher' : 'Delete Profile'}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {/* Rename modal — mirrors ProfilesOverlays.tsx */}
-      {pendingRename !== null ? (
-        <div className="crosshook-profile-editor-delete-overlay" data-crosshook-focus-root="modal">
-          <div
-            className="crosshook-profile-editor-delete-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="hero-rename-dialog-heading"
-            style={{ marginBottom: 'auto', marginTop: '12vh' }}
-          >
-            <h3 id="hero-rename-dialog-heading" style={{ margin: '0 0 12px' }}>
-              Rename Profile
-            </h3>
-            <div className="crosshook-field">
-              <label className="crosshook-label" htmlFor="hero-rename-profile-input">
-                New Name
-              </label>
-              <input
-                id="hero-rename-profile-input"
-                ref={renameInputRef as RefObject<HTMLInputElement>}
-                className="crosshook-input"
-                value={renameValue}
-                onChange={(event) => setRenameValue(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && canConfirmRename) {
-                    handleRenameConfirm(pendingRename, renameNameTrimmed);
-                  }
-                  if (event.key === 'Escape') {
-                    setPendingRename(null);
-                  }
-                }}
-              />
-              {renameError ? (
-                <p className="crosshook-danger" role="alert">
-                  {renameError}
-                </p>
-              ) : null}
-            </div>
-            <div className="crosshook-profile-editor-delete-actions">
-              <button
-                type="button"
-                className="crosshook-button crosshook-button--secondary"
-                onClick={() => setPendingRename(null)}
-                data-crosshook-modal-close
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="crosshook-button"
-                disabled={!canConfirmRename}
-                onClick={() => handleRenameConfirm(pendingRename, renameNameTrimmed)}
-              >
-                {renaming ? 'Renaming…' : 'Rename'}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {/* Rename success toast with undo */}
-      {renameToast && !renameToastDismissed ? (
-        <div className="crosshook-status-toast crosshook-rename-toast" role="status" aria-live="polite">
-          <span>Renamed to &lsquo;{renameToast.newName}&rsquo;</span>
-          <button type="button" className="crosshook-button crosshook-button--ghost" onClick={undoRename}>
-            Undo
-          </button>
-          <button
-            type="button"
-            className="crosshook-rename-toast-dismiss"
-            onClick={dismissRenameToast}
-            aria-label="Dismiss"
-          >
-            &times;
-          </button>
-        </div>
-      ) : null}
-
-      {/* TOML preview modal */}
-      {showProfilePreview ? (
-        <ProfilePreviewModal
-          tomlContent={profilePreviewContent}
-          profileName={profileName}
-          onClose={handleCloseProfilePreview}
-        />
-      ) : null}
-
-      {/* Config history panel */}
-      {showHistoryPanel && selectedProfile ? (
-        <ConfigHistoryPanel
-          profileName={selectedProfile}
-          onClose={() => setShowHistoryPanel(false)}
-          fetchConfigHistory={historyHandlers.fetchConfigHistory}
-          fetchConfigDiff={historyHandlers.fetchConfigDiff}
-          rollbackConfig={historyHandlers.rollbackConfig}
-          markKnownGood={historyHandlers.markKnownGood}
-          onAfterRollback={onAfterRollback}
-        />
-      ) : null}
+      <ProfilesOverlays
+        canConfirmRename={canConfirmRename}
+        pendingDelete={pendingDelete}
+        pendingRename={pendingRename}
+        previewContent={profilePreviewContent}
+        profileName={profileName}
+        renameError={renameError}
+        renameInputRef={renameInputRef}
+        renameNameTrimmed={renameNameTrimmed}
+        renameToast={renameToast}
+        renameToastDismissed={renameToastDismissed}
+        renameValue={renameValue}
+        renaming={renaming}
+        selectedProfile={selectedProfile}
+        showHistoryPanel={showHistoryPanel}
+        showProfilePreview={showProfilePreview}
+        showWizard={false}
+        wizardMode="edit"
+        onAfterRollback={onAfterRollback}
+        onCancelDelete={cancelDelete}
+        onCloseHistory={() => setShowHistoryPanel(false)}
+        onClosePreview={handleCloseProfilePreview}
+        onConfirmRename={handleRenameConfirm}
+        onDismissRenameToast={dismissRenameToast}
+        onExecuteDelete={executeDelete}
+        onSetPendingRename={setPendingRename}
+        onSetRenameValue={setRenameValue}
+        onToggleWizard={() => undefined}
+        onUndoRename={undoRename}
+        fetchConfigDiff={historyHandlers.fetchConfigDiff}
+        fetchConfigHistory={historyHandlers.fetchConfigHistory}
+        markKnownGood={historyHandlers.markKnownGood}
+        rollbackConfig={historyHandlers.rollbackConfig}
+      />
     </>
   );
 }

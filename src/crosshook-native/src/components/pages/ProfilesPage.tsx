@@ -1,3 +1,8 @@
+import {
+  NETWORK_ISOLATION_BADGE,
+  NETWORK_ISOLATION_BADGE_TITLE,
+  VERSION_STATUS_LABELS,
+} from '@/hooks/profile/profileNotificationConstants';
 import type { AppNavigateOptions, GameDetailOrigin } from '../../types/navigation';
 import { HealthBadge } from '../HealthBadge';
 import { Breadcrumb } from '../layout/Breadcrumb';
@@ -8,7 +13,6 @@ import { PrefixDepsPanel } from '../PrefixDepsPanel';
 import ProfileActions from '../ProfileActions';
 import ProfileSubTabs from '../ProfileSubTabs';
 import { CollapsibleSection } from '../ui/CollapsibleSection';
-import { NETWORK_ISOLATION_BADGE, NETWORK_ISOLATION_BADGE_TITLE, VERSION_STATUS_LABELS } from './profiles/constants';
 import { ProfilesHealthIssues } from './profiles/ProfilesHealthIssues';
 import { ProfilesHero } from './profiles/ProfilesHero';
 import { ProfilesOverlays } from './profiles/ProfilesOverlays';

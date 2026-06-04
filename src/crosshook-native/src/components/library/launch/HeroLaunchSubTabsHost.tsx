@@ -23,8 +23,8 @@ export interface HeroLaunchSubTabsHostProps {
    * Whether the LaunchSubTabs section should be disabled because the displayed
    * profile does not match the ProfileContext selected profile.
    *
-   * When true, the sub-tabs are rendered but overlaid with a disabled hint
-   * so the user understands they need to select the matching profile first.
+   * When true, the sub-tabs are not mounted and an overlay hint explains that
+   * the matching profile must be selected before launch settings can be edited.
    * LaunchStateContext (which feeds LaunchSubTabs) builds its LaunchRequest
    * from ProfileContext's *selected* profile, so writes from LaunchSubTabs
    * would target the wrong profile when the mismatch occurs.
@@ -91,7 +91,7 @@ export function HeroLaunchSubTabsHost({
       aria-disabled={profileMismatch || undefined}
     >
       {disabledOverlay}
-      <LaunchSubTabs {...launchSubTabsProps} />
+      {profileMismatch ? null : <LaunchSubTabs {...launchSubTabsProps} />}
     </div>
   );
 }

@@ -10,16 +10,16 @@
  *   suggestion with install CTA (mirrors ProfilesPage.tsx:173-217).
  */
 import type { RefObject } from 'react';
+import {
+  NETWORK_ISOLATION_BADGE,
+  NETWORK_ISOLATION_BADGE_TITLE,
+  VERSION_STATUS_LABELS,
+} from '@/hooks/profile/profileNotificationConstants';
 import type { TrendDirection } from '@/hooks/useProfileHealth';
 import type { CachedHealthSnapshot, EnrichedProfileHealthReport } from '@/types/health';
 import type { ProtonUpSuggestion } from '@/types/protonup';
 import type { VersionCorrelationStatus } from '@/types/version';
 import { HealthBadge } from '../../HealthBadge';
-import {
-  NETWORK_ISOLATION_BADGE,
-  NETWORK_ISOLATION_BADGE_TITLE,
-  VERSION_STATUS_LABELS,
-} from '../../pages/profiles/constants';
 import { CollapsibleSection } from '../../ui/CollapsibleSection';
 
 // ── Health section ────────────────────────────────────────────────────────────

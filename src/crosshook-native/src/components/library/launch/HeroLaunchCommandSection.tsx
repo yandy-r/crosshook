@@ -101,6 +101,8 @@ export interface HeroLaunchCommandSectionProps {
   onLaunchTrainer?: () => void;
   /** Hint shown when the profile is not selectable (fallback profile). */
   notSelectableHint?: string | null;
+  /** Whether export may act on the context-selected profile. */
+  canExportDesktop?: boolean;
 }
 
 export function HeroLaunchCommandSection({
@@ -122,6 +124,7 @@ export function HeroLaunchCommandSection({
   onLaunchGame,
   onLaunchTrainer,
   notSelectableHint,
+  canExportDesktop = true,
 }: HeroLaunchCommandSectionProps) {
   const { profile, steamClientInstallPath, targetHomePath } = useProfileContext();
   const {
@@ -145,6 +148,9 @@ export function HeroLaunchCommandSection({
   }, [preview]);
 
   const exportRequest = useMemo(() => {
+    if (!canExportDesktop) {
+      return null;
+    }
     if (!profileCanExport(profile)) {
       return null;
     }
@@ -160,7 +166,7 @@ export function HeroLaunchCommandSection({
       targetHomePath,
       globalUmuPreference
     );
-  }, [globalUmuPreference, profile, resolvedProfileName, steamClientInstallPath, targetHomePath]);
+  }, [canExportDesktop, globalUmuPreference, profile, resolvedProfileName, steamClientInstallPath, targetHomePath]);
 
   const canPreview = Boolean(launchRequest && onPreviewLaunch && !previewLoading);
   const canCopy = Boolean(preview?.effective_command);

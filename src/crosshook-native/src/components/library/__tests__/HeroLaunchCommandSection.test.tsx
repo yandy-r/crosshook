@@ -215,6 +215,14 @@ describe('HeroLaunchCommandSection', () => {
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
+  it('disables desktop export when the displayed profile does not match the selected profile', () => {
+    renderCommandSection({ canExportDesktop: false });
+
+    expect(screen.getByRole('button', { name: '.desktop' })).toBeDisabled();
+    expect(useLauncherExportMock).not.toHaveBeenCalled();
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
+
   it('shows "Command copied." status after successful copy', async () => {
     const user = userEvent.setup();
     copyToClipboardMock.mockResolvedValue(undefined);

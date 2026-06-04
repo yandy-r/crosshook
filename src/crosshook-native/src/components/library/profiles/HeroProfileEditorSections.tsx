@@ -19,17 +19,17 @@
  * Trainer-gamescope persistence: GamescopeConfigPanel.onChange is wired to
  * onUpdateProfile so all edits flow through the 350ms draft autosave owned
  * by useHeroProfilesAutosave — no separate granular save is used here. The
- * derived notice mirrors ProfileSubTabs.tsx:276-279 via
- * resolveTrainerGamescopeForDisplay (copied from ProfileSubTabs.tsx:51-83).
+ * derived notice mirrors ProfileSubTabs.tsx via the shared
+ * resolveTrainerGamescopeForDisplay utility.
  */
 import type { ReactNode, RefObject } from 'react';
 import type { TrendDirection } from '@/hooks/useProfileHealth';
 import type { CachedHealthSnapshot, EnrichedProfileHealthReport } from '@/types/health';
-import type { GameProfile, GamescopeConfig, LaunchMethod } from '@/types/profile';
-import { DEFAULT_GAMESCOPE_CONFIG } from '@/types/profile';
+import type { GameProfile, LaunchMethod } from '@/types/profile';
 import type { ProtonInstallOption } from '@/types/proton';
 import type { ProtonUpSuggestion } from '@/types/protonup';
 import type { VersionCorrelationStatus } from '@/types/version';
+import { resolveTrainerGamescopeForDisplay } from '@/utils/trainerGamescope';
 import { GamescopeConfigPanel } from '../../GamescopeConfigPanel';
 import { DashboardPanelSection } from '../../layout/DashboardPanelSection';
 import { PrefixDepsPanel } from '../../PrefixDepsPanel';
@@ -42,37 +42,6 @@ import { RuntimeSection } from '../../profile-sections/RuntimeSection';
 import { TrainerSection } from '../../profile-sections/TrainerSection';
 import { CollapsibleSection } from '../../ui/CollapsibleSection';
 import { HeroProfileEditorHealthSection, HeroProfileEditorSuggestionBanner } from './HeroProfileEditorExtras';
-
-// ── Trainer-gamescope derivation (mirrors ProfileSubTabs.tsx:51-83) ───────────
-// Must stay in sync with LaunchRequest::resolved_trainer_gamescope in crosshook-core.
-
-function resolveTrainerGamescopeForDisplay(profile: GameProfile): {
-  config: GamescopeConfig;
-  isGeneratedFromGame: boolean;
-} {
-  const trainerGamescope = profile.launch.trainer_gamescope;
-
-  if (trainerGamescope?.enabled) {
-    return { config: trainerGamescope, isGeneratedFromGame: false };
-  }
-
-  const gameGamescope = profile.launch.gamescope;
-  if (gameGamescope?.enabled) {
-    return {
-      config: {
-        ...DEFAULT_GAMESCOPE_CONFIG,
-        ...gameGamescope,
-        enabled: true,
-        fullscreen: false,
-        borderless: false,
-        extra_args: gameGamescope.extra_args ?? [],
-      },
-      isGeneratedFromGame: true,
-    };
-  }
-
-  return { config: DEFAULT_GAMESCOPE_CONFIG, isGeneratedFromGame: false };
-}
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 

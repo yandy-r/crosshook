@@ -10,7 +10,7 @@
  *
  * The component does NOT navigate — all state stays local to the Hero Detail tab.
  */
-import { useCallback, useId, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useLaunchStateContext } from '@/context/LaunchStateContext';
 import { usePreferencesContext } from '@/context/PreferencesContext';
 import { useProfileContext } from '@/context/ProfileContext';
@@ -98,21 +98,40 @@ export function HeroLaunchGate({
   // ── Diagnostic report copy ─────────────────────────────────────────────────
   const [diagnosticExpanded, setDiagnosticExpanded] = useState(false);
   const [diagnosticCopyLabel, setDiagnosticCopyLabel] = useState('Copy Report');
+  const diagnosticCopyResetTimeoutRef = useRef<number | null>(null);
   const launchGuidanceId = useId();
 
   const launchGuidanceText = [statusText, hintText].filter(Boolean).join(' — ');
+
+  const scheduleDiagnosticCopyLabelReset = useCallback(() => {
+    if (diagnosticCopyResetTimeoutRef.current !== null) {
+      window.clearTimeout(diagnosticCopyResetTimeoutRef.current);
+    }
+    diagnosticCopyResetTimeoutRef.current = window.setTimeout(() => {
+      setDiagnosticCopyLabel('Copy Report');
+      diagnosticCopyResetTimeoutRef.current = null;
+    }, 2000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (diagnosticCopyResetTimeoutRef.current !== null) {
+        window.clearTimeout(diagnosticCopyResetTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleCopyDiagnosticReport = useCallback(async () => {
     if (feedback?.kind !== 'diagnostic') return;
     try {
       await copyToClipboard(JSON.stringify(feedback.report, null, 2));
       setDiagnosticCopyLabel('Copied!');
-      window.setTimeout(() => setDiagnosticCopyLabel('Copy Report'), 2000);
+      scheduleDiagnosticCopyLabelReset();
     } catch {
       setDiagnosticCopyLabel('Copy Failed');
-      window.setTimeout(() => setDiagnosticCopyLabel('Copy Report'), 2000);
+      scheduleDiagnosticCopyLabelReset();
     }
-  }, [feedback]);
+  }, [feedback, scheduleDiagnosticCopyLabelReset]);
 
   // ── selectProfile-first gate ───────────────────────────────────────────────
   // LaunchStateContext builds its LaunchRequest from ProfileContext's *selected*
@@ -134,6 +153,7 @@ export function HeroLaunchGate({
         await selectProfile(displayedTrimmed, {
           collectionId: activeCollectionId ?? undefined,
         });
+        return false;
       }
 
       // Delegate to the dependency gate.
@@ -189,6 +209,7 @@ export function HeroLaunchGate({
         onLaunchGame={launchGame}
         onLaunchTrainer={launchTrainer}
         notSelectableHint={notSelectableHint}
+        canExportDesktop={!profileMismatch}
       />
 
       {/* ── Pipeline visualization + log path + guidance ── */}
