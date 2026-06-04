@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ComponentProps } from 'react';
 import { describe, expect, it } from 'vitest';
+import { PreferencesProvider } from '@/context/PreferencesContext';
 import { ProfileProvider } from '@/context/ProfileContext';
 import type { UseGameMetadataResult } from '@/hooks/useGameMetadata';
 import { makeLibraryCardData } from '@/test/fixtures';
@@ -142,7 +143,10 @@ function makePreview(overrides: Partial<LaunchPreview> = {}): LaunchPreview {
   };
 }
 
-function renderHeroDetailPanels(overrides: Partial<HeroDetailPanelsProps> = {}) {
+function renderHeroDetailPanels(
+  overrides: Partial<HeroDetailPanelsProps> = {},
+  options: { withProviders?: boolean } = {}
+) {
   const props: HeroDetailPanelsProps = {
     mode: 'launch-options',
     summary: makeLibraryCardData(),
@@ -165,7 +169,17 @@ function renderHeroDetailPanels(overrides: Partial<HeroDetailPanelsProps> = {}) 
     ...overrides,
   };
 
-  return render(<HeroDetailPanels {...props} />);
+  const panel = <HeroDetailPanels {...props} />;
+
+  if (options.withProviders) {
+    return render(
+      <PreferencesProvider>
+        <ProfileProvider>{panel}</ProfileProvider>
+      </PreferencesProvider>
+    );
+  }
+
+  return render(panel);
 }
 
 describe('HeroDetailPanels', () => {
@@ -243,30 +257,14 @@ describe('HeroDetailPanels', () => {
 });
 
 describe('no-op defaults', () => {
-  it('renders read-only panels when updateProfile is omitted', () => {
-    render(
-      <ProfileProvider>
-        <HeroDetailPanels
-          mode="profiles"
-          summary={makeLibraryCardData()}
-          steamAppId="9999001"
-          meta={metaStub}
-          profile={null}
-          loadState="idle"
-          profileError={null}
-          healthReport={undefined}
-          healthLoading={false}
-          offlineReport={undefined}
-          offlineError={null}
-          launchRequest={null}
-          previewLoading={false}
-          preview={null}
-          previewError={null}
-        />
-      </ProfileProvider>
+  it('renders the profiles tab empty state when updateProfile is omitted', () => {
+    renderHeroDetailPanels(
+      { mode: 'profiles', launchRequest: null, preview: null, profileList: [] },
+      { withProviders: true }
     );
 
-    expect(screen.getByRole('heading', { name: 'Active profile' })).toBeInTheDocument();
-    expect(screen.getByText('No active profile loaded in the editor for this game.')).toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: 'Profiles for this game' })).toBeInTheDocument();
+    expect(screen.getByText('No profiles found for this game.')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Profile editor' })).toBeInTheDocument();
   });
 });

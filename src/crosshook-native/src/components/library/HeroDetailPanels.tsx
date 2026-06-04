@@ -1,5 +1,4 @@
-import { type ReactNode, useId } from 'react';
-import { useProfileContext } from '@/context/ProfileContext';
+import type { ReactNode } from 'react';
 import type { GameDetailsProfileLoadState } from '@/hooks/useGameDetailsProfile';
 import type { UseGameMetadataResult } from '@/hooks/useGameMetadata';
 import { useLaunchHistoryForProfile } from '@/hooks/useLaunchHistoryForProfile';
@@ -12,6 +11,7 @@ import { groupPreviewEnvBySource, launchMethodLabel } from '@/utils/launchPrevie
 import { GameDetailsCompatibilitySection } from './GameDetailsCompatibilitySection';
 import { GameDetailsHealthSection } from './GameDetailsHealthSection';
 import { GameDetailsMetadataSection } from './GameDetailsMetadataSection';
+import { HeroDetailProfilesTab } from './HeroDetailProfilesTab';
 import type { HeroDetailTabId } from './hero-detail-model';
 import { displayPath } from './hero-detail-model';
 
@@ -313,52 +313,6 @@ function LaunchPreviewStructuredView({ preview }: { preview: LaunchPreview }) {
   );
 }
 
-function ProfilesPanel({ profileName }: { profileName: string }) {
-  const activeProfileHeadingId = useId();
-  const { profileName: activeName, profile } = useProfileContext();
-  const isActive = activeName === profileName;
-
-  return (
-    <div className="crosshook-hero-detail__panel-grid">
-      <section
-        className="crosshook-hero-detail__section crosshook-hero-detail__section--card"
-        aria-labelledby={activeProfileHeadingId}
-      >
-        <h3 id={activeProfileHeadingId} className="crosshook-hero-detail__section-title">
-          Active profile
-        </h3>
-        {!isActive ? (
-          <p className="crosshook-hero-detail__muted" role="status">
-            No active profile loaded in the editor for this game.
-          </p>
-        ) : (
-          <div className="crosshook-hero-detail__subsection">
-            <h4 className="crosshook-hero-detail__subsection-title">Runtime summary</h4>
-            <div className="crosshook-hero-detail__kv-list">
-              <p className="crosshook-hero-detail__kv-item">
-                <span className="crosshook-hero-detail__kv-key">Name</span>
-                <span className="crosshook-hero-detail__kv-value crosshook-hero-detail__mono">{activeName}</span>
-              </p>
-              <p className="crosshook-hero-detail__kv-item">
-                <span className="crosshook-hero-detail__kv-key">Prefix</span>
-                <span className="crosshook-hero-detail__kv-value crosshook-hero-detail__mono">
-                  {profile.runtime.prefix_path || 'Not set'}
-                </span>
-              </p>
-              <p className="crosshook-hero-detail__kv-item">
-                <span className="crosshook-hero-detail__kv-key">Proton</span>
-                <span className="crosshook-hero-detail__kv-value crosshook-hero-detail__mono">
-                  {profile.runtime.proton_path || profile.steam.proton_path || 'Not set'}
-                </span>
-              </p>
-            </div>
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
-
 function HistoryPanel({ profileName }: { profileName: string }) {
   const { rows, error } = useLaunchHistoryForProfile(profileName, 20);
 
@@ -418,9 +372,7 @@ export function HeroDetailPanels({
   previewLoading,
   preview,
   previewError,
-  updateProfile,
   profileList,
-  onSetActiveTab,
 }: HeroDetailPanelsProps) {
   switch (mode) {
     case 'overview':
@@ -441,7 +393,14 @@ export function HeroDetailPanels({
         </div>
       );
     case 'profiles':
-      return <ProfilesPanel profileName={summary.name} />;
+      return (
+        <HeroDetailProfilesTab
+          summary={summary}
+          profileList={profileList}
+          loadState={loadState}
+          profileError={profileError}
+        />
+      );
     case 'launch-options':
       return (
         <div className="crosshook-hero-detail__panel-grid">
