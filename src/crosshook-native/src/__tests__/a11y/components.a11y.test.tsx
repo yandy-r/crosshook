@@ -227,9 +227,9 @@ describe('HeroDetailTabs accessibility', () => {
     expect(results).toHaveNoViolations();
   });
 
-  it('renders profiles tab content with correct data-testid', () => {
+  it('renders profiles tab content with correct data-testid and has no axe violations', async () => {
     const summary = makeLibraryCardData();
-    renderWithMocks(
+    const { container } = renderWithMocks(
       <HeroDetailTabsProviders>
         <HeroDetailTabs
           activeTab="profiles"
@@ -257,11 +257,13 @@ describe('HeroDetailTabs accessibility', () => {
       </HeroDetailTabsProviders>
     );
     expect(screen.getByTestId('hero-detail-profiles-tab')).toBeInTheDocument();
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
   });
 
-  it('renders launch-options tab content with correct data-testid', () => {
+  it('renders launch-options tab content with correct data-testid and has no axe violations', async () => {
     const summary = makeLibraryCardData();
-    renderWithMocks(
+    const { container } = renderWithMocks(
       <HeroDetailTabsProviders>
         <HeroDetailTabs
           activeTab="launch-options"
@@ -289,6 +291,8 @@ describe('HeroDetailTabs accessibility', () => {
       </HeroDetailTabsProviders>
     );
     expect(screen.getByTestId('hero-detail-launch-tab')).toBeInTheDocument();
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
   });
 });
 

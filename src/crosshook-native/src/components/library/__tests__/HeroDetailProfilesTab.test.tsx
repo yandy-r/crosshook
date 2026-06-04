@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { launchOptimizationsAutosaveDelayMs } from '@/hooks/profile/constants';
 import { makeLibraryCardData, makeProfileDraft } from '@/test/fixtures';
 import type { LibraryCardData, ProfileSummary } from '@/types/library';
-import type { GameProfile } from '@/types/profile';
+import type { GameProfile, LaunchMethod } from '@/types/profile';
 import { HeroDetailProfilesTab } from '../HeroDetailProfilesTab';
 
 const profileContextMock = vi.fn();
@@ -132,8 +132,14 @@ vi.mock('@/components/library/profiles/HeroProfileActionsBar', () => ({
   HeroProfileActionsBar: () => null,
 }));
 
+vi.mock('@/components/library/profiles/HeroProfileEditorSections', () => ({
+  HeroProfileEditorSections: (props: { launcherExportSlot?: import('react').ReactNode }) => (
+    <div data-testid="hero-profile-editor-sections">{props.launcherExportSlot ?? null}</div>
+  ),
+}));
+
 vi.mock('@/components/LauncherExport', () => ({
-  LauncherExport: () => null,
+  LauncherExport: () => <div data-testid="launcher-export-panel">LauncherExport</div>,
 }));
 
 vi.mock('@/hooks/useTrainerTypeCatalog', () => ({
@@ -401,5 +407,86 @@ describe('HeroDetailProfilesTab', () => {
       selectProfileSpy.mock.invocationCallOrder[selectProfileSpy.mock.calls.findIndex(([name]) => name === card2.name)];
 
     expect(persistCallOrder).toBeLessThan(selectCard2CallOrder);
+  });
+
+  it('triggers autosave after runner-method change mutates the profile draft', async () => {
+    // Start with a dirty profile to simulate an in-flight edit caused by a
+    // runner-method change. The autosave fires after launchOptimizationsAutosaveDelayMs.
+    contextState = buildContextState({
+      dirty: true,
+      profile: makeProfileDraft({
+        launch: {
+          method: 'proton_run' as LaunchMethod,
+          optimizations: { enabled_option_ids: [] },
+          custom_env_vars: {},
+        },
+      }),
+    });
+
+    renderProfilesTab();
+
+    expect(persistProfileDraftSpy).not.toHaveBeenCalled();
+
+    await waitFor(
+      () => {
+        expect(persistProfileDraftSpy).toHaveBeenCalledWith(card1.name, expect.any(Object));
+      },
+      { timeout: 1000 }
+    );
+  });
+
+  it('shows the LauncherExport panel slot when launch method supports it and profile exists', () => {
+    contextState = buildContextState({
+      profile: makeProfileDraft({
+        launch: {
+          method: 'proton_run' as LaunchMethod,
+          optimizations: { enabled_option_ids: [] },
+          custom_env_vars: {},
+        },
+      }),
+    });
+
+    renderProfilesTab();
+
+    expect(screen.getByTestId('launcher-export-panel')).toBeInTheDocument();
+  });
+
+  it('does not render the LauncherExport panel when launch method is native', () => {
+    contextState = buildContextState({
+      profile: makeProfileDraft({
+        launch: {
+          method: 'native' as LaunchMethod,
+          optimizations: { enabled_option_ids: [] },
+          custom_env_vars: {},
+        },
+      }),
+    });
+
+    renderProfilesTab();
+
+    expect(screen.queryByTestId('launcher-export-panel')).not.toBeInTheDocument();
+  });
+
+  it('shows the loading state while profile load is in progress', () => {
+    renderProfilesTab({ loadState: 'loading' });
+
+    expect(screen.getByText(/loading profile details/i)).toBeInTheDocument();
+  });
+
+  it('shows the error state when profile load fails', () => {
+    renderProfilesTab({ loadState: 'error', profileError: 'Profile not found' });
+
+    expect(screen.getByText(/profile not found/i)).toBeInTheDocument();
+  });
+
+  it('shows the select-a-profile prompt when no singleton owns the game', () => {
+    contextState = buildContextState({
+      selectedProfile: 'unrelated',
+      profileName: 'unrelated',
+    });
+
+    renderProfilesTab({ profileList: [card1] });
+
+    expect(screen.getByRole('status')).toHaveTextContent(/select a profile card/i);
   });
 });

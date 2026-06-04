@@ -1,8 +1,7 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { makeLibraryCardData, makeProfileDraft } from '@/test/fixtures';
-import type { LaunchPreview, LaunchRequest } from '@/types/launch';
+import { makeLaunchPreview, makeLaunchRequest, makeLibraryCardData, makeProfileDraft } from '@/test/fixtures';
 import type { GameProfile } from '@/types/profile';
 import { HeroDetailLaunchTab } from '../HeroDetailLaunchTab';
 
@@ -63,91 +62,6 @@ vi.mock('../launch/HeroLaunchGate', () => ({
   default: () => null,
 }));
 
-function makeLaunchRequest(): LaunchRequest {
-  return {
-    method: 'proton_run',
-    game_path: '/games/synthetic-quest/game.exe',
-    trainer_path: '/trainers/synthetic-quest/trainer.exe',
-    trainer_host_path: '/trainers/synthetic-quest/trainer.exe',
-    trainer_loading_mode: 'source_directory',
-    steam: {
-      app_id: '9999001',
-      compatdata_path: '/steam/compatdata/9999001',
-      proton_path: '/compatibilitytools/proton-ge/proton',
-      steam_client_install_path: '/steam/root',
-    },
-    runtime: {
-      prefix_path: '/prefixes/synthetic-quest',
-      proton_path: '/compatibilitytools/proton-ge/proton',
-      working_directory: '/games/synthetic-quest',
-      steam_app_id: '9999001',
-    },
-    optimizations: { enabled_option_ids: [] },
-    launch_trainer_only: false,
-    launch_game_only: false,
-    profile_name: 'Synthetic Quest',
-    custom_env_vars: { DXVK_HUD: 'fps' },
-    network_isolation: false,
-    gamescope: {
-      enabled: false,
-      fullscreen: false,
-      borderless: false,
-      grab_cursor: false,
-      force_grab_cursor: false,
-      hdr_enabled: false,
-      allow_nested: false,
-      extra_args: [],
-    },
-    trainer_gamescope: {
-      enabled: false,
-      fullscreen: false,
-      borderless: false,
-      grab_cursor: false,
-      force_grab_cursor: false,
-      hdr_enabled: false,
-      allow_nested: false,
-      extra_args: [],
-    },
-    mangohud: {
-      enabled: false,
-      gpu_stats: false,
-      cpu_stats: false,
-      ram: false,
-      frametime: false,
-      battery: false,
-      watt: false,
-    },
-  };
-}
-
-function makePreview(overrides: Partial<LaunchPreview> = {}): LaunchPreview {
-  return {
-    resolved_method: 'proton_run',
-    validation: { issues: [] },
-    environment: [{ key: 'DXVK_HUD', value: 'fps', source: 'profile_custom' }],
-    cleared_variables: [],
-    wrappers: ['gamescope'],
-    effective_command: 'gamescope -- /compat/proton run /games/synthetic-quest/game.exe',
-    directives_error: null,
-    steam_launch_options: null,
-    proton_setup: {
-      wine_prefix_path: '/prefixes/synthetic-quest',
-      compat_data_path: '/steam/compatdata/9999001',
-      steam_client_install_path: '/steam/root',
-      proton_executable: '/compat/proton',
-      umu_run_path: null,
-    },
-    working_directory: '/games/synthetic-quest',
-    game_executable: '/games/synthetic-quest/game.exe',
-    game_executable_name: 'game.exe',
-    trainer: null,
-    generated_at: '2026-04-23T12:00:00.000Z',
-    display_text: '',
-    umu_decision: null,
-    ...overrides,
-  };
-}
-
 function makeProfile(overrides: Partial<GameProfile> = {}): GameProfile {
   return makeProfileDraft({
     game: { name: 'Synthetic Quest', executable_path: '/games/synthetic-quest/game.exe' },
@@ -186,7 +100,7 @@ function renderLaunchTab(
       summary={makeLibraryCardData()}
       launchRequest={makeLaunchRequest()}
       previewLoading={false}
-      preview={makePreview()}
+      preview={makeLaunchPreview()}
       previewError={null}
       displayProfileName="Synthetic Quest"
       {...props}
