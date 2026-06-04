@@ -214,6 +214,8 @@ impl InstallGameRequest {
                 ..Default::default()
             },
             local_override: crate::profile::LocalOverrideSection::default(),
+            pre_launch_hooks: Vec::new(),
+            post_exit_hooks: Vec::new(),
         }
     }
 }

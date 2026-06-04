@@ -1,5 +1,6 @@
 mod art_fields;
 mod fixtures;
+mod hooks;
 mod launch_section;
 mod mangohud;
 mod profile_layers;

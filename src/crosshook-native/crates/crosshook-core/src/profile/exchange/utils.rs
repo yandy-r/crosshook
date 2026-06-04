@@ -17,6 +17,9 @@ use std::path::{Path, PathBuf};
 /// Clears filesystem-specific paths from a profile so a community JSON manifest does not embed
 /// the exporter's machine layout. Non-path hints (game name, Steam app id, launch method, etc.)
 /// are preserved.
+///
+/// **Denylist invariant**: any new path-bearing field added to `GameProfile` MUST be cleared here.
+/// This function is fail-open — new fields silently survive export unless explicitly enumerated.
 pub(super) fn sanitize_profile_for_community_export(profile: &GameProfile) -> GameProfile {
     let mut out = profile.portable_profile();
     out.injection.dll_paths.clear();
@@ -32,11 +35,27 @@ pub(super) fn sanitize_profile_for_community_export(profile: &GameProfile) -> Ga
     out.game.custom_portrait_art_path.clear();
     out.game.custom_background_art_path.clear();
 
+    // Hook paths are machine-local execution vectors — strip entirely on export.
+    // (Denylist invariant: see note above.)
+    out.pre_launch_hooks.clear();
+    out.post_exit_hooks.clear();
+
     out
 }
 
 pub(super) fn hydrate_imported_profile(profile: &GameProfile) -> GameProfile {
     let mut hydrated = profile.effective_profile();
+
+    // Imported profiles must never auto-execute a hook, even after hook runtime lands.
+    // Force-disable all hooks regardless of the `enabled` value in the manifest — an
+    // attacker-controlled JSON could set `enabled = true` to gain execution on import.
+    for hook in hydrated
+        .pre_launch_hooks
+        .iter_mut()
+        .chain(hydrated.post_exit_hooks.iter_mut())
+    {
+        hook.enabled = false;
+    }
 
     let game_path = hydrated.game.executable_path.trim();
     if !game_path.is_empty() {

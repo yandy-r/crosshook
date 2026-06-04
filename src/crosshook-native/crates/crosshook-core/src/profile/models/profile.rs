@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::game_meta::{GameSection, InjectionSection, SteamSection};
+use super::hooks::LaunchHook;
 use super::launch::{CollectionDefaultsSection, LaunchSection};
 use super::local_override::LocalOverrideSection;
 use super::runtime::RuntimeSection;
@@ -22,6 +23,13 @@ pub struct GameProfile {
     pub launch: LaunchSection,
     #[serde(default, skip_serializing_if = "LocalOverrideSection::is_empty")]
     pub local_override: LocalOverrideSection,
+    // TODO(hooks-runtime): consume in launcher — see issue #482.
+    // Declared-only in Phase 3 (#468); the containing vec is authoritative for
+    // stage. Keep these fields last; new scalar fields must go before them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pre_launch_hooks: Vec<LaunchHook>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub post_exit_hooks: Vec<LaunchHook>,
 }
 
 impl GameProfile {
@@ -74,6 +82,10 @@ impl GameProfile {
     /// adds overlapping fields, the "local_override always wins" guarantee still
     /// holds at the call site because layer 1 already contains the override,
     /// but any new fields must be audited here to preserve that invariant.
+    ///
+    /// Audit note — `pre_launch_hooks` / `post_exit_hooks`: carried by
+    /// `self.clone()` / `effective.clone()` untouched. No merge handling needed;
+    /// they are not part of `local_override` or `CollectionDefaultsSection`.
     pub fn effective_profile_with(&self, defaults: Option<&CollectionDefaultsSection>) -> Self {
         let mut merged = self.clone();
 

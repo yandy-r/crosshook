@@ -34,6 +34,7 @@ pub fn export_ts_types() -> Result<(), Box<dyn std::error::Error>> {
 
     export_onboarding()?;
     export_edge_cases()?;
+    export_launch_hooks()?;
     Ok(())
 }
 
@@ -56,5 +57,12 @@ fn export_onboarding() -> Result<(), Box<dyn std::error::Error>> {
 /// Export additional shapes that exercise ts-rs edge cases (chrono / uuid / Vec<u8>).
 fn export_edge_cases() -> Result<(), Box<dyn std::error::Error>> {
     TsRsEdgeCases::export()?;
+    Ok(())
+}
+
+fn export_launch_hooks() -> Result<(), Box<dyn std::error::Error>> {
+    use crate::profile::{HookStage, LaunchHook};
+    HookStage::export()?; // dependency first (LaunchHook references it)
+    LaunchHook::export()?;
     Ok(())
 }

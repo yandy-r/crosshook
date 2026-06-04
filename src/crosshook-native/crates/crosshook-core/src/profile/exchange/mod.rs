@@ -18,7 +18,7 @@ pub use validation::validate_manifest_value;
 mod tests {
     use super::*;
     use crate::profile::community_schema::COMMUNITY_PROFILE_SCHEMA_VERSION;
-    use crate::profile::{GameProfile, ProfileStore};
+    use crate::profile::{GameProfile, HookStage, LaunchHook, ProfileStore};
     use serde_json::Value;
     use std::fs;
     use tempfile::tempdir;
@@ -67,6 +67,8 @@ mod tests {
                 ..Default::default()
             },
             local_override: crate::profile::LocalOverrideSection::default(),
+            pre_launch_hooks: Vec::new(),
+            post_exit_hooks: Vec::new(),
         }
     }
 
@@ -237,5 +239,112 @@ mod tests {
             exported_profile.steam.app_id, "1245620",
             "steam.app_id must survive community export"
         );
+    }
+
+    fn sample_hook_enabled(id: &str, stage: HookStage) -> LaunchHook {
+        LaunchHook {
+            id: id.to_string(),
+            name: format!("Hook {id}"),
+            path: format!("/scripts/{id}.sh"),
+            stage,
+            enabled: true,
+        }
+    }
+
+    #[test]
+    fn community_export_strips_launch_hooks() {
+        let temp_dir = tempdir().unwrap();
+        let profiles_dir = temp_dir.path().join("profiles");
+        let export_path = temp_dir.path().join("exports").join("elden-ring.json");
+        let store = ProfileStore::with_base_path(profiles_dir.clone());
+
+        let mut profile = sample_profile();
+        profile.pre_launch_hooks = vec![
+            sample_hook_enabled("pre-a", HookStage::PreLaunch),
+            sample_hook_enabled("pre-b", HookStage::PreLaunch),
+        ];
+        profile.post_exit_hooks = vec![sample_hook_enabled("post-a", HookStage::PostExit)];
+
+        store.save("elden-ring", &profile).unwrap();
+
+        let exported = export_community_profile(&profiles_dir, "elden-ring", &export_path).unwrap();
+        let exported_profile = &exported.manifest.profile;
+
+        assert!(
+            exported_profile.pre_launch_hooks.is_empty(),
+            "pre_launch_hooks must be stripped on community export"
+        );
+        assert!(
+            exported_profile.post_exit_hooks.is_empty(),
+            "post_exit_hooks must be stripped on community export"
+        );
+
+        // Also verify no hook paths appear in the raw JSON output.
+        let json = fs::read_to_string(&export_path).unwrap();
+        assert!(
+            !json.contains("/scripts/pre-a.sh"),
+            "hook path must not appear in exported JSON: {json}"
+        );
+        assert!(
+            !json.contains("/scripts/post-a.sh"),
+            "hook path must not appear in exported JSON: {json}"
+        );
+    }
+
+    #[test]
+    fn community_import_force_disables_launch_hooks() {
+        let temp_dir = tempdir().unwrap();
+        let profiles_dir = temp_dir.path().join("profiles");
+        let export_path = temp_dir.path().join("exports").join("elden-ring.json");
+        let import_dir = temp_dir.path().join("imported");
+        let store = ProfileStore::with_base_path(profiles_dir.clone());
+
+        // Build a profile with hooks and export it, then manually re-inject enabled hooks
+        // into the JSON so the importer sees `enabled = true` in the manifest.
+        let profile = sample_profile();
+        store.save("elden-ring", &profile).unwrap();
+        export_community_profile(&profiles_dir, "elden-ring", &export_path).unwrap();
+
+        // Patch the exported JSON to embed enabled hooks directly in the manifest profile.
+        let content = fs::read_to_string(&export_path).unwrap();
+        let mut value: Value = serde_json::from_str(&content).unwrap();
+        let hooks_json = serde_json::json!([
+            { "id": "pre-a", "name": "Hook pre-a", "path": "/scripts/pre-a.sh", "stage": "pre-launch", "enabled": true },
+            { "id": "pre-b", "name": "Hook pre-b", "path": "/scripts/pre-b.sh", "stage": "pre-launch", "enabled": true },
+        ]);
+        let post_hooks_json = serde_json::json!([
+            { "id": "post-a", "name": "Hook post-a", "path": "/scripts/post-a.sh", "stage": "post-exit", "enabled": true },
+        ]);
+        value["profile"]["pre_launch_hooks"] = hooks_json;
+        value["profile"]["post_exit_hooks"] = post_hooks_json;
+        fs::write(&export_path, serde_json::to_string_pretty(&value).unwrap()).unwrap();
+
+        let imported = import_community_profile(&export_path, &import_dir).unwrap();
+
+        // All hooks must be force-disabled; entries and paths must be retained.
+        for hook in &imported.profile.pre_launch_hooks {
+            assert!(
+                !hook.enabled,
+                "pre_launch hook '{}' must be disabled after import, got enabled=true",
+                hook.id
+            );
+        }
+        for hook in &imported.profile.post_exit_hooks {
+            assert!(
+                !hook.enabled,
+                "post_exit hook '{}' must be disabled after import, got enabled=true",
+                hook.id
+            );
+        }
+
+        // Entries and identifying data must survive (only `enabled` is forced off).
+        assert_eq!(imported.profile.pre_launch_hooks.len(), 2);
+        assert_eq!(imported.profile.post_exit_hooks.len(), 1);
+        assert_eq!(imported.profile.pre_launch_hooks[0].id, "pre-a");
+        assert_eq!(
+            imported.profile.pre_launch_hooks[0].path,
+            "/scripts/pre-a.sh"
+        );
+        assert_eq!(imported.profile.post_exit_hooks[0].id, "post-a");
     }
 }
