@@ -9,10 +9,13 @@ import { HeroDetailHeader } from '@/components/library/HeroDetailHeader';
 import { HeroDetailTabs } from '@/components/library/HeroDetailTabs';
 import { LibraryListRow } from '@/components/library/LibraryListRow';
 import { CommandPalette } from '@/components/palette/CommandPalette';
+import { CollectionsProvider } from '@/context/CollectionsContext';
 import { HostReadinessProvider } from '@/context/HostReadinessContext';
 import { InspectorSelectionProvider } from '@/context/InspectorSelectionContext';
+import { LaunchStateProvider } from '@/context/LaunchStateContext';
 import { PreferencesProvider } from '@/context/PreferencesContext';
 import { ProfileProvider } from '@/context/ProfileContext';
+import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
 import type { UseGameMetadataResult } from '@/hooks/useGameMetadata';
 import { makeLibraryCardData } from '@/test/fixtures';
 import { renderWithMocks } from '@/test/render';
@@ -54,6 +57,27 @@ function GameDetailProviders({ children }: { children: ReactNode }) {
     <ProfileProvider>
       <PreferencesProvider>{children}</PreferencesProvider>
     </ProfileProvider>
+  );
+}
+
+// Full provider stack required by the Hero Detail launch/profiles tabs once they
+// embed LaunchSubTabs and the profile editor parity sections (issue #486).
+// Mirrors SubTabsTestProviders in LaunchSubTabs.test.tsx.
+function HeroDetailTabsProviders({ children }: { children: ReactNode }) {
+  return (
+    <TooltipProvider>
+      <ProfileProvider>
+        <PreferencesProvider>
+          <ProfileHealthProvider>
+            <HostReadinessProvider>
+              <CollectionsProvider>
+                <LaunchStateProvider>{children}</LaunchStateProvider>
+              </CollectionsProvider>
+            </HostReadinessProvider>
+          </ProfileHealthProvider>
+        </PreferencesProvider>
+      </ProfileProvider>
+    </TooltipProvider>
   );
 }
 
@@ -203,10 +227,10 @@ describe('HeroDetailTabs accessibility', () => {
     expect(results).toHaveNoViolations();
   });
 
-  it('renders profiles tab content with correct data-testid', () => {
+  it('renders profiles tab content with correct data-testid and has no axe violations', async () => {
     const summary = makeLibraryCardData();
-    renderWithMocks(
-      <ProfileProvider>
+    const { container } = renderWithMocks(
+      <HeroDetailTabsProviders>
         <HeroDetailTabs
           activeTab="profiles"
           onActiveTabChange={noop}
@@ -230,43 +254,45 @@ describe('HeroDetailTabs accessibility', () => {
             onSetActiveTab: undefined,
           }}
         />
-      </ProfileProvider>
+      </HeroDetailTabsProviders>
     );
     expect(screen.getByTestId('hero-detail-profiles-tab')).toBeInTheDocument();
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
   });
 
-  it('renders launch-options tab content with correct data-testid', () => {
+  it('renders launch-options tab content with correct data-testid and has no axe violations', async () => {
     const summary = makeLibraryCardData();
-    renderWithMocks(
-      <ProfileProvider>
-        <PreferencesProvider>
-          <HeroDetailTabs
-            activeTab="launch-options"
-            onActiveTabChange={noop}
-            panelProps={{
-              summary,
-              steamAppId: summary.steamAppId ?? '',
-              meta: META_STUB,
-              profile: null,
-              loadState: 'idle',
-              profileError: null,
-              healthReport: undefined,
-              healthLoading: false,
-              offlineReport: undefined,
-              offlineError: null,
-              launchRequest: null,
-              previewLoading: false,
-              preview: null,
-              previewError: null,
-              updateProfile: undefined,
-              profileList: undefined,
-              onSetActiveTab: undefined,
-            }}
-          />
-        </PreferencesProvider>
-      </ProfileProvider>
+    const { container } = renderWithMocks(
+      <HeroDetailTabsProviders>
+        <HeroDetailTabs
+          activeTab="launch-options"
+          onActiveTabChange={noop}
+          panelProps={{
+            summary,
+            steamAppId: summary.steamAppId ?? '',
+            meta: META_STUB,
+            profile: null,
+            loadState: 'idle',
+            profileError: null,
+            healthReport: undefined,
+            healthLoading: false,
+            offlineReport: undefined,
+            offlineError: null,
+            launchRequest: null,
+            previewLoading: false,
+            preview: null,
+            previewError: null,
+            updateProfile: undefined,
+            profileList: undefined,
+            onSetActiveTab: undefined,
+          }}
+        />
+      </HeroDetailTabsProviders>
     );
     expect(screen.getByTestId('hero-detail-launch-tab')).toBeInTheDocument();
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
   });
 });
 

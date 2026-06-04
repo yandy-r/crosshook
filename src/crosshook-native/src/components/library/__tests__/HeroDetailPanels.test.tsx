@@ -3,8 +3,9 @@ import type { ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { PreferencesProvider } from '@/context/PreferencesContext';
 import { ProfileProvider } from '@/context/ProfileContext';
+import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
 import type { UseGameMetadataResult } from '@/hooks/useGameMetadata';
-import { makeLibraryCardData } from '@/test/fixtures';
+import { makeLaunchPreview, makeLaunchRequest, makeLibraryCardData } from '@/test/fixtures';
 import type { LaunchPreview, LaunchRequest } from '@/types/launch';
 import type { HeroDetailLaunchTabProps } from '../HeroDetailLaunchTab';
 import { HeroDetailPanels } from '../HeroDetailPanels';
@@ -50,47 +51,18 @@ const metaStub: UseGameMetadataResult = {
   refresh: async () => {},
 };
 
-function makeLaunchRequest(): LaunchRequest {
-  return {
-    method: 'proton_run',
-    game_path: '/games/synthetic-quest/game.exe',
-    trainer_path: '/trainers/synthetic-quest/trainer.exe',
-    trainer_host_path: '/trainers/synthetic-quest/trainer.exe',
-    trainer_loading_mode: 'source_directory',
-    steam: {
-      app_id: '9999001',
-      compatdata_path: '/steam/compatdata/9999001',
-      proton_path: '/compatibilitytools/proton-ge/proton',
-      steam_client_install_path: '/steam/root',
-    },
-    runtime: {
-      prefix_path: '/prefixes/synthetic-quest',
-      proton_path: '/compatibilitytools/proton-ge/proton',
-      working_directory: '/games/synthetic-quest',
-      steam_app_id: '9999001',
-    },
+// Local flavor over the canonical builders: this suite exercises a richer
+// preview (validation issues, wrappers, directives error, staged trainer).
+function makePanelsLaunchRequest(): LaunchRequest {
+  return makeLaunchRequest({
     optimizations: {
       enabled_option_ids: ['show_mangohud_overlay'],
     },
-    launch_trainer_only: false,
-    launch_game_only: false,
-    profile_name: 'Synthetic Quest',
     custom_env_vars: {
       PROTON_LOG: '1',
     },
-    network_isolation: false,
     gamescope: {
       enabled: true,
-      fullscreen: false,
-      borderless: false,
-      grab_cursor: false,
-      force_grab_cursor: false,
-      hdr_enabled: false,
-      allow_nested: false,
-      extra_args: [],
-    },
-    trainer_gamescope: {
-      enabled: false,
       fullscreen: false,
       borderless: false,
       grab_cursor: false,
@@ -108,12 +80,11 @@ function makeLaunchRequest(): LaunchRequest {
       battery: false,
       watt: false,
     },
-  };
+  });
 }
 
 function makePreview(overrides: Partial<LaunchPreview> = {}): LaunchPreview {
-  return {
-    resolved_method: 'proton_run',
+  return makeLaunchPreview({
     validation: {
       issues: [
         {
@@ -148,20 +119,15 @@ function makePreview(overrides: Partial<LaunchPreview> = {}): LaunchPreview {
       proton_executable: '/compatibilitytools/proton-ge/proton',
       umu_run_path: '/usr/bin/umu-run',
     },
-    working_directory: '/games/synthetic-quest',
-    game_executable: '/games/synthetic-quest/game.exe',
-    game_executable_name: 'game.exe',
     trainer: {
       path: '/trainers/synthetic-quest/trainer.exe',
       host_path: '/trainers/synthetic-quest/trainer.exe',
       loading_mode: 'copy_to_prefix',
       staged_path: '/prefixes/synthetic-quest/drive_c/trainers/trainer.exe',
     },
-    generated_at: '2026-04-23T12:00:00.000Z',
     display_text: 'Raw launch preview dump',
-    umu_decision: null,
     ...overrides,
-  };
+  });
 }
 
 function renderHeroDetailPanels(
@@ -180,7 +146,7 @@ function renderHeroDetailPanels(
     healthLoading: false,
     offlineReport: undefined,
     offlineError: null,
-    launchRequest: makeLaunchRequest(),
+    launchRequest: makePanelsLaunchRequest(),
     previewLoading: false,
     preview: makePreview(),
     previewError: null,
@@ -195,7 +161,9 @@ function renderHeroDetailPanels(
   if (options.withProviders) {
     return render(
       <PreferencesProvider>
-        <ProfileProvider>{panel}</ProfileProvider>
+        <ProfileProvider>
+          <ProfileHealthProvider>{panel}</ProfileHealthProvider>
+        </ProfileProvider>
       </PreferencesProvider>
     );
   }

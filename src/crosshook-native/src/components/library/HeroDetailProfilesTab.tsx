@@ -1,19 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { usePreferencesContext } from '@/context/PreferencesContext';
 import { useProfileContext } from '@/context/ProfileContext';
-import { launchOptimizationsAutosaveDelayMs } from '@/hooks/profile/constants';
+import { useProfileHealthContext } from '@/context/ProfileHealthContext';
+import { useProfileActions } from '@/hooks/profile/useProfileActions';
 import type { GameDetailsProfileLoadState } from '@/hooks/useGameDetailsProfile';
-import { useProfileCardMeta } from '@/hooks/useProfileCardMeta';
 import { useProtonInstalls } from '@/hooks/useProtonInstalls';
+import { useTrainerTypeCatalog } from '@/hooks/useTrainerTypeCatalog';
 import type { EnrichedProfileHealthReport } from '@/types/health';
-import type { LaunchAutoSaveStatus } from '@/types/launch';
 import type { LibraryCardData, ProfileSummary } from '@/types/library';
+import { resolveArtAppId } from '@/utils/art';
 import { resolveLaunchMethod } from '@/utils/launch';
-import { HealthBadge } from '../HealthBadge';
-import { OnboardingWizard } from '../OnboardingWizard';
-import { GameSection } from '../profile-sections/GameSection';
-import { MediaSection } from '../profile-sections/MediaSection';
-import { ProfileIdentitySection } from '../profile-sections/ProfileIdentitySection';
-import { RuntimeSection } from '../profile-sections/RuntimeSection';
+import { LauncherExport } from '../LauncherExport';
+import { useProfilesPageProton } from '../pages/profiles/useProfilesPageProton';
+import { HeroProfileActionsBar } from './profiles/HeroProfileActionsBar';
+import { HeroProfileCardList } from './profiles/HeroProfileCardList';
+import { HeroProfileEditorSections } from './profiles/HeroProfileEditorSections';
+import { useHeroProfilesAutosave } from './profiles/useHeroProfilesAutosave';
 
 export interface HeroDetailProfilesTabProps {
   summary: LibraryCardData;
@@ -21,19 +23,6 @@ export interface HeroDetailProfilesTabProps {
   loadState: GameDetailsProfileLoadState;
   profileError: string | null;
   healthByName?: Partial<Record<string, EnrichedProfileHealthReport>>;
-}
-
-const idleStatus: LaunchAutoSaveStatus = {
-  tone: 'idle',
-  label: 'Saved',
-};
-
-function profileCardTitle(card: ProfileSummary): string {
-  return card.gameName.trim() ? `${card.name} - ${card.gameName}` : card.name;
-}
-
-function profileCardMetaLabel(profileName: string, protonLabel: string | null): string {
-  return [profileName ? `${profileName}.toml` : null, protonLabel].filter(Boolean).join(' · ');
 }
 
 function ownsProfile(profileNames: Set<string>, selectedProfile: string): boolean {
@@ -60,33 +49,76 @@ export function HeroDetailProfilesTab({
     setProfileName,
     persistProfileDraft,
     steamClientInstallPath,
+    targetHomePath,
+    fetchConfigHistory,
+    fetchConfigDiff,
+    rollbackConfig,
+    markKnownGood,
   } = useProfileContext();
-  const [showWizard, setShowWizard] = useState(false);
-  const [autoSaveStatus, setAutoSaveStatus] = useState<LaunchAutoSaveStatus>(idleStatus);
-  const latestProfileNameRef = useRef(selectedProfile.trim());
-  const latestProfileRef = useRef(profile);
+
+  const { defaultSteamClientInstallPath } = usePreferencesContext();
+
+  const { healthByName: healthByNameCtx, staleInfoByName, cachedSnapshots, trendByName } = useProfileHealthContext();
+
+  const { labels: trainerTypeLabels } = useTrainerTypeCatalog();
 
   const cards = profileList ?? [];
   const cardNames = useMemo(() => cards.map((card) => card.name), [cards]);
   const profileNames = useMemo(() => new Set(cardNames), [cardNames]);
   const singletonOwnsGame = ownsProfile(profileNames, selectedProfile);
   const selectedTrimmed = selectedProfile.trim();
-  const profileNameTrimmed = profileName.trim();
   const profileExists = selectedTrimmed.length > 0 && profiles.includes(selectedTrimmed);
-  const hasSavedSelectedProfile = profileExists && profileNameTrimmed === selectedTrimmed;
   const launchMethod = resolveLaunchMethod(profile);
   const { installs: protonInstalls, error: protonInstallsError } = useProtonInstalls({
     steamClientInstallPath,
   });
-  const { metaByProfileName } = useProfileCardMeta(cardNames);
 
-  useEffect(() => {
-    latestProfileNameRef.current = selectedTrimmed;
-  }, [selectedTrimmed]);
+  const effectiveSteamClientInstallPath = useMemo(
+    () => defaultSteamClientInstallPath || steamClientInstallPath,
+    [defaultSteamClientInstallPath, steamClientInstallPath]
+  );
 
-  useEffect(() => {
-    latestProfileRef.current = profile;
-  }, [profile]);
+  // Proton suggestion banner (community-recommended version)
+  const protonState = useProfilesPageProton({
+    effectiveSteamClientInstallPath,
+    gameName: profile.game.name,
+    selectedProfile,
+  });
+
+  // Health data for the selected profile
+  // Prefer live data from healthByName prop (passed from parent), fall back to context
+  const selectedReport = selectedTrimmed
+    ? (healthByName?.[selectedTrimmed] ?? healthByNameCtx[selectedTrimmed])
+    : undefined;
+  const selectedCachedSnapshot = selectedTrimmed ? cachedSnapshots[selectedTrimmed] : undefined;
+  const selectedStaleInfo = selectedTrimmed ? staleInfoByName[selectedTrimmed] : undefined;
+  const selectedTrend = selectedTrimmed ? (trendByName[selectedTrimmed] ?? null) : null;
+  const versionStatus = selectedReport?.metadata?.version_status ?? null;
+  const trainerVersion = selectedReport?.metadata?.trainer_version ?? null;
+
+  // Trainer type display name (for health-badge chip)
+  const trainerTypeDisplayName = useMemo(() => {
+    const id = profile.trainer?.trainer_type?.trim() || 'unknown';
+    return trainerTypeLabels[id] ?? id;
+  }, [profile.trainer?.trainer_type, trainerTypeLabels]);
+
+  // Network isolation badge: show when the selected card reports no isolation
+  const selectedCard = cards.find((c) => c.name === selectedTrimmed);
+  const showNetworkIsolationBadge = selectedCard?.networkIsolation === false;
+
+  // Ref for health-issues scroll target (per-card badge click)
+  const healthIssuesRef = useRef<HTMLDivElement>(null);
+
+  // Steam App ID for GameMetadataBar
+  const steamAppId = resolveArtAppId(profile) || summary.steamAppId || undefined;
+
+  // Pending launcher re-export flag — set by useProfileActions when a rename
+  // detects an existing launcher that needs to be re-exported after the rename.
+  const [pendingLauncherReExport, setPendingLauncherReExport] = useState(false);
+
+  // Shared action hook — handles duplicate / rename / preview / community-export /
+  // history panel / mark-verified state, handlers, and F2 keyboard shortcut.
+  const actions = useProfileActions({ setPendingLauncherReExport });
 
   useEffect(() => {
     if (cards.length === 0 || singletonOwnsGame) {
@@ -96,72 +128,17 @@ export function HeroDetailProfilesTab({
     void selectProfile(summary.name);
   }, [cards.length, selectProfile, singletonOwnsGame, summary.name]);
 
-  useEffect(() => {
-    if (saving) {
-      setAutoSaveStatus({ tone: 'saving', label: 'Saving profile…' });
-      return;
-    }
-
-    if (error) {
-      setAutoSaveStatus({ tone: 'error', label: 'Profile save failed', detail: error });
-      return;
-    }
-
-    if (!dirty) {
-      setAutoSaveStatus(idleStatus);
-    }
-  }, [dirty, error, saving]);
-
-  useEffect(() => {
-    if (!dirty || !hasSavedSelectedProfile) {
-      return;
-    }
-
-    const scheduledProfileName = selectedTrimmed;
-    let cancelled = false;
-    const timer = window.setTimeout(() => {
-      if (cancelled || latestProfileNameRef.current !== scheduledProfileName) {
-        return;
-      }
-
-      setAutoSaveStatus({ tone: 'saving', label: 'Saving profile…' });
-      void persistProfileDraft(scheduledProfileName, latestProfileRef.current).then((result) => {
-        if (cancelled || latestProfileNameRef.current !== scheduledProfileName) {
-          return;
-        }
-
-        setAutoSaveStatus(
-          result.ok
-            ? { tone: 'success', label: 'Profile saved' }
-            : { tone: 'error', label: 'Profile save failed', detail: result.error }
-        );
-      });
-    }, launchOptimizationsAutosaveDelayMs);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [dirty, hasSavedSelectedProfile, persistProfileDraft, selectedTrimmed]);
-
-  const selectCard = useCallback(
-    async (cardName: string) => {
-      if (cardName === selectedTrimmed) {
-        return;
-      }
-
-      if (dirty && hasSavedSelectedProfile) {
-        const result = await persistProfileDraft(selectedTrimmed, profile);
-        if (!result.ok) {
-          setAutoSaveStatus({ tone: 'error', label: 'Profile save failed', detail: result.error });
-          return;
-        }
-      }
-
-      await selectProfile(cardName);
-    },
-    [dirty, hasSavedSelectedProfile, persistProfileDraft, profile, selectProfile, selectedTrimmed]
-  );
+  const { autoSaveStatus, selectCard } = useHeroProfilesAutosave({
+    profile,
+    profileName,
+    selectedProfile,
+    profiles,
+    dirty,
+    saving,
+    error,
+    persistProfileDraft,
+    selectProfile,
+  });
 
   const autoSaveChip =
     autoSaveStatus.tone !== 'idle' ? (
@@ -175,66 +152,33 @@ export function HeroDetailProfilesTab({
       </span>
     ) : null;
 
+  // LauncherExport panel — only shown for steam_applaunch / proton_run methods.
+  // Mirrors ProfileSubTabs.tsx supportsLauncherExport guard (line 112).
+  const supportsLauncherExport = launchMethod === 'steam_applaunch' || launchMethod === 'proton_run';
+  const launcherExportSlot =
+    supportsLauncherExport && profileExists ? (
+      <LauncherExport
+        profile={profile}
+        profileName={profileName}
+        method={launchMethod}
+        steamClientInstallPath={effectiveSteamClientInstallPath}
+        targetHomePath={targetHomePath}
+        pendingReExport={pendingLauncherReExport}
+        onReExportHandled={() => setPendingLauncherReExport(false)}
+      />
+    ) : null;
+
   return (
     <div className="crosshook-hero-detail__profiles">
-      <aside className="crosshook-hero-detail__profiles-cards" aria-label="Profiles for this game">
-        {cards.length === 0 ? (
-          <p className="crosshook-hero-detail__muted" role="status">
-            No profiles found for this game.
-          </p>
-        ) : (
-          <ul className="crosshook-hero-detail__profiles-list" aria-label="Profile cards">
-            {cards.map((card) => {
-              const isSelected = card.name === selectedTrimmed;
-              const cardMeta = metaByProfileName[card.name];
-              const metaLabel = profileCardMetaLabel(card.name, cardMeta?.protonLabel ?? null);
-              const healthReport = healthByName?.[card.name];
-
-              return (
-                <li key={card.name}>
-                  <button
-                    type="button"
-                    className={[
-                      'crosshook-hero-detail__profiles-card',
-                      isSelected ? 'crosshook-hero-detail__profiles-card--selected' : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' ')}
-                    aria-current={isSelected ? 'true' : undefined}
-                    aria-label={profileCardTitle(card)}
-                    onClick={() => {
-                      void selectCard(card.name);
-                    }}
-                  >
-                    <div className="crosshook-hero-detail__profiles-card-header">
-                      <strong className="crosshook-hero-detail__profiles-card-name">
-                        {isSelected ? <span aria-hidden="true">✓ </span> : null}
-                        {card.name}
-                      </strong>
-                      {isSelected ? <span className="crosshook-hero-detail__pill">Active</span> : null}
-                    </div>
-                    <span className="crosshook-hero-detail__text--small">{card.gameName || summary.gameName}</span>
-                    {metaLabel ? <span className="crosshook-hero-detail__profiles-card-meta">{metaLabel}</span> : null}
-                    {cardMeta?.lastUsedLabel ? (
-                      <span className="crosshook-hero-detail__text--small">last used {cardMeta.lastUsedLabel}</span>
-                    ) : null}
-                    {healthReport ? <HealthBadge report={healthReport} /> : null}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        <div className="crosshook-hero-detail__profiles-cta">
-          <button
-            type="button"
-            className="crosshook-button crosshook-button--secondary"
-            onClick={() => setShowWizard(true)}
-          >
-            + New
-          </button>
-        </div>
-      </aside>
+      <HeroProfileCardList
+        cards={cards}
+        summary={summary}
+        selectedTrimmed={selectedTrimmed}
+        healthByName={healthByName}
+        onSelectCard={(cardName) => {
+          void selectCard(cardName);
+        }}
+      />
 
       <section className="crosshook-hero-detail__profiles-editor" aria-label="Profile editor">
         {loadState === 'loading' ? <p className="crosshook-hero-detail__muted">Loading profile details…</p> : null}
@@ -252,35 +196,51 @@ export function HeroDetailProfilesTab({
               <h3 className="crosshook-hero-detail__section-title">{profileName || selectedTrimmed}</h3>
               {autoSaveChip}
             </div>
-            <ProfileIdentitySection
-              profileName={profileName}
+
+            <HeroProfileActionsBar
+              actions={actions}
+              onAfterRollback={actions.handleAfterRollback}
+              versionStatus={versionStatus}
+              historyHandlers={{
+                fetchConfigHistory,
+                fetchConfigDiff,
+                rollbackConfig,
+                markKnownGood,
+              }}
+            />
+
+            <HeroProfileEditorSections
               profile={profile}
-              onProfileNameChange={setProfileName}
-              onUpdateProfile={updateProfile}
+              profileName={profileName}
               profileExists={profileExists}
               profiles={profiles}
-            />
-            <RuntimeSection
-              profile={profile}
-              onUpdateProfile={updateProfile}
               launchMethod={launchMethod}
               protonInstalls={protonInstalls}
               protonInstallsError={protonInstallsError}
+              onUpdateProfile={updateProfile}
+              onProfileNameChange={setProfileName}
+              steamAppId={steamAppId}
+              trainerVersion={trainerVersion}
+              selectedReport={selectedReport}
+              selectedCachedSnapshot={selectedCachedSnapshot}
+              selectedTrend={selectedTrend}
+              staleInfo={selectedStaleInfo}
+              trainerTypeDisplayName={trainerTypeDisplayName}
+              showNetworkIsolationBadge={showNetworkIsolationBadge}
+              versionStatus={versionStatus ?? undefined}
+              healthIssuesRef={healthIssuesRef}
+              suggestion={protonState.suggestion}
+              suggestionDismissed={protonState.suggestionDismissed}
+              suggestionInstallError={protonState.suggestionInstallError}
+              protonUpInstalling={protonState.protonUp.installing}
+              effectiveSteamClientInstallPath={effectiveSteamClientInstallPath}
+              onInstallSuggestedVersion={() => void protonState.handleInstallSuggestedVersion()}
+              onDismissSuggestion={() => protonState.setSuggestionDismissed(true)}
+              launcherExportSlot={launcherExportSlot}
             />
-            <GameSection profile={profile} onUpdateProfile={updateProfile} launchMethod={launchMethod} />
-            <MediaSection profile={profile} onUpdateProfile={updateProfile} launchMethod={launchMethod} />
           </div>
         ) : null}
       </section>
-
-      {showWizard ? (
-        <OnboardingWizard
-          open
-          mode="create"
-          onComplete={() => setShowWizard(false)}
-          onDismiss={() => setShowWizard(false)}
-        />
-      ) : null}
     </div>
   );
 }

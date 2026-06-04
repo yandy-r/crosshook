@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { launchOptimizationsAutosaveDelayMs } from '@/hooks/profile/constants';
 import { makeLibraryCardData, makeProfileDraft } from '@/test/fixtures';
 import type { LibraryCardData, ProfileSummary } from '@/types/library';
-import type { GameProfile } from '@/types/profile';
+import type { GameProfile, LaunchMethod } from '@/types/profile';
 import { HeroDetailProfilesTab } from '../HeroDetailProfilesTab';
 
 const profileContextMock = vi.fn();
@@ -48,6 +48,122 @@ vi.mock('@/components/profile-sections/MediaSection', () => ({
   MediaSection: () => <div>Media Section</div>,
 }));
 
+vi.mock('@/components/profile-sections/RunnerMethodSection', () => ({
+  RunnerMethodSection: () => <div>Runner Method Section</div>,
+}));
+
+vi.mock('@/components/profile-sections/TrainerSection', () => ({
+  TrainerSection: () => <div>Trainer Section</div>,
+}));
+
+vi.mock('@/components/profile-sections/GameMetadataBar', () => ({
+  GameMetadataBar: () => null,
+}));
+
+vi.mock('@/components/GamescopeConfigPanel', () => ({
+  GamescopeConfigPanel: () => <div>Gamescope Panel</div>,
+}));
+
+vi.mock('@/components/PrefixDepsPanel', () => ({
+  PrefixDepsPanel: () => <div>Prefix Deps Panel</div>,
+}));
+
+vi.mock('@/context/ProfileHealthContext', () => ({
+  useProfileHealthContext: () => ({
+    healthByName: {},
+    staleInfoByName: {},
+    cachedSnapshots: {},
+    trendByName: {},
+    summary: null,
+    loading: false,
+    error: null,
+    batchValidate: vi.fn(),
+    revalidateSingle: vi.fn(),
+  }),
+}));
+
+vi.mock('@/hooks/profile/useProfileActions', () => ({
+  useProfileActions: () => ({
+    canSave: false,
+    canDelete: false,
+    canDuplicate: false,
+    canRename: false,
+    canPreview: false,
+    canExportCommunity: false,
+    canViewHistory: false,
+    previewing: false,
+    previewError: null,
+    showProfilePreview: false,
+    profilePreviewContent: '',
+    handlePreviewProfile: vi.fn(),
+    handleCloseProfilePreview: vi.fn(),
+    exportingCommunity: false,
+    communityExportError: null,
+    communityExportSuccess: null,
+    handleExportCommunityProfile: vi.fn(),
+    handleSave: vi.fn(),
+    handleRefreshStatus: vi.fn(),
+    handleAfterRollback: vi.fn(),
+    showHistoryPanel: false,
+    setShowHistoryPanel: vi.fn(),
+    showWizard: false,
+    wizardMode: 'create' as const,
+    openWizard: vi.fn(),
+    setShowWizard: vi.fn(),
+    canConfirmRename: false,
+    dismissHealthBanner: vi.fn(),
+    dismissRenameToast: vi.fn(),
+    handleRenameConfirm: vi.fn(),
+    healthBannerDismissed: false,
+    pendingRename: null,
+    renameError: null,
+    renameInputRef: { current: null },
+    renameNameTrimmed: '',
+    renameToast: null,
+    renameToastDismissed: false,
+    renameValue: '',
+    setPendingRename: vi.fn(),
+    setRenameValue: vi.fn(),
+    undoRename: vi.fn(),
+  }),
+}));
+
+vi.mock('@/components/library/profiles/HeroProfileActionsBar', () => ({
+  HeroProfileActionsBar: () => null,
+}));
+
+vi.mock('@/components/library/profiles/HeroProfileEditorSections', () => ({
+  HeroProfileEditorSections: (props: { launcherExportSlot?: import('react').ReactNode }) => (
+    <div data-testid="hero-profile-editor-sections">{props.launcherExportSlot ?? null}</div>
+  ),
+}));
+
+vi.mock('@/components/LauncherExport', () => ({
+  LauncherExport: () => <div data-testid="launcher-export-panel">LauncherExport</div>,
+}));
+
+vi.mock('@/hooks/useTrainerTypeCatalog', () => ({
+  useTrainerTypeCatalog: () => ({
+    catalog: [],
+    labels: {},
+    error: null,
+    selectOptions: [],
+  }),
+}));
+
+vi.mock('@/components/pages/profiles/useProfilesPageProton', () => ({
+  useProfilesPageProton: () => ({
+    suggestion: null,
+    suggestionDismissed: false,
+    suggestionInstallError: null,
+    protonUp: { installing: false },
+    handleInstallSuggestedVersion: vi.fn(),
+    setSuggestionDismissed: vi.fn(),
+    protonInstalls: [],
+    protonInstallsError: null,
+  }),
+}));
+
 type ProfileContextState = {
   profile: GameProfile;
   profileName: string;
@@ -61,6 +177,20 @@ type ProfileContextState = {
   setProfileName: typeof setProfileNameSpy;
   persistProfileDraft: typeof persistProfileDraftSpy;
   steamClientInstallPath: string;
+  // Additional fields consumed by HeroDetailProfilesTab (Task 3.2)
+  targetHomePath: string;
+  pendingDelete: null;
+  deleting: boolean;
+  duplicating: boolean;
+  renaming: boolean;
+  duplicateProfile: ReturnType<typeof vi.fn>;
+  confirmDelete: ReturnType<typeof vi.fn>;
+  executeDelete: ReturnType<typeof vi.fn>;
+  cancelDelete: ReturnType<typeof vi.fn>;
+  fetchConfigHistory: ReturnType<typeof vi.fn>;
+  fetchConfigDiff: ReturnType<typeof vi.fn>;
+  rollbackConfig: ReturnType<typeof vi.fn>;
+  markKnownGood: ReturnType<typeof vi.fn>;
 };
 
 const card1: ProfileSummary = {
@@ -109,6 +239,19 @@ function buildContextState(overrides: Partial<ProfileContextState> = {}): Profil
     setProfileName: setProfileNameSpy,
     persistProfileDraft: persistProfileDraftSpy,
     steamClientInstallPath: '/home/devuser/.steam/steam',
+    targetHomePath: '/home/devuser',
+    pendingDelete: null,
+    deleting: false,
+    duplicating: false,
+    renaming: false,
+    duplicateProfile: vi.fn().mockResolvedValue(undefined),
+    confirmDelete: vi.fn().mockResolvedValue(undefined),
+    executeDelete: vi.fn().mockResolvedValue(undefined),
+    cancelDelete: vi.fn(),
+    fetchConfigHistory: vi.fn().mockResolvedValue([]),
+    fetchConfigDiff: vi.fn().mockResolvedValue({}),
+    rollbackConfig: vi.fn().mockResolvedValue({}),
+    markKnownGood: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
@@ -264,5 +407,86 @@ describe('HeroDetailProfilesTab', () => {
       selectProfileSpy.mock.invocationCallOrder[selectProfileSpy.mock.calls.findIndex(([name]) => name === card2.name)];
 
     expect(persistCallOrder).toBeLessThan(selectCard2CallOrder);
+  });
+
+  it('triggers autosave after runner-method change mutates the profile draft', async () => {
+    // Start with a dirty profile to simulate an in-flight edit caused by a
+    // runner-method change. The autosave fires after launchOptimizationsAutosaveDelayMs.
+    contextState = buildContextState({
+      dirty: true,
+      profile: makeProfileDraft({
+        launch: {
+          method: 'proton_run' as LaunchMethod,
+          optimizations: { enabled_option_ids: [] },
+          custom_env_vars: {},
+        },
+      }),
+    });
+
+    renderProfilesTab();
+
+    expect(persistProfileDraftSpy).not.toHaveBeenCalled();
+
+    await waitFor(
+      () => {
+        expect(persistProfileDraftSpy).toHaveBeenCalledWith(card1.name, expect.any(Object));
+      },
+      { timeout: 1000 }
+    );
+  });
+
+  it('shows the LauncherExport panel slot when launch method supports it and profile exists', () => {
+    contextState = buildContextState({
+      profile: makeProfileDraft({
+        launch: {
+          method: 'proton_run' as LaunchMethod,
+          optimizations: { enabled_option_ids: [] },
+          custom_env_vars: {},
+        },
+      }),
+    });
+
+    renderProfilesTab();
+
+    expect(screen.getByTestId('launcher-export-panel')).toBeInTheDocument();
+  });
+
+  it('does not render the LauncherExport panel when launch method is native', () => {
+    contextState = buildContextState({
+      profile: makeProfileDraft({
+        launch: {
+          method: 'native' as LaunchMethod,
+          optimizations: { enabled_option_ids: [] },
+          custom_env_vars: {},
+        },
+      }),
+    });
+
+    renderProfilesTab();
+
+    expect(screen.queryByTestId('launcher-export-panel')).not.toBeInTheDocument();
+  });
+
+  it('shows the loading state while profile load is in progress', () => {
+    renderProfilesTab({ loadState: 'loading' });
+
+    expect(screen.getByText(/loading profile details/i)).toBeInTheDocument();
+  });
+
+  it('shows the error state when profile load fails', () => {
+    renderProfilesTab({ loadState: 'error', profileError: 'Profile not found' });
+
+    expect(screen.getByText(/profile not found/i)).toBeInTheDocument();
+  });
+
+  it('shows the select-a-profile prompt when no singleton owns the game', () => {
+    contextState = buildContextState({
+      selectedProfile: 'unrelated',
+      profileName: 'unrelated',
+    });
+
+    renderProfilesTab({ profileList: [card1] });
+
+    expect(screen.getByRole('status')).toHaveTextContent(/select a profile card/i);
   });
 });

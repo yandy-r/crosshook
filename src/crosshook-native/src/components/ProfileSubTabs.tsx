@@ -2,10 +2,10 @@ import * as Tabs from '@radix-ui/react-tabs';
 import { type CSSProperties, useEffect, useMemo, useState } from 'react';
 import { useGameCoverArt } from '../hooks/useGameCoverArt';
 import { useImageDominantColor } from '../hooks/useImageDominantColor';
-import type { GameProfile, GamescopeConfig, LaunchMethod } from '../types';
-import { DEFAULT_GAMESCOPE_CONFIG } from '../types/profile';
+import type { GameProfile, LaunchMethod } from '../types';
 import type { ProtonInstallOption } from '../types/proton';
 import { resolveArtAppId } from '../utils/art';
+import { resolveTrainerGamescopeForDisplay } from '../utils/trainerGamescope';
 import { GamescopeConfigPanel } from './GamescopeConfigPanel';
 import LauncherExport from './LauncherExport';
 import { GameMetadataBar } from './profile-sections/GameMetadataBar';
@@ -46,41 +46,6 @@ const TAB_LABELS: Record<SubTabId, string> = {
   gamescope: 'Gamescope',
   export: 'Export',
 };
-
-// Must mirror LaunchRequest::resolved_trainer_gamescope / LaunchSection::resolved_trainer_gamescope in crosshook-core — update both sites together.
-function resolveTrainerGamescopeForDisplay(profile: GameProfile): {
-  config: GamescopeConfig;
-  isGeneratedFromGame: boolean;
-} {
-  const trainerGamescope = profile.launch.trainer_gamescope;
-
-  if (trainerGamescope?.enabled) {
-    return {
-      config: trainerGamescope,
-      isGeneratedFromGame: false,
-    };
-  }
-
-  const gameGamescope = profile.launch.gamescope;
-  if (gameGamescope?.enabled) {
-    return {
-      config: {
-        ...DEFAULT_GAMESCOPE_CONFIG,
-        ...gameGamescope,
-        enabled: true,
-        fullscreen: false,
-        borderless: false,
-        extra_args: gameGamescope.extra_args ?? [],
-      },
-      isGeneratedFromGame: true,
-    };
-  }
-
-  return {
-    config: DEFAULT_GAMESCOPE_CONFIG,
-    isGeneratedFromGame: false,
-  };
-}
 
 export function ProfileSubTabs({
   profile,

@@ -226,6 +226,15 @@
   min-width: 0;
 }
 
+/* HeroLaunchGate — the in-place launch orchestrator inside the Hero Detail
+   tab. Inherits the same column flex layout as the tab itself. */
+.crosshook-hero-detail__launch-gate {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
 .crosshook-hero-detail__launch-actions {
   display: flex;
   flex-wrap: wrap;
@@ -690,6 +699,62 @@
   gap: 8px;
 }
 
+/* ── LaunchSubTabs chrome flattening ──────────────────────────────────────
+ * When the legacy LaunchSubTabs component (crosshook-subtabs-shell) is
+ * embedded inside Hero Detail's launch tab it must not produce its own
+ * panel chrome (background gradient, border, box-shadow, backdrop-filter)
+ * or its cover-art backdrop — Hero Detail already provides those surfaces.
+ *
+ * Selectors that neutralise crosshook-panel and crosshook-subtabs-shell
+ * are forward declarations for the component embedded by Task 2.1.
+ */
+
+/* Neutralise the .crosshook-panel base chrome (background, border, radius,
+   shadow, backdrop-filter, padding) on the subtabs shell root element. */
+.crosshook-hero-detail__launch-tab .crosshook-subtabs-shell {
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  padding: 0;
+}
+
+/* Hide the cover-art backdrop entirely — Hero Detail's own hero image
+   already provides the ambient art surface behind the launch tab. */
+.crosshook-hero-detail__launch-tab .crosshook-subtabs-backdrop {
+  display: none;
+}
+
+/* Remove foreground padding so content aligns flush with the host tab
+   container's existing padding. */
+.crosshook-hero-detail__launch-tab .crosshook-subtabs-foreground {
+  padding: 0;
+}
+
+/* ── Profile actions bar ──────────────────────────────────────────────────
+ * Wraps the ~7 profile action buttons rendered by Task 2.2.
+ * Mirrors the gap/wrap pattern of .crosshook-hero-detail__launch-actions
+ * (hero-detail.css lines 229-234).
+ */
+.crosshook-hero-detail__profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* ── min-width: 0 cascades for new editor section containers ──────────────
+ * Forward declarations for section wrapper classes introduced by Tasks 3.1
+ * and 3.2. Mirrors the existing cascade at hero-detail.css lines 316-323.
+ */
+.crosshook-hero-detail__launch-tab .crosshook-hero-detail__profile-editor-section,
+.crosshook-hero-detail__launch-tab .crosshook-hero-detail__profile-editor-section__content,
+.crosshook-hero-detail__launch-tab .crosshook-hero-detail__profile-meta-section,
+.crosshook-hero-detail__launch-tab .crosshook-hero-detail__profile-meta-section__content {
+  min-width: 0;
+}
+
 @media (max-width: 720px) {
   .crosshook-hero-detail {
     --crosshook-hero-detail-hero-height: min(180px, 24vh);
@@ -737,5 +802,16 @@
   .crosshook-hero-detail__hook-placeholder {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  /* Narrow-width collapse for profile-actions bar (Task 2.2) and new editor
+   * section containers (Tasks 3.1/3.2) — mirroring env grid collapse at
+   * hero-detail.css ~716-718 and two-pane collapse at ~702-704. */
+  .crosshook-hero-detail__profile-actions {
+    justify-content: stretch;
+  }
+
+  .crosshook-hero-detail__profile-actions > .crosshook-button {
+    flex: 1 1 10rem;
   }
 }
