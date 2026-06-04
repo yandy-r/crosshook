@@ -243,9 +243,10 @@
   flex: 1 1 100%;
 }
 
-.crosshook-hero-detail__launch-status {
+.crosshook-hero-detail__launch-actions .crosshook-hero-detail__launch-status {
   margin: 0;
   font-size: 0.78rem;
+  text-transform: none;
   color: var(--crosshook-color-text-muted);
 }
 
@@ -582,7 +583,7 @@
   font-weight: 600;
 }
 
-.crosshook-hero-detail__launch-status {
+.crosshook-hero-detail__launch-line .crosshook-hero-detail__launch-status {
   font-size: 0.72rem;
   text-transform: capitalize;
   color: var(--crosshook-color-text-muted);
