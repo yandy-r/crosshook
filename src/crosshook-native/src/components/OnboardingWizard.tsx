@@ -4,8 +4,6 @@ import { usePreferencesContext } from '../context/PreferencesContext';
 import { useProfileContext } from '../context/ProfileContext';
 import { useOnboarding } from '../hooks/useOnboarding';
 import { useProtonInstalls } from '../hooks/useProtonInstalls';
-import type { ResolvedLaunchMethod } from '../types';
-import type { OnboardingWizardStage } from '../types/onboarding';
 import { resolveLaunchMethod } from '../utils/launch';
 import { bundledOptimizationTomlKey } from '../utils/launchOptimizationPresets';
 import { OnboardingIdentityStageBody } from './onboarding/OnboardingIdentityStageBody';
@@ -14,12 +12,15 @@ import { OnboardingReviewStageBody } from './onboarding/OnboardingReviewStageBod
 import { OnboardingRuntimeStageBody } from './onboarding/OnboardingRuntimeStageBody';
 import { OnboardingTrainerStageBody } from './onboarding/OnboardingTrainerStageBody';
 import { OnboardingWizardFooter } from './onboarding/OnboardingWizardFooter';
+import { applyCreateSeed, type ProfileCreateSeed } from './wizard/profileCreateSeed';
+import { getTotalVisibleSteps, getVisibleStepNumber, STAGE_TITLES } from './wizard/wizardSteps';
 import { evaluateWizardRequiredFields } from './wizard/wizardValidation';
 
 export interface OnboardingWizardProps {
   open: boolean;
   mode?: 'create' | 'edit';
-  onComplete: () => void;
+  createSeed?: ProfileCreateSeed;
+  onComplete: (createdName?: string) => void;
   onDismiss: () => void;
   onOpenHostToolDashboard?: () => void;
 }
@@ -46,41 +47,10 @@ function focusElement(element: HTMLElement | null): boolean {
   return document.activeElement === element;
 }
 
-const STAGE_TITLES: Record<OnboardingWizardStage, string> = {
-  identity_game: 'Identity & Game',
-  runtime: 'Runtime',
-  trainer: 'Trainer',
-  media: 'Media',
-  review: 'Review & Save',
-  completed: 'Setup Complete',
-};
-
-/** Returns the 1-based step number shown in the eyebrow (native skips trainer, shifting later stages). */
-function getVisibleStepNumber(stage: OnboardingWizardStage, launchMethod: ResolvedLaunchMethod): number {
-  const skipsTrainer = launchMethod === 'native';
-  switch (stage) {
-    case 'identity_game':
-      return 1;
-    case 'runtime':
-      return 2;
-    case 'trainer':
-      return 3;
-    case 'media':
-      return skipsTrainer ? 3 : 4;
-    case 'review':
-      return skipsTrainer ? 4 : 5;
-    case 'completed':
-      return skipsTrainer ? 4 : 5;
-  }
-}
-
-function getTotalVisibleSteps(launchMethod: ResolvedLaunchMethod): number {
-  return launchMethod === 'native' ? 4 : 5;
-}
-
 export function OnboardingWizard({
   open,
   mode = 'create',
+  createSeed,
   onComplete,
   onDismiss,
   onOpenHostToolDashboard,
@@ -93,6 +63,10 @@ export function OnboardingWizard({
   const hiddenNodesRef = useRef<Array<{ element: HTMLElement; inert: boolean; ariaHidden: string | null }>>([]);
   const titleId = useId();
   const [isMounted, setIsMounted] = useState(false);
+  const [nameCollisionError, setNameCollisionError] = useState<string | null>(null);
+  // Captures the seed at the moment open flips true; never re-reads during the session
+  // so that seed identity changes while the wizard is open do not wipe user edits.
+  const capturedSeedRef = useRef<ProfileCreateSeed | undefined>(undefined);
 
   const {
     stage,
@@ -120,6 +94,7 @@ export function OnboardingWizard({
 
   const { defaultSteamClientInstallPath } = usePreferencesContext();
   const {
+    profiles,
     profileName,
     profile,
     saving,
@@ -135,10 +110,31 @@ export function OnboardingWizard({
     optimizationPresetActionBusy,
   } = useProfileContext();
 
-  // Reset to blank profile when opening in create mode
+  // Reset to blank profile when opening in create mode.
+  // The seed is captured once when `open` flips true so that subsequent
+  // identity changes to `createSeed` while the wizard is open do NOT
+  // re-trigger the effect and wipe any user edits mid-session.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: seed/setters intentionally omitted — re-running on seed identity would wipe user edits mid-wizard
   useEffect(() => {
     if (open && mode === 'create') {
-      void selectProfile('');
+      // Snapshot the seed at open time; ignore later prop changes.
+      capturedSeedRef.current = createSeed;
+      let cancelled = false;
+
+      void selectProfile('').then(() => {
+        if (cancelled) return;
+        const seed = capturedSeedRef.current;
+        if (seed?.suggestedName) {
+          setProfileName(seed.suggestedName);
+        }
+        if (seed) {
+          updateProfile((current) => applyCreateSeed(current, seed));
+        }
+      });
+
+      return () => {
+        cancelled = true;
+      };
     }
   }, [open, mode, selectProfile]);
 
@@ -221,6 +217,13 @@ export function OnboardingWizard({
       previouslyFocusedRef.current = null;
     };
   }, [open]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: trigger-only dep — clear the collision error whenever the user edits the profile name
+  useEffect(() => {
+    if (nameCollisionError !== null) {
+      setNameCollisionError(null);
+    }
+  }, [profileName]);
 
   const validation = useMemo(
     () => evaluateWizardRequiredFields({ profileName, profile, launchMethod }),
@@ -327,12 +330,18 @@ export function OnboardingWizard({
     const trimmedName = profileName.trim();
     if (trimmedName.length === 0) return;
 
+    // Duplicate-name guard (create mode only).
+    if (mode === 'create' && profiles.includes(trimmedName)) {
+      setNameCollisionError(`A profile named "${trimmedName}" already exists. Choose a different name.`);
+      return;
+    }
+
     const result = await persistProfileDraft(trimmedName, profile);
     if (!result.ok) return; // error is displayed via profileError from context
 
     setCompletedProfileName(trimmedName);
     await dismiss();
-    onComplete();
+    onComplete(trimmedName);
   }
 
   function handleBack() {
@@ -401,9 +410,9 @@ export function OnboardingWizard({
         </header>
 
         <div className="crosshook-modal__body crosshook-onboarding-wizard__body">
-          {profileError && (
+          {(nameCollisionError ?? profileError) && (
             <div className="crosshook-error-banner crosshook-error-banner--section" role="alert">
-              {profileError}
+              {nameCollisionError ?? profileError}
             </div>
           )}
 
@@ -468,7 +477,9 @@ export function OnboardingWizard({
           {isCompleted && (
             <section aria-label="Setup complete">
               <p className="crosshook-onboarding-wizard__hint">
-                Profile saved successfully. Head to the Launch page to start your game.
+                {createSeed
+                  ? "Profile saved successfully. It's now selected in this game's profile list."
+                  : 'Profile saved successfully. Head to the Launch page to start your game.'}
               </p>
             </section>
           )}

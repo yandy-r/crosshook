@@ -1,9 +1,14 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useProfileContext } from '@/context/ProfileContext';
 import { useProfileCardMeta } from '@/hooks/useProfileCardMeta';
 import type { EnrichedProfileHealthReport } from '@/types/health';
 import type { LibraryCardData, ProfileSummary } from '@/types/library';
+import type { GameProfile } from '@/types/profile';
 import { HealthBadge } from '../../HealthBadge';
 import { OnboardingWizard } from '../../OnboardingWizard';
+import type { ProfileCreateSeed } from '../../wizard/profileCreateSeed';
+
+const NUMERIC_APP_ID_RE = /^\d{1,12}$/;
 
 export interface HeroProfileCardListProps {
   cards: ProfileSummary[];
@@ -22,6 +27,46 @@ function profileCardMetaLabel(profileName: string, protonLabel: string | null): 
 }
 
 /**
+ * Builds a ProfileCreateSeed from the hero-detail context. Pure function — safe
+ * to call in useMemo. The executablePath is only populated when the context
+ * profile is one of the cards listed for this game (singleton ownership).
+ */
+export function buildHeroCreateSeed(
+  summary: LibraryCardData,
+  cards: ProfileSummary[],
+  selectedTrimmed: string,
+  contextProfile: GameProfile
+): ProfileCreateSeed {
+  const seed: ProfileCreateSeed = {};
+
+  if (summary.gameName) {
+    seed.gameName = summary.gameName;
+  }
+
+  if (summary.steamAppId && NUMERIC_APP_ID_RE.test(summary.steamAppId)) {
+    seed.steamAppId = summary.steamAppId;
+  }
+
+  if (summary.customCoverArtPath) {
+    seed.coverArtPath = summary.customCoverArtPath;
+  }
+
+  if (summary.customPortraitArtPath) {
+    seed.portraitArtPath = summary.customPortraitArtPath;
+  }
+
+  // Only seed executablePath when the context profile belongs to one of this game's cards.
+  if (selectedTrimmed && cards.some((c) => c.name === selectedTrimmed)) {
+    const execPath = contextProfile.game.executable_path;
+    if (execPath) {
+      seed.executablePath = execPath;
+    }
+  }
+
+  return seed;
+}
+
+/**
  * Renders the profile card list sidebar for the Hero Detail profiles tab,
  * including the "+ New" button that opens the OnboardingWizard.
  */
@@ -35,14 +80,27 @@ export function HeroProfileCardList({
   const [showWizard, setShowWizard] = useState(false);
   const cardNames = cards.map((card) => card.name);
   const { metaByProfileName } = useProfileCardMeta(cardNames);
+  const { profile, selectProfile } = useProfileContext();
+
+  const seed = useMemo(
+    () => buildHeroCreateSeed(summary, cards, selectedTrimmed, profile),
+    [summary, cards, selectedTrimmed, profile]
+  );
+
+  function openWizard() {
+    setShowWizard(true);
+  }
 
   return (
     <>
       <aside className="crosshook-hero-detail__profiles-cards" aria-label="Profiles for this game">
         {cards.length === 0 ? (
-          <p className="crosshook-hero-detail__muted" role="status">
-            No profiles found for this game.
-          </p>
+          <div className="crosshook-panel" role="status">
+            <p className="crosshook-hero-detail__muted">No profiles found for this game.</p>
+            <button type="button" className="crosshook-button crosshook-button--primary" onClick={openWizard}>
+              Create profile
+            </button>
+          </div>
         ) : (
           <ul className="crosshook-hero-detail__profiles-list" aria-label="Profile cards">
             {cards.map((card) => {
@@ -87,11 +145,7 @@ export function HeroProfileCardList({
           </ul>
         )}
         <div className="crosshook-hero-detail__profiles-cta">
-          <button
-            type="button"
-            className="crosshook-button crosshook-button--secondary"
-            onClick={() => setShowWizard(true)}
-          >
+          <button type="button" className="crosshook-button crosshook-button--secondary" onClick={openWizard}>
             + New
           </button>
         </div>
@@ -101,8 +155,19 @@ export function HeroProfileCardList({
         <OnboardingWizard
           open
           mode="create"
-          onComplete={() => setShowWizard(false)}
-          onDismiss={() => setShowWizard(false)}
+          createSeed={seed}
+          onComplete={(createdName) => {
+            setShowWizard(false);
+            if (createdName) {
+              void selectProfile(createdName);
+            }
+          }}
+          onDismiss={() => {
+            setShowWizard(false);
+            if (selectedTrimmed) {
+              void selectProfile(selectedTrimmed);
+            }
+          }}
         />
       ) : null}
     </>

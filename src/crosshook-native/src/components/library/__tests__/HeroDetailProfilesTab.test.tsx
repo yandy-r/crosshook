@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { launchOptimizationsAutosaveDelayMs } from '@/hooks/profile/constants';
@@ -28,8 +28,18 @@ vi.mock('@/lib/ipc', () => ({
   callCommand: (...args: unknown[]) => callCommandMock(...args),
 }));
 
+// ---------------------------------------------------------------------------
+// Prop-capturing OnboardingWizard stub
+// Captures the latest props passed to the wizard so tests can assert on seed,
+// mode, and callback behaviour without rendering the real wizard.
+// ---------------------------------------------------------------------------
+let lastWizardProps: Record<string, unknown> = {};
+
 vi.mock('@/components/OnboardingWizard', () => ({
-  OnboardingWizard: ({ open }: { open: boolean }) => (open ? <div role="dialog">Onboarding Wizard</div> : null),
+  OnboardingWizard: (props: Record<string, unknown>) => {
+    lastWizardProps = props;
+    return props['open'] ? <div role="dialog">Onboarding Wizard</div> : null;
+  },
 }));
 
 vi.mock('@/components/profile-sections/ProfileIdentitySection', () => ({
@@ -273,6 +283,7 @@ describe('HeroDetailProfilesTab', () => {
   beforeEach(() => {
     vi.useRealTimers();
     vi.clearAllMocks();
+    lastWizardProps = {};
 
     contextState = buildContextState();
     profileContextMock.mockImplementation(() => contextState);
@@ -488,5 +499,93 @@ describe('HeroDetailProfilesTab', () => {
     renderProfilesTab({ profileList: [card1] });
 
     expect(screen.getByRole('status')).toHaveTextContent(/select a profile card/i);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Create-profile flow (Task 5 — headline acceptance criterion)
+  // ---------------------------------------------------------------------------
+
+  describe('create-profile flow via OnboardingWizard', () => {
+    it('creation without navigation: wizard closes, selectProfile called, editor still mounted', async () => {
+      const user = userEvent.setup();
+      renderProfilesTab();
+
+      // The editor pane should be visible (profile is selected)
+      expect(screen.getByTestId('hero-profile-editor-sections')).toBeInTheDocument();
+
+      // Open the wizard via "+ New"
+      await user.click(screen.getByRole('button', { name: /\+ new/i }));
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+      // Simulate wizard completing with a new profile name
+      const onComplete = lastWizardProps['onComplete'] as (name?: string) => void;
+      act(() => {
+        onComplete('BrandNewProfile');
+      });
+
+      // Wizard dialog is gone
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+      // selectProfile was called with the new name — no navigation occurred
+      expect(selectProfileSpy).toHaveBeenCalledWith('BrandNewProfile');
+
+      // The editor section is still in the DOM (tab did not unmount / navigate away)
+      expect(screen.getByTestId('hero-profile-editor-sections')).toBeInTheDocument();
+    });
+
+    it('cancellation: wizard closes, prior selection restored, editor unchanged, no persist call', async () => {
+      const user = userEvent.setup();
+      // card1 is the active selection
+      renderProfilesTab();
+
+      await user.click(screen.getByRole('button', { name: /\+ new/i }));
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+      // Dismiss the wizard
+      const onDismiss = lastWizardProps['onDismiss'] as () => void;
+      act(() => {
+        onDismiss();
+      });
+
+      // Wizard is closed
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+      // selectProfile called with the prior selection to restore it
+      expect(selectProfileSpy).toHaveBeenCalledWith(card1.name);
+
+      // persistProfileDraft was never called during the open/dismiss cycle
+      expect(persistProfileDraftSpy).not.toHaveBeenCalled();
+
+      // Editor pane is still rendered
+      expect(screen.getByTestId('hero-profile-editor-sections')).toBeInTheDocument();
+    });
+
+    it('seed correctness: wizard receives createSeed matching the tab summary', async () => {
+      const user = userEvent.setup();
+      renderProfilesTab();
+
+      await user.click(screen.getByRole('button', { name: /\+ new/i }));
+
+      expect(lastWizardProps['mode']).toBe('create');
+      expect(lastWizardProps['open']).toBe(true);
+
+      const seed = lastWizardProps['createSeed'] as Record<string, unknown>;
+      expect(seed).toBeDefined();
+      // gameName from summary fixture
+      expect(seed['gameName']).toBe(summary.gameName);
+      // steamAppId is the numeric string from the fixture
+      expect(seed['steamAppId']).toBe(summary.steamAppId);
+    });
+
+    it('smoke: wizard stays open when onComplete is never called', async () => {
+      const user = userEvent.setup();
+      renderProfilesTab();
+
+      await user.click(screen.getByRole('button', { name: /\+ new/i }));
+
+      // onComplete is never invoked — wizard remains open
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(lastWizardProps['open']).toBe(true);
+    });
   });
 });
