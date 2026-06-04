@@ -188,7 +188,11 @@ export function GameDetail({
       previewError,
       updateProfile,
       profileList,
-      // TODO(phase-7): replace `undefined` with the real expression and add it to this useMemo dependency array.
+      onPreviewLaunch: requestPreview,
+      onLaunch,
+      launchingName,
+      displayProfileName,
+      // TODO(#470 phase-7): replace `undefined` with the real expression and add it to this useMemo dependency array.
       onSetActiveTab: undefined,
     }),
     [
@@ -208,6 +212,10 @@ export function GameDetail({
       previewError,
       updateProfile,
       profileList,
+      requestPreview,
+      onLaunch,
+      launchingName,
+      displayProfileName,
     ]
   );
 

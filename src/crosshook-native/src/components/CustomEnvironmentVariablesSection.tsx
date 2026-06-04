@@ -106,6 +106,11 @@ function customEnvRowError(row: CustomEnvVarRow, duplicateIds: Set<string>): str
   return null;
 }
 
+function customEnvRowsHaveErrors(rows: CustomEnvVarRow[]): boolean {
+  const duplicateIds = customEnvDuplicateRowIds(rows);
+  return rows.some((row) => customEnvRowError(row, duplicateIds) !== null);
+}
+
 export interface CustomEnvironmentVariablesSectionProps {
   profileName: string;
   customEnvVars: Record<string, string>;
@@ -143,6 +148,9 @@ export function CustomEnvironmentVariablesSection(props: CustomEnvironmentVariab
 
   const applyRows = (next: CustomEnvVarRow[]) => {
     setRows(next);
+    if (customEnvRowsHaveErrors(next)) {
+      return;
+    }
     onUpdateProfile((current) => ({
       ...current,
       launch: {
@@ -194,7 +202,7 @@ export function CustomEnvironmentVariablesSection(props: CustomEnvironmentVariab
                       applyRows(rows.map((r) => (r.id === row.id ? { ...r, key: nextKey } : r)));
                     }}
                     onBlur={() => {
-                      if (row.key.trim().length > 0) {
+                      if (row.key.trim().length > 0 && rowErr === null) {
                         onAutoSaveBlur?.('key', { key: row.key, value: row.value }, customEnvRowsToRecord(rows));
                       }
                     }}
@@ -216,7 +224,7 @@ export function CustomEnvironmentVariablesSection(props: CustomEnvironmentVariab
                       applyRows(rows.map((r) => (r.id === row.id ? { ...r, value: nextVal } : r)));
                     }}
                     onBlur={() => {
-                      if (row.key.trim().length > 0) {
+                      if (row.key.trim().length > 0 && rowErr === null) {
                         onAutoSaveBlur?.('value', { key: row.key, value: row.value }, customEnvRowsToRecord(rows));
                       }
                     }}
@@ -229,8 +237,11 @@ export function CustomEnvironmentVariablesSection(props: CustomEnvironmentVariab
                     aria-label="Remove this environment variable row"
                     onClick={() => {
                       const nextRows = rows.filter((r) => r.id !== row.id);
+                      const hasErrors = customEnvRowsHaveErrors(nextRows);
                       applyRows(nextRows);
-                      onAutoSaveBlur?.('key', { key: row.key, value: row.value }, customEnvRowsToRecord(nextRows));
+                      if (!hasErrors) {
+                        onAutoSaveBlur?.('key', { key: row.key, value: row.value }, customEnvRowsToRecord(nextRows));
+                      }
                     }}
                   >
                     Remove

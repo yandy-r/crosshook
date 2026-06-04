@@ -75,7 +75,7 @@ export function useLauncherExport({
       const info = await callCommand<LauncherInfo>('check_launcher_exists', { request });
       setLauncherStatus(info);
     } catch (error) {
-      console.error('Failed to refresh launcher status.', error);
+      console.error('Failed to refresh launcher status:', error instanceof Error ? error.message : String(error));
       setErrorMessage(`Failed to check launcher status: ${error instanceof Error ? error.message : String(error)}`);
       setLauncherStatus(null);
     }

@@ -1,13 +1,34 @@
-import { render, screen, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen } from '@testing-library/react';
 import type { ComponentProps } from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { PreferencesProvider } from '@/context/PreferencesContext';
 import { ProfileProvider } from '@/context/ProfileContext';
 import type { UseGameMetadataResult } from '@/hooks/useGameMetadata';
 import { makeLibraryCardData } from '@/test/fixtures';
 import type { LaunchPreview, LaunchRequest } from '@/types/launch';
+import type { HeroDetailLaunchTabProps } from '../HeroDetailLaunchTab';
 import { HeroDetailPanels } from '../HeroDetailPanels';
+
+vi.mock('../HeroDetailLaunchTab', () => ({
+  HeroDetailLaunchTab: ({ launchRequest, previewLoading, preview, previewError }: HeroDetailLaunchTabProps) => (
+    <div data-testid="mock-hero-detail-launch-tab" className="crosshook-hero-detail__launch-tab">
+      <section aria-label="Launch command">
+        <h3>Launch command</h3>
+        {!launchRequest ? <p>Launch preview is unavailable until the game executable is set on this profile.</p> : null}
+        {previewLoading ? <p>Building launch preview...</p> : null}
+        {previewError ? <p>{previewError}</p> : null}
+        {preview ? <pre>{preview.effective_command}</pre> : null}
+      </section>
+      <section aria-label="Environment">
+        <h3>Environment</h3>
+      </section>
+      <section aria-label="Pre/post hooks">
+        <h3>Pre/post hooks</h3>
+        <p>No pre/post hooks configured yet</p>
+      </section>
+    </div>
+  ),
+}));
 
 type HeroDetailPanelsProps = ComponentProps<typeof HeroDetailPanels>;
 
@@ -183,65 +204,30 @@ function renderHeroDetailPanels(
 }
 
 describe('HeroDetailPanels', () => {
-  it('renders the structured launch preview with grouped environment output and detail sections', async () => {
-    const user = userEvent.setup();
+  it('renders the launch-options branch as the new three-section launch tab', () => {
     renderHeroDetailPanels();
 
-    expect(screen.getByRole('heading', { name: 'Summary' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Validation' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Command chain' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Proton setup' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Trainer' })).toBeInTheDocument();
+    expect(screen.getByTestId('mock-hero-detail-launch-tab')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Launch command' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Environment' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Raw preview' })).toBeInTheDocument();
-
-    expect(screen.getByText('Proton launch')).toBeInTheDocument();
-    expect(screen.getByText('gamescope -> mangohud')).toBeInTheDocument();
-    expect(screen.getByText('PROTON_LOG=1 %command%')).toBeInTheDocument();
-    expect(screen.getByText('One launch directive could not be expanded.')).toBeInTheDocument();
-
-    const validationList = screen.getByRole('list', { name: 'Launch validation issues' });
-    expect(within(validationList).getByText(/Error:/)).toBeInTheDocument();
-    expect(within(validationList).getByText(/Game executable is missing execute permissions\./)).toBeInTheDocument();
-    expect(within(validationList).getByText(/Warning:/)).toBeInTheDocument();
-    expect(within(validationList).getByText(/Trainer hash differs from the cached checksum\./)).toBeInTheDocument();
-
-    await user.click(screen.getByText('Profile custom (2)'));
-    const profileCustomGroup = screen.getByText('Profile custom (2)').closest('details');
-    expect(profileCustomGroup).not.toBeNull();
-    expect(within(profileCustomGroup as HTMLDetailsElement).getByText(/DXVK_HUD = "1"/)).toBeInTheDocument();
-    expect(within(profileCustomGroup as HTMLDetailsElement).getByText(/PROTON_LOG = "1"/)).toBeInTheDocument();
-
-    await user.click(screen.getByText('Cleared variables (2)'));
-    expect(screen.getByText(/LD_PRELOAD/)).toBeInTheDocument();
-    expect(screen.getByText(/PRESSURE_VESSEL_FILESYSTEMS_RW/)).toBeInTheDocument();
-
-    await user.click(screen.getByText('Raw preview dump'));
-    expect(screen.getByText('Raw launch preview dump')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Pre/post hooks' })).toBeInTheDocument();
+    expect(
+      screen.getByText('gamescope mangohud -- /usr/bin/umu-run /games/synthetic-quest/game.exe')
+    ).toBeInTheDocument();
+    expect(screen.getByText('No pre/post hooks configured yet')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Summary' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Raw preview' })).not.toBeInTheDocument();
   });
 
-  it('renders structured preview empty states when optional launch preview data is absent', () => {
+  it('renders launch tab loading and error state through the launch-options branch', () => {
     renderHeroDetailPanels({
-      preview: makePreview({
-        validation: { issues: [] },
-        environment: null,
-        cleared_variables: [],
-        wrappers: null,
-        effective_command: null,
-        directives_error: null,
-        steam_launch_options: null,
-        proton_setup: null,
-        trainer: null,
-        display_text: '',
-      }),
+      previewLoading: true,
+      previewError: 'Preview failed.',
+      preview: null,
     });
 
-    expect(screen.getByText('All checks passed.')).toBeInTheDocument();
-    expect(screen.getByText('No effective command resolved.')).toBeInTheDocument();
-    expect(screen.getByText('No environment variables resolved.')).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Raw preview' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Proton setup' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Trainer' })).not.toBeInTheDocument();
+    expect(screen.getByText('Building launch preview...')).toBeInTheDocument();
+    expect(screen.getByText('Preview failed.')).toBeInTheDocument();
   });
 
   it('renders the launch-options empty state before a launch request is available', () => {
