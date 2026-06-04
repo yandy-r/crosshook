@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ComponentProps } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -10,7 +10,7 @@ import { PreferencesProvider } from '@/context/PreferencesContext';
 import { ProfileProvider } from '@/context/ProfileContext';
 import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
 import { renderWithMocks } from '@/test/render';
-import type { LibraryFilterIntent } from '@/types/navigation';
+import type { LibraryFilterIntent, OpenGameDetailIntent } from '@/types/navigation';
 import { LibraryPage } from '../LibraryPage';
 
 vi.mock('@/lib/ipc', async () => {
@@ -20,15 +20,27 @@ vi.mock('@/lib/ipc', async () => {
 
 interface LibraryPageHarnessProps {
   libraryFilterIntent?: LibraryFilterIntent | null;
+  openGameDetailIntent?: OpenGameDetailIntent | null;
   onOpenCommandPalette?: ComponentProps<typeof LibraryPage>['onOpenCommandPalette'];
+  onNavigate?: ComponentProps<typeof LibraryPage>['onNavigate'];
 }
 
-function LibraryPageWithInspector({ libraryFilterIntent, onOpenCommandPalette }: LibraryPageHarnessProps = {}) {
+function LibraryPageWithInspector({
+  libraryFilterIntent,
+  openGameDetailIntent,
+  onOpenCommandPalette,
+  onNavigate,
+}: LibraryPageHarnessProps = {}) {
   const { inspectorSelection, libraryInspectorHandlers, libraryShellMode } = useInspectorSelection();
   return (
     <div style={{ display: 'flex' }}>
       <div style={{ flex: '1 1 50%', minWidth: 0 }}>
-        <LibraryPage libraryFilterIntent={libraryFilterIntent} onOpenCommandPalette={onOpenCommandPalette} />
+        <LibraryPage
+          libraryFilterIntent={libraryFilterIntent}
+          openGameDetailIntent={openGameDetailIntent}
+          onOpenCommandPalette={onOpenCommandPalette}
+          onNavigate={onNavigate}
+        />
       </div>
       <div style={{ flex: '0 0 320px' }}>
         <Inspector
@@ -48,7 +60,9 @@ function LibraryPageWithInspector({ libraryFilterIntent, onOpenCommandPalette }:
 function renderLibraryHarness(
   options: Parameters<typeof renderWithMocks>[1] = {},
   onOpenCommandPalette?: ComponentProps<typeof LibraryPage>['onOpenCommandPalette'],
-  libraryFilterIntent?: LibraryFilterIntent | null
+  libraryFilterIntent?: LibraryFilterIntent | null,
+  openGameDetailIntent?: OpenGameDetailIntent | null,
+  onNavigate?: ComponentProps<typeof LibraryPage>['onNavigate']
 ) {
   return renderWithMocks(
     <ProfileProvider>
@@ -59,7 +73,9 @@ function renderLibraryHarness(
               <InspectorSelectionProvider>
                 <LibraryPageWithInspector
                   libraryFilterIntent={libraryFilterIntent}
+                  openGameDetailIntent={openGameDetailIntent}
                   onOpenCommandPalette={onOpenCommandPalette}
+                  onNavigate={onNavigate}
                 />
               </InspectorSelectionProvider>
             </CollectionsProvider>
@@ -246,5 +262,76 @@ describe('LibraryPage', () => {
       expect(screen.getByRole('button', { name: 'Select Test Game Alpha' })).toBeInTheDocument();
     });
     expect(screen.queryByRole('button', { name: 'Select Dev Game Beta' })).not.toBeInTheDocument();
+  });
+
+  it('calls onNavigate with gameDetailOrigin when Edit profile is triggered', async () => {
+    const user = userEvent.setup();
+    const onNavigate = vi.fn();
+    renderLibraryHarness({}, undefined, undefined, undefined, onNavigate);
+
+    // Open game detail for Test Game Alpha
+    await user.click(await screen.findByRole('button', { name: 'View details for Test Game Alpha' }));
+    const gameDetail = await screen.findByTestId('game-detail');
+
+    // Click Edit profile scoped to the game-detail panel (inspector also has one)
+    // triggers gameDetailsEditThenNavigate (onBack then onEdit)
+    await user.click(within(gameDetail).getByRole('button', { name: 'Edit profile' }));
+
+    await waitFor(() => {
+      expect(onNavigate).toHaveBeenCalledWith(
+        'profiles',
+        expect.objectContaining({
+          gameDetailOrigin: {
+            profileName: 'Test Game Alpha',
+            displayName: 'Test Game Alpha',
+          },
+        })
+      );
+    });
+  });
+
+  it('calls onNavigate with gameDetailOrigin when Launch is triggered', async () => {
+    const user = userEvent.setup();
+    const onNavigate = vi.fn();
+    renderLibraryHarness({}, undefined, undefined, undefined, onNavigate);
+
+    // Open game detail for Test Game Alpha
+    await user.click(await screen.findByRole('button', { name: 'View details for Test Game Alpha' }));
+    const gameDetail = await screen.findByTestId('game-detail');
+
+    // Click Launch scoped to the game-detail panel
+    // triggers gameDetailsLaunchThenNavigate (onBack then onLaunch)
+    await user.click(within(gameDetail).getByRole('button', { name: 'Launch' }));
+
+    await waitFor(() => {
+      expect(onNavigate).toHaveBeenCalledWith(
+        'launch',
+        expect.objectContaining({
+          gameDetailOrigin: {
+            profileName: 'Test Game Alpha',
+            displayName: 'Test Game Alpha',
+          },
+        })
+      );
+    });
+  });
+
+  it('opens game detail via openGameDetailIntent when the profile exists', async () => {
+    renderLibraryHarness({}, undefined, undefined, { profileName: 'Test Game Alpha', token: 1 });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('game-detail')).toBeInTheDocument();
+    });
+  });
+
+  it('silently drops openGameDetailIntent for an unknown profile', async () => {
+    renderLibraryHarness({}, undefined, undefined, { profileName: 'does-not-exist', token: 1 });
+
+    // Wait for summaries to settle (a known card must be visible)
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Select Test Game Alpha' })).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTestId('game-detail')).not.toBeInTheDocument();
   });
 });

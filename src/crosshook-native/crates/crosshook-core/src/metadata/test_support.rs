@@ -56,6 +56,8 @@ pub(super) fn sample_profile() -> GameProfile {
             ..Default::default()
         },
         local_override: LocalOverrideSection::default(),
+        pre_launch_hooks: Vec::new(),
+        post_exit_hooks: Vec::new(),
     }
 }
 

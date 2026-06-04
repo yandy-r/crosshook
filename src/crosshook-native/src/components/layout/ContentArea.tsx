@@ -1,7 +1,12 @@
 import * as Tabs from '@radix-ui/react-tabs';
 import { useLayoutEffect, useRef } from 'react';
 import type { LibraryFilterKey } from '@/types/library';
-import type { AppNavigateOptions, LibraryFilterIntent } from '@/types/navigation';
+import type {
+  AppNavigateOptions,
+  GameDetailOrigin,
+  LibraryFilterIntent,
+  OpenGameDetailIntent,
+} from '@/types/navigation';
 import CommunityPage from '../pages/CommunityPage';
 import CompatibilityPage from '../pages/CompatibilityPage';
 import DiscoverPage from '../pages/DiscoverPage';
@@ -21,6 +26,9 @@ export interface ContentAreaProps {
   libraryFilterIntent?: LibraryFilterIntent | null;
   onLibraryFilterChange?: (key: LibraryFilterKey) => void;
   onOpenCommandPalette?: (restoreFocusTo?: HTMLElement | null) => void;
+  // NOTE(hero-detail-consolidation): delete with Phase 10 route removal.
+  gameDetailOrigin?: GameDetailOrigin | null;
+  openGameDetailIntent?: OpenGameDetailIntent | null;
 }
 
 export function ContentArea({
@@ -29,6 +37,8 @@ export function ContentArea({
   libraryFilterIntent,
   onLibraryFilterChange,
   onOpenCommandPalette,
+  gameDetailOrigin,
+  openGameDetailIntent,
 }: ContentAreaProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -48,9 +58,11 @@ export function ContentArea({
   function renderPage() {
     switch (route) {
       case 'profiles':
-        return <ProfilesPage />;
+        // NOTE(hero-detail-consolidation): delete with Phase 10 route removal.
+        return <ProfilesPage origin={gameDetailOrigin} onNavigate={onNavigate} />;
       case 'launch':
-        return <LaunchPage />;
+        // NOTE(hero-detail-consolidation): delete with Phase 10 route removal.
+        return <LaunchPage origin={gameDetailOrigin} onNavigate={onNavigate} />;
       case 'install':
         return <InstallPage onNavigate={onNavigate} />;
       case 'community':
@@ -74,6 +86,7 @@ export function ContentArea({
             libraryFilterIntent={libraryFilterIntent}
             onLibraryFilterChange={onLibraryFilterChange}
             onOpenCommandPalette={onOpenCommandPalette}
+            openGameDetailIntent={openGameDetailIntent}
           />
         );
       default: {

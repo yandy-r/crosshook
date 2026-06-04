@@ -2,6 +2,7 @@
 
 mod game_meta;
 mod gamescope;
+mod hooks;
 mod launch;
 mod legacy;
 mod local_override;
@@ -16,6 +17,7 @@ mod tests;
 
 pub use game_meta::{GameSection, InjectionSection, LauncherSection, SteamSection};
 pub use gamescope::{GamescopeConfig, GamescopeFilter};
+pub use hooks::{HookStage, LaunchHook};
 pub use launch::{CollectionDefaultsSection, LaunchOptimizationsSection, LaunchSection};
 pub use legacy::LegacyProfileData;
 pub use local_override::{

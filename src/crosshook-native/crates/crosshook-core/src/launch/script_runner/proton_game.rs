@@ -139,5 +139,10 @@ pub fn build_proton_game_command(
         )
     };
     command.arg(normalized_game_path.trim());
+    // TODO(hooks-runtime): consume in launcher — run profile.pre_launch_hooks here
+    // (before spawn) and register profile.post_exit_hooks with session teardown. // TODO(hooks-runtime)
+    // (launch/session/, launch/watchdog/). Requires plumbing hooks from GameProfile
+    // into LaunchRequest (launch/request/models.rs) and equivalent treatment in the
+    // native/trainer builders. See issue #482.
     Ok(command)
 }

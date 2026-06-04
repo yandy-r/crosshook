@@ -274,6 +274,41 @@ test.describe('profiles + launch panel landing smoke', () => {
 
     expect(capture.errors, `Launch panel-landing pipeline errors:\n${capture.errors.join('\n')}`).toEqual([]);
   });
+
+  test('breadcrumb trail renders on profiles page after Edit profile and game crumb reopens hero detail', async ({
+    page,
+  }) => {
+    const capture = attachConsoleCapture(page);
+
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.goto('/?fixture=populated');
+
+    // Navigate to library and open hero detail for Test Game Alpha.
+    const libraryTab = page.getByRole('tab', { name: 'Library', exact: true });
+    await libraryTab.click();
+    await expect(libraryTab).toHaveAttribute('aria-current', 'page');
+
+    await page.getByRole('button', { name: 'View details for Test Game Alpha' }).click();
+    await expect(page.getByTestId('game-detail')).toBeVisible();
+
+    // Click "Edit profile" — scope to game-detail to avoid the inspector rail's duplicate button.
+    await page.getByTestId('game-detail').getByRole('button', { name: 'Edit profile' }).click();
+
+    // The Profiles page breadcrumb (page-level, standalone) must be visible.
+    const breadcrumb = page.getByRole('navigation', { name: 'Breadcrumb' });
+    await expect(breadcrumb).toBeVisible();
+    await expect(breadcrumb).toContainText('Library');
+    await expect(breadcrumb).toContainText('Test Game Alpha');
+    await expect(breadcrumb).toContainText('Edit profile');
+
+    // Click the game-name crumb to reopen hero detail via openGameDetailIntent.
+    await breadcrumb.getByRole('button', { name: 'Test Game Alpha' }).click();
+
+    // Hero Detail must reopen.
+    await expect(page.getByTestId('game-detail')).toBeVisible();
+
+    expect(capture.errors, `Breadcrumb trail smoke errors:\n${capture.errors.join('\n')}`).toEqual([]);
+  });
 });
 
 test.describe('command palette smoke', () => {

@@ -1,5 +1,8 @@
+import type { LaunchHook } from './generated/launch_hooks';
 import type { LaunchOptimizations } from './launch-optimizations';
 import type { UmuPreference } from './settings';
+
+export type { HookStage, LaunchHook } from './generated/launch_hooks';
 
 export interface ProfileData {
   GamePath: string;
@@ -169,6 +172,10 @@ export interface GameProfile {
       proton_path: string;
     };
   };
+  /** Scripts to run before the game process is started. */
+  pre_launch_hooks?: LaunchHook[];
+  /** Scripts to run after the game process exits. */
+  post_exit_hooks?: LaunchHook[];
 }
 
 export interface SerializedLocalOverrideSection {
@@ -282,6 +289,8 @@ export function normalizeSerializedGameProfile(profile: SerializedGameProfile): 
         ...(profile.local_override?.runtime ?? {}),
       },
     },
+    pre_launch_hooks: [...(profile.pre_launch_hooks ?? [])],
+    post_exit_hooks: [...(profile.post_exit_hooks ?? [])],
   };
 }
 

@@ -29,8 +29,8 @@ pub use exchange::{
 pub use legacy::{delete, list, load, save, validate_name};
 pub use models::{
     resolve_art_app_id, resolve_launch_method, validate_steam_app_id, CollectionDefaultsSection,
-    GameProfile, GameSection, GamescopeConfig, GamescopeFilter, InjectionSection,
-    LaunchOptimizationsSection, LaunchSection, LauncherSection, LegacyProfileData,
+    GameProfile, GameSection, GamescopeConfig, GamescopeFilter, HookStage, InjectionSection,
+    LaunchHook, LaunchOptimizationsSection, LaunchSection, LauncherSection, LegacyProfileData,
     LocalOverrideGameSection, LocalOverrideRuntimeSection, LocalOverrideSection,
     LocalOverrideSteamSection, LocalOverrideTrainerSection, MangoHudConfig, MangoHudPosition,
     RuntimeSection, SteamSection, TrainerLoadingMode, TrainerSection,

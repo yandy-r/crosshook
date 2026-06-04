@@ -1,3 +1,4 @@
+import { Breadcrumb } from '@/components/layout/Breadcrumb';
 import type { GameProfile } from '@/types';
 import type { LibraryCardData } from '@/types/library';
 import { gameDetailsEditThenNavigate, gameDetailsLaunchThenNavigate } from './game-details-actions';
@@ -120,7 +121,10 @@ export function HeroDetailHeader({
 
           <div className="crosshook-hero-detail__main-brief">
             <div className="crosshook-hero-detail__title-block">
-              <p className="crosshook-hero-detail__eyebrow">Library</p>
+              <Breadcrumb
+                className="crosshook-hero-detail__breadcrumb"
+                segments={[{ label: 'Library', onNavigate: onBack }, { label: displayName }]}
+              />
               <h2 className="crosshook-hero-detail__title">{displayName}</h2>
               <p className="crosshook-hero-detail__subtitle">
                 Profile <span className="crosshook-hero-detail__mono">{summary.name}</span>

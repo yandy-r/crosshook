@@ -3,16 +3,25 @@ import { useProfileHealthContext } from '../../context/ProfileHealthContext';
 import { useLaunchEnvironmentAutosave } from '../../hooks/profile/useLaunchEnvironmentAutosave';
 import { useProtonDbApply } from '../../hooks/profile/useProtonDbApply';
 import { useProtonDbSuggestions } from '../../hooks/useProtonDbSuggestions';
+import type { AppNavigateOptions, GameDetailOrigin } from '../../types/navigation';
 import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '../../types/profile';
 import LaunchPanel from '../LaunchPanel';
 import { LaunchSubTabs } from '../LaunchSubTabs';
+import { buildGameDetailTrail } from '../layout/game-detail-trail';
 import { RouteBanner } from '../layout/RouteBanner';
+import type { AppRoute } from '../layout/Sidebar';
 import { LaunchDepGateModal } from './launch/LaunchDepGateModal';
 import { LaunchProfileSelector } from './launch/LaunchProfileSelector';
 import { useLaunchDepGate } from './launch/useLaunchDepGate';
 import { useLaunchPageState } from './launch/useLaunchPageState';
 
-export function LaunchPage() {
+// NOTE(hero-detail-consolidation): delete with Phase 10 route removal.
+export interface LaunchPageProps {
+  origin?: GameDetailOrigin | null;
+  onNavigate?: (route: AppRoute, options?: AppNavigateOptions) => void;
+}
+
+export function LaunchPage({ origin, onNavigate }: LaunchPageProps = {}) {
   const {
     activeCollection,
     activeCollectionId,
@@ -80,7 +89,7 @@ export function LaunchPage() {
   return (
     <div className="crosshook-page-scroll-shell crosshook-page-scroll-shell--fill crosshook-page-scroll-shell--launch">
       <div className="crosshook-route-stack crosshook-launch-page__grid">
-        <RouteBanner route="launch" />
+        <RouteBanner route="launch" trail={buildGameDetailTrail(origin, onNavigate, 'Launch')} />
         <LaunchPanel
           profileId={profileId}
           method={profileState.launchMethod}

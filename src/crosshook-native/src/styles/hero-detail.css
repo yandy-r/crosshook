@@ -36,12 +36,10 @@
   flex: 1;
 }
 
-.crosshook-hero-detail__eyebrow {
+.crosshook-hero-detail__breadcrumb {
   margin: 0;
   font-size: 0.72rem;
-  font-weight: 700;
   letter-spacing: 0.04em;
-  text-transform: uppercase;
   color: var(--crosshook-color-text-subtle);
 }
 

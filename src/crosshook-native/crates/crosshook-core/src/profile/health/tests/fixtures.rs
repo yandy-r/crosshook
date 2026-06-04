@@ -70,6 +70,8 @@ pub(super) fn healthy_steam_profile(tmp: &Path) -> GameProfile {
             ..Default::default()
         },
         local_override: crate::profile::LocalOverrideSection::default(),
+        pre_launch_hooks: Vec::new(),
+        post_exit_hooks: Vec::new(),
     }
 }
 
@@ -98,6 +100,8 @@ pub(super) fn make_proton_run_profile(game_exe: &str, prefix: &str, proton: &str
             ..Default::default()
         },
         local_override: crate::profile::LocalOverrideSection::default(),
+        pre_launch_hooks: Vec::new(),
+        post_exit_hooks: Vec::new(),
     }
 }
 
