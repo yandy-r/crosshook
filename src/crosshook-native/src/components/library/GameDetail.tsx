@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { usePreferencesContext } from '@/context/PreferencesContext';
+import { useProfileContext } from '@/context/ProfileContext';
 import { useGameCoverArt } from '@/hooks/useGameCoverArt';
 import { useGameDetailsProfile } from '@/hooks/useGameDetailsProfile';
 import { useGameMetadata } from '@/hooks/useGameMetadata';
 import { usePreviewState } from '@/hooks/usePreviewState';
+import { useProfileSummaries } from '@/hooks/useProfileSummaries';
 import type { OfflineReadinessReport } from '@/types';
 import type { EnrichedProfileHealthReport } from '@/types/health';
 import type { LibraryCardData } from '@/types/library';
+import type { GameProfile } from '@/types/profile';
 import { buildProfileLaunchRequest, resolveLaunchMethod } from '@/utils/launch';
 import { effectiveGameArtPath } from '@/utils/profile-art';
 import { HeroDetailHeader } from './HeroDetailHeader';
@@ -40,8 +43,51 @@ export function GameDetail({
   launchingName,
 }: GameDetailProps) {
   const [activeTab, setActiveTab] = useState<HeroDetailTabId>('overview');
-  const { loadState, profile, errorMessage } = useGameDetailsProfile(summary.name, true);
+  const fallbackDetailsProfile = useGameDetailsProfile(summary.name, true);
   const { settings, defaultSteamClientInstallPath } = usePreferencesContext();
+  const ctx = useProfileContext();
+  const { summaries } = useProfileSummaries(ctx.profiles);
+
+  const profileList = useMemo(
+    () => summaries.filter((s) => s.gameName === summary.gameName),
+    [summaries, summary.gameName]
+  );
+  const gameProfileNames = useMemo(() => new Set(profileList.map((s) => s.name)), [profileList]);
+  const selectedProfileName = ctx.selectedProfile.trim();
+  const singletonOwnsGame = gameProfileNames.has(selectedProfileName);
+
+  const displayProfileState = useMemo<{
+    profile: GameProfile | null;
+    loadState: typeof fallbackDetailsProfile.loadState;
+    errorMessage: string | null;
+    name: string;
+  }>(() => {
+    if (singletonOwnsGame && ctx.profile) {
+      return {
+        profile: ctx.profile,
+        loadState: 'ready',
+        errorMessage: null,
+        name: selectedProfileName,
+      };
+    }
+
+    return {
+      profile: fallbackDetailsProfile.profile,
+      loadState: fallbackDetailsProfile.loadState,
+      errorMessage: fallbackDetailsProfile.errorMessage,
+      name: summary.name,
+    };
+  }, [
+    ctx.profile,
+    fallbackDetailsProfile.errorMessage,
+    fallbackDetailsProfile.loadState,
+    fallbackDetailsProfile.profile,
+    selectedProfileName,
+    singletonOwnsGame,
+    summary.name,
+  ]);
+
+  const { profile, loadState, errorMessage, name: displayProfileName } = displayProfileState;
 
   const steamAppIdForHooks = summary.steamAppId?.trim() ?? '';
   const hasNumericAppId = /^\d+$/.test(steamAppIdForHooks);
@@ -87,6 +133,16 @@ export function GameDetail({
   const displayName = summary.gameName || summary.name;
   const methodLabel = profile && loadState === 'ready' ? resolveLaunchMethod(profile) : null;
 
+  const updateProfile = useMemo(
+    () => async (draft: GameProfile) => {
+      const result = await ctx.persistProfileDraft(displayProfileName, draft);
+      if (!result.ok) {
+        throw new Error(result.error);
+      }
+    },
+    [ctx.persistProfileDraft, displayProfileName]
+  );
+
   const launchRequest = useMemo(() => {
     if (!profile || loadState !== 'ready') {
       return null;
@@ -130,10 +186,8 @@ export function GameDetail({
       previewLoading,
       preview,
       previewError,
-      // TODO(phase-4): replace `undefined` with the real expression and add it to this useMemo dependency array.
-      updateProfile: undefined,
-      // TODO(phase-4): replace `undefined` with the real expression and add it to this useMemo dependency array.
-      profileList: undefined,
+      updateProfile,
+      profileList,
       // TODO(phase-7): replace `undefined` with the real expression and add it to this useMemo dependency array.
       onSetActiveTab: undefined,
     }),
@@ -152,6 +206,8 @@ export function GameDetail({
       previewLoading,
       preview,
       previewError,
+      updateProfile,
+      profileList,
     ]
   );
 

@@ -488,12 +488,111 @@
   overflow-wrap: break-word;
 }
 
+.crosshook-hero-detail__profiles {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 20px;
+  min-height: 0;
+}
+
+.crosshook-hero-detail__profiles-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.crosshook-hero-detail__profiles-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.crosshook-hero-detail__profiles-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--crosshook-color-border);
+  border-radius: var(--crosshook-radius-md);
+  background: var(--crosshook-color-surface);
+  color: var(--crosshook-color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--crosshook-transition-fast) ease,
+    box-shadow var(--crosshook-transition-fast) ease;
+}
+
+.crosshook-hero-detail__profiles-card:hover {
+  background: var(--crosshook-color-surface-strong);
+  box-shadow: var(--crosshook-shadow-soft);
+}
+
+.crosshook-hero-detail__profiles-card:focus-visible {
+  outline: 2px solid var(--crosshook-color-accent);
+  outline-offset: 2px;
+}
+
+.crosshook-hero-detail__profiles-card--selected {
+  outline: 3px solid var(--crosshook-color-accent-strong);
+  outline-offset: 2px;
+  background: var(--crosshook-color-surface-strong);
+}
+
+.crosshook-hero-detail__profiles-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.crosshook-hero-detail__profiles-card-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crosshook-hero-detail__profiles-card-meta {
+  font-family: var(--crosshook-font-mono);
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--crosshook-color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crosshook-hero-detail__profiles-editor {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.crosshook-hero-detail__profiles-cta,
+.crosshook-hero-detail__profiles-new-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
 @media (max-width: 720px) {
   .crosshook-hero-detail {
     --crosshook-hero-detail-hero-height: min(180px, 24vh);
   }
 
   .crosshook-hero-detail__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .crosshook-hero-detail__profiles {
     grid-template-columns: 1fr;
   }
 

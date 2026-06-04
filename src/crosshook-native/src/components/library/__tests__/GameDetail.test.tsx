@@ -73,7 +73,7 @@ describe('GameDetail', () => {
     heroDetailTabsSpy.mockClear();
   });
 
-  it('forwards phase-1 panel-contract placeholders through panelProps', () => {
+  it('forwards panel-contract channels through panelProps', () => {
     const summary = makeLibraryCardData();
     renderGameDetail({ summary });
     const latestCall = heroDetailTabsSpy.mock.calls[heroDetailTabsSpy.mock.calls.length - 1];
@@ -84,8 +84,8 @@ describe('GameDetail', () => {
         activeTab: 'overview',
         panelProps: expect.objectContaining({
           summary,
-          updateProfile: undefined,
-          profileList: undefined,
+          updateProfile: expect.any(Function),
+          profileList: expect.any(Array),
           onSetActiveTab: undefined,
         }),
       })
