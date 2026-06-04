@@ -107,6 +107,7 @@ export function HeroLaunchCommandSection({
     };
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: trigger-only dep — reset copy status whenever the preview changes
   useEffect(() => {
     setCopyStatus('idle');
   }, [preview]);
