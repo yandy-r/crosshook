@@ -1,0 +1,43 @@
+/* Breadcrumb navigation — base sized to crosshook-heading-eyebrow metrics (theme.css:669-675). */
+
+.crosshook-breadcrumb {
+  color: var(--crosshook-color-accent-strong);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.crosshook-breadcrumb__list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35em;
+}
+
+.crosshook-breadcrumb__item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35em;
+}
+
+.crosshook-breadcrumb__crumb {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: color var(--crosshook-transition-fast) ease;
+}
+
+.crosshook-breadcrumb__crumb:hover {
+  color: var(--crosshook-color-accent);
+}
+
+.crosshook-breadcrumb__separator {
+  color: var(--crosshook-color-text-subtle);
+}

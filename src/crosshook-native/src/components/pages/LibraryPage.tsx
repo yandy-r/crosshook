@@ -15,7 +15,7 @@ import {
   type LibraryViewMode,
   libraryCardDataEqual,
 } from '../../types/library';
-import type { AppNavigateOptions, LibraryFilterIntent } from '../../types/navigation';
+import type { AppNavigateOptions, LibraryFilterIntent, OpenGameDetailIntent } from '../../types/navigation';
 import { CollectionAssignMenu } from '../collections/CollectionAssignMenu';
 import { CollectionEditModal } from '../collections/CollectionEditModal';
 import { RouteBanner } from '../layout/RouteBanner';
@@ -35,6 +35,7 @@ function loadViewMode(): LibraryViewMode {
 interface LibraryPageProps {
   onNavigate?: (route: AppRoute, options?: AppNavigateOptions) => void;
   libraryFilterIntent?: LibraryFilterIntent | null;
+  openGameDetailIntent?: OpenGameDetailIntent | null;
   onLibraryFilterChange?: (key: LibraryFilterKey) => void;
   onOpenCommandPalette?: (restoreFocusTo?: HTMLElement | null) => void;
 }
@@ -42,6 +43,7 @@ interface LibraryPageProps {
 export function LibraryPage({
   onNavigate,
   libraryFilterIntent,
+  openGameDetailIntent,
   onLibraryFilterChange,
   onOpenCommandPalette,
 }: LibraryPageProps) {
@@ -166,21 +168,29 @@ export function LibraryPage({
         const profileIsInActiveCollection = membersReady && activeCollectionMemberNamesRef.current.includes(name);
         const collectionIdForLoad = profileIsInActiveCollection ? (currentCollectionId ?? undefined) : undefined;
         await selectProfile(name, { collectionId: collectionIdForLoad });
-        onNavigate?.('launch');
+        const card = summaries.find((s) => s.name === name);
+        // NOTE(hero-detail-consolidation): delete with Phase 10 route removal.
+        onNavigate?.('launch', {
+          gameDetailOrigin: { profileName: name, displayName: card ? card.gameName || card.name : name },
+        });
       } finally {
         setLaunchingName(undefined);
       }
     },
-    [selectProfile, onNavigate]
+    [selectProfile, onNavigate, summaries]
   );
 
   // Edit handler: select profile then navigate to profiles page
   const handleEdit = useCallback(
     async (name: string) => {
       await selectProfile(name);
-      onNavigate?.('profiles');
+      const card = summaries.find((s) => s.name === name);
+      // NOTE(hero-detail-consolidation): delete with Phase 10 route removal.
+      onNavigate?.('profiles', {
+        gameDetailOrigin: { profileName: name, displayName: card ? card.gameName || card.name : name },
+      });
     },
-    [selectProfile, onNavigate]
+    [selectProfile, onNavigate, summaries]
   );
 
   // Favorite handler: optimistic update
@@ -199,6 +209,16 @@ export function LibraryPage({
     },
     [selectProfile, summaries, setLibraryShellMode]
   );
+
+  useEffect(() => {
+    if (!openGameDetailIntent) {
+      return;
+    }
+    if (!summaries.some((s) => s.name === openGameDetailIntent.profileName)) {
+      return; // R6: unknown profile — drop the intent silently
+    }
+    void handleOpenGameDetail(openGameDetailIntent.profileName);
+  }, [openGameDetailIntent, handleOpenGameDetail, summaries]);
 
   const handleBackFromDetail = useCallback(() => {
     setPageMode('library');

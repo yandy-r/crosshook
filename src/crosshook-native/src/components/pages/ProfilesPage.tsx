@@ -1,4 +1,8 @@
+import type { AppNavigateOptions, GameDetailOrigin } from '../../types/navigation';
 import { HealthBadge } from '../HealthBadge';
+import { Breadcrumb } from '../layout/Breadcrumb';
+import { buildGameDetailTrail } from '../layout/game-detail-trail';
+import type { AppRoute } from '../layout/Sidebar';
 import { OfflineStatusBadge } from '../OfflineStatusBadge';
 import { PrefixDepsPanel } from '../PrefixDepsPanel';
 import ProfileActions from '../ProfileActions';
@@ -10,8 +14,16 @@ import { ProfilesHero } from './profiles/ProfilesHero';
 import { ProfilesOverlays } from './profiles/ProfilesOverlays';
 import { useProfilesPageState } from './profiles/useProfilesPageState';
 
-export function ProfilesPage() {
+// NOTE(hero-detail-consolidation): delete with Phase 10 route removal.
+export interface ProfilesPageProps {
+  origin?: GameDetailOrigin | null;
+  onNavigate?: (route: AppRoute, options?: AppNavigateOptions) => void;
+}
+
+export function ProfilesPage({ origin, onNavigate }: ProfilesPageProps = {}) {
   const state = useProfilesPageState();
+  // NOTE(hero-detail-consolidation): delete with Phase 10 route removal.
+  const trail = buildGameDetailTrail(origin, onNavigate, 'Edit profile');
 
   const renderVersionStatusBadge = () => {
     const status = state.selectedVersionStatus;
@@ -90,6 +102,8 @@ export function ProfilesPage() {
     <div className="crosshook-page-scroll-shell crosshook-page-scroll-shell--fill crosshook-page-scroll-shell--profiles">
       <div className="crosshook-route-stack crosshook-profiles-page">
         <div className="crosshook-route-stack__body--fill crosshook-profiles-page__body">
+          {/* NOTE(hero-detail-consolidation): delete with Phase 10 route removal. */}
+          {trail ? <Breadcrumb segments={trail} /> : null}
           <ProfilesHero
             activeCollectionName={state.activeCollection?.name ?? null}
             filteredProfiles={state.filteredProfiles}

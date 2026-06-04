@@ -8,7 +8,36 @@ import { InspectorSelectionProvider } from '@/context/InspectorSelectionContext'
 import { ProfileProvider } from '@/context/ProfileContext';
 import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
 import { emitMockEvent } from '@/lib/events';
+import type { MockRenderOptions } from '@/test/render';
 import { renderWithMocks } from '@/test/render';
+
+vi.mock('@/lib/ipc', async () => {
+  const { mockCallCommand } = await import('@/test/render');
+  return { callCommand: mockCallCommand };
+});
+
+/**
+ * Prevent the happy-dom datalist crash (invalid CSS: `datalist#:rpb:-suggestions`)
+ * that occurs when ProfilesPage renders ProfileIdentitySection with a non-empty
+ * profiles list. We zero-out profile_list (and related lists) so the datalist
+ * never renders, while keeping profile_list_summaries populated so the LibraryPage
+ * card for "Test Game Alpha" remains clickable. profile_load is kept so
+ * selectProfile() can still hydrate the profile editor (which doesn't use profile_list).
+ * NOTE(hero-detail-consolidation): delete with Phase 10 route removal.
+ */
+/**
+ * Override profile_list to return [] and also profile_list_summaries to return []
+ * to prevent the happy-dom datalist crash. However, this means LibraryPage won't
+ * show "Test Game Alpha" cards. We use seed to add the summaries AFTER other
+ * overrides are applied so LibraryPage still sees profiles while ProfilesPage does
+ * not trigger the datalist.
+ *
+ * NOTE(hero-detail-consolidation): delete with Phase 10 route removal.
+ */
+const NO_DATALIST_OVERRIDES: MockRenderOptions['handlerOverrides'] = {
+  profile_list: async () => [],
+  profile_list_favorites: async () => [],
+};
 
 function AppShellInAppProviders() {
   return (
@@ -429,6 +458,102 @@ describe('AppShell (integration)', () => {
         expect(screen.getByTestId('game-detail')).toBeInTheDocument();
       });
       expect(screen.queryByTestId('context-rail')).not.toBeInTheDocument();
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
+
+  it('shows breadcrumb with Library > game > Edit profile when navigating from game detail to Profiles', async () => {
+    const user = userEvent.setup();
+    setInnerWidth(1920);
+    setInnerHeight(1080);
+    const rectSpy = mockAppShellRect(1920, 1080);
+    try {
+      renderWithMocks(<AppShellInAppProviders />, { handlerOverrides: NO_DATALIST_OVERRIDES });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('sidebar')).toBeInTheDocument();
+      });
+
+      const libraryTab = screen.getByRole('tab', { name: /^Library$/ });
+      await user.click(libraryTab);
+
+      await user.click(screen.getByRole('button', { name: 'View details for Test Game Alpha' }));
+
+      const gameDetail = await screen.findByTestId('game-detail');
+
+      await user.click(within(gameDetail).getByRole('button', { name: 'Edit profile' }));
+
+      await waitFor(() => {
+        expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toBeInTheDocument();
+      });
+
+      const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' });
+      expect(within(breadcrumb).getByRole('button', { name: 'Library' })).toBeInTheDocument();
+      expect(within(breadcrumb).getByRole('button', { name: 'Test Game Alpha' })).toBeInTheDocument();
+      expect(within(breadcrumb).getByText('Edit profile')).toBeInTheDocument();
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
+
+  it('navigates back to game detail when the game-name crumb is clicked (intent round-trip)', async () => {
+    const user = userEvent.setup();
+    setInnerWidth(1920);
+    setInnerHeight(1080);
+    const rectSpy = mockAppShellRect(1920, 1080);
+    try {
+      renderWithMocks(<AppShellInAppProviders />, { handlerOverrides: NO_DATALIST_OVERRIDES });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('sidebar')).toBeInTheDocument();
+      });
+
+      const libraryTab = screen.getByRole('tab', { name: /^Library$/ });
+      await user.click(libraryTab);
+
+      await user.click(screen.getByRole('button', { name: 'View details for Test Game Alpha' }));
+
+      const gameDetail = await screen.findByTestId('game-detail');
+      await user.click(within(gameDetail).getByRole('button', { name: 'Edit profile' }));
+
+      const breadcrumb = await screen.findByRole('navigation', { name: 'Breadcrumb' });
+
+      await user.click(within(breadcrumb).getByRole('button', { name: 'Test Game Alpha' }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('game-detail')).toBeInTheDocument();
+      });
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
+
+  it('clears the breadcrumb when navigating to Profiles via command palette (plain navigation)', async () => {
+    const user = userEvent.setup();
+    setInnerWidth(1920);
+    setInnerHeight(1080);
+    const rectSpy = mockAppShellRect(1920, 1080);
+    try {
+      renderWithMocks(<AppShellInAppProviders />, { handlerOverrides: NO_DATALIST_OVERRIDES });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('sidebar')).toBeInTheDocument();
+      });
+
+      // Navigate to Profiles via command palette (no origin) — use the exact title to avoid
+      // ambiguity with other commands that mention "profiles" in their subtitle/keywords.
+      await user.keyboard('{Control>}k{/Control}');
+      const search = await screen.findByRole('searchbox', { name: 'Search commands' });
+      await user.type(search, 'Go to Profiles');
+      await user.keyboard('{Enter}');
+
+      // 'Profiles' is not in the sidebar (accessible via palette only); wait for its RouteBanner h1
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'Profiles' })).toBeInTheDocument();
+      });
+
+      expect(screen.queryByRole('navigation', { name: 'Breadcrumb' })).not.toBeInTheDocument();
     } finally {
       rectSpy.mockRestore();
     }

@@ -20,6 +20,7 @@ import './styles/collapsible-section.css';
 import './styles/library.css';
 import './styles/palette.css';
 import './styles/hero-detail.css';
+import './styles/breadcrumb.css';
 import './styles/collections-sidebar.css';
 
 if (import.meta.env.DEV) {
