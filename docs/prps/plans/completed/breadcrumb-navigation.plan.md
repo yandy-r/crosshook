@@ -150,6 +150,7 @@ the sidebar); hero-detail entry idiom at`:150-167` (`View details for Test Game 
 **Depends on**: []
 
 1. `Breadcrumb.tsx` — pure presentational, named exports, no IPC, no state:
+
    ```tsx
    export interface BreadcrumbSegment {
      label: string;
@@ -173,6 +174,7 @@ className="crosshook-breadcrumb__current" aria-current="page">{label}</span>`.
    - Separator: `<span className="crosshook-breadcrumb__separator" aria-hidden="true">›</span>`
      rendered inside each `<li>` **after the first** (before the crumb), mirroring
      `LaunchPipeline.tsx` aria-hidden indicators.
+
 2. `src/styles/breadcrumb.css` — base sized to `crosshook-heading-eyebrow` metrics
    (`theme.css:669-675`): `font-size: 0.75rem; font-weight: 700; letter-spacing: 0.2em;
 text-transform: uppercase; color: var(--crosshook-color-accent-strong);` on the nav; `__list`
