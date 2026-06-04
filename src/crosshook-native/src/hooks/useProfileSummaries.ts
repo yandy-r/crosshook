@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { subscribeEvent } from '@/lib/events';
 import { callCommand } from '@/lib/ipc';
 
 import type { ProfileSummary } from '../types/library';
@@ -32,6 +33,21 @@ export function useProfileSummaries(_profiles: string[], collectionId?: string |
 
   useEffect(() => {
     void fetchSummaries();
+  }, [fetchSummaries]);
+
+  useEffect(() => {
+    let active = true;
+    const unlistenPromise = subscribeEvent<string>('profiles-changed', () => {
+      if (!active) {
+        return;
+      }
+      void fetchSummaries();
+    });
+
+    return () => {
+      active = false;
+      void unlistenPromise.then((unlisten) => unlisten());
+    };
   }, [fetchSummaries]);
 
   return { summaries, loading, error };
