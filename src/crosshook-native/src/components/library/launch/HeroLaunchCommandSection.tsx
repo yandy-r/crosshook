@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePreferencesContext } from '@/context/PreferencesContext';
 import { useProfileContext } from '@/context/ProfileContext';
 import { type SteamExternalLauncherExportRequest, useLauncherExport } from '@/hooks/useLauncherExport';
-import type { LaunchPreview, LaunchRequest } from '@/types/launch';
+import type { LaunchPhase, LaunchPreview, LaunchRequest } from '@/types/launch';
 import type { GameProfile } from '@/types/profile';
 import { copyToClipboard } from '@/utils/clipboard';
 import { resolveLaunchMethod } from '@/utils/launch';
@@ -78,7 +78,29 @@ export interface HeroLaunchCommandSectionProps {
   resolvedProfileName: string;
   isLaunching: boolean;
   onPreviewLaunch?: (request: LaunchRequest) => void | Promise<void>;
+  /** Legacy navigation-based launch (used by the outer shell / tests). */
   onLaunch?: (name: string) => void | Promise<void>;
+  // ── In-place launch props (wired by HeroLaunchGate) ───────────────────────
+  /** Whether the Launch Game button should be enabled. */
+  canLaunchGame?: boolean;
+  /** Whether the Launch Trainer button should be enabled. */
+  canLaunchTrainer?: boolean;
+  /** Whether a launch is currently in progress. */
+  isBusy?: boolean;
+  /** Whether the game process is already running. */
+  isGameRunning?: boolean;
+  /** Current launch phase for button label derivation. */
+  phase?: LaunchPhase;
+  /** Whether the launch phase is idle. */
+  isIdle?: boolean;
+  /** Pre-launch hook — dep gate + selectProfile-first. Returns false to abort. */
+  onBeforeLaunch?: (action: 'game' | 'trainer') => Promise<boolean>;
+  /** In-place game launch (from LaunchStateContext). */
+  onLaunchGame?: () => void;
+  /** In-place trainer launch (from LaunchStateContext). */
+  onLaunchTrainer?: () => void;
+  /** Hint shown when the profile is not selectable (fallback profile). */
+  notSelectableHint?: string | null;
 }
 
 export function HeroLaunchCommandSection({
@@ -90,6 +112,16 @@ export function HeroLaunchCommandSection({
   isLaunching,
   onPreviewLaunch,
   onLaunch,
+  canLaunchGame,
+  canLaunchTrainer,
+  isBusy = false,
+  isGameRunning = false,
+  phase,
+  isIdle,
+  onBeforeLaunch,
+  onLaunchGame,
+  onLaunchTrainer,
+  notSelectableHint,
 }: HeroLaunchCommandSectionProps) {
   const { profile, steamClientInstallPath, targetHomePath } = useProfileContext();
   const {
@@ -132,7 +164,11 @@ export function HeroLaunchCommandSection({
 
   const canPreview = Boolean(launchRequest && onPreviewLaunch && !previewLoading);
   const canCopy = Boolean(preview?.effective_command);
-  const canLaunch = Boolean(onLaunch && launchRequest && !isLaunching);
+
+  // In-place mode: canLaunchGame / canLaunchTrainer are provided by HeroLaunchGate.
+  // Legacy mode: canLaunch derived from onLaunch prop.
+  const isInPlaceMode = onLaunchGame !== undefined || onLaunchTrainer !== undefined;
+  const legacyCanLaunch = Boolean(onLaunch && launchRequest && !isLaunching);
 
   const handleCopy = async () => {
     setCopyStatus('idle');
@@ -154,6 +190,20 @@ export function HeroLaunchCommandSection({
       copyStatusResetTimerRef.current = null;
     }, 2500);
   };
+
+  function handleInPlaceLaunch(action: 'game' | 'trainer') {
+    void (async () => {
+      if (onBeforeLaunch) {
+        const proceed = await onBeforeLaunch(action);
+        if (!proceed) return;
+      }
+      if (action === 'game') {
+        onLaunchGame?.();
+      } else {
+        onLaunchTrainer?.();
+      }
+    })();
+  }
 
   return (
     <DashboardPanelSection
@@ -194,16 +244,38 @@ export function HeroLaunchCommandSection({
               .desktop
             </button>
           )}
-          <button
-            type="button"
-            className="crosshook-button"
-            disabled={!canLaunch}
-            onClick={() => {
-              void onLaunch?.(resolvedProfileName);
-            }}
-          >
-            {isLaunching ? 'Launching...' : 'Launch'}
-          </button>
+          {isInPlaceMode ? (
+            <>
+              <button
+                type="button"
+                className="crosshook-button"
+                disabled={!canLaunchGame}
+                aria-label={isGameRunning ? 'Game Running' : isBusy && phase ? 'Launching…' : 'Launch Game'}
+                onClick={() => handleInPlaceLaunch('game')}
+              >
+                {isGameRunning ? 'Game Running' : isBusy && isIdle === false ? 'Launching…' : 'Launch Game'}
+              </button>
+              <button
+                type="button"
+                className="crosshook-button crosshook-button--secondary"
+                disabled={!canLaunchTrainer}
+                onClick={() => handleInPlaceLaunch('trainer')}
+              >
+                {isBusy && phase !== undefined ? 'Launching…' : 'Launch Trainer'}
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="crosshook-button"
+              disabled={!legacyCanLaunch}
+              onClick={() => {
+                void onLaunch?.(resolvedProfileName);
+              }}
+            >
+              {isLaunching ? 'Launching...' : 'Launch'}
+            </button>
+          )}
         </div>
       }
     >
@@ -215,6 +287,11 @@ export function HeroLaunchCommandSection({
       {previewLoading ? <p className="crosshook-hero-detail__muted">Building launch preview...</p> : null}
       {previewError ? <p className="crosshook-hero-detail__warn">{previewError}</p> : null}
       {preview ? <HighlightedCommandBlock preview={preview} profileName={resolvedProfileName} /> : null}
+      {notSelectableHint ? (
+        <p className="crosshook-hero-detail__muted" role="note">
+          {notSelectableHint}
+        </p>
+      ) : null}
       {copyStatus === 'copied' ? (
         <p className="crosshook-hero-detail__launch-status" role="status">
           Command copied.

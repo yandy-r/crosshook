@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePreferencesContext } from '@/context/PreferencesContext';
 import { useProfileContext } from '@/context/ProfileContext';
 import { useProfileHealthContext } from '@/context/ProfileHealthContext';
+import { useProfileActions } from '@/hooks/profile/useProfileActions';
 import type { GameDetailsProfileLoadState } from '@/hooks/useGameDetailsProfile';
 import { useProtonInstalls } from '@/hooks/useProtonInstalls';
 import { useTrainerTypeCatalog } from '@/hooks/useTrainerTypeCatalog';
@@ -9,7 +10,9 @@ import type { EnrichedProfileHealthReport } from '@/types/health';
 import type { LibraryCardData, ProfileSummary } from '@/types/library';
 import { resolveArtAppId } from '@/utils/art';
 import { resolveLaunchMethod } from '@/utils/launch';
+import { LauncherExport } from '../LauncherExport';
 import { useProfilesPageProton } from '../pages/profiles/useProfilesPageProton';
+import { HeroProfileActionsBar } from './profiles/HeroProfileActionsBar';
 import { HeroProfileCardList } from './profiles/HeroProfileCardList';
 import { HeroProfileEditorSections } from './profiles/HeroProfileEditorSections';
 import { useHeroProfilesAutosave } from './profiles/useHeroProfilesAutosave';
@@ -46,6 +49,11 @@ export function HeroDetailProfilesTab({
     setProfileName,
     persistProfileDraft,
     steamClientInstallPath,
+    targetHomePath,
+    fetchConfigHistory,
+    fetchConfigDiff,
+    rollbackConfig,
+    markKnownGood,
   } = useProfileContext();
 
   const { defaultSteamClientInstallPath } = usePreferencesContext();
@@ -104,6 +112,14 @@ export function HeroDetailProfilesTab({
   // Steam App ID for GameMetadataBar
   const steamAppId = resolveArtAppId(profile) || summary.steamAppId || undefined;
 
+  // Pending launcher re-export flag — set by useProfileActions when a rename
+  // detects an existing launcher that needs to be re-exported after the rename.
+  const [pendingLauncherReExport, setPendingLauncherReExport] = useState(false);
+
+  // Shared action hook — handles duplicate / rename / preview / community-export /
+  // history panel / mark-verified state, handlers, and F2 keyboard shortcut.
+  const actions = useProfileActions({ setPendingLauncherReExport });
+
   useEffect(() => {
     if (cards.length === 0 || singletonOwnsGame) {
       return;
@@ -136,6 +152,22 @@ export function HeroDetailProfilesTab({
       </span>
     ) : null;
 
+  // LauncherExport panel — only shown for steam_applaunch / proton_run methods.
+  // Mirrors ProfileSubTabs.tsx supportsLauncherExport guard (line 112).
+  const supportsLauncherExport = launchMethod === 'steam_applaunch' || launchMethod === 'proton_run';
+  const launcherExportSlot =
+    supportsLauncherExport && profileExists ? (
+      <LauncherExport
+        profile={profile}
+        profileName={profileName}
+        method={launchMethod}
+        steamClientInstallPath={effectiveSteamClientInstallPath}
+        targetHomePath={targetHomePath}
+        pendingReExport={pendingLauncherReExport}
+        onReExportHandled={() => setPendingLauncherReExport(false)}
+      />
+    ) : null;
+
   return (
     <div className="crosshook-hero-detail__profiles">
       <HeroProfileCardList
@@ -164,6 +196,19 @@ export function HeroDetailProfilesTab({
               <h3 className="crosshook-hero-detail__section-title">{profileName || selectedTrimmed}</h3>
               {autoSaveChip}
             </div>
+
+            <HeroProfileActionsBar
+              actions={actions}
+              onAfterRollback={actions.handleAfterRollback}
+              versionStatus={versionStatus}
+              historyHandlers={{
+                fetchConfigHistory,
+                fetchConfigDiff,
+                rollbackConfig,
+                markKnownGood,
+              }}
+            />
+
             <HeroProfileEditorSections
               profile={profile}
               profileName={profileName}
@@ -191,6 +236,7 @@ export function HeroDetailProfilesTab({
               effectiveSteamClientInstallPath={effectiveSteamClientInstallPath}
               onInstallSuggestedVersion={() => void protonState.handleInstallSuggestedVersion()}
               onDismissSuggestion={() => protonState.setSuggestionDismissed(true)}
+              launcherExportSlot={launcherExportSlot}
             />
           </div>
         ) : null}

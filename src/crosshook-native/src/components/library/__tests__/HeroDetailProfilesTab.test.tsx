@@ -82,6 +82,60 @@ vi.mock('@/context/ProfileHealthContext', () => ({
   }),
 }));
 
+vi.mock('@/hooks/profile/useProfileActions', () => ({
+  useProfileActions: () => ({
+    canSave: false,
+    canDelete: false,
+    canDuplicate: false,
+    canRename: false,
+    canPreview: false,
+    canExportCommunity: false,
+    canViewHistory: false,
+    previewing: false,
+    previewError: null,
+    showProfilePreview: false,
+    profilePreviewContent: '',
+    handlePreviewProfile: vi.fn(),
+    handleCloseProfilePreview: vi.fn(),
+    exportingCommunity: false,
+    communityExportError: null,
+    communityExportSuccess: null,
+    handleExportCommunityProfile: vi.fn(),
+    handleSave: vi.fn(),
+    handleRefreshStatus: vi.fn(),
+    handleAfterRollback: vi.fn(),
+    showHistoryPanel: false,
+    setShowHistoryPanel: vi.fn(),
+    showWizard: false,
+    wizardMode: 'create' as const,
+    openWizard: vi.fn(),
+    setShowWizard: vi.fn(),
+    canConfirmRename: false,
+    dismissHealthBanner: vi.fn(),
+    dismissRenameToast: vi.fn(),
+    handleRenameConfirm: vi.fn(),
+    healthBannerDismissed: false,
+    pendingRename: null,
+    renameError: null,
+    renameInputRef: { current: null },
+    renameNameTrimmed: '',
+    renameToast: null,
+    renameToastDismissed: false,
+    renameValue: '',
+    setPendingRename: vi.fn(),
+    setRenameValue: vi.fn(),
+    undoRename: vi.fn(),
+  }),
+}));
+
+vi.mock('@/components/library/profiles/HeroProfileActionsBar', () => ({
+  HeroProfileActionsBar: () => null,
+}));
+
+vi.mock('@/components/LauncherExport', () => ({
+  LauncherExport: () => null,
+}));
+
 vi.mock('@/hooks/useTrainerTypeCatalog', () => ({
   useTrainerTypeCatalog: () => ({
     catalog: [],
@@ -117,6 +171,20 @@ type ProfileContextState = {
   setProfileName: typeof setProfileNameSpy;
   persistProfileDraft: typeof persistProfileDraftSpy;
   steamClientInstallPath: string;
+  // Additional fields consumed by HeroDetailProfilesTab (Task 3.2)
+  targetHomePath: string;
+  pendingDelete: null;
+  deleting: boolean;
+  duplicating: boolean;
+  renaming: boolean;
+  duplicateProfile: ReturnType<typeof vi.fn>;
+  confirmDelete: ReturnType<typeof vi.fn>;
+  executeDelete: ReturnType<typeof vi.fn>;
+  cancelDelete: ReturnType<typeof vi.fn>;
+  fetchConfigHistory: ReturnType<typeof vi.fn>;
+  fetchConfigDiff: ReturnType<typeof vi.fn>;
+  rollbackConfig: ReturnType<typeof vi.fn>;
+  markKnownGood: ReturnType<typeof vi.fn>;
 };
 
 const card1: ProfileSummary = {
@@ -165,6 +233,19 @@ function buildContextState(overrides: Partial<ProfileContextState> = {}): Profil
     setProfileName: setProfileNameSpy,
     persistProfileDraft: persistProfileDraftSpy,
     steamClientInstallPath: '/home/devuser/.steam/steam',
+    targetHomePath: '/home/devuser',
+    pendingDelete: null,
+    deleting: false,
+    duplicating: false,
+    renaming: false,
+    duplicateProfile: vi.fn().mockResolvedValue(undefined),
+    confirmDelete: vi.fn().mockResolvedValue(undefined),
+    executeDelete: vi.fn().mockResolvedValue(undefined),
+    cancelDelete: vi.fn(),
+    fetchConfigHistory: vi.fn().mockResolvedValue([]),
+    fetchConfigDiff: vi.fn().mockResolvedValue({}),
+    rollbackConfig: vi.fn().mockResolvedValue({}),
+    markKnownGood: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }

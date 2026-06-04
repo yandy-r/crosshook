@@ -30,6 +30,13 @@ export interface HeroLaunchSubTabsHostProps {
    * would target the wrong profile when the mismatch occurs.
    */
   profileMismatch: boolean;
+  /**
+   * Whether the current gamescope session is already running.
+   * Wired from `useLaunchDepGate` via `HeroLaunchGate` (Task 3.1).
+   * Defaults to `false` when not provided (same initial value as LaunchPage
+   * before `useLaunchDepGate` resolves its first check).
+   */
+  isGamescopeRunning?: boolean;
 }
 
 /**
@@ -38,27 +45,24 @@ export interface HeroLaunchSubTabsHostProps {
  * Optimizations, Steam Options, Offline) plus ProtonDB lookup/overwrite/
  * suggestions via `useLaunchSubTabsProps`.
  *
- * NOTE(isGamescopeRunning): Task 3.1 will add `HeroLaunchGate` and wire the
- * real dep-gate here. For now we pass `false` — identical to what LaunchPage
- * passes before `useLaunchDepGate` resolves its first check. Task 3.1 owns
- * `components/library/launch/HeroLaunchGate.tsx`; this file must not create it.
+ * `isGamescopeRunning` is wired from `useLaunchDepGate` via `HeroLaunchGate`
+ * (Task 3.1). It defaults to `false` when not provided, identical to what
+ * LaunchPage passes before `useLaunchDepGate` resolves its first check.
  */
 export function HeroLaunchSubTabsHost({
   resolvedProfileName: _resolvedProfileName,
   resolvedSteamAppId,
   hasSavedSelectedProfile,
   profileMismatch,
+  isGamescopeRunning = false,
 }: HeroLaunchSubTabsHostProps) {
   const { profileName } = useProfileContext();
 
-  // isGamescopeRunning: Task 3.1 wires the real dep-gate (HeroLaunchGate).
-  // Until then, default false — same as LaunchPage before useLaunchDepGate
-  // resolves its first check. ProfileContext's selectedProfile is what matters
-  // here; `resolvedProfileName` may be a fallback profile name when the
-  // singleton doesn't own the game, so we use `profileName` from context for
-  // the bridge hook (consistent with LaunchPage call site).
+  // ProfileContext's selectedProfile is what matters here; `resolvedProfileName`
+  // may be a fallback profile name when the singleton doesn't own the game, so
+  // we use `profileName` from context (consistent with LaunchPage call site).
   const launchSubTabsProps = useLaunchSubTabsProps({
-    isGamescopeRunning: false,
+    isGamescopeRunning,
     resolvedSteamAppId,
     hasSavedSelectedProfile,
   });

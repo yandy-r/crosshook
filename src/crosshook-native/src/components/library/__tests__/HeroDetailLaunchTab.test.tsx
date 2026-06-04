@@ -29,10 +29,12 @@ vi.mock('@/hooks/useLauncherExport', () => ({
   useLauncherExport: (options: unknown) => useLauncherExportMock(options),
 }));
 
-// Mock the new sub-components so the test only exercises HeroDetailLaunchTab's
-// own shell: command section, sub-tabs host, and hooks placeholder.
-vi.mock('../launch/HeroLaunchCommandSection', () => ({
-  HeroLaunchCommandSection: (props: {
+// Mock HeroLaunchGate so the shell test only exercises HeroDetailLaunchTab's
+// own layout: the gate section, and the hooks placeholder.
+// The mock forwards onPreviewLaunch (Dry-run) so we can verify it is wired
+// through from HeroDetailLaunchTab without exercising the full gate logic.
+vi.mock('../launch/HeroLaunchGate', () => ({
+  HeroLaunchGate: (props: {
     launchRequest: unknown;
     previewLoading: boolean;
     preview: unknown;
@@ -40,14 +42,10 @@ vi.mock('../launch/HeroLaunchCommandSection', () => ({
     resolvedProfileName: string;
     isLaunching: boolean;
     onPreviewLaunch?: (req: unknown) => void;
-    onLaunch?: (name: string) => void;
   }) => {
-    const hasCommand = Boolean(props.preview);
     const canPreview = Boolean(props.launchRequest && props.onPreviewLaunch && !props.previewLoading);
-    const canCopy = hasCommand;
-    const canLaunch = Boolean(props.onLaunch && props.launchRequest && !props.isLaunching);
     return (
-      <section aria-label="Launch command">
+      <section aria-label="Launch gate">
         <h3>Launch command</h3>
         {!props.launchRequest ? (
           <p>Launch preview is unavailable until the game executable is set on this profile.</p>
@@ -57,28 +55,11 @@ vi.mock('../launch/HeroLaunchCommandSection', () => ({
           <button type="button" disabled={!canPreview} onClick={() => props.onPreviewLaunch?.(props.launchRequest)}>
             {props.previewLoading ? 'Building...' : 'Dry-run'}
           </button>
-          <button type="button" disabled={!canCopy}>
-            Copy
-          </button>
-          <button type="button" disabled>
-            .desktop
-          </button>
-          <button type="button" disabled={!canLaunch} onClick={() => props.onLaunch?.(props.resolvedProfileName)}>
-            {props.isLaunching ? 'Launching...' : 'Launch'}
-          </button>
         </div>
+        <div data-testid="hero-launch-subtabs-host" />
       </section>
     );
   },
-  default: () => null,
-}));
-
-vi.mock('../launch/HeroLaunchSubTabsHost', () => ({
-  HeroLaunchSubTabsHost: () => (
-    <section aria-label="Launch sub-tabs host">
-      <div data-testid="hero-launch-subtabs-host" />
-    </section>
-  ),
   default: () => null,
 }));
 
@@ -235,7 +216,7 @@ describe('HeroDetailLaunchTab', () => {
     consoleErrorSpy.mockRestore();
   });
 
-  it('renders the launch command, sub-tabs host, and hooks sections', () => {
+  it('renders the launch gate, sub-tabs host, and hooks sections', () => {
     renderLaunchTab();
 
     const headings = screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent);
@@ -247,31 +228,26 @@ describe('HeroDetailLaunchTab', () => {
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
-  it('disables actions when launch request or preview data is unavailable', () => {
+  it('disables dry-run when launch request is unavailable', () => {
     renderLaunchTab({ launchRequest: null, preview: null });
 
     expect(screen.getByRole('button', { name: 'Dry-run' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Launch' })).toBeDisabled();
     expect(
       screen.getByText('Launch preview is unavailable until the game executable is set on this profile.')
     ).toBeInTheDocument();
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
-  it('runs dry-run and launch through existing boundaries', async () => {
+  it('passes onPreviewLaunch through to the gate', async () => {
     const user = userEvent.setup();
     const onPreviewLaunch = vi.fn();
-    const onLaunch = vi.fn();
 
-    renderLaunchTab({ onPreviewLaunch, onLaunch });
+    renderLaunchTab({ onPreviewLaunch });
 
     await user.click(screen.getByRole('button', { name: 'Dry-run' }));
     expect(onPreviewLaunch).toHaveBeenCalledWith(
       expect.objectContaining({ game_path: '/games/synthetic-quest/game.exe' })
     );
-
-    await user.click(screen.getByRole('button', { name: 'Launch' }));
-    expect(onLaunch).toHaveBeenCalledWith('Synthetic Quest');
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 

@@ -226,6 +226,15 @@
   min-width: 0;
 }
 
+/* HeroLaunchGate — the in-place launch orchestrator inside the Hero Detail
+   tab. Inherits the same column flex layout as the tab itself. */
+.crosshook-hero-detail__launch-gate {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
 .crosshook-hero-detail__launch-actions {
   display: flex;
   flex-wrap: wrap;

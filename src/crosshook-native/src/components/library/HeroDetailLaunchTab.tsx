@@ -4,8 +4,7 @@ import type { LaunchPreview, LaunchRequest } from '@/types/launch';
 import type { LibraryCardData } from '@/types/library';
 import { resolveArtAppId } from '@/utils/art';
 import { DashboardPanelSection } from '../layout/DashboardPanelSection';
-import { HeroLaunchCommandSection } from './launch/HeroLaunchCommandSection';
-import { HeroLaunchSubTabsHost } from './launch/HeroLaunchSubTabsHost';
+import { HeroLaunchGate } from './launch/HeroLaunchGate';
 
 export interface HeroDetailLaunchTabProps {
   summary: LibraryCardData;
@@ -26,7 +25,6 @@ export function HeroDetailLaunchTab({
   preview,
   previewError,
   onPreviewLaunch,
-  onLaunch,
   launchingName,
   displayProfileName,
 }: HeroDetailLaunchTabProps) {
@@ -70,22 +68,20 @@ export function HeroDetailLaunchTab({
 
   return (
     <div className="crosshook-hero-detail__launch-tab">
-      <HeroLaunchCommandSection
+      {/* HeroLaunchGate owns the command block, dep gate, in-place launch,
+          pipeline visualization, and sub-tabs host in one unit. */}
+      <HeroLaunchGate
         launchRequest={launchRequest}
         previewLoading={previewLoading}
         preview={preview}
         previewError={previewError}
-        resolvedProfileName={resolvedProfileName}
-        isLaunching={isLaunching}
         onPreviewLaunch={onPreviewLaunch}
-        onLaunch={onLaunch}
-      />
-
-      <HeroLaunchSubTabsHost
         resolvedProfileName={resolvedProfileName}
         resolvedSteamAppId={resolvedSteamAppId}
         hasSavedSelectedProfile={hasSavedSelectedProfile}
         profileMismatch={profileMismatch}
+        displayProfileName={displayProfileName ?? resolvedProfileName}
+        isLaunching={isLaunching}
       />
 
       {/* Pre/post hooks placeholder — owned by #471, do not remove */}
