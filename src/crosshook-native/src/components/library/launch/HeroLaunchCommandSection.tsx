@@ -118,7 +118,6 @@ export function HeroLaunchCommandSection({
   canLaunchTrainer,
   isBusy = false,
   isGameRunning = false,
-  phase,
   isIdle,
   onBeforeLaunch,
   onLaunchGame,
@@ -256,10 +255,10 @@ export function HeroLaunchCommandSection({
                 type="button"
                 className="crosshook-button"
                 disabled={!canLaunchGame}
-                aria-label={isGameRunning ? 'Game Running' : isBusy && phase ? 'Launching…' : 'Launch Game'}
+                aria-label={isGameRunning ? 'Game Running' : isBusy && !isIdle ? 'Launching…' : 'Launch Game'}
                 onClick={() => handleInPlaceLaunch('game')}
               >
-                {isGameRunning ? 'Game Running' : isBusy && isIdle === false ? 'Launching…' : 'Launch Game'}
+                {isGameRunning ? 'Game Running' : isBusy && !isIdle ? 'Launching…' : 'Launch Game'}
               </button>
               <button
                 type="button"
@@ -267,7 +266,7 @@ export function HeroLaunchCommandSection({
                 disabled={!canLaunchTrainer}
                 onClick={() => handleInPlaceLaunch('trainer')}
               >
-                {isBusy && phase !== undefined ? 'Launching…' : 'Launch Trainer'}
+                {isBusy && !isIdle ? 'Launching…' : 'Launch Trainer'}
               </button>
             </>
           ) : (

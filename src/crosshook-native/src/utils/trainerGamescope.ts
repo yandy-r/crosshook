@@ -10,7 +10,12 @@ export function resolveTrainerGamescopeForDisplay(profile: GameProfile): {
 
   if (trainerGamescope?.enabled) {
     return {
-      config: trainerGamescope,
+      config: {
+        ...DEFAULT_GAMESCOPE_CONFIG,
+        ...trainerGamescope,
+        enabled: true,
+        extra_args: trainerGamescope.extra_args ?? [],
+      },
       isGeneratedFromGame: false,
     };
   }
@@ -31,7 +36,7 @@ export function resolveTrainerGamescopeForDisplay(profile: GameProfile): {
   }
 
   return {
-    config: DEFAULT_GAMESCOPE_CONFIG,
+    config: { ...DEFAULT_GAMESCOPE_CONFIG },
     isGeneratedFromGame: false,
   };
 }

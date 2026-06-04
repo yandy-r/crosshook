@@ -142,30 +142,38 @@ export function useProfileNotifications({
 
     const { oldName, newName } = renameToast;
     dismissRenameToast();
-    void renameProfile(newName, oldName).then(({ ok, hadLauncher }) => {
-      if (!ok) {
-        return;
-      }
+    void renameProfile(newName, oldName)
+      .then(({ ok, hadLauncher }) => {
+        if (!ok) {
+          return;
+        }
 
-      if (hadLauncher) {
-        setPendingLauncherReExport(true);
-      }
-    });
+        if (hadLauncher) {
+          setPendingLauncherReExport(true);
+        }
+      })
+      .catch((error: unknown) => {
+        console.error('Undo profile rename failed', error);
+      });
   }, [dismissRenameToast, renameProfile, renameToast, setPendingLauncherReExport]);
 
   const handleRenameConfirm = useCallback(
     (oldName: string, newName: string) => {
       setPendingRename(null);
-      void renameProfile(oldName, newName).then(({ ok, hadLauncher }) => {
-        if (!ok) {
-          return;
-        }
+      void renameProfile(oldName, newName)
+        .then(({ ok, hadLauncher }) => {
+          if (!ok) {
+            return;
+          }
 
-        showRenameToast(oldName, newName);
-        if (hadLauncher) {
-          setPendingLauncherReExport(true);
-        }
-      });
+          showRenameToast(oldName, newName);
+          if (hadLauncher) {
+            setPendingLauncherReExport(true);
+          }
+        })
+        .catch((error: unknown) => {
+          console.error('Profile rename failed', error);
+        });
     },
     [renameProfile, setPendingLauncherReExport, showRenameToast]
   );

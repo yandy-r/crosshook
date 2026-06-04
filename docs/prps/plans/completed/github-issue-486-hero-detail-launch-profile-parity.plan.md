@@ -340,7 +340,7 @@ git diff -- package.json src/crosshook-native/package.json package-lock.json src
 
 ## Acceptance Criteria (from #486)
 
-- [x] Launch parity inventory documents every legacy Launch route sub-tab/option as ported / intentionally omitted (superseded) / superseded — finalized in Task 5.2.
+- [x] Launch parity inventory documents every legacy Launch route sub-tab/option as ported / intentionally omitted (superseded) / deferred — finalized in Task 5.2.
 - [x] Profiles parity inventory ditto.
 - [x] Hero Detail `launch-options` exposes all legacy Launch route user-facing controls that would otherwise be lost when `/launch` is removed.
 - [x] Hero Detail `profiles` exposes all legacy Profiles route user-facing controls that would otherwise be lost when `/profiles` is removed.
