@@ -151,7 +151,11 @@ export function HeroDetailProfilesTab({
       }
 
       if (dirty && hasSavedSelectedProfile) {
-        await persistProfileDraft(selectedTrimmed, profile);
+        const result = await persistProfileDraft(selectedTrimmed, profile);
+        if (!result.ok) {
+          setAutoSaveStatus({ tone: 'error', label: 'Profile save failed', detail: result.error });
+          return;
+        }
       }
 
       await selectProfile(cardName);
