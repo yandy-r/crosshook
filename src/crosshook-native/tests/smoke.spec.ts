@@ -166,6 +166,27 @@ test.describe('library inspector', () => {
     expect(capture.errors).toEqual([]);
   });
 
+  test('hero detail overview deep-link opens launch options tab', async ({ page }) => {
+    const capture = attachConsoleCapture(page);
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.goto('/?fixture=populated');
+
+    const libraryTab = page.getByRole('tab', { name: 'Library', exact: true });
+    await libraryTab.click();
+
+    await page.getByRole('button', { name: 'View details for Test Game Alpha' }).click();
+    const gameDetail = page.getByTestId('game-detail');
+    await expect(gameDetail).toBeVisible();
+
+    await gameDetail.getByRole('button', { name: 'Edit launch config' }).click();
+
+    const launchTab = gameDetail.getByRole('tab', { name: 'Launch options' });
+    await expect(launchTab).toHaveAttribute('aria-selected', 'true');
+    await expect(gameDetail.getByTestId('hero-detail-launch-tab')).toBeVisible();
+
+    expect(capture.errors).toEqual([]);
+  });
+
   test('hero detail works at deck width without inspector', async ({ page }) => {
     const capture = attachConsoleCapture(page);
     await page.setViewportSize({ width: 1024, height: 800 });

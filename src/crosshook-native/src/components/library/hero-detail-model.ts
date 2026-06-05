@@ -4,6 +4,14 @@
 
 export type HeroDetailTabId = 'overview' | 'profiles' | 'launch-options' | 'trainer' | 'history' | 'compatibility';
 
+export type HeroDetailProfilesScrollTarget = 'runtime';
+
+export interface HeroDetailTabRequestOptions {
+  profilesScrollTarget?: HeroDetailProfilesScrollTarget;
+}
+
+export const HERO_DETAIL_RUNTIME_SECTION_TEST_ID = 'hero-detail-runtime-section';
+
 export const HERO_DETAIL_TABS: readonly { id: HeroDetailTabId; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'profiles', label: 'Profiles' },

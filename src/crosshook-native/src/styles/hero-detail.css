@@ -205,6 +205,13 @@
   gap: 12px;
 }
 
+.crosshook-hero-detail__overview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
 .crosshook-hero-detail__command-block {
   margin: 0;
   padding: 10px;
@@ -831,6 +838,11 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+.crosshook-hero-detail__profiles-section-anchor {
+  min-width: 0;
+  scroll-margin-top: 12px;
 }
 
 .crosshook-hero-detail__profiles-cta,

@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { PreferencesProvider } from '@/context/PreferencesContext';
@@ -172,6 +173,39 @@ function renderHeroDetailPanels(
 }
 
 describe('HeroDetailPanels', () => {
+  it('maps overview deep-link buttons to target tabs', async () => {
+    const user = userEvent.setup();
+    const onSetActiveTab = vi.fn();
+
+    renderHeroDetailPanels({
+      mode: 'overview',
+      onSetActiveTab,
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Open runtime' }));
+    expect(onSetActiveTab).toHaveBeenLastCalledWith('profiles', { profilesScrollTarget: 'runtime' });
+
+    await user.click(screen.getByRole('button', { name: 'Open profile' }));
+    expect(onSetActiveTab).toHaveBeenLastCalledWith('profiles');
+
+    await user.click(screen.getByRole('button', { name: 'Edit launch config' }));
+    expect(onSetActiveTab).toHaveBeenLastCalledWith('launch-options');
+
+    await user.click(screen.getByRole('button', { name: 'Manage hooks' }));
+    expect(onSetActiveTab).toHaveBeenLastCalledWith('launch-options');
+    expect(screen.getByRole('heading', { name: 'Store metadata' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Health and offline readiness' })).toBeInTheDocument();
+  });
+
+  it('renders disabled overview deep-link buttons when no tab callback is provided', () => {
+    renderHeroDetailPanels({ mode: 'overview' });
+
+    expect(screen.getByRole('button', { name: 'Open runtime' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Open profile' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Edit launch config' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Manage hooks' })).toBeDisabled();
+  });
+
   it('renders the launch-options branch as the new three-section launch tab', () => {
     renderHeroDetailPanels();
 

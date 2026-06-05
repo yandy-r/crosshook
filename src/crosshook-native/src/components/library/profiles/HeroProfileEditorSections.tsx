@@ -41,6 +41,7 @@ import { RunnerMethodSection } from '../../profile-sections/RunnerMethodSection'
 import { RuntimeSection } from '../../profile-sections/RuntimeSection';
 import { TrainerSection } from '../../profile-sections/TrainerSection';
 import { CollapsibleSection } from '../../ui/CollapsibleSection';
+import { HERO_DETAIL_RUNTIME_SECTION_TEST_ID } from '../hero-detail-model';
 import { HeroProfileEditorHealthSection, HeroProfileEditorSuggestionBanner } from './HeroProfileEditorExtras';
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -73,6 +74,7 @@ export interface HeroProfileEditorSectionsProps {
   showNetworkIsolationBadge?: boolean;
   versionStatus?: VersionCorrelationStatus | null;
   healthIssuesRef?: RefObject<HTMLDivElement>;
+  runtimeSectionRef?: RefObject<HTMLDivElement>;
 
   // Runtime suggestion banner (mirrors ProfilesPage proton suggestion)
   suggestion?: ProtonUpSuggestion | null | undefined;
@@ -113,6 +115,7 @@ export function HeroProfileEditorSections({
   showNetworkIsolationBadge = false,
   versionStatus,
   healthIssuesRef,
+  runtimeSectionRef,
   suggestion,
   suggestionDismissed = false,
   suggestionInstallError = null,
@@ -150,13 +153,19 @@ export function HeroProfileEditorSections({
       <RunnerMethodSection profile={profile} onUpdateProfile={onUpdateProfile} />
 
       {/* 3. Runtime */}
-      <RuntimeSection
-        profile={profile}
-        onUpdateProfile={onUpdateProfile}
-        launchMethod={launchMethod}
-        protonInstalls={protonInstalls}
-        protonInstallsError={protonInstallsError}
-      />
+      <div
+        ref={runtimeSectionRef}
+        className="crosshook-hero-detail__profiles-section-anchor"
+        data-testid={HERO_DETAIL_RUNTIME_SECTION_TEST_ID}
+      >
+        <RuntimeSection
+          profile={profile}
+          onUpdateProfile={onUpdateProfile}
+          launchMethod={launchMethod}
+          protonInstalls={protonInstalls}
+          protonInstallsError={protonInstallsError}
+        />
+      </div>
 
       {/* 4. Game */}
       <GameSection profile={profile} onUpdateProfile={onUpdateProfile} launchMethod={launchMethod} />

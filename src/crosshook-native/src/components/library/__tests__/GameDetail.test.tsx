@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ComponentProps } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -36,6 +36,12 @@ vi.mock('../HeroDetailTabs', () => ({
           onClick={() => props.onActiveTabChange('history')}
         >
           History
+        </button>
+        <button
+          type="button"
+          onClick={() => props.panelProps.onSetActiveTab?.('profiles', { profilesScrollTarget: 'runtime' })}
+        >
+          Open profile from overview
         </button>
       </div>
     );
@@ -91,7 +97,7 @@ describe('GameDetail', () => {
           onLaunch,
           launchingName: summary.name,
           displayProfileName: summary.name,
-          onSetActiveTab: undefined,
+          onSetActiveTab: expect.any(Function),
         }),
       })
     );
@@ -122,5 +128,24 @@ describe('GameDetail', () => {
     const historyTab = screen.getByRole('tab', { name: 'History' });
     await user.click(historyTab);
     expect(historyTab).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('switches tabs from a panel deep-link request and stores the profiles scroll target', async () => {
+    const user = userEvent.setup();
+    renderGameDetail({ summary: makeLibraryCardData() });
+
+    await user.click(screen.getByRole('button', { name: 'Open profile from overview' }));
+
+    await waitFor(() => {
+      const latestCall = heroDetailTabsSpy.mock.calls[heroDetailTabsSpy.mock.calls.length - 1];
+      expect(latestCall?.[0]).toEqual(
+        expect.objectContaining({
+          activeTab: 'profiles',
+          panelProps: expect.objectContaining({
+            profilesScrollTarget: 'runtime',
+          }),
+        })
+      );
+    });
   });
 });
