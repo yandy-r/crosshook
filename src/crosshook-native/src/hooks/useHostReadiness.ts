@@ -30,6 +30,9 @@ function normalizeError(error: unknown): string {
 }
 
 function isMissingMockCommandError(error: unknown): boolean {
+  if (!__WEB_DEV_MODE__) {
+    return false;
+  }
   return error instanceof Error && error.message.startsWith('[dev-mock] Unhandled command:');
 }
 
