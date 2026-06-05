@@ -311,15 +311,157 @@
   gap: 10px;
 }
 
+.crosshook-hero-detail__hook-placeholder,
+.crosshook-hero-detail__hook-banner,
+.crosshook-hero-detail__hook-row,
+.crosshook-hero-detail__hook-popover {
+  display: flex;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--crosshook-radius-sm);
+}
+
 .crosshook-hero-detail__hook-placeholder {
+  align-items: center;
+  justify-content: space-between;
+  border: 1px dashed var(--crosshook-color-border-muted);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.crosshook-hero-detail__hooks-stack {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.crosshook-hero-detail__hook-banner {
+  align-items: flex-start;
+  justify-content: space-between;
+  border: 1px solid var(--crosshook-color-border-muted);
+  background: rgba(59, 130, 246, 0.08);
+  color: var(--crosshook-color-text-muted);
+}
+
+.crosshook-hero-detail__hook-banner p {
+  margin: 0;
+}
+
+.crosshook-hero-detail__hook-banner a {
+  color: var(--crosshook-color-accent-strong);
+  white-space: nowrap;
+}
+
+.crosshook-hero-detail__hook-list {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.crosshook-hero-detail__hook-list-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  border: 1px dashed var(--crosshook-color-border-muted);
-  border-radius: var(--crosshook-radius-sm);
-  background: rgba(255, 255, 255, 0.02);
+  gap: 10px;
+  min-width: 0;
+}
+
+.crosshook-hero-detail__hook-list-title {
+  margin: 0;
+  color: var(--crosshook-color-text);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.crosshook-hero-detail__hook-count,
+.crosshook-hero-detail__hook-stage {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 1px solid var(--crosshook-dashboard-pill-border);
+  border-radius: 999px;
+  background: var(--crosshook-dashboard-pill-bg);
+  color: var(--crosshook-color-text-muted);
+  font-size: 0.74rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.crosshook-hero-detail__hook-empty {
+  margin: 0;
+  color: var(--crosshook-color-text-muted);
+  font-size: 0.8rem;
+}
+
+.crosshook-hero-detail__hook-rows {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.crosshook-hero-detail__hook-row {
+  position: relative;
+  align-items: center;
+  border: 1px solid var(--crosshook-color-border-muted);
+  background: rgba(255, 255, 255, 0.025);
+  min-width: 0;
+}
+
+.crosshook-hero-detail__hook-row--invalid {
+  border-color: var(--crosshook-color-warning);
+}
+
+.crosshook-hero-detail__hook-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--crosshook-color-text-muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.crosshook-hero-detail__hook-row-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.crosshook-hero-detail__hook-name {
+  color: var(--crosshook-color-text);
+  font-weight: 700;
+}
+
+.crosshook-hero-detail__hook-path {
+  min-width: 0;
+  color: var(--crosshook-color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.crosshook-hero-detail__hook-settings {
+  position: relative;
+  display: inline-flex;
+}
+
+.crosshook-hero-detail__hook-settings-button {
+  min-width: 36px;
+  padding-inline: 8px;
+}
+
+.crosshook-hero-detail__hook-popover {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(360px, 76vw);
+  flex-direction: column;
+  border: 1px solid var(--crosshook-color-border);
+  background: var(--crosshook-color-surface, rgba(15, 23, 42, 0.98));
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
 }
 
 .crosshook-hero-detail__launch-tab .crosshook-dashboard-panel-section,
@@ -802,6 +944,24 @@
   .crosshook-hero-detail__hook-placeholder {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .crosshook-hero-detail__hook-banner,
+  .crosshook-hero-detail__hook-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .crosshook-hero-detail__hook-settings,
+  .crosshook-hero-detail__hook-settings-button,
+  .crosshook-hero-detail__hook-list > .crosshook-button {
+    width: 100%;
+  }
+
+  .crosshook-hero-detail__hook-popover {
+    position: static;
+    width: 100%;
+    margin-top: 8px;
   }
 
   /* Narrow-width collapse for profile-actions bar (Task 2.2) and new editor

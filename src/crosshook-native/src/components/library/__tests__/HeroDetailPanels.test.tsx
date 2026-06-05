@@ -25,7 +25,7 @@ vi.mock('../HeroDetailLaunchTab', () => ({
       </section>
       <section aria-label="Pre/post hooks">
         <h3>Pre/post hooks</h3>
-        <p>No pre/post hooks configured yet</p>
+        <p>These hooks are saved to your profile. Runtime execution is coming in a future release.</p>
       </section>
     </div>
   ),
@@ -182,7 +182,9 @@ describe('HeroDetailPanels', () => {
     expect(
       screen.getByText('gamescope mangohud -- /usr/bin/umu-run /games/synthetic-quest/game.exe')
     ).toBeInTheDocument();
-    expect(screen.getByText('No pre/post hooks configured yet')).toBeInTheDocument();
+    expect(
+      screen.getByText('These hooks are saved to your profile. Runtime execution is coming in a future release.')
+    ).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Summary' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Raw preview' })).not.toBeInTheDocument();
   });
