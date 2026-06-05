@@ -171,9 +171,38 @@ pull or a new PRD.
 
 ## Maintenance & blocked
 
-| Issue                                                 | Summary                                                     | Status                                                               |
-| ----------------------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------- |
-| [#26](https://github.com/yandy-r/crosshook/issues/26) | Track upstream fix for vulnerable glib in Tauri Linux stack | `status:blocked` — monitor upstream; no local action until fix lands |
+| Issue                                                 | Summary                                                     | Status                                                                                                                                     |
+| ----------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| [#26](https://github.com/yandy-r/crosshook/issues/26) | Track upstream fix for vulnerable glib in Tauri Linux stack | `status:blocked` — still on `glib 0.18.5` after Tauri 2.11.x; see [upstream tracking](#upstream-tracking-for-issue-26-glib-advisory) below |
+
+### Upstream tracking for issue 26 (glib advisory)
+
+CrossHook cannot bump `glib` to `>= 0.20.0` while the Linux stack resolves
+`gtk 0.18.2` → `glib ^0.18`. The patch landed in
+[gtk-rs/gtk-rs-core#1343](https://github.com/gtk-rs/gtk-rs-core/pull/1343)
+(**RUSTSEC-2024-0429** / **GHSA-wrw7-89jp-8q8g**); the remaining work is a
+Tauri ecosystem migration to gtk4-rs / WebKitGTK6.
+
+**Primary upstream tracking**
+
+| Upstream issue                                                                    | Repo              | Role                                   |
+| --------------------------------------------------------------------------------- | ----------------- | -------------------------------------- |
+| [tauri#12563](https://github.com/tauri-apps/tauri/issues/12563)                   | tauri             | Upgrade `tauri` to gtk4-rs             |
+| [wry#1474](https://github.com/tauri-apps/wry/issues/1474)                         | wry               | Upgrade `wry` to gtk4-rs + webkit6     |
+| [tauri#12564](https://github.com/tauri-apps/tauri/issues/12564)                   | tauri             | gtk-rs outreach for glib upgrade       |
+| [javascriptcore-rs#84](https://github.com/tauri-apps/javascriptcore-rs/issues/84) | javascriptcore-rs | Security advisory on `glib` dependency |
+| [muda#259](https://github.com/tauri-apps/muda/issues/259)                         | muda              | Upgrade to gtk-4                       |
+
+**Related runtime stack issues:** [tauri#12561](https://github.com/tauri-apps/tauri/issues/12561),
+[tauri#12562](https://github.com/tauri-apps/tauri/issues/12562)
+
+**WIP community PRs (not merged):** [wry#1530](https://github.com/tauri-apps/wry/pull/1530),
+[tao#1104](https://github.com/tauri-apps/tao/pull/1104),
+[muda#341](https://github.com/tauri-apps/muda/pull/341)
+
+Re-evaluate [#26](https://github.com/yandy-r/crosshook/issues/26) when a Tauri
+release ships with gtk4-rs / webkit6 and resolves `glib >= 0.20.0`. Latest local
+check: 2026-06-05 (see issue comment).
 
 **Strategic principle** (from [#78](https://github.com/yandy-r/crosshook/issues/78)):
 invest in making the trainer-on-Linux workflow **reliable, diagnosable, and
