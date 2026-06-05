@@ -10,6 +10,7 @@ export interface GameDetailOrigin {
 /** Mirrors the LibraryFilterIntent token pattern for reopening a game's Hero Detail. */
 export interface OpenGameDetailIntent {
   profileName: string;
+  heroDetailTab?: HeroDetailTabId;
   token: number;
 }
 

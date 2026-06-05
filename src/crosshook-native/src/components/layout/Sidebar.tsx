@@ -21,8 +21,6 @@ import { isSidebarCollapsedVariant, type SidebarVariant, sidebarWidthForVariant 
 
 export type AppRoute =
   | 'library'
-  | 'profiles'
-  | 'launch'
   | 'install'
   | 'community'
   | 'discover'

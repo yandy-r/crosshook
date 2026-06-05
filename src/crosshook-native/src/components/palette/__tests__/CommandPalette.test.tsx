@@ -62,13 +62,13 @@ const COMMANDS: readonly CommandPaletteCommand[] = [
     keywords: ['library', 'games'],
   },
   {
-    id: 'route:profiles',
+    id: 'route:health',
     action: 'route',
-    route: 'profiles',
-    title: 'Go to Profiles',
-    subtitle: 'Edit existing launch profiles.',
-    icon: 'profiles',
-    keywords: ['profiles', 'edit'],
+    route: 'health',
+    title: 'Go to Health',
+    subtitle: 'Review profile readiness.',
+    icon: 'health',
+    keywords: ['health', 'diagnostics'],
   },
   {
     id: 'profile:launch-current:Test Game',
@@ -126,7 +126,7 @@ describe('CommandPalette', () => {
 
     expect(screen.getByRole('button', { name: /Go to Settings/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Go to Library/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Go to Profiles/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Go to Health/i })).not.toBeInTheDocument();
   });
 
   it('shows empty-state messaging when no command matches', async () => {
@@ -187,7 +187,7 @@ describe('CommandPalette', () => {
     const user = userEvent.setup();
     renderPalette(COMMANDS, onExecute);
 
-    await user.click(screen.getByRole('button', { name: /Go to Profiles/i }));
+    await user.click(screen.getByRole('button', { name: /Go to Health/i }));
     expect(onExecute).toHaveBeenCalledWith(COMMANDS[1]);
   });
 });

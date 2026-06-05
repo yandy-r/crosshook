@@ -10,6 +10,7 @@ import ContentArea from '@/components/layout/ContentArea';
 import ControllerPrompts from '@/components/layout/ControllerPrompts';
 import { Inspector } from '@/components/layout/Inspector';
 import Sidebar, { type AppRoute } from '@/components/layout/Sidebar';
+import { type HeroDetailTabId, isHeroDetailTabId } from '@/components/library/hero-detail-model';
 import { OnboardingWizard } from '@/components/OnboardingWizard';
 import { CommandPalette } from '@/components/palette/CommandPalette';
 import { useInspectorSelection } from '@/context/InspectorSelectionContext';
@@ -131,6 +132,7 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
       openGameDetailIntentTokenRef.current += 1;
       setOpenGameDetailIntent({
         profileName: options.openGameDetail,
+        heroDetailTab: options.heroDetailTab,
         token: openGameDetailIntentTokenRef.current,
       });
     } else {
@@ -170,6 +172,7 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
     collectionId: string;
     description: string | null;
   } | null>(null);
+  const [navigationToast, setNavigationToast] = useState<string | null>(null);
   const editingCollection = useMemo(
     () =>
       editingCollectionId === null ? null : (collections.find((c) => c.collection_id === editingCollectionId) ?? null),
@@ -184,24 +187,59 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
     [openForCollection, setActiveCollectionId]
   );
 
+  const openGameInHeroDetail = useCallback(
+    async ({
+      profileName,
+      tab,
+      collectionId,
+    }: {
+      profileName: string;
+      tab: HeroDetailTabId | string;
+      collectionId?: string;
+    }) => {
+      const trimmed = profileName.trim();
+      if (!trimmed) {
+        setNavigationToast('Select a profile before opening game details.');
+        return;
+      }
+      const heroDetailTab = isHeroDetailTabId(tab) ? tab : 'overview';
+      try {
+        await selectProfile(trimmed, { collectionId, throwOnFailure: true });
+        setNavigationToast(null);
+        handleNavigate('library', {
+          openGameDetail: trimmed,
+          profileName: trimmed,
+          heroDetailTab,
+        });
+      } catch (err) {
+        setNavigationToast(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [selectProfile, handleNavigate]
+  );
+
   const handleLaunchFromCollection = useCallback(
     async (name: string) => {
       // The user clicked Launch on a card inside CollectionViewModal, so `name`
       // is guaranteed to be a member of `activeCollectionId`. Thread the
       // collection context so `profile_load` applies the collection's launch
       // defaults via `effective_profile_with` (Phase 3 merge layer).
-      await selectProfile(name, { collectionId: activeCollectionId ?? undefined });
-      handleNavigate('launch');
+      closeCollectionModal();
+      await openGameInHeroDetail({
+        profileName: name,
+        tab: 'launch-options',
+        collectionId: activeCollectionId ?? undefined,
+      });
     },
-    [selectProfile, activeCollectionId, handleNavigate]
+    [activeCollectionId, closeCollectionModal, openGameInHeroDetail]
   );
 
   const handleEditFromCollection = useCallback(
     async (name: string) => {
-      await selectProfile(name);
-      handleNavigate('profiles');
+      closeCollectionModal();
+      await openGameInHeroDetail({ profileName: name, tab: 'profiles' });
     },
-    [selectProfile, handleNavigate]
+    [closeCollectionModal, openGameInHeroDetail]
   );
 
   const handleRequestEditMetadata = useCallback((id: string) => {
@@ -278,12 +316,10 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
           handleNavigate(command.route);
           return;
         case 'launch_profile':
-          await selectProfile(command.profileName);
-          handleNavigate('launch');
+          await openGameInHeroDetail({ profileName: command.profileName, tab: 'launch-options' });
           return;
         case 'edit_profile':
-          await selectProfile(command.profileName);
-          handleNavigate('profiles');
+          await openGameInHeroDetail({ profileName: command.profileName, tab: 'profiles' });
           return;
         default: {
           const _exhaustive: never = command;
@@ -291,7 +327,7 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
         }
       }
     },
-    [selectProfile, handleNavigate]
+    [handleNavigate, openGameInHeroDetail]
   );
 
   const {
@@ -524,12 +560,6 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
                 setActiveCollectionId(null);
               }
             }}
-            onOpenInProfilesPage={() => {
-              // `activeCollectionId` is already set by the open-collection flow,
-              // so the Profiles page filter is preserved across the navigation.
-              closeCollectionModal();
-              handleNavigate('profiles');
-            }}
           />
           <CollectionEditModal
             open={editingCollection !== null}
@@ -556,6 +586,19 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
                 className="crosshook-rename-toast-dismiss"
                 aria-label="Dismiss"
                 onClick={() => setCollectionDescriptionToast(null)}
+              >
+                ×
+              </button>
+            </div>
+          ) : null}
+          {navigationToast !== null ? (
+            <div className="crosshook-status-toast crosshook-rename-toast" role="status" aria-live="polite">
+              <span>{navigationToast}</span>
+              <button
+                type="button"
+                className="crosshook-rename-toast-dismiss"
+                aria-label="Dismiss"
+                onClick={() => setNavigationToast(null)}
               >
                 ×
               </button>

@@ -4,7 +4,6 @@ import {
   type CommunityCompatibilityRating,
   type CommunityImportPreview,
   type CommunityProfileIndexEntry,
-  type CommunityTapSubscription,
   type CommunityTapSyncResult,
   type UseCommunityProfilesResult,
   useCommunityProfiles,

@@ -61,12 +61,6 @@ function envRowsToRecord(rows: EnvVarRow[]): Record<string, string> | undefined 
 
 interface Props {
   collectionId: string;
-  /**
-   * Called when the user clicks "Open in Profiles page →". The host wires this
-   * to a route change while preserving `activeCollectionId` so the Profiles page
-   * opens inside the collection filter.
-   */
-  onOpenInProfilesPage: () => void;
 }
 
 /**
@@ -76,11 +70,9 @@ interface Props {
  * `custom_env_vars` map; saving writes the defaults via `collection_set_defaults`.
  *
  * Excluded from the inline editor (per PRD): `optimizations`, `gamescope`,
- * `trainer_gamescope`, `mangohud`, `presets`, `active_preset`. Users wanting
- * those overrides use the "Open in Profiles page →" link-out and edit at the
- * profile level.
+ * `trainer_gamescope`, `mangohud`, `presets`, `active_preset`.
  */
-export function CollectionLaunchDefaultsEditor({ collectionId, onOpenInProfilesPage }: Props) {
+export function CollectionLaunchDefaultsEditor({ collectionId }: Props) {
   const { defaults, loading, error, saveDefaults } = useCollectionDefaults(collectionId);
   const [draft, setDraft] = useState<CollectionDefaults>({});
   const [envRows, setEnvRows] = useState<EnvVarRow[]>([]);
@@ -293,14 +285,7 @@ export function CollectionLaunchDefaultsEditor({ collectionId, onOpenInProfilesP
             )}
           </fieldset>
 
-          <p className="crosshook-collection-launch-defaults-editor__hint">
-            Optimizations, gamescope, and MangoHUD overrides are managed from the Profiles page.
-          </p>
-
           <div className="crosshook-collection-launch-defaults-editor__actions">
-            <button type="button" className="crosshook-button crosshook-button--ghost" onClick={onOpenInProfilesPage}>
-              Open in Profiles page →
-            </button>
             <button type="button" className="crosshook-button crosshook-button--ghost" onClick={handleClearAll}>
               Clear all
             </button>

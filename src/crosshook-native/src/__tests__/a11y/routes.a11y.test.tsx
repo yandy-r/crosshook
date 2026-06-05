@@ -90,7 +90,7 @@ function AllProviders({ children }: { children: ReactNode }) {
 
 // Each entry returns a JSX element so we can pass required props.
 const ROUTE_PAGES = [
-  ['LibraryPage', () => <LibraryPage onNavigate={noop} onOpenCommandPalette={noop} />],
+  ['LibraryPage', () => <LibraryPage onOpenCommandPalette={noop} />],
   ['ProfilesPage', () => <ProfilesPage />],
   ['LaunchPage', () => <LaunchPage />],
   ['HealthDashboardPage', () => <HealthDashboardPage />],
@@ -242,7 +242,7 @@ describe('populated-fixture accessibility', () => {
     // library cards, toolbar chips, and sort controls are all rendered.
     const { container } = renderWithMocks(
       <AllProviders>
-        <LibraryPage onNavigate={noop} onOpenCommandPalette={noop} />
+        <LibraryPage onOpenCommandPalette={noop} />
       </AllProviders>
     );
     const results = await axe(container);

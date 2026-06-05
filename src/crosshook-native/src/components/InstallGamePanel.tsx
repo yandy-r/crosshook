@@ -283,7 +283,7 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
             tabLabel={INSTALL_FLOW_TAB_LABELS.identity}
           >
             <DashboardPanelSection
-              eyebrow={`Step ${stepNumber['identity']}`}
+              eyebrow={`Step ${stepNumber.identity}`}
               title="Identity & Game"
               summary="Name the profile and set the game executable path."
               titleAs="h3"
@@ -305,7 +305,7 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
             tabLabel={INSTALL_FLOW_TAB_LABELS.runtime}
           >
             <DashboardPanelSection
-              eyebrow={`Step ${stepNumber['runtime']}`}
+              eyebrow={`Step ${stepNumber.runtime}`}
               title="Runtime"
               summary="Choose the Proton version and Wine prefix for this install."
               titleAs="h3"
@@ -333,7 +333,7 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
               tabLabel={INSTALL_FLOW_TAB_LABELS.trainer}
             >
               <DashboardPanelSection
-                eyebrow={`Step ${stepNumber['trainer']}`}
+                eyebrow={`Step ${stepNumber.trainer}`}
                 title="Trainer"
                 summary="Optionally attach a trainer executable to launch alongside the game."
                 titleAs="h3"
@@ -352,7 +352,7 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
 
           <InstallFlowTabContent value="media" activeTab={activeInstallTab} tabLabel={INSTALL_FLOW_TAB_LABELS.media}>
             <DashboardPanelSection
-              eyebrow={`Step ${stepNumber['media']}`}
+              eyebrow={`Step ${stepNumber.media}`}
               title="Media"
               summary="Set cover art and background images for the library card."
               titleAs="h3"
@@ -368,7 +368,7 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
             tabLabel={INSTALL_FLOW_TAB_LABELS.installer_review}
           >
             <DashboardPanelSection
-              eyebrow={`Step ${stepNumber['installer_review']}`}
+              eyebrow={`Step ${stepNumber.installer_review}`}
               title="Installer & Review"
               summary="Pick the installer media, apply launch presets, and run the install."
               titleAs="h3"

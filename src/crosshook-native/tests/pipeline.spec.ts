@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { attachConsoleCapture, type ConsoleCapture } from './helpers';
-import { navigateViaCommandPalette } from './navigation-helpers';
+import { openHeroDetailTab } from './navigation-helpers';
 
 test.describe('launch pipeline visualization', () => {
   let capture: ConsoleCapture;
@@ -8,7 +8,7 @@ test.describe('launch pipeline visualization', () => {
   test.beforeEach(async ({ page }) => {
     capture = attachConsoleCapture(page);
     await page.goto('/?fixture=populated');
-    await navigateViaCommandPalette(page, 'Go to Launch');
+    await openHeroDetailTab(page, 'Launch options');
   });
 
   test('renders correct number of pipeline nodes for proton_run method', async ({ page }) => {
@@ -63,23 +63,15 @@ test.describe('launch pipeline visualization', () => {
     // Wait for pipeline to be visible
     await expect(page.locator('.crosshook-launch-pipeline')).toBeVisible();
 
-    // Browser dev mode does not auto-select a profile on startup, so load one
-    // through the real launch-page control before requesting a preview.
-    const profileSelect = page.locator('#launch-profile-selector');
-    await expect(profileSelect).toBeVisible();
-    await profileSelect.click();
-    await page.getByRole('option', { name: 'Test Game Alpha', exact: true }).click();
-    await expect(profileSelect).toContainText('Test Game Alpha');
-
     // Seeded mock profiles intentionally start without an executable path, so
     // update the draft through the real profile form before previewing.
-    await navigateViaCommandPalette(page, 'Go to Profiles');
+    await openHeroDetailTab(page, 'Profiles');
 
     const gamePathField = page.getByLabel('Game Path', { exact: true });
     await expect(gamePathField).toBeVisible();
     await gamePathField.fill('/home/devuser/Games/TestGameAlpha/game.exe');
 
-    await navigateViaCommandPalette(page, 'Go to Launch');
+    await openHeroDetailTab(page, 'Launch options');
 
     // Launch the game to drive the pipeline into the two-step waiting state.
     // That overlay adds a detail-bearing trainer node without opening the
@@ -116,7 +108,7 @@ test.describe('launch pipeline visualization', () => {
     // derivePipelineNodes only promotes `fatal` to `error` — trainer stays `configured`.
     capture = attachConsoleCapture(page);
     await page.goto('/?fixture=populated&gamePath=__MOCK_VALIDATION_WARNING__');
-    await navigateViaCommandPalette(page, 'Go to Launch');
+    await openHeroDetailTab(page, 'Launch options');
 
     const pipeline = page.locator('.crosshook-launch-pipeline');
     await expect(pipeline).toBeVisible();

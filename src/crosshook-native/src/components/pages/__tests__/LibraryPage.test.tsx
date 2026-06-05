@@ -1,3 +1,4 @@
+import * as Tooltip from '@radix-ui/react-tooltip';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ComponentProps } from 'react';
@@ -6,6 +7,7 @@ import { Inspector } from '@/components/layout/Inspector';
 import { CollectionsProvider } from '@/context/CollectionsContext';
 import { HostReadinessProvider } from '@/context/HostReadinessContext';
 import { InspectorSelectionProvider, useInspectorSelection } from '@/context/InspectorSelectionContext';
+import { LaunchStateProvider } from '@/context/LaunchStateContext';
 import { PreferencesProvider } from '@/context/PreferencesContext';
 import { ProfileProvider } from '@/context/ProfileContext';
 import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
@@ -24,7 +26,7 @@ let lastWizardProps: Record<string, unknown> = {};
 vi.mock('@/components/OnboardingWizard', () => ({
   OnboardingWizard: (props: Record<string, unknown>) => {
     lastWizardProps = props;
-    return props['open'] ? <div role="dialog">Onboarding Wizard</div> : null;
+    return props.open ? <div role="dialog">Onboarding Wizard</div> : null;
   },
 }));
 
@@ -32,14 +34,12 @@ interface LibraryPageHarnessProps {
   libraryFilterIntent?: LibraryFilterIntent | null;
   openGameDetailIntent?: OpenGameDetailIntent | null;
   onOpenCommandPalette?: ComponentProps<typeof LibraryPage>['onOpenCommandPalette'];
-  onNavigate?: ComponentProps<typeof LibraryPage>['onNavigate'];
 }
 
 function LibraryPageWithInspector({
   libraryFilterIntent,
   openGameDetailIntent,
   onOpenCommandPalette,
-  onNavigate,
 }: LibraryPageHarnessProps = {}) {
   const { inspectorSelection, libraryInspectorHandlers, libraryShellMode } = useInspectorSelection();
   return (
@@ -49,7 +49,6 @@ function LibraryPageWithInspector({
           libraryFilterIntent={libraryFilterIntent}
           openGameDetailIntent={openGameDetailIntent}
           onOpenCommandPalette={onOpenCommandPalette}
-          onNavigate={onNavigate}
         />
       </div>
       <div style={{ flex: '0 0 320px' }}>
@@ -71,26 +70,28 @@ function renderLibraryHarness(
   options: Parameters<typeof renderWithMocks>[1] = {},
   onOpenCommandPalette?: ComponentProps<typeof LibraryPage>['onOpenCommandPalette'],
   libraryFilterIntent?: LibraryFilterIntent | null,
-  openGameDetailIntent?: OpenGameDetailIntent | null,
-  onNavigate?: ComponentProps<typeof LibraryPage>['onNavigate']
+  openGameDetailIntent?: OpenGameDetailIntent | null
 ) {
   return renderWithMocks(
     <ProfileProvider>
       <PreferencesProvider>
-        <ProfileHealthProvider>
-          <HostReadinessProvider>
-            <CollectionsProvider>
-              <InspectorSelectionProvider>
-                <LibraryPageWithInspector
-                  libraryFilterIntent={libraryFilterIntent}
-                  openGameDetailIntent={openGameDetailIntent}
-                  onOpenCommandPalette={onOpenCommandPalette}
-                  onNavigate={onNavigate}
-                />
-              </InspectorSelectionProvider>
-            </CollectionsProvider>
-          </HostReadinessProvider>
-        </ProfileHealthProvider>
+        <Tooltip.Provider delayDuration={0}>
+          <ProfileHealthProvider>
+            <HostReadinessProvider>
+              <CollectionsProvider>
+                <LaunchStateProvider>
+                  <InspectorSelectionProvider>
+                    <LibraryPageWithInspector
+                      libraryFilterIntent={libraryFilterIntent}
+                      openGameDetailIntent={openGameDetailIntent}
+                      onOpenCommandPalette={onOpenCommandPalette}
+                    />
+                  </InspectorSelectionProvider>
+                </LaunchStateProvider>
+              </CollectionsProvider>
+            </HostReadinessProvider>
+          </ProfileHealthProvider>
+        </Tooltip.Provider>
       </PreferencesProvider>
     </ProfileProvider>,
     options
@@ -275,56 +276,41 @@ describe('LibraryPage', () => {
     expect(screen.queryByRole('button', { name: 'Select Dev Game Beta' })).not.toBeInTheDocument();
   });
 
-  it('calls onNavigate with gameDetailOrigin when Edit profile is triggered', async () => {
+  it('keeps game detail open on Profiles when Edit profile is triggered', async () => {
     const user = userEvent.setup();
-    const onNavigate = vi.fn();
-    renderLibraryHarness({}, undefined, undefined, undefined, onNavigate);
+    renderLibraryHarness({
+      handlerOverrides: {
+        profile_list: async () => [],
+        profile_list_favorites: async () => [],
+      },
+    });
 
     // Open game detail for Test Game Alpha
     await user.click(await screen.findByRole('button', { name: 'View details for Test Game Alpha' }));
     const gameDetail = await screen.findByTestId('game-detail');
 
-    // Click Edit profile scoped to the game-detail panel (inspector also has one)
-    // triggers gameDetailsEditThenNavigate (onBack then onEdit)
     await user.click(within(gameDetail).getByRole('button', { name: 'Edit profile' }));
 
     await waitFor(() => {
-      expect(onNavigate).toHaveBeenCalledWith(
-        'profiles',
-        expect.objectContaining({
-          gameDetailOrigin: {
-            profileName: 'Test Game Alpha',
-            displayName: 'Test Game Alpha',
-          },
-        })
-      );
+      expect(screen.getByTestId('game-detail')).toBeInTheDocument();
     });
+    expect(screen.getByTestId('hero-detail-profiles-tab')).toBeVisible();
   });
 
-  it('calls onNavigate with gameDetailOrigin when Launch is triggered', async () => {
+  it('keeps game detail open on Launch options when Launch is triggered', async () => {
     const user = userEvent.setup();
-    const onNavigate = vi.fn();
-    renderLibraryHarness({}, undefined, undefined, undefined, onNavigate);
+    renderLibraryHarness();
 
     // Open game detail for Test Game Alpha
     await user.click(await screen.findByRole('button', { name: 'View details for Test Game Alpha' }));
     const gameDetail = await screen.findByTestId('game-detail');
 
-    // Click Launch scoped to the game-detail panel
-    // triggers gameDetailsLaunchThenNavigate (onBack then onLaunch)
     await user.click(within(gameDetail).getByRole('button', { name: 'Launch' }));
 
     await waitFor(() => {
-      expect(onNavigate).toHaveBeenCalledWith(
-        'launch',
-        expect.objectContaining({
-          gameDetailOrigin: {
-            profileName: 'Test Game Alpha',
-            displayName: 'Test Game Alpha',
-          },
-        })
-      );
+      expect(screen.getByTestId('game-detail')).toBeInTheDocument();
     });
+    expect(screen.getByTestId('hero-detail-launch-tab')).toBeVisible();
   });
 
   it('opens game detail via openGameDetailIntent when the profile exists', async () => {
@@ -358,8 +344,8 @@ describe('LibraryPage', () => {
       await user.click(screen.getByRole('button', { name: 'Add game' }));
 
       expect(screen.getByRole('dialog')).toBeInTheDocument();
-      expect(lastWizardProps['mode']).toBe('create');
-      expect(lastWizardProps['createSeed']).toBeUndefined();
+      expect(lastWizardProps.mode).toBe('create');
+      expect(lastWizardProps.createSeed).toBeUndefined();
     });
 
     it('opens the same wizard from the empty-library CTA', async () => {
@@ -382,8 +368,8 @@ describe('LibraryPage', () => {
       await user.click(emptyCta as HTMLButtonElement);
 
       expect(screen.getByRole('dialog')).toBeInTheDocument();
-      expect(lastWizardProps['mode']).toBe('create');
-      expect(lastWizardProps['createSeed']).toBeUndefined();
+      expect(lastWizardProps.mode).toBe('create');
+      expect(lastWizardProps.createSeed).toBeUndefined();
     });
 
     it('selects the created profile and updates the inspector on complete', async () => {
@@ -402,7 +388,7 @@ describe('LibraryPage', () => {
       await user.click(screen.getByRole('button', { name: 'Add game' }));
       expect(screen.getByRole('dialog')).toBeInTheDocument();
 
-      const onComplete = lastWizardProps['onComplete'] as (name?: string) => void;
+      const onComplete = lastWizardProps.onComplete as (name?: string) => void;
       act(() => {
         onComplete('Dev Game Beta');
       });
@@ -461,7 +447,7 @@ describe('LibraryPage', () => {
 
       await user.click(screen.getByRole('button', { name: 'Add game' }));
 
-      const onDismiss = lastWizardProps['onDismiss'] as () => void;
+      const onDismiss = lastWizardProps.onDismiss as () => void;
       act(() => {
         onDismiss();
       });

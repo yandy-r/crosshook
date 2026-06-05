@@ -8,9 +8,7 @@ import {
   HealthDashboardArt,
   HostToolsArt,
   InstallArt,
-  LaunchArt,
   LibraryArt,
-  ProfilesArt,
   ProtonManagerArt,
   SettingsArt,
 } from './PageBanner';
@@ -48,20 +46,6 @@ export const ROUTE_METADATA: Record<AppRoute, RouteMetadataEntry> = {
     bannerSummary: 'Browse your saved profiles, favorites, and launch shortcuts in one place.',
     Art: LibraryArt,
     inspectorComponent: GameInspector,
-  },
-  profiles: {
-    navLabel: 'Profiles',
-    sectionEyebrow: 'Game',
-    bannerTitle: 'Profiles',
-    bannerSummary: 'Create, select, and maintain profiles for each game and trainer setup.',
-    Art: ProfilesArt,
-  },
-  launch: {
-    navLabel: 'Launch',
-    sectionEyebrow: 'Game',
-    bannerTitle: 'Launch',
-    bannerSummary: 'Run the game or trainer with the active profile’s launch configuration.',
-    Art: LaunchArt,
   },
   install: {
     navLabel: 'Install & Run',
@@ -126,8 +110,6 @@ export const ROUTE_METADATA: Record<AppRoute, RouteMetadataEntry> = {
 /** Sidebar + status row labels (single source of truth). */
 export const ROUTE_NAV_LABEL: Record<AppRoute, string> = {
   library: ROUTE_METADATA.library.navLabel,
-  profiles: ROUTE_METADATA.profiles.navLabel,
-  launch: ROUTE_METADATA.launch.navLabel,
   install: ROUTE_METADATA.install.navLabel,
   community: ROUTE_METADATA.community.navLabel,
   discover: ROUTE_METADATA.discover.navLabel,
