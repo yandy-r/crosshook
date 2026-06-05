@@ -378,30 +378,40 @@
   align-items: center;
   justify-content: center;
   gap: 16px;
-  padding: 64px 24px;
+  max-width: 28rem;
+  margin: 32px auto;
+  padding: 40px 28px;
   text-align: center;
   color: var(--crosshook-color-text-muted);
+  background: var(--crosshook-color-surface);
+  border: 1px solid var(--crosshook-color-border);
+  border-radius: var(--crosshook-radius-md);
+  box-shadow: var(--crosshook-shadow-soft);
 }
 
 .crosshook-library-empty__heading {
+  margin: 0;
   font-size: 1.25rem;
   font-weight: 600;
   color: var(--crosshook-color-text);
 }
 
-.crosshook-library-empty__cta {
-  padding: 10px 24px;
-  border: none;
-  border-radius: var(--crosshook-radius-sm);
-  background: var(--crosshook-color-accent);
-  color: #fff;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background var(--crosshook-transition-fast) ease;
+.crosshook-library-empty__body {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--crosshook-color-text-muted);
 }
 
-.crosshook-library-empty__cta:hover {
-  background: var(--crosshook-color-accent-strong);
+.crosshook-library-empty__cta {
+  margin-top: 4px;
+}
+
+.crosshook-library-empty--filtered {
+  max-width: none;
+  margin: 24px 0;
+  padding: 32px 24px;
+  box-shadow: none;
 }
 
 /* ── Skeleton shimmer reuse ────────────────────────────────────────────── */
@@ -656,8 +666,23 @@
   background: var(--crosshook-color-accent-soft);
 }
 
-.crosshook-library-toolbar__palette-trigger {
+.crosshook-library-toolbar__trailing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-left: auto;
+  flex-shrink: 0;
+}
+
+.crosshook-library-toolbar__add-game {
+  height: 36px;
+  padding: 0 14px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.crosshook-library-toolbar__palette-trigger {
   height: 36px;
   padding: 0 12px;
   border-radius: 10px;
@@ -681,6 +706,7 @@
 
 .crosshook-library-toolbar__chip:focus-visible,
 .crosshook-library-toolbar__view-btn:focus-visible,
+.crosshook-library-toolbar__add-game:focus-visible,
 .crosshook-library-toolbar__palette-trigger:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px var(--crosshook-color-accent-soft);

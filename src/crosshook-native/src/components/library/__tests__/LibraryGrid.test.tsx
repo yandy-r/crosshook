@@ -29,13 +29,14 @@ vi.mock('../LibraryCard', () => ({
 }));
 
 describe('LibraryGrid', () => {
-  it('renders an empty state and routes the CTA to profiles', async () => {
-    const onNavigate = vi.fn();
+  it('renders an empty state and invokes onAddGame from the CTA', async () => {
+    const onAddGame = vi.fn();
 
     render(
       <LibraryGrid
         profiles={[]}
-        onNavigate={onNavigate}
+        hasNoProfiles
+        onAddGame={onAddGame}
         onOpenDetails={vi.fn()}
         onLaunch={vi.fn()}
         onEdit={vi.fn()}
@@ -43,9 +44,9 @@ describe('LibraryGrid', () => {
       />
     );
 
-    expect(screen.getByText('No game profiles yet')).toBeInTheDocument();
-    await screen.getByRole('button', { name: 'Create a profile' }).click();
-    expect(onNavigate).toHaveBeenCalledWith('profiles');
+    expect(screen.getByText('Add your first game')).toBeInTheDocument();
+    await screen.getByRole('button', { name: 'Add game' }).click();
+    expect(onAddGame).toHaveBeenCalledTimes(1);
   });
 
   it('renders one card per profile', () => {

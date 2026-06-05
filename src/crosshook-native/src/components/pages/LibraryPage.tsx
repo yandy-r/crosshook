@@ -24,6 +24,7 @@ import { GameDetail } from '../library/GameDetail';
 import { LibraryGrid } from '../library/LibraryGrid';
 import { LibraryList } from '../library/LibraryList';
 import { LibraryToolbar } from '../library/LibraryToolbar';
+import { OnboardingWizard } from '../OnboardingWizard';
 
 const VIEW_MODE_KEY = 'crosshook.library.viewMode';
 
@@ -55,7 +56,12 @@ export function LibraryPage({
     loading: activeCollectionMembersLoading,
   } = useCollectionMembers(activeCollectionId);
 
-  const { summaries, setSummaries } = useLibrarySummaries(profiles, favoriteProfiles, activeCollectionId);
+  const {
+    summaries,
+    setSummaries,
+    loading: summariesLoading,
+  } = useLibrarySummaries(profiles, favoriteProfiles, activeCollectionId);
+  const libraryHasNoProfiles = !summariesLoading && summaries.length === 0;
   const { healthByName, loading: healthLoading } = useProfileHealthContext();
   const { setInspectorSelection, setLibraryInspectorHandlers, setLibraryShellMode } = useInspectorSelection();
   const runningProfiles = useRunningProfiles();
@@ -82,6 +88,8 @@ export function LibraryPage({
   }>({ open: false, profileName: null, anchorPosition: null, restoreFocusTo: null });
   const [createCollectionFromMenuOpen, setCreateCollectionFromMenuOpen] = useState(false);
   const [createCollectionSessionError, setCreateCollectionSessionError] = useState<string | null>(null);
+  const [showAddGameWizard, setShowAddGameWizard] = useState(false);
+  const priorInspectorPickRef = useRef<string | null>(null);
   const { createCollection } = useCollections();
   const activeCollectionIdRef = useRef(activeCollectionId);
   const activeCollectionMemberNamesRef = useRef(activeCollectionMemberNames);
@@ -330,6 +338,36 @@ export function LibraryPage({
     [onOpenCommandPalette]
   );
 
+  const handleOpenAddGame = useCallback(
+    (_restoreFocusTo?: HTMLElement | null) => {
+      priorInspectorPickRef.current = inspectorPickName;
+      setShowAddGameWizard(true);
+    },
+    [inspectorPickName]
+  );
+
+  const handleAddGameComplete = useCallback(
+    (createdName?: string) => {
+      setShowAddGameWizard(false);
+      priorInspectorPickRef.current = null;
+      if (createdName) {
+        setInspectorPickName(createdName);
+        void selectProfile(createdName);
+      }
+    },
+    [selectProfile]
+  );
+
+  const handleAddGameDismiss = useCallback(() => {
+    setShowAddGameWizard(false);
+    const prior = priorInspectorPickRef.current;
+    priorInspectorPickRef.current = null;
+    if (prior && profiles.includes(prior)) {
+      setInspectorPickName(prior);
+      void selectProfile(prior);
+    }
+  }, [profiles, selectProfile]);
+
   const detailSummary =
     detailName == null ? null : (summaries.find((s) => s.name === detailName) ?? detailSummarySnapshot);
 
@@ -360,6 +398,8 @@ export function LibraryPage({
                         filter={filterKey}
                         onFilterChange={setFilterKey}
                         onOpenCommandPalette={handleOpenCommandPalette}
+                        onAddGame={handleOpenAddGame}
+                        addGameDisabled={showAddGameWizard}
                       />
                     </div>
                     {viewMode === 'grid' ? (
@@ -373,6 +413,8 @@ export function LibraryPage({
                         onToggleFavorite={handleToggleFavorite}
                         launchingName={launchingName}
                         onNavigate={onNavigate}
+                        onAddGame={handleOpenAddGame}
+                        hasNoProfiles={libraryHasNoProfiles}
                         onContextMenu={handleCardContextMenu}
                       />
                     ) : (
@@ -386,6 +428,8 @@ export function LibraryPage({
                         onToggleFavorite={handleToggleFavorite}
                         launchingName={launchingName}
                         onNavigate={onNavigate}
+                        onAddGame={handleOpenAddGame}
+                        hasNoProfiles={libraryHasNoProfiles}
                         onContextMenu={handleCardContextMenu}
                       />
                     )}
@@ -429,6 +473,9 @@ export function LibraryPage({
         onSubmitEdit={async () => false}
         externalError={createCollectionSessionError}
       />
+      {showAddGameWizard ? (
+        <OnboardingWizard open mode="create" onComplete={handleAddGameComplete} onDismiss={handleAddGameDismiss} />
+      ) : null}
     </div>
   );
 }
