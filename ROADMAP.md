@@ -1,211 +1,203 @@
 # CrossHook Roadmap
 
-Living priority map for what to build next. Updated from `main` commit history, open GitHub issues, and PRD phase status (**2026-06-01**).
+Living priority map for what to build next. Updated from `main` commit history,
+GitHub releases, open issues, and recent PR state (**2026-06-05**).
 
 **How to use this file**
 
-- Treat **P0** as the current sprint — work here before starting lower tiers unless blocked.
-- Link child PRs with `Part of #478` (Hero Detail Consolidation) or `Closes #…` per [`.github/pull_request_template.md`](.github/pull_request_template.md).
-- When a phase ships, check off the matching issue and update this file in the same PR (or a follow-up docs commit).
-- Canonical detail lives in PRDs under `docs/prps/prds/`; this file is the executive view.
+- Treat **P0** as the current sprint unless blocked.
+- Link implementation PRs with `Closes #...` or `Part of #...` per
+  [`.github/pull_request_template.md`](.github/pull_request_template.md).
+- When a phase ships, check off or close the matching issue and update this file
+  in the same PR or a follow-up docs commit.
+- Canonical implementation detail lives in PRDs under `docs/prps/prds/`; this
+  file is the executive view.
 
 ---
 
 ## Snapshot
 
-| Area                          | Status                                                                                                                                                                                                                    |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Latest release**            | [v0.2.11](https://github.com/yandy-r/crosshook/releases/tag/v0.2.11) (2026-04-15) — unreleased work on `main` includes Unified Desktop Phases 1–13 and Hero Detail Consolidation Phases 1–2                               |
-| **Unified Desktop Redesign**  | **Shipped on `main`** — responsive three-pane shell, Hero Detail mode, ⌘K palette, context rail, console status bar, route reworks, responsive smoke, polish/a11y ([PRD](docs/prps/prds/unified-desktop-redesign.prd.md)) |
-| **Hero Detail Consolidation** | **In progress** — Phases 1–2 done; Phases 3–12 open ([#478](https://github.com/yandy-r/crosshook/issues/478))                                                                                                             |
-| **Open issues**               | 32 (see [Open issue inventory](#open-issue-inventory))                                                                                                                                                                    |
-| **Open PRs**                  | 0                                                                                                                                                                                                                         |
+| Area                          | Status                                                                                                                                                                                                                              |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Latest release**            | [v0.3.1](https://github.com/yandy-r/crosshook/releases/tag/v0.3.1) (2026-06-05) — includes Unified Desktop, Hero Detail Consolidation, hook runtime execution, production mock-sentinel fix, and Tauri / TypeScript dependency bump |
+| **Unified Desktop Redesign**  | **Shipped** — responsive shell, Hero Detail mode, command palette, context rail, status bar, route reworks, responsive smoke, polish, and design-token docs                                                                         |
+| **Hero Detail Consolidation** | **Shipped** — profile editing, launch tab, hook editor, overview deep-links, route removal, legacy page deletion, smoke rewrite, and cleanup all landed                                                                             |
+| **Open issues**               | 18 (see [Open issue inventory](#open-issue-inventory))                                                                                                                                                                              |
+| **Open PRs**                  | 0                                                                                                                                                                                                                                   |
 
 ---
 
-## Recently completed (since v0.2.11)
+## Recently shipped
 
-These landed on `main` after the last tagged release and represent the bulk of recent effort.
+### v0.3.1 (2026-06-05)
 
-### Unified Desktop Redesign (Phases 1–13)
+Release focused on production hardening and dependency freshness after the large
+Hero Detail / Unified Desktop release batch.
 
-| Phase | Deliverable                                                                | Issue / PR                                                                                                         |
-| ----- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| 1     | `useBreakpoint`, layout unlock, `AppShell` extraction                      | —                                                                                                                  |
-| 2     | Steel-blue token swap + legacy palette sweep                               | —                                                                                                                  |
-| 3     | Sidebar variants + formalized Collections section                          | [#442](https://github.com/yandy-r/crosshook/issues/442)                                                            |
-| 4     | Library cards + inspector rail                                             | [#443](https://github.com/yandy-r/crosshook/issues/443)                                                            |
-| 5     | Hero Detail mode (replaces `GameDetailsModal`)                             | [#444](https://github.com/yandy-r/crosshook/issues/444)                                                            |
-| 6     | ⌘K command palette                                                         | [#445](https://github.com/yandy-r/crosshook/issues/445)                                                            |
-| 7     | Ultrawide context rail                                                     | [#446](https://github.com/yandy-r/crosshook/issues/446)                                                            |
-| 8     | Console drawer → status bar on narrow/deck                                 | [#447](https://github.com/yandy-r/crosshook/issues/447)                                                            |
-| 9     | Dashboard route rework (Health, Host Tools, Proton Manager, Compatibility) | [#448](https://github.com/yandy-r/crosshook/issues/448)                                                            |
-| 10    | Install, Settings, Community, Discover route rework                        | [#449](https://github.com/yandy-r/crosshook/issues/449)                                                            |
-| 11    | Profiles + Launch route rework (split then redesign)                       | [#450](https://github.com/yandy-r/crosshook/issues/450) / [#464](https://github.com/yandy-r/crosshook/pull/464)    |
-| 12    | Responsive Playwright smoke + route sweep expansion                        | [#424](https://github.com/yandy-r/crosshook/issues/424) / [#424 PR](https://github.com/yandy-r/crosshook/pull/424) |
-| 13    | Polish, accessibility, design-token docs                                   | [#452](https://github.com/yandy-r/crosshook/issues/452) / [#465](https://github.com/yandy-r/crosshook/pull/465)    |
+| Commit / PR                                                                                                               | Summary                                                     |
+| ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| [`25024c8`](https://github.com/yandy-r/crosshook/commit/25024c80)                                                         | `chore(release): prepare v0.3.1`                            |
+| [`3f56204`](https://github.com/yandy-r/crosshook/commit/3f56204d) / [#500](https://github.com/yandy-r/crosshook/pull/500) | Upgrade native dependencies for Tauri 2.11 and TypeScript 6 |
 
-### Hero Detail Consolidation (started)
+### v0.3.0 (2026-06-05)
 
-| Phase | Deliverable                                                                                     | Issue / PR                                              | Status                                                   |
-| ----- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------- | -------------------------------------------------------- |
-| 1     | Extend Hero Detail panel contract (`profile`, `updateProfile`, `profileList`, `onSetActiveTab`) | [#466](https://github.com/yandy-r/crosshook/issues/466) | ✅ [#480](https://github.com/yandy-r/crosshook/pull/480) |
-| 2     | Sidebar cleanup — drop Profiles/Launch from Game group; Favorites + Currently Playing filters   | [#467](https://github.com/yandy-r/crosshook/issues/467) | ✅ [#481](https://github.com/yandy-r/crosshook/pull/481) |
+Release captured the completed Unified Desktop and Hero Detail Consolidation
+work, plus the launch-hook runtime and production-bundle fix.
 
-**Current code state after Phase 2:** sidebar Game group is Library-only; Favorites and Currently Playing filter Library via `library-filter` entries. Standalone `/profiles` and `/launch` routes **still exist** in `AppRoute`, `ProfilesPage.tsx`, and `LaunchPage.tsx` — deletion is Phases 8–10.
+| Commit / PR                                                                                                               | Summary                                                   |
+| ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| [`6a41595`](https://github.com/yandy-r/crosshook/commit/6a41595a)                                                         | `fix(ui): strip dev-mock sentinel from production bundle` |
+| [`094bbd2`](https://github.com/yandy-r/crosshook/commit/094bbd2c)                                                         | `chore(release): prepare v0.3.0`                          |
+| [`1385b2a`](https://github.com/yandy-r/crosshook/commit/1385b2aa) / [#499](https://github.com/yandy-r/crosshook/pull/499) | Execute profile pre/post launch hooks at runtime          |
+| [`a2e48ac`](https://github.com/yandy-r/crosshook/commit/a2e48ac0) / [#498](https://github.com/yandy-r/crosshook/pull/498) | Stabilize profile auto-load after refresh                 |
+| [`5cbbaae`](https://github.com/yandy-r/crosshook/commit/5cbbaaeb)                                                         | Unify shell column chrome and library inspector layout    |
 
 ---
 
-## P0 — Hero Detail Consolidation (active initiative)
+## Recently completed PRs
 
-**Tracker:** [#478](https://github.com/yandy-r/crosshook/issues/478)  
-**PRD:** [`docs/prps/prds/unified-desktop-hero-detail-consolidation.prd.md`](docs/prps/prds/unified-desktop-hero-detail-consolidation.prd.md)
+These PRs landed after [v0.2.11](https://github.com/yandy-r/crosshook/releases/tag/v0.2.11)
+and are now included in `v0.3.0` / `v0.3.1`.
 
-**Goal:** One per-game workspace in Hero Detail — fold profile editing and launch configuration into editable tabs, delete redundant `/profiles` and `/launch` routes.
+### Hero Detail Consolidation
 
-**MVP (Phases 3–4):** schema + editable Profiles tab. After MVP, users see consolidation end-to-end even before Launch tab polish.
+| Phase | Issue / PR                                                                                                                                                               | Delivered                                                                       |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| 1     | [#466](https://github.com/yandy-r/crosshook/issues/466) / [#480](https://github.com/yandy-r/crosshook/pull/480)                                                          | Extended Hero Detail panel contract                                             |
+| 2     | [#467](https://github.com/yandy-r/crosshook/issues/467) / [#481](https://github.com/yandy-r/crosshook/pull/481)                                                          | Sidebar cleanup, Favorites filter, Currently Playing filter                     |
+| 3     | [#468](https://github.com/yandy-r/crosshook/issues/468) / [#483](https://github.com/yandy-r/crosshook/pull/483)                                                          | `LaunchHook` schema and breadcrumb navigation                                   |
+| 4     | [#469](https://github.com/yandy-r/crosshook/issues/469) / [#485](https://github.com/yandy-r/crosshook/pull/485)                                                          | Hero Detail Profiles tab editor                                                 |
+| 5     | [#470](https://github.com/yandy-r/crosshook/issues/470) / [#488](https://github.com/yandy-r/crosshook/pull/488)                                                          | Hero Detail Launch tab and highlighted command block                            |
+| 5b    | [#486](https://github.com/yandy-r/crosshook/issues/486) / [#489](https://github.com/yandy-r/crosshook/pull/489)                                                          | Launch/profile parity before route removal                                      |
+| 5c    | [#487](https://github.com/yandy-r/crosshook/issues/487) / [#490](https://github.com/yandy-r/crosshook/pull/490)                                                          | Create-profile wizard and creation flow                                         |
+| 5d    | [#491](https://github.com/yandy-r/crosshook/issues/491) / [#492](https://github.com/yandy-r/crosshook/pull/492)                                                          | Library-level add-game entry point and empty-library creation path              |
+| 6     | [#471](https://github.com/yandy-r/crosshook/issues/471) / [#493](https://github.com/yandy-r/crosshook/pull/493)                                                          | Live pre/post launch hook editor                                                |
+| 7     | [#472](https://github.com/yandy-r/crosshook/issues/472) / [#494](https://github.com/yandy-r/crosshook/pull/494)                                                          | Overview panel deep-links into Hero Detail tabs                                 |
+| 8-9   | [#473](https://github.com/yandy-r/crosshook/issues/473), [#474](https://github.com/yandy-r/crosshook/issues/474) / [#495](https://github.com/yandy-r/crosshook/pull/495) | Removed legacy `profiles` / `launch` routes and rewired navigation              |
+| 10-11 | [#475](https://github.com/yandy-r/crosshook/issues/475), [#476](https://github.com/yandy-r/crosshook/issues/476) / [#496](https://github.com/yandy-r/crosshook/pull/496) | Deleted legacy pages and rewrote smoke coverage for Hero Detail flows           |
+| 12    | [#477](https://github.com/yandy-r/crosshook/issues/477) / [#497](https://github.com/yandy-r/crosshook/pull/497)                                                          | Design-token docs, command-preview tokens, release copy, and dead-asset cleanup |
+| +     | [#482](https://github.com/yandy-r/crosshook/issues/482) / [#499](https://github.com/yandy-r/crosshook/pull/499)                                                          | Runtime execution for the hook schema introduced during consolidation           |
+| Bug   | [#484](https://github.com/yandy-r/crosshook/issues/484) / [#498](https://github.com/yandy-r/crosshook/pull/498)                                                          | Fixed flaky profile auto-load behavior surfaced during route-removal cleanup    |
 
-### Execution order
+**Current product state:** Library / Hero Detail is the single per-game
+workspace. Standalone `/profiles` and `/launch` routes and pages are removed.
+Trainer tab full editing remains deferred under [#479](https://github.com/yandy-r/crosshook/issues/479).
 
-```mermaid
-flowchart TD
-  P3["Phase 3 #468<br/>Hook schema (core)"]
-  P4["Phase 4 #469<br/>Profiles tab editor"]
-  P5["Phase 5 #470<br/>Launch tab + command block"]
-  P6["Phase 6 #471<br/>HookListPanel"]
-  P7["Phase 7 #472<br/>Overview deep-links"]
-  P8["Phase 8 #473<br/>Shrink AppRoute"]
-  P9["Phase 9 #474<br/>Rewire navigators"]
-  P10["Phase 10 #475<br/>Delete old routes"]
-  P11["Phase 11 #476<br/>Smoke rewrite"]
-  P12["Phase 12 #477<br/>Polish + docs"]
+### Unified Desktop Redesign
 
-  P3 --> P6
-  P4 --> P7
-  P4 --> P8
-  P5 --> P6
-  P5 --> P7
-  P5 --> P8
-  P8 --> P9 --> P10 --> P11 --> P12
+| Phase | Issue / PR                                                                                                      | Delivered                                                   |
+| ----- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| 1     | [#440](https://github.com/yandy-r/crosshook/issues/440) / [#453](https://github.com/yandy-r/crosshook/pull/453) | `useBreakpoint`, layout unlock, `AppShell` extraction       |
+| 2     | [#441](https://github.com/yandy-r/crosshook/issues/441) / [#454](https://github.com/yandy-r/crosshook/pull/454) | Steel-blue palette and legacy-palette sentinel              |
+| 3     | [#442](https://github.com/yandy-r/crosshook/issues/442) / [#455](https://github.com/yandy-r/crosshook/pull/455) | Sidebar variants and formalized Collections section         |
+| 4     | [#443](https://github.com/yandy-r/crosshook/issues/443) / [#457](https://github.com/yandy-r/crosshook/pull/457) | Library cards and inspector rail                            |
+| 5     | [#444](https://github.com/yandy-r/crosshook/issues/444) / [#458](https://github.com/yandy-r/crosshook/pull/458) | In-shell Hero Detail mode                                   |
+| 6     | [#445](https://github.com/yandy-r/crosshook/issues/445) / [#459](https://github.com/yandy-r/crosshook/pull/459) | Global command palette                                      |
+| 7     | [#446](https://github.com/yandy-r/crosshook/issues/446) / [#460](https://github.com/yandy-r/crosshook/pull/460) | Ultrawide context rail pane                                 |
+| 8     | [#447](https://github.com/yandy-r/crosshook/issues/447) / [#461](https://github.com/yandy-r/crosshook/pull/461) | Responsive console status bar                               |
+| 9     | [#448](https://github.com/yandy-r/crosshook/issues/448) / [#462](https://github.com/yandy-r/crosshook/pull/462) | Dashboard route rework                                      |
+| 10    | [#449](https://github.com/yandy-r/crosshook/issues/449) / [#463](https://github.com/yandy-r/crosshook/pull/463) | Install, Settings, Community, and Discover route rework     |
+| 11    | [#450](https://github.com/yandy-r/crosshook/issues/450) / [#464](https://github.com/yandy-r/crosshook/pull/464) | Profiles and Launch route rework before later consolidation |
+| 12    | [#451](https://github.com/yandy-r/crosshook/issues/451) / [#424](https://github.com/yandy-r/crosshook/pull/424) | Responsive Playwright smoke and route sweep expansion       |
+| 13    | [#452](https://github.com/yandy-r/crosshook/issues/452) / [#465](https://github.com/yandy-r/crosshook/pull/465) | Polish, accessibility, and design-token docs                |
 
-  P3 -. parallel .-> P4
-  P4 -. parallel .-> P5
-  P6 -. parallel .-> P7
-```
+### Platform, CI, and maintainability since v0.2.11
 
-| Priority | Phase | Issue                                                   | Summary                                                                                                    | Depends on                |
-| -------- | ----- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------- |
-| **Now**  | 3     | [#468](https://github.com/yandy-r/crosshook/issues/468) | Add `LaunchHook`, `HookStage`, `pre_launch_hooks` / `post_exit_hooks` to crosshook-core + round-trip tests | — (parallel with 4)       |
-| **Now**  | 4     | [#469](https://github.com/yandy-r/crosshook/issues/469) | `HeroDetailProfilesTab` two-pane editor; card-click `selectProfile()`; autosave parity                     | #466 ✅                   |
-| **Next** | 5     | [#470](https://github.com/yandy-r/crosshook/issues/470) | `HeroDetailLaunchTab` 3-section stack + `HighlightedCommandBlock`                                          | #466 ✅ (parallel with 4) |
-| Then     | 6     | [#471](https://github.com/yandy-r/crosshook/issues/471) | `HookListPanel` live editor; "declared, not executed" banner                                               | #468, #470                |
-| Then     | 7     | [#472](https://github.com/yandy-r/crosshook/issues/472) | Overview tab deep-link buttons → `onSetActiveTab`                                                          | #469, #470                |
-| Then     | 8     | [#473](https://github.com/yandy-r/crosshook/issues/473) | Remove `'profiles'` / `'launch'` from `AppRoute` + `ROUTE_METADATA`                                        | #469, #470                |
-| Then     | 9     | [#474](https://github.com/yandy-r/crosshook/issues/474) | Rewire all `onNavigate('profiles'\|'launch')` + palette handlers                                           | #473                      |
-| Then     | 10    | [#475](https://github.com/yandy-r/crosshook/issues/475) | Delete `ProfilesPage`, `LaunchPage`, RTL tests, ContentArea cases                                          | #474                      |
-| Then     | 11    | [#476](https://github.com/yandy-r/crosshook/issues/476) | Playwright smoke — Hero Detail flows, sidebar entries, regression guards                                   | #475                      |
-| Finally  | 12    | [#477](https://github.com/yandy-r/crosshook/issues/477) | Polish, design-token docs, release-notes copy, dead-asset cleanup                                          | #476                      |
-
-**Deferred from this PRD:** [#479](https://github.com/yandy-r/crosshook/issues/479) — Trainer tab full editor (hooks, injection config, log tail). Trainer tab stays read-only until that issue.
-
-**Release candidate:** After Phase 11 passes CI, cut a release (`./scripts/prepare-release.sh`) so consolidation ships with updated smoke coverage.
+| PR                                                                                                                                                                  | Delivered                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| [#412](https://github.com/yandy-r/crosshook/pull/412)                                                                                                               | Flatpak per-app isolation with first-run host migration                   |
+| [#396](https://github.com/yandy-r/crosshook/pull/396)                                                                                                               | Trainer watchdog cleanup parity with game launches                        |
+| [#394](https://github.com/yandy-r/crosshook/pull/394)                                                                                                               | Conventional Commit PR-title autofix normalization                        |
+| [#351](https://github.com/yandy-r/crosshook/pull/351), [#353](https://github.com/yandy-r/crosshook/pull/353), [#354](https://github.com/yandy-r/crosshook/pull/354) | Frontend, coverage, Playwright, and Tauri E2E test foundation             |
+| [#382](https://github.com/yandy-r/crosshook/pull/382)-[#410](https://github.com/yandy-r/crosshook/pull/410)                                                         | Broad module-splitting/refactor pass across core, CLI, frontend, settings |
 
 ---
 
-## P1 — Release prep & issue hygiene
+## P0 — Post-release hygiene
 
-Work that unblocks a post-consolidation release or keeps trackers honest.
+Keep this small. `v0.3.1` is current, and there are no open PRs.
 
-| Item                                                                        | Action                                                                                     | Notes                                                                        |
-| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| Tag release after consolidation                                             | Run `./scripts/prepare-release.sh` when Phases 3–11 land                                   | `main` has substantial UI work unreleased since v0.2.11                      |
-| Close stale tracker [#451](https://github.com/yandy-r/crosshook/issues/451) | Mark complete — deliverable [#424](https://github.com/yandy-r/crosshook/issues/424) merged | Unified Desktop Phase 12 tracking issue left open                            |
-| Refresh tracker [#78](https://github.com/yandy-r/crosshook/issues/78)       | Check off closed children (#63, #67, #70, #72–#75, etc.)                                   | Body still lists many completed items as open                                |
-| Config history polish                                                       | [#123](https://github.com/yandy-r/crosshook/issues/123)                                    | Semantic diff, retention UI — infrastructure exists (`config_revisions` v11) |
+| Item                                                                   | Action                                                                                                      | Why now                                                       |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Refresh or close [#78](https://github.com/yandy-r/crosshook/issues/78) | Reconcile the deep-research tracker with the current issue board; many checklist entries are already closed | It is the only open high-priority tracker and now reads stale |
+| Verify release notes for `v0.3.0` / `v0.3.1`                           | Confirm the public release notes reflect Hero Detail, hook runtime, production-bundle fix, and dep upgrade  | These releases shipped a large amount of user-visible work    |
+| Triage [#479](https://github.com/yandy-r/crosshook/issues/479)         | Decide whether the Trainer tab editor is the next feature slice or should remain explicitly deferred        | It is the direct follow-up to Hero Detail Consolidation       |
+
+---
+
+## P1 — Next product slices
+
+| Issue                                                   | Summary                                                                      | Suggested next step                                                                  |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| [#479](https://github.com/yandy-r/crosshook/issues/479) | Hero Detail Trainer tab editor upgrade: loaded hooks, injection config, logs | Best next user-facing continuation if Hero Detail should become fully editable       |
+| [#123](https://github.com/yandy-r/crosshook/issues/123) | Config history semantic diff, retention UI, and UX polish                    | Good fit if the next goal is reliability / explainability over another large UI pass |
+| [#233](https://github.com/yandy-r/crosshook/issues/233) | Auto-resolve GAMEID via `umu-database` HTTP lookups with SQLite cache        | Good fit if launch setup friction is the next priority                               |
 
 ---
 
 ## P2 — Platform & distribution
 
-Lower urgency; strategic but not blocking the consolidation MVP.
+Strategic work, but not blocking the current release train.
 
-| Issue                                                   | Summary                                             | Priority | Notes                                                                                              |
-| ------------------------------------------------------- | --------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------- |
-| [#210](https://github.com/yandy-r/crosshook/issues/210) | Flatpak Phase 4 — Flathub submission                | Low      | Depends on per-app isolation ([ADR-0004](docs/architecture/adr-0004-flatpak-per-app-isolation.md)) |
-| [#206](https://github.com/yandy-r/crosshook/issues/206) | Submit CrossHook to Flathub                         | Low      | Child of Flatpak track                                                                             |
-| [#69](https://github.com/yandy-r/crosshook/issues/69)   | Flatpak as secondary packaging format               | Low      | Partially addressed by v0.2.10-flatpak tag                                                         |
-| [#233](https://github.com/yandy-r/crosshook/issues/233) | Auto-resolve GAMEID via umu-database + SQLite cache | Low      | `status:needs-triage`                                                                              |
-| [#71](https://github.com/yandy-r/crosshook/issues/71)   | Lutris profile import                               | Low      | Migration aid                                                                                      |
-| [#76](https://github.com/yandy-r/crosshook/issues/76)   | macOS port investigation (GPTK 2)                   | Low      | Out of core Linux scope                                                                            |
+| Issue                                                   | Summary                                        | Notes                                                                                              |
+| ------------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| [#210](https://github.com/yandy-r/crosshook/issues/210) | Flatpak Phase 4 — Flathub submission           | Depends on per-app isolation ([ADR-0004](docs/architecture/adr-0004-flatpak-per-app-isolation.md)) |
+| [#206](https://github.com/yandy-r/crosshook/issues/206) | Submit CrossHook to Flathub                    | Child of Flatpak track                                                                             |
+| [#69](https://github.com/yandy-r/crosshook/issues/69)   | Flatpak as secondary packaging format          | Substantial groundwork landed in [#412](https://github.com/yandy-r/crosshook/pull/412)             |
+| [#71](https://github.com/yandy-r/crosshook/issues/71)   | Lutris profile import                          | Migration aid                                                                                      |
+| [#76](https://github.com/yandy-r/crosshook/issues/76)   | macOS port investigation (GPTK 2)              | Out of core Linux scope                                                                            |
+| [#249](https://github.com/yandy-r/crosshook/issues/249) | Custom Proton fork "tinkerers" UX              | UMU / advanced-user follow-up                                                                      |
+| [#250](https://github.com/yandy-r/crosshook/issues/250) | Non-x86_64 architectures (umu container scope) | UMU / compatibility follow-up                                                                      |
 
 ---
 
-## P3 — Deferred / post-consolidation
+## P3 — Deferred UI / architecture ideas
 
-Explicitly out of current scope. Revisit after #478 closes or when user demand surfaces.
+These remain intentionally out of the active board until there is a clear user
+pull or a new PRD.
 
-### Unified Desktop deferred ([#426](https://github.com/yandy-r/crosshook/issues/426)–[#433](https://github.com/yandy-r/crosshook/issues/433))
-
-| Issue | Topic                                                  |
-| ----- | ------------------------------------------------------ |
-| #426  | Alternate themes / theme switcher                      |
-| #427  | Persisted layout prefs (inspector width, cmdk recency) |
-| #428  | URL routing / deep links                               |
-| #429  | New icon library                                       |
-| #430  | Replace `react-resizable-panels`                       |
-| #431  | Backend / Community marketplace scope                  |
-| #432  | n-zone gamepad-nav refactor (4+ zones)                 |
-| #433  | Hero Detail Media tab                                  |
-
-### UMU / launcher deferred
-
-| Issue                                                   | Topic                                          |
-| ------------------------------------------------------- | ---------------------------------------------- |
-| [#249](https://github.com/yandy-r/crosshook/issues/249) | Custom Proton fork "tinkerers" UX              |
-| [#250](https://github.com/yandy-r/crosshook/issues/250) | Non-x86_64 architectures (umu container scope) |
-
-### Hero Detail follow-up
-
-| Issue                                                   | Topic                      |
-| ------------------------------------------------------- | -------------------------- |
-| [#479](https://github.com/yandy-r/crosshook/issues/479) | Trainer tab editor upgrade |
+| Issue                                                   | Topic                                                 |
+| ------------------------------------------------------- | ----------------------------------------------------- |
+| [#426](https://github.com/yandy-r/crosshook/issues/426) | Alternate themes / theme switcher                     |
+| [#427](https://github.com/yandy-r/crosshook/issues/427) | Persisted layout prefs: inspector width, cmdk recency |
+| [#428](https://github.com/yandy-r/crosshook/issues/428) | URL routing / deep links                              |
+| [#429](https://github.com/yandy-r/crosshook/issues/429) | New icon library                                      |
+| [#430](https://github.com/yandy-r/crosshook/issues/430) | Replace `react-resizable-panels`                      |
+| [#431](https://github.com/yandy-r/crosshook/issues/431) | Backend / Community marketplace scope                 |
+| [#432](https://github.com/yandy-r/crosshook/issues/432) | n-zone gamepad-nav refactor (4+ zones)                |
+| [#433](https://github.com/yandy-r/crosshook/issues/433) | Hero Detail Media tab                                 |
 
 ---
 
 ## Maintenance & blocked
 
-| Issue                                                 | Summary                                                     | Status                                                                              |
-| ----------------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| [#26](https://github.com/yandy-r/crosshook/issues/26) | Track upstream fix for vulnerable glib in Tauri Linux stack | `status:blocked` — monitor upstream; no local action until fix lands                |
-| [#78](https://github.com/yandy-r/crosshook/issues/78) | Deep-research feature tracker                               | `status:in-progress` — most P0/P1/P2 children closed; refresh body or close tracker |
+| Issue                                                 | Summary                                                     | Status                                                               |
+| ----------------------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------- |
+| [#26](https://github.com/yandy-r/crosshook/issues/26) | Track upstream fix for vulnerable glib in Tauri Linux stack | `status:blocked` — monitor upstream; no local action until fix lands |
 
-**Strategic principle** (from [#78](https://github.com/yandy-r/crosshook/issues/78)): invest in making the trainer-on-Linux workflow **reliable, diagnosable, and shareable** — depth over breadth. Hero Detail Consolidation aligns directly with this.
+**Strategic principle** (from [#78](https://github.com/yandy-r/crosshook/issues/78)):
+invest in making the trainer-on-Linux workflow **reliable, diagnosable, and
+shareable** — depth over breadth. The shipped Hero Detail work aligns with this;
+the next feature should preserve that direction rather than broaden launcher
+scope prematurely.
 
 ---
 
 ## Open issue inventory
 
-All 32 open issues grouped by theme (2026-06-01).
+All 18 open issues grouped by theme (2026-06-05).
 
-### Hero Detail Consolidation — active (11)
+### Active tracker / hygiene (1)
 
-#468, #469, #470, #471, #472, #473, #474, #475, #476, #477, #478 (tracker)
+#78
 
-### Hero Detail — deferred (1)
+### Hero Detail follow-up (1)
 
 #479
 
-### Unified Desktop — deferred (8)
+### Unified Desktop deferred (8)
 
 #426, #427, #428, #429, #430, #431, #432, #433
-
-### Unified Desktop — stale tracker (1)
-
-#451 — Phase 12 complete via #424; should close
-
-### Deep research tracker (1)
-
-#78
 
 ### Platform / build (6)
 
@@ -226,8 +218,8 @@ All 32 open issues grouped by theme (2026-06-01).
 | Document                                                                                                                             | Purpose                                                                  |
 | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
 | [`docs/prps/prds/unified-desktop-redesign.prd.md`](docs/prps/prds/unified-desktop-redesign.prd.md)                                   | Shipped shell redesign — phase table + decisions                         |
-| [`docs/prps/prds/unified-desktop-hero-detail-consolidation.prd.md`](docs/prps/prds/unified-desktop-hero-detail-consolidation.prd.md) | Active consolidation PRD — phases 3–12 detail                            |
-| [`docs/internal-docs/design-tokens.md`](docs/internal-docs/design-tokens.md)                                                         | Token rules post Phase 13                                                |
+| [`docs/prps/prds/unified-desktop-hero-detail-consolidation.prd.md`](docs/prps/prds/unified-desktop-hero-detail-consolidation.prd.md) | Shipped consolidation PRD — phases and route-removal rationale           |
+| [`docs/internal-docs/design-tokens.md`](docs/internal-docs/design-tokens.md)                                                         | Token rules post Unified Desktop / Hero Detail polish                    |
 | [`docs/research/additional-features/deep-research-report.md`](docs/research/additional-features/deep-research-report.md)             | Source for [#78](https://github.com/yandy-r/crosshook/issues/78) backlog |
 | [`CHANGELOG.md`](CHANGELOG.md)                                                                                                       | Release history (git-cliff)                                              |
 | [`AGENTS.md`](AGENTS.md)                                                                                                             | Agent/repo policy                                                        |
@@ -236,8 +228,11 @@ All 32 open issues grouped by theme (2026-06-01).
 
 ## Suggested next actions
 
-1. **Start [#468](https://github.com/yandy-r/crosshook/issues/468)** (hook schema) and **[#469](https://github.com/yandy-r/crosshook/issues/469)** (Profiles tab) in parallel — both are on the critical path to MVP.
-2. **Follow with [#470](https://github.com/yandy-r/crosshook/issues/470)** once panel contract from Phase 1 is stable in both new tabs.
-3. **Run the serial chain #473 → #474 → #475** only after editable tabs ship — TypeScript will enumerate every stale `profiles`/`launch` callsite.
-4. **Close [#451](https://github.com/yandy-r/crosshook/issues/451)** and **refresh [#78](https://github.com/yandy-r/crosshook/issues/78)** when convenient — reduces noise for anyone reading open issues.
-5. **Cut a release** after Phase 11 smoke rewrite so users get Unified Desktop + consolidation without waiting for Phase 12 polish.
+1. Refresh or close [#78](https://github.com/yandy-r/crosshook/issues/78) so
+   the only high-priority open tracker reflects the post-`v0.3.1` state.
+2. Decide whether [#479](https://github.com/yandy-r/crosshook/issues/479) is the
+   next product slice. If yes, write a focused PRP plan for the Trainer tab
+   editor with explicit storage/runtime boundaries.
+3. If the next cycle should be smaller, pull [#123](https://github.com/yandy-r/crosshook/issues/123)
+   or [#233](https://github.com/yandy-r/crosshook/issues/233) instead of
+   starting another route-scale UI project.
