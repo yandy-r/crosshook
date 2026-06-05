@@ -60,11 +60,12 @@ export function HookListPanel({ hooks, stage, onUpdate }: HookListPanelProps) {
     emit(resolvedHooks.map((hook) => (hook.id === hookId ? coerceStage({ ...hook, ...patch }, stage) : hook)));
   }
 
-  function removeHook(hookId: string) {
-    if (openHookId === hookId) {
+  function removeHookAtIndex(indexToRemove: number) {
+    const hook = resolvedHooks[indexToRemove];
+    if (hook && openHookId === hook.id) {
       setOpenHookId(null);
     }
-    emit(resolvedHooks.filter((hook) => hook.id !== hookId));
+    emit(resolvedHooks.filter((_, index) => index !== indexToRemove));
   }
 
   return (
@@ -106,7 +107,7 @@ export function HookListPanel({ hooks, stage, onUpdate }: HookListPanelProps) {
                     <button
                       type="button"
                       className="crosshook-button crosshook-button--secondary"
-                      onClick={() => removeHook(hook.id)}
+                      onClick={() => removeHookAtIndex(index)}
                     >
                       Remove
                     </button>
@@ -164,7 +165,7 @@ export function HookListPanel({ hooks, stage, onUpdate }: HookListPanelProps) {
                           <button
                             type="button"
                             className="crosshook-button crosshook-button--secondary"
-                            onClick={() => removeHook(hook.id)}
+                            onClick={() => removeHookAtIndex(index)}
                           >
                             Remove
                           </button>

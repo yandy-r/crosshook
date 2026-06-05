@@ -106,4 +106,21 @@ describe('HookListPanel', () => {
     expect(panel.hooks).toEqual([]);
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
+
+  it('removes only the targeted invalid row when multiple hooks share an empty id', async () => {
+    const user = userEvent.setup();
+    const panel = renderPanel(
+      [makeHook({ id: '', name: '' }), makeHook({ id: '', name: '', stage: 'post-exit' })],
+      'post-exit'
+    );
+
+    const removeButtons = screen.getAllByRole('button', { name: 'Remove' });
+    expect(removeButtons).toHaveLength(2);
+
+    await user.click(removeButtons[0]);
+
+    expect(panel.hooks).toHaveLength(1);
+    expect(panel.hooks[0]).toEqual(expect.objectContaining({ id: '', stage: 'post-exit' }));
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
 });
