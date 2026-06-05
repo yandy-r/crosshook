@@ -110,3 +110,45 @@ Target: Steam Deck native (1280×800, WebKitGTK, gamepad + touchscreen). This se
 ### Blocking issues (sign-off gate — must be zero)
 
 - [ ] NONE
+
+## Phase 12 — Hero Detail at 1280×800
+
+Target: Steam Deck native (1280×800, WebKitGTK, gamepad + touchscreen). Validate hero-detail fit at the deck viewport — layout should remain readable without horizontal page overflow. Two-column layouts are expected at 1280×800 (collapse breakpoint is 720px).
+
+**Desktop stand-in**:
+
+```bash
+gamescope -W 1280 -H 800 -r 60 -- ./CrossHook_amd64.AppImage
+```
+
+**Fast iteration** (not WebKitGTK-accurate — re-verify in Tauri dev mode):
+
+```bash
+./scripts/dev-native.sh --browser
+```
+
+Use browser devtools 1280×800 emulation for layout checks; confirm final behavior on hardware or Tauri dev.
+
+### Profiles tab at deck viewport
+
+- [ ] Two-column layout (`minmax(220px,280px) 1fr`) renders without horizontal page overflow
+- [ ] Cards rail and editor pane are both readable at 1280×800
+- [ ] Editor pane scrolls vertically (`.crosshook-hero-detail__profiles-editor` is in `SCROLL_ENHANCE_SELECTORS`)
+
+### Launch tab / hooks at deck viewport
+
+- [ ] Hook rows render readably (rows shrink via `min-width: 0`; stacking below 720px is expected, not a regression)
+- [ ] No horizontal page overflow on the Launch tab
+
+### Command preview at deck viewport
+
+- [ ] A long command in `.crosshook-hero-detail__highlighted-command` shows a horizontal scrollbar
+- [ ] Command preview scrolls horizontally without dragging the page (`overscroll-behavior: contain`)
+
+### Automated cross-check
+
+- [ ] `npm run test:smoke` passes (the `hero detail responsive no-horizontal-overflow` describe at `smoke.spec.ts:586-705` covers 1280×800)
+
+### Blocking issues (sign-off gate — must be zero)
+
+- [ ] NONE

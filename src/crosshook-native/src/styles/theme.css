@@ -182,11 +182,6 @@ textarea {
   min-width: 0;
 }
 
-/* Launch primary panel: slightly quieter art (tabs card adds its own backdrop) */
-.crosshook-launch-panel-stack > .crosshook-panel--with-route-decor .crosshook-panel-route-decor__art {
-  opacity: 0.15;
-}
-
 @media (max-height: 820px) {
   .crosshook-panel-route-decor__art {
     opacity: 0.12;
@@ -433,24 +428,6 @@ textarea {
   overflow-y: auto;
 }
 
-/* Uses .crosshook-route-stack (layout.css) for column + flex sizing; keep launch-specific gap + clip */
-.crosshook-launch-panel-stack {
-  gap: var(--crosshook-launch-panel-gap);
-  overflow: hidden;
-}
-
-.crosshook-launch-panel-stack > .crosshook-panel:first-child {
-  flex-shrink: 0;
-  /* Less top padding than generic panels — inner .crosshook-launch-panel also pads; avoids a tall band above the title */
-  padding-top: calc(var(--crosshook-panel-padding) - 8px);
-}
-
-/* Launch controls: shared minimum inner height */
-.crosshook-route-hero-launch-panel {
-  box-sizing: border-box;
-  min-height: var(--crosshook-route-hero-launch-panel-min-height);
-}
-
 /* Install route outer: .crosshook-route-stack; body: .crosshook-route-stack__body--fill */
 
 /* Community (Browse) / Compatibility / Settings: viewport fill + single scroll inside primary card */
@@ -512,12 +489,6 @@ textarea {
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-gutter: stable;
-}
-
-.crosshook-launch-panel-stack > .crosshook-launch-subtabs {
-  flex: 1 1 auto;
-  min-height: 0;
-  min-width: 0;
 }
 
 /* Install page — outer panel provides chrome; tab panels render flat install shells inside */
@@ -3129,27 +3100,6 @@ textarea {
   color: var(--crosshook-color-text);
 }
 
-.crosshook-launch-panel {
-  display: grid;
-  align-content: start;
-  box-sizing: border-box;
-  /* Size to content; avoid filling min-height with empty space below the last row */
-  height: auto;
-  /* Slightly tighter than stack gap: avoids double spacing between stacked rows */
-  gap: calc(var(--crosshook-launch-panel-gap) - 6px);
-  padding: var(--crosshook-launch-panel-padding);
-  border-radius: 20px;
-  border: 1px solid rgba(120, 160, 255, 0.22);
-  background: rgba(14, 20, 40, 0.82);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
-  backdrop-filter: blur(18px);
-}
-
-/* Pair with .crosshook-launch-panel-stack > .crosshook-panel:first-child — reclaim top band without shrinking sides/bottom */
-.crosshook-launch-panel-stack > .crosshook-panel:first-child .crosshook-launch-panel {
-  padding-top: calc(var(--crosshook-launch-panel-padding) - 8px);
-}
-
 .crosshook-launch-profile-selector {
   display: grid;
   gap: 14px;
@@ -3161,112 +3111,9 @@ textarea {
   backdrop-filter: blur(18px);
 }
 
-.crosshook-launch-panel__header {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: start;
-  flex-wrap: wrap;
-}
-
-.crosshook-launch-panel__profile-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.crosshook-launch-panel__profile-row-select {
-  flex: 1 1 200px;
-  min-width: 0;
-}
-
-.crosshook-launch-panel__profile-row-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-/* LaunchPanel-only modifier: when the actions wrap under the select, force
-   them onto their own line and center them instead of left-aligning. The
-   Profiles page uses the bare `__profile-row` which keeps actions inline with
-   the select (right-side on wide, natural wrap on narrow). */
-.crosshook-launch-panel__profile-row--wrap-centered {
-  justify-content: center;
-}
-
-.crosshook-launch-panel__profile-row--wrap-centered .crosshook-launch-panel__profile-row-actions {
-  flex: 1 1 100%;
-  justify-content: center;
-}
-
-.crosshook-launch-panel__eyebrow {
-  margin: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  color: var(--crosshook-color-accent-strong);
-  font-size: 0.74rem;
-  font-weight: 700;
-}
-
-.crosshook-launch-panel__title {
-  margin: 10px 0 6px;
-  font-size: 2rem;
-  line-height: 1.1;
-}
-
-.crosshook-launch-panel__copy {
-  margin: 0;
-  max-width: 56ch;
-  color: var(--crosshook-color-text-muted);
-  line-height: 1.6;
-}
-
-.crosshook-launch-panel__status {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 10px 14px;
-  border-radius: 999px;
-  border: 1px solid rgba(72, 134, 255, 0.28);
-  background: rgba(72, 134, 255, 0.12);
-  color: #cfe0ff;
-  font-size: 0.9rem;
-  white-space: nowrap;
-}
-
-.crosshook-launch-panel__info {
-  padding: 18px;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  background: rgba(7, 12, 24, 0.55);
-}
-
-.crosshook-launch-panel__status-text {
-  margin: 0;
-  font-weight: 600;
-  color: #eef4ff;
-}
-
-.crosshook-launch-panel__hint,
-.crosshook-launch-panel__helper-log,
 .crosshook-launch-panel__feedback {
   margin: 10px 0 0;
   line-height: 1.6;
-}
-
-.crosshook-launch-panel__hint {
-  color: var(--crosshook-color-text-muted);
-}
-
-.crosshook-launch-panel__helper-log {
-  color: var(--crosshook-color-accent-strong);
-  font-size: 0.92rem;
-  word-break: break-all;
-}
-
-.crosshook-launch-panel__feedback {
   display: grid;
   gap: 10px;
   padding: 14px 16px;
@@ -3385,39 +3232,12 @@ textarea {
   gap: 10px;
 }
 
-.crosshook-launch-panel__actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  align-items: start;
-}
-
-.crosshook-launch-panel__action-block {
-  display: grid;
-  gap: 6px;
-  min-width: min(100%, 280px);
-}
-
-.crosshook-launch-panel__action {
-  min-height: var(--crosshook-launch-panel-action-min-height);
-  padding: 0 var(--crosshook-launch-panel-action-padding-inline);
-}
-
 .crosshook-launch-panel__indicator-guidance {
   margin: 0;
   color: #9fb1c8;
   font-size: 0.88rem;
   line-height: 1.4;
   text-align: center;
-}
-
-.crosshook-launch-panel__action:disabled {
-  cursor: not-allowed;
-  opacity: 0.65;
-}
-
-.crosshook-launch-panel__action--secondary {
-  padding: 0 var(--crosshook-launch-panel-action-secondary-padding-inline);
 }
 
 /* Tighter gap between runner line + guidance than parent panel grid */
@@ -3429,11 +3249,6 @@ textarea {
 .crosshook-launch-panel__indicator-copy {
   color: #7f8fb0;
   font-size: 0.9rem;
-}
-
-.crosshook-launch-panel__actions-card {
-  display: grid;
-  gap: var(--crosshook-launch-panel-gap, 16px);
 }
 
 .crosshook-export-panel {
@@ -4226,15 +4041,6 @@ textarea {
     max-height: 48vh;
   }
 
-  .crosshook-launch-panel {
-    padding: 20px;
-    gap: calc(var(--crosshook-launch-panel-gap) - 4px);
-  }
-
-  .crosshook-launch-panel-stack > .crosshook-panel:first-child .crosshook-launch-panel {
-    padding-top: 12px;
-  }
-
   .crosshook-install-shell {
     padding: 20px;
     gap: 20px;
@@ -4340,43 +4146,6 @@ textarea {
   .crosshook-select,
   .crosshook-textarea {
     min-height: 48px;
-  }
-
-  .crosshook-launch-panel__header,
-  .crosshook-launch-panel__actions,
-  .crosshook-launch-panel__profile-row,
-  .crosshook-launch-panel__profile-row-actions {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  /* LaunchPanel's wrap-centered variant: keep actions row + centered even
-     when the parent switches to column direction at narrow widths. */
-  .crosshook-launch-panel__profile-row--wrap-centered {
-    align-items: stretch;
-  }
-
-  .crosshook-launch-panel__profile-row--wrap-centered .crosshook-launch-panel__profile-row-actions {
-    flex-direction: row;
-    justify-content: center;
-    align-items: center;
-  }
-
-  .crosshook-launch-panel__status {
-    white-space: normal;
-  }
-
-  .crosshook-launch-panel__action,
-  .crosshook-launch-panel__profile-row-actions .crosshook-button {
-    width: 100%;
-  }
-
-  .crosshook-launch-panel__profile-row--wrap-centered
-    .crosshook-launch-panel__profile-row-actions
-    .crosshook-button {
-    width: auto;
-    flex: 0 0 auto;
-    max-width: none;
   }
 
   .crosshook-install-shell__actions {

@@ -73,7 +73,6 @@
 
 /* Strip panel visuals from children that already carry their own panel/shell
    styling — the outer CollapsibleSection.crosshook-panel is the container. */
-.crosshook-collapsible.crosshook-panel > .crosshook-collapsible__body > .crosshook-launch-panel,
 .crosshook-collapsible.crosshook-panel > .crosshook-collapsible__body > .crosshook-install-shell,
 .crosshook-collapsible.crosshook-panel > .crosshook-collapsible__body > .crosshook-launch-optimizations,
 .crosshook-collapsible.crosshook-panel > .crosshook-collapsible__body > .crosshook-steam-launch-options,
