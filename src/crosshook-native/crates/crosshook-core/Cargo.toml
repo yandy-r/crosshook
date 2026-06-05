@@ -28,8 +28,8 @@ tracing-subscriber = { version = "0.3", features = [
   "fmt",
   "time",
 ] }
-rusqlite = { version = "0.39.0", features = ["bundled"] }
-quick-xml = "0.39.2"
+rusqlite = { version = "0.40.0", features = ["bundled"] }
+quick-xml = "0.40.1"
 async-trait = "0.1"
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
 reqwest = { version = "0.13.2", default-features = false, features = ["json", "rustls", "stream"] }
@@ -38,7 +38,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 infer = "~0.19.0"
 nix = { version = "0.31.2", features = ["fs"] }
 tempfile = "3"
-ts-rs = { version = "10.0", optional = true, features = ["chrono-impl", "uuid-impl", "serde-compat"] }
+ts-rs = { version = "12.0.1", optional = true, features = ["chrono-impl", "uuid-impl", "serde-compat"] }
 
 # Flatpak desktop-portal clients (ADR-0002). `zbus` pulls a pure-Rust D-Bus
 # client; we scope it to the `tokio` feature to match the rest of the crate
