@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useLaunchStateContext } from '@/context/LaunchStateContext';
+import { useLaunchPrefixDependencyGate } from '@/hooks/useLaunchPrefixDependencyGate';
 import { subscribeEvent } from '@/lib/events';
-import { useLaunchStateContext } from '../../../context/LaunchStateContext';
-import { useLaunchPrefixDependencyGate } from '../../../hooks/useLaunchPrefixDependencyGate';
-import type { GameProfile } from '../../../types/profile';
+import type { GameProfile } from '@/types/profile';
 
 interface UseLaunchDepGateOptions {
   profile: GameProfile;

@@ -8,36 +8,12 @@ import { InspectorSelectionProvider } from '@/context/InspectorSelectionContext'
 import { ProfileProvider } from '@/context/ProfileContext';
 import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
 import { emitMockEvent } from '@/lib/events';
-import type { MockRenderOptions } from '@/test/render';
 import { renderWithMocks } from '@/test/render';
 
 vi.mock('@/lib/ipc', async () => {
   const { mockCallCommand } = await import('@/test/render');
   return { callCommand: mockCallCommand };
 });
-
-/**
- * Prevent the happy-dom datalist crash (invalid CSS: `datalist#:rpb:-suggestions`)
- * that occurs when ProfilesPage renders ProfileIdentitySection with a non-empty
- * profiles list. We zero-out profile_list (and related lists) so the datalist
- * never renders, while keeping profile_list_summaries populated so the LibraryPage
- * card for "Test Game Alpha" remains clickable. profile_load is kept so
- * selectProfile() can still hydrate the profile editor (which doesn't use profile_list).
- * NOTE(hero-detail-consolidation): delete with Phase 10 route removal.
- */
-/**
- * Override profile_list to return [] and also profile_list_summaries to return []
- * to prevent the happy-dom datalist crash. However, this means LibraryPage won't
- * show "Test Game Alpha" cards. We use seed to add the summaries AFTER other
- * overrides are applied so LibraryPage still sees profiles while ProfilesPage does
- * not trigger the datalist.
- *
- * NOTE(hero-detail-consolidation): delete with Phase 10 route removal.
- */
-const NO_DATALIST_OVERRIDES: MockRenderOptions['handlerOverrides'] = {
-  profile_list: async () => [],
-  profile_list_favorites: async () => [],
-};
 
 function AppShellInAppProviders() {
   return (
@@ -173,7 +149,7 @@ describe('AppShell (integration)', () => {
     setInnerHeight(1080);
     const rectSpy = mockAppShellRect(1920, 1080);
     try {
-      renderWithMocks(<AppShellInAppProviders />, { handlerOverrides: NO_DATALIST_OVERRIDES });
+      renderWithMocks(<AppShellInAppProviders />);
 
       const sidebar = await screen.findByTestId('sidebar');
       const sidebarNav = within(sidebar);

@@ -254,6 +254,7 @@ export function GameDetail({
       <HeroDetailHeader
         summary={summary}
         displayName={displayName}
+        activeProfileName={displayProfileName}
         profile={profile}
         loadState={loadState}
         profileError={errorMessage}

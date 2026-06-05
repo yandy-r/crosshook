@@ -19,12 +19,12 @@ import { copyToClipboard } from '@/utils/clipboard';
 import { resolveLaunchMethod } from '@/utils/launch';
 import { LaunchPipeline } from '../../LaunchPipeline';
 import { LaunchPanelFeedback } from '../../launch-panel/LaunchPanelFeedback';
-import { LaunchDepGateModal } from '../../pages/launch/LaunchDepGateModal';
-import { useLaunchDepGate } from '../../pages/launch/useLaunchDepGate';
 import type { HeroLaunchCommandSectionProps } from './HeroLaunchCommandSection';
 import { HeroLaunchCommandSection } from './HeroLaunchCommandSection';
 import type { HeroLaunchSubTabsHostProps } from './HeroLaunchSubTabsHost';
 import { HeroLaunchSubTabsHost } from './HeroLaunchSubTabsHost';
+import { LaunchDepGateModal } from './LaunchDepGateModal';
+import { useLaunchDepGate } from './useLaunchDepGate';
 
 export interface HeroLaunchGateProps
   extends Pick<

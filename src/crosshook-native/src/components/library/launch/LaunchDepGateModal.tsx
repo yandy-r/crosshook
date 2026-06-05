@@ -1,5 +1,5 @@
-import { useLaunchStateContext } from '../../../context/LaunchStateContext';
-import type { GameProfile } from '../../../types/profile';
+import { useLaunchStateContext } from '@/context/LaunchStateContext';
+import type { GameProfile } from '@/types/profile';
 import type { DepGateState } from './useLaunchDepGate';
 
 interface LaunchDepGateModalProps {
@@ -11,7 +11,9 @@ interface LaunchDepGateModalProps {
 export function LaunchDepGateModal({ depGate, profile, selectedName }: LaunchDepGateModalProps) {
   const { launchGame, launchTrainer } = useLaunchStateContext();
 
-  if (depGate.depGatePackages === null) {
+  const depGatePackages = depGate.depGatePackages;
+
+  if (depGatePackages === null) {
     return null;
   }
 
@@ -24,7 +26,7 @@ export function LaunchDepGateModal({ depGate, profile, selectedName }: LaunchDep
           launch anyway.
         </p>
         <ul>
-          {depGate.depGatePackages.map((pkg) => (
+          {depGatePackages.map((pkg) => (
             <li key={pkg}>
               <code>{pkg}</code>
             </li>
@@ -41,7 +43,7 @@ export function LaunchDepGateModal({ depGate, profile, selectedName }: LaunchDep
                 const prefixPath = profile.runtime?.prefix_path ?? profile.steam?.compatdata_path ?? '';
                 depGate.setDepGateInstalling(true);
                 try {
-                  await depGate.installPrefixDependency(selectedName, prefixPath, depGate.depGatePackages!);
+                  await depGate.installPrefixDependency(selectedName, prefixPath, depGatePackages);
                 } catch {
                   depGate.setDepGateInstalling(false);
                 }

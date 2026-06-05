@@ -6,6 +6,7 @@ import { displayPath, type HeroDetailTabId } from './hero-detail-model';
 export interface HeroDetailHeaderProps {
   summary: LibraryCardData;
   displayName: string;
+  activeProfileName?: string;
   profile: GameProfile | null;
   loadState: 'idle' | 'loading' | 'ready' | 'error';
   profileError: string | null;
@@ -27,6 +28,7 @@ export interface HeroDetailHeaderProps {
 export function HeroDetailHeader({
   summary,
   displayName,
+  activeProfileName,
   profile,
   loadState,
   profileError,
@@ -45,7 +47,8 @@ export function HeroDetailHeader({
   onSetActiveTab,
 }: HeroDetailHeaderProps) {
   const steamAppId = summary.steamAppId?.trim() ?? '';
-  const isLaunchingThis = launchingName === summary.name;
+  const launchProfileName = activeProfileName?.trim() || summary.name;
+  const isLaunchingThis = launchingName === launchProfileName;
   const gamePath = displayPath(profile?.game?.executable_path);
   const trainerPath = displayPath(profile?.trainer?.path);
   const prefixPath = displayPath(profile?.runtime?.prefix_path);
@@ -62,7 +65,7 @@ export function HeroDetailHeader({
             className="crosshook-button crosshook-button--small"
             disabled={isLaunchingThis}
             onClick={() => {
-              void onLaunch(summary.name);
+              void onLaunch(launchProfileName);
               onSetActiveTab?.('launch-options');
             }}
           >
@@ -80,7 +83,7 @@ export function HeroDetailHeader({
             type="button"
             className="crosshook-button crosshook-button--small crosshook-button--secondary"
             onClick={() => {
-              void onEdit(summary.name);
+              void onEdit(launchProfileName);
               onSetActiveTab?.('profiles');
             }}
           >

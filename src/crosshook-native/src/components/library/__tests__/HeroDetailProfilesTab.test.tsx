@@ -167,7 +167,7 @@ vi.mock('@/hooks/useTrainerTypeCatalog', () => ({
   }),
 }));
 
-vi.mock('@/components/pages/profiles/useProfilesPageProton', () => ({
+vi.mock('@/components/library/profiles/useProfilesPageProton', () => ({
   useProfilesPageProton: () => ({
     suggestion: null,
     suggestionDismissed: false,

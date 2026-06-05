@@ -8,7 +8,7 @@ import type { DuplicateProfileResult, GameProfile, GamescopeConfig, MangoHudConf
 import { createDefaultProfile } from '../../../types/profile';
 import { emitMockEvent } from '../eventBus';
 import { getStore } from '../store';
-import { profileFavorites } from './profile-core';
+import { profileFavorites, seedDemoProfiles } from './profile-core';
 import { appendRevision } from './profile-history';
 import { withProfileFixtureGate } from './profile-utils';
 import type { Handler } from './types';
@@ -235,6 +235,57 @@ export function registerProfileMutations(map: Map<string, Handler>): void {
       return null;
     })
   );
+
+  map.set('_mock_add_profile', async (args) => {
+    const { profileName, gameName } = args as { profileName: string; gameName: string };
+    const trimmedProfileName = profileName.trim();
+    const trimmedGameName = gameName.trim();
+    if (!trimmedProfileName || !trimmedGameName) {
+      throw new Error('[dev-mock] _mock_add_profile: profileName and gameName are required');
+    }
+
+    seedDemoProfiles();
+    const store = getStore();
+    const source =
+      Array.from(store.profiles.values()).find((profile) => profile.game.name === trimmedGameName) ??
+      createDefaultProfile();
+    const profile = structuredClone(source);
+    profile.game = {
+      ...profile.game,
+      name: trimmedGameName,
+      executable_path:
+        profile.game.executable_path || `/home/devuser/Games/${trimmedGameName.replace(/\s+/g, '')}/game.exe`,
+    };
+    profile.trainer = {
+      ...profile.trainer,
+      path: profile.trainer?.path || `/home/devuser/Trainers/${trimmedGameName.replace(/\s+/g, '')}/trainer.exe`,
+    };
+    profile.runtime = {
+      ...profile.runtime,
+      prefix_path: profile.runtime.prefix_path || `/home/devuser/.local/share/crosshook/prefixes/${trimmedGameName}`,
+      proton_path: profile.runtime.proton_path || '/home/devuser/.steam/root/compatibilitytools.d/GE-Proton',
+    };
+    store.profiles.set(trimmedProfileName, profile);
+    emitMockEvent('profiles-changed', { name: trimmedProfileName, action: 'mock-add' });
+    return null;
+  });
+
+  map.set('_mock_remove_profile', async (args) => {
+    const { profileName } = args as { profileName: string };
+    const trimmedProfileName = profileName.trim();
+    if (!trimmedProfileName) {
+      throw new Error('[dev-mock] _mock_remove_profile: profileName is required');
+    }
+
+    const store = getStore();
+    store.profiles.delete(trimmedProfileName);
+    profileFavorites.delete(trimmedProfileName);
+    if (store.activeProfileId === trimmedProfileName) {
+      store.activeProfileId = store.profiles.size > 0 ? (store.profiles.keys().next().value ?? null) : null;
+    }
+    emitMockEvent('profiles-changed', { name: trimmedProfileName, action: 'mock-remove' });
+    return null;
+  });
 
   map.set(
     'profile_import_legacy',

@@ -182,16 +182,6 @@ textarea {
   min-width: 0;
 }
 
-/* Launch / Profiles / Install: add .crosshook-page-scroll-shell--fill (layout.css) for viewport height chain */
-.crosshook-page-scroll-shell--launch {
-  /* Tighter gap now that the route banner header is removed */
-  gap: max(10px, calc(var(--crosshook-grid-gap) - 10px));
-}
-
-.crosshook-page-scroll-shell--profiles > .crosshook-status-toast {
-  flex-shrink: 0;
-}
-
 /* Launch primary panel: slightly quieter art (tabs card adds its own backdrop) */
 .crosshook-launch-panel-stack > .crosshook-panel--with-route-decor .crosshook-panel-route-decor__art {
   opacity: 0.15;
@@ -203,40 +193,6 @@ textarea {
     max-height: min(88px, 20vh);
     width: min(152px, 46%);
   }
-}
-
-/* Outer column: use .crosshook-route-stack (layout.css) on the same element as .crosshook-profiles-page */
-
-.crosshook-profiles-editor-host {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.crosshook-panel.crosshook-profiles-subtabs {
-  flex: 1 1 auto;
-  min-height: 0;
-}
-
-.crosshook-panel.crosshook-profiles-subtabs > .crosshook-subtabs-root {
-  flex: 1 1 auto;
-  min-height: 0;
-}
-
-.crosshook-profiles-subtabs .crosshook-subtabs-foreground {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;
-}
-
-/* One scroll container; inner keeps natural height so form rows don't stretch like Launch (no flex chain on __inner). */
-.crosshook-profiles-subtabs .crosshook-subtabs-foreground > .crosshook-subtab-content {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
 }
 
 .crosshook-profile-actions__toolbar {
@@ -345,17 +301,6 @@ textarea {
   .crosshook-route-banner__summary {
     display: none;
   }
-}
-
-/* Profiles route body (--fill): hero/health stay natural height; editor host absorbs remainder and scrolls inside subtabs */
-.crosshook-profiles-page__body.crosshook-route-stack__body--fill > *:not(.crosshook-profiles-editor-host) {
-  flex-shrink: 0;
-}
-
-.crosshook-profiles-page__body.crosshook-route-stack__body--fill > .crosshook-profiles-editor-host {
-  flex: 1 1 auto;
-  min-height: 0;
-  min-width: 0;
 }
 
 /* Launch tabs: bounded column for nested optimization scroll */
@@ -500,41 +445,10 @@ textarea {
   padding-top: calc(var(--crosshook-panel-padding) - 8px);
 }
 
-/* Launch controls + Profiles hero: shared minimum inner height so switching routes does not jump */
+/* Launch controls: shared minimum inner height */
 .crosshook-route-hero-launch-panel {
   box-sizing: border-box;
   min-height: var(--crosshook-route-hero-launch-panel-min-height);
-}
-
-/* Profiles top strip: same outer padding as Launch stack’s first panel */
-.crosshook-profiles-hero-outer.crosshook-panel {
-  padding-top: calc(var(--crosshook-panel-padding) - 8px);
-  padding-right: var(--crosshook-panel-padding);
-  padding-bottom: var(--crosshook-panel-padding);
-  padding-left: var(--crosshook-panel-padding);
-}
-
-/* Match inner top padding with .crosshook-launch-panel-stack > .crosshook-panel:first-child .crosshook-launch-panel */
-.crosshook-profiles-hero-outer .crosshook-route-hero-launch-panel {
-  padding-top: calc(var(--crosshook-launch-panel-padding) - 8px);
-}
-
-/* Flex column so badges + refresh pin to the bottom of the shared min-height hero */
-.crosshook-profiles-hero-outer .crosshook-route-hero-launch-panel.crosshook-launch-panel {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: calc(var(--crosshook-launch-panel-gap) - 6px);
-}
-
-.crosshook-profiles-hero-outer .crosshook-profiles-hero-status {
-  margin-top: auto;
-  padding-top: 10px;
-}
-
-/* Launch route inner: .crosshook-route-stack + this gap (single column; was grid) */
-.crosshook-launch-page__grid {
-  gap: 24px;
 }
 
 /* Install route outer: .crosshook-route-stack; body: .crosshook-route-stack__body--fill */
@@ -4321,10 +4235,6 @@ textarea {
     padding-top: 12px;
   }
 
-  .crosshook-profiles-hero-outer .crosshook-route-hero-launch-panel {
-    padding-top: 12px;
-  }
-
   .crosshook-install-shell {
     padding: 20px;
     gap: 20px;
@@ -4481,15 +4391,6 @@ textarea {
 
   .crosshook-install-shell__actions-guidance {
     margin-left: 0;
-    width: 100%;
-  }
-
-  .crosshook-profiles-hero-status__action {
-    margin-left: 0;
-    width: 100%;
-  }
-
-  .crosshook-profiles-hero-status__action .crosshook-launch-panel__action {
     width: 100%;
   }
 
@@ -5487,32 +5388,11 @@ textarea {
   min-height: 160px;
 }
 
-/* ── Profiles hero: health / offline / version chips + refresh (inside launch-panel chrome) ── */
-
-.crosshook-profiles-hero-status {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.crosshook-profiles-hero-status .crosshook-status-chip,
-.crosshook-profiles-hero-status .crosshook-compatibility-badge,
-.crosshook-profiles-hero-status .crosshook-offline-badge {
-  min-height: 32px;
-  height: 32px;
-  font-size: 0.82rem;
-}
-
 /* Muted chip — for secondary info like stale notes */
 .crosshook-status-chip--muted {
   background: transparent;
   border-color: rgba(255, 255, 255, 0.08);
   color: var(--crosshook-color-text-muted);
-}
-
-.crosshook-profiles-hero-status__action {
-  margin-left: auto;
 }
 
 /* ── Version Badge (consistent pill via status-chip base) ── */
