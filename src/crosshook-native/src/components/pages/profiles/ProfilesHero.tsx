@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { LAUNCH_PANEL_ACTION_BUTTON_STYLE } from '../../../utils/launchPanelActionButtonStyle';
-import { RouteBanner } from '../../layout/RouteBanner';
+import { ProfilesArt } from '../../layout/PageBanner';
 import { ThemedSelect } from '../../ui/ThemedSelect';
 
 interface ProfilesHeroProps {
@@ -58,7 +58,22 @@ export function ProfilesHero({
         </div>
       ) : null}
 
-      <RouteBanner route="profiles" />
+      <section className="crosshook-route-banner crosshook-panel" aria-labelledby="crosshook-legacy-profiles-title">
+        <div className="crosshook-route-banner__inner">
+          <div className="crosshook-route-banner__body">
+            <p className="crosshook-route-banner__eyebrow crosshook-heading-eyebrow">Game</p>
+            <h1 id="crosshook-legacy-profiles-title" className="crosshook-route-banner__title">
+              Profiles
+            </h1>
+            <p className="crosshook-route-banner__summary crosshook-heading-copy">
+              Create, select, and maintain profiles for each game and trainer setup.
+            </p>
+          </div>
+          <div className="crosshook-route-banner__icon" aria-hidden="true">
+            <ProfilesArt />
+          </div>
+        </div>
+      </section>
       <div className="crosshook-panel crosshook-profiles-hero-outer">
         <section className="crosshook-launch-panel crosshook-route-hero-launch-panel">
           <div className="crosshook-launch-panel__profile-row">

@@ -28,6 +28,7 @@ export interface GameDetailProps {
   onEdit: (name: string) => void | Promise<void>;
   onToggleFavorite: (name: string, current: boolean) => void;
   launchingName?: string;
+  requestedTab?: HeroDetailTabId;
 }
 
 export function GameDetail({
@@ -41,6 +42,7 @@ export function GameDetail({
   onEdit,
   onToggleFavorite,
   launchingName,
+  requestedTab,
 }: GameDetailProps) {
   const [activeTab, setActiveTab] = useState<HeroDetailTabId>('overview');
   const [profilesScrollTarget, setProfilesScrollTarget] = useState<HeroDetailProfilesScrollTarget | null>(null);
@@ -187,6 +189,13 @@ export function GameDetail({
     setProfilesScrollTarget(null);
   }, []);
 
+  useEffect(() => {
+    if (!requestedTab) {
+      return;
+    }
+    handleSetActiveTab(requestedTab);
+  }, [requestedTab, handleSetActiveTab]);
+
   const panelProps = useMemo(
     () => ({
       summary,
@@ -260,6 +269,7 @@ export function GameDetail({
         onLaunch={onLaunch}
         onEdit={onEdit}
         onToggleFavorite={onToggleFavorite}
+        onSetActiveTab={handleSetActiveTab}
       />
       <div className="crosshook-hero-detail__body">
         <HeroDetailTabs activeTab={activeTab} onActiveTabChange={handleActiveTabChange} panelProps={panelProps} />

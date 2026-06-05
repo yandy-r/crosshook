@@ -1,8 +1,7 @@
 import { Breadcrumb } from '@/components/layout/Breadcrumb';
 import type { GameProfile } from '@/types';
 import type { LibraryCardData } from '@/types/library';
-import { gameDetailsEditThenNavigate, gameDetailsLaunchThenNavigate } from './game-details-actions';
-import { displayPath } from './hero-detail-model';
+import { displayPath, type HeroDetailTabId } from './hero-detail-model';
 
 export interface HeroDetailHeaderProps {
   summary: LibraryCardData;
@@ -22,6 +21,7 @@ export interface HeroDetailHeaderProps {
   onLaunch: (name: string) => void | Promise<void>;
   onEdit: (name: string) => void | Promise<void>;
   onToggleFavorite: (name: string, current: boolean) => void;
+  onSetActiveTab?: (tab: HeroDetailTabId) => void;
 }
 
 export function HeroDetailHeader({
@@ -42,6 +42,7 @@ export function HeroDetailHeader({
   onLaunch,
   onEdit,
   onToggleFavorite,
+  onSetActiveTab,
 }: HeroDetailHeaderProps) {
   const steamAppId = summary.steamAppId?.trim() ?? '';
   const isLaunchingThis = launchingName === summary.name;
@@ -60,7 +61,10 @@ export function HeroDetailHeader({
             type="button"
             className="crosshook-button crosshook-button--small"
             disabled={isLaunchingThis}
-            onClick={() => gameDetailsLaunchThenNavigate(summary.name, onLaunch, onBack)}
+            onClick={() => {
+              void onLaunch(summary.name);
+              onSetActiveTab?.('launch-options');
+            }}
           >
             {isLaunchingThis ? 'Launching…' : 'Launch'}
           </button>
@@ -75,7 +79,10 @@ export function HeroDetailHeader({
           <button
             type="button"
             className="crosshook-button crosshook-button--small crosshook-button--secondary"
-            onClick={() => gameDetailsEditThenNavigate(summary.name, onEdit, onBack)}
+            onClick={() => {
+              void onEdit(summary.name);
+              onSetActiveTab?.('profiles');
+            }}
           >
             Edit profile
           </button>

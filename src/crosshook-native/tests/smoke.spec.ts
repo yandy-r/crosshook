@@ -3,7 +3,13 @@ import { test, expect } from '@playwright/test';
 import type { AppRoute } from '../src/components/layout/Sidebar';
 import { ROUTE_NAV_LABEL } from '../src/components/layout/routeMetadata';
 import { attachConsoleCapture, type ConsoleCapture } from './helpers';
-import { navigateViaCommandPalette, seedMockProfileRunning, waitForCrosshookDevIpc } from './navigation-helpers';
+import {
+  navigateViaCommandPalette,
+  openHeroDetailTab,
+  openLibraryHeroDetail,
+  seedMockProfileRunning,
+  waitForCrosshookDevIpc,
+} from './navigation-helpers';
 
 /**
  * Smoke test the application routes in browser dev mode.
@@ -242,11 +248,11 @@ test.describe('library sidebar quick filters', () => {
 });
 
 test.describe('launch pipeline smoke', () => {
-  test('pipeline renders on launch page', async ({ page }) => {
+  test('pipeline renders on Library launch options tab', async ({ page }) => {
     const capture = attachConsoleCapture(page);
 
     await page.goto('/?fixture=populated');
-    await navigateViaCommandPalette(page, `Go to ${ROUTE_NAV_LABEL.launch}`);
+    await openHeroDetailTab(page, 'Launch options');
 
     await expect(page.locator('.crosshook-launch-pipeline')).toBeVisible();
     await expect(page.locator('.crosshook-launch-pipeline__node')).toHaveCount(6);
@@ -255,80 +261,72 @@ test.describe('launch pipeline smoke', () => {
   });
 });
 
-test.describe('profiles + launch panel landing smoke', () => {
-  const PANEL_LANDING_ROUTES = [
-    { route: 'profiles', navLabel: 'Profiles', bannerTitle: 'Profiles' },
-    { route: 'launch', navLabel: 'Launch', bannerTitle: 'Launch' },
+test.describe('Library hero detail panel smoke', () => {
+  const HERO_DETAIL_TABS = [
+    { tabName: 'Profiles', tabTestId: 'hero-detail-profiles-tab' },
+    { tabName: 'Launch options', tabTestId: 'hero-detail-launch-tab' },
   ] as const;
 
-  for (const { route, navLabel, bannerTitle } of PANEL_LANDING_ROUTES) {
-    test(`panel sections render on ${route} page`, async ({ page }) => {
+  for (const { tabName, tabTestId } of HERO_DETAIL_TABS) {
+    test(`panel sections render on ${tabName} tab`, async ({ page }) => {
       const capture = attachConsoleCapture(page);
 
       await page.goto('/?fixture=populated');
-      await navigateViaCommandPalette(page, `Go to ${ROUTE_NAV_LABEL[route]}`);
+      await openHeroDetailTab(page, tabName);
 
       await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {
         /* expected: no network in mock mode */
       });
 
-      // RouteBanner H1 must be visible on the Phase-11 editor routes.
-      await expect(page.getByRole('heading', { level: 1, name: bannerTitle })).toBeVisible();
+      await expect(page.getByTestId('game-detail')).toBeVisible();
+      await expect(page.getByTestId('game-detail').getByRole('tab', { name: tabName, exact: true })).toHaveAttribute(
+        'aria-selected',
+        'true'
+      );
 
       // At least one DashboardPanelSection must be present (attached to DOM) in the route body.
       // NOTE: subtab contents use `display: none` on inactive panels so visibility is gated by
       // the active tab — assert attachment to avoid flaky hidden-tab failures.
       await expect(page.locator('section.crosshook-dashboard-panel-section').first()).toBeAttached();
+      await expect(page.getByTestId(tabTestId)).toBeVisible();
 
-      expect(capture.errors, `Panel-landing errors on route "${navLabel}":\n${capture.errors.join('\n')}`).toEqual([]);
+      expect(capture.errors, `Hero detail panel errors on tab "${tabName}":\n${capture.errors.join('\n')}`).toEqual([]);
     });
   }
 
-  test('launch pipeline node count is stable on panel-landing', async ({ page }) => {
+  test('launch pipeline node count is stable on hero detail launch options', async ({ page }) => {
     const capture = attachConsoleCapture(page);
 
     await page.goto('/?fixture=populated');
-    await navigateViaCommandPalette(page, `Go to ${ROUTE_NAV_LABEL.launch}`);
+    await openHeroDetailTab(page, 'Launch options');
 
     await expect(page.locator('.crosshook-launch-pipeline__node')).toHaveCount(6);
     await expect(page.locator('section.crosshook-dashboard-panel-section').first()).toBeAttached();
 
-    expect(capture.errors, `Launch panel-landing pipeline errors:\n${capture.errors.join('\n')}`).toEqual([]);
+    expect(capture.errors, `Launch options pipeline errors:\n${capture.errors.join('\n')}`).toEqual([]);
   });
 
-  test('breadcrumb trail renders on profiles page after Edit profile and game crumb reopens hero detail', async ({
-    page,
-  }) => {
+  test('Edit profile opens the profiles tab inside Library hero detail', async ({ page }) => {
     const capture = attachConsoleCapture(page);
 
     await page.setViewportSize({ width: 1920, height: 1080 });
     await page.goto('/?fixture=populated');
 
-    // Navigate to library and open hero detail for Test Game Alpha.
-    const libraryTab = page.getByRole('tab', { name: 'Library', exact: true });
-    await libraryTab.click();
-    await expect(libraryTab).toHaveAttribute('aria-current', 'page');
-
-    await page.getByRole('button', { name: 'View details for Test Game Alpha' }).click();
-    await expect(page.getByTestId('game-detail')).toBeVisible();
+    await openLibraryHeroDetail(page);
 
     // Click "Edit profile" — scope to game-detail to avoid the inspector rail's duplicate button.
     await page.getByTestId('game-detail').getByRole('button', { name: 'Edit profile' }).click();
+    await expect(page.getByTestId('game-detail').getByRole('tab', { name: 'Profiles', exact: true })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
 
-    // The Profiles page breadcrumb (page-level, standalone) must be visible.
     const breadcrumb = page.getByRole('navigation', { name: 'Breadcrumb' });
     await expect(breadcrumb).toBeVisible();
     await expect(breadcrumb).toContainText('Library');
     await expect(breadcrumb).toContainText('Test Game Alpha');
-    await expect(breadcrumb).toContainText('Edit profile');
 
-    // Click the game-name crumb to reopen hero detail via openGameDetailIntent.
-    await breadcrumb.getByRole('button', { name: 'Test Game Alpha' }).click();
-
-    // Hero Detail must reopen.
-    await expect(page.getByTestId('game-detail')).toBeVisible();
-
-    expect(capture.errors, `Breadcrumb trail smoke errors:\n${capture.errors.join('\n')}`).toEqual([]);
+    expect(capture.errors, `Hero detail profile-tab smoke errors:\n${capture.errors.join('\n')}`).toEqual([]);
   });
 });
 
@@ -397,21 +395,15 @@ test.describe('console chrome smoke', () => {
     await expect(drawer).toBeVisible();
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
 
-    await navigateViaCommandPalette(page, `Go to ${ROUTE_NAV_LABEL.launch}`);
+    await openHeroDetailTab(page, 'Launch options');
 
-    const profileSelect = page.locator('#launch-profile-selector');
-    await expect(profileSelect).toBeVisible();
-    await profileSelect.click();
-    await page.getByRole('option', { name: 'Test Game Alpha', exact: true }).click();
-    await expect(profileSelect).toContainText('Test Game Alpha');
-
-    await navigateViaCommandPalette(page, `Go to ${ROUTE_NAV_LABEL.profiles}`);
+    await openHeroDetailTab(page, 'Profiles');
 
     const gamePathField = page.getByLabel('Game Path', { exact: true });
     await expect(gamePathField).toBeVisible();
     await gamePathField.fill('/home/devuser/Games/TestGameAlpha/game.exe');
 
-    await navigateViaCommandPalette(page, `Go to ${ROUTE_NAV_LABEL.launch}`);
+    await openHeroDetailTab(page, 'Launch options');
 
     const launchGameButton = page.getByRole('button', { name: /^launch game$/i });
     await expect(launchGameButton).toBeEnabled();

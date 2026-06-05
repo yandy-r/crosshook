@@ -7,22 +7,22 @@ import { ROUTE_METADATA } from '../routeMetadata';
 describe('RouteBanner', () => {
   describe('without trail', () => {
     it('renders the static eyebrow text from ROUTE_METADATA', () => {
-      render(<RouteBanner route="launch" />);
+      render(<RouteBanner route="install" />);
 
-      const expectedEyebrow = ROUTE_METADATA.launch.sectionEyebrow;
+      const expectedEyebrow = ROUTE_METADATA.install.sectionEyebrow;
       expect(screen.getByText(expectedEyebrow)).toBeInTheDocument();
     });
 
     it('does not render a breadcrumb navigation element', () => {
-      render(<RouteBanner route="launch" />);
+      render(<RouteBanner route="install" />);
 
       expect(screen.queryByRole('navigation', { name: 'Breadcrumb' })).toBeNull();
     });
 
     it('renders the title heading', () => {
-      render(<RouteBanner route="launch" />);
+      render(<RouteBanner route="install" />);
 
-      expect(screen.getByRole('heading', { name: ROUTE_METADATA.launch.bannerTitle })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: ROUTE_METADATA.install.bannerTitle })).toBeInTheDocument();
     });
   });
 
@@ -30,27 +30,27 @@ describe('RouteBanner', () => {
     const trail: BreadcrumbSegment[] = [{ label: 'Library', onNavigate: vi.fn() }, { label: 'Test Game' }];
 
     it('renders the breadcrumb navigation element', () => {
-      render(<RouteBanner route="launch" trail={trail} />);
+      render(<RouteBanner route="install" trail={trail} />);
 
       expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toBeInTheDocument();
     });
 
     it('does not render the static eyebrow <p> element', () => {
-      const { container } = render(<RouteBanner route="launch" trail={trail} />);
+      const { container } = render(<RouteBanner route="install" trail={trail} />);
 
       expect(container.querySelector('p.crosshook-route-banner__eyebrow')).toBeNull();
     });
 
     it('still renders the title heading', () => {
-      render(<RouteBanner route="launch" trail={trail} />);
+      render(<RouteBanner route="install" trail={trail} />);
 
-      expect(screen.getByRole('heading', { name: ROUTE_METADATA.launch.bannerTitle })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: ROUTE_METADATA.install.bannerTitle })).toBeInTheDocument();
     });
 
     it('still renders the summary text', () => {
-      render(<RouteBanner route="launch" trail={trail} />);
+      render(<RouteBanner route="install" trail={trail} />);
 
-      expect(screen.getByText(ROUTE_METADATA.launch.bannerSummary)).toBeInTheDocument();
+      expect(screen.getByText(ROUTE_METADATA.install.bannerSummary)).toBeInTheDocument();
     });
   });
 

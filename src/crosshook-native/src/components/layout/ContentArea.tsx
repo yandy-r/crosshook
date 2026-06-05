@@ -13,9 +13,7 @@ import DiscoverPage from '../pages/DiscoverPage';
 import HealthDashboardPage from '../pages/HealthDashboardPage';
 import HostToolsPage from '../pages/HostToolsPage';
 import InstallPage from '../pages/InstallPage';
-import LaunchPage from '../pages/LaunchPage';
 import LibraryPage from '../pages/LibraryPage';
-import ProfilesPage from '../pages/ProfilesPage';
 import ProtonManagerPage from '../pages/ProtonManagerPage';
 import SettingsPage from '../pages/SettingsPage';
 import type { AppRoute } from './Sidebar';
@@ -37,7 +35,6 @@ export function ContentArea({
   libraryFilterIntent,
   onLibraryFilterChange,
   onOpenCommandPalette,
-  gameDetailOrigin,
   openGameDetailIntent,
 }: ContentAreaProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -57,12 +54,6 @@ export function ContentArea({
 
   function renderPage() {
     switch (route) {
-      case 'profiles':
-        // NOTE(hero-detail-consolidation): delete with Phase 10 route removal.
-        return <ProfilesPage origin={gameDetailOrigin} onNavigate={onNavigate} />;
-      case 'launch':
-        // NOTE(hero-detail-consolidation): delete with Phase 10 route removal.
-        return <LaunchPage origin={gameDetailOrigin} onNavigate={onNavigate} />;
       case 'install':
         return <InstallPage onNavigate={onNavigate} />;
       case 'community':
@@ -82,7 +73,6 @@ export function ContentArea({
       case 'library':
         return (
           <LibraryPage
-            onNavigate={onNavigate}
             libraryFilterIntent={libraryFilterIntent}
             onLibraryFilterChange={onLibraryFilterChange}
             onOpenCommandPalette={onOpenCommandPalette}

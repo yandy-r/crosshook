@@ -21,6 +21,19 @@ export const HERO_DETAIL_TABS: readonly { id: HeroDetailTabId; label: string }[]
   { id: 'compatibility', label: 'Compatibility' },
 ] as const;
 
+const VALID_HERO_DETAIL_TABS: Readonly<Record<HeroDetailTabId, true>> = {
+  overview: true,
+  profiles: true,
+  'launch-options': true,
+  trainer: true,
+  history: true,
+  compatibility: true,
+};
+
+export function isHeroDetailTabId(value: string): value is HeroDetailTabId {
+  return value in VALID_HERO_DETAIL_TABS;
+}
+
 /**
  * Stable `data-testid` values for Hero Detail tabs (Phase 1 scope: profiles, launch-options).
  * Note: tab id `launch-options` maps to the shortened testid `hero-detail-launch-tab` (not `hero-detail-launch-options-tab`).

@@ -173,7 +173,7 @@ describe('AppShell (integration)', () => {
     setInnerHeight(1080);
     const rectSpy = mockAppShellRect(1920, 1080);
     try {
-      renderWithMocks(<AppShellInAppProviders />);
+      renderWithMocks(<AppShellInAppProviders />, { handlerOverrides: NO_DATALIST_OVERRIDES });
 
       const sidebar = await screen.findByTestId('sidebar');
       const sidebarNav = within(sidebar);
@@ -463,13 +463,13 @@ describe('AppShell (integration)', () => {
     }
   });
 
-  it('shows breadcrumb with Library > game > Edit profile when navigating from game detail to Profiles', async () => {
+  it('keeps game detail open and selects Launch options when launching from game detail', async () => {
     const user = userEvent.setup();
     setInnerWidth(1920);
     setInnerHeight(1080);
     const rectSpy = mockAppShellRect(1920, 1080);
     try {
-      renderWithMocks(<AppShellInAppProviders />, { handlerOverrides: NO_DATALIST_OVERRIDES });
+      renderWithMocks(<AppShellInAppProviders />);
 
       await waitFor(() => {
         expect(screen.getByTestId('sidebar')).toBeInTheDocument();
@@ -481,92 +481,35 @@ describe('AppShell (integration)', () => {
       await user.click(screen.getByRole('button', { name: 'View details for Test Game Alpha' }));
 
       const gameDetail = await screen.findByTestId('game-detail');
-
-      await user.click(within(gameDetail).getByRole('button', { name: 'Edit profile' }));
-
-      await waitFor(() => {
-        expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toBeInTheDocument();
-      });
-
-      const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' });
-      expect(within(breadcrumb).getByRole('button', { name: 'Library' })).toBeInTheDocument();
-      expect(within(breadcrumb).getByRole('button', { name: 'Test Game Alpha' })).toBeInTheDocument();
-      expect(within(breadcrumb).getByText('Edit profile')).toBeInTheDocument();
-    } finally {
-      rectSpy.mockRestore();
-    }
-  });
-
-  it('navigates back to game detail when the game-name crumb is clicked (intent round-trip)', async () => {
-    const user = userEvent.setup();
-    setInnerWidth(1920);
-    setInnerHeight(1080);
-    const rectSpy = mockAppShellRect(1920, 1080);
-    try {
-      renderWithMocks(<AppShellInAppProviders />, { handlerOverrides: NO_DATALIST_OVERRIDES });
-
-      await waitFor(() => {
-        expect(screen.getByTestId('sidebar')).toBeInTheDocument();
-      });
-
-      const libraryTab = screen.getByRole('tab', { name: /^Library$/ });
-      await user.click(libraryTab);
-
-      await user.click(screen.getByRole('button', { name: 'View details for Test Game Alpha' }));
-
-      const gameDetail = await screen.findByTestId('game-detail');
-      await user.click(within(gameDetail).getByRole('button', { name: 'Edit profile' }));
-
-      const breadcrumb = await screen.findByRole('navigation', { name: 'Breadcrumb' });
-
-      await user.click(within(breadcrumb).getByRole('button', { name: 'Test Game Alpha' }));
+      await user.click(within(gameDetail).getByRole('button', { name: 'Launch' }));
 
       await waitFor(() => {
         expect(screen.getByTestId('game-detail')).toBeInTheDocument();
       });
+      expect(screen.getByTestId('hero-detail-launch-tab')).toBeVisible();
     } finally {
       rectSpy.mockRestore();
     }
   });
 
-  it('clears the breadcrumb when navigating to Profiles via command palette (plain navigation)', async () => {
+  it('does not expose deleted Profiles route command in the command palette', async () => {
     const user = userEvent.setup();
     setInnerWidth(1920);
     setInnerHeight(1080);
     const rectSpy = mockAppShellRect(1920, 1080);
     try {
-      renderWithMocks(<AppShellInAppProviders />, { handlerOverrides: NO_DATALIST_OVERRIDES });
+      renderWithMocks(<AppShellInAppProviders />);
 
       await waitFor(() => {
         expect(screen.getByTestId('sidebar')).toBeInTheDocument();
       });
 
-      // First establish an origin-backed breadcrumb: open a game's detail and edit its profile.
-      const libraryTab = screen.getByRole('tab', { name: /^Library$/ });
-      await user.click(libraryTab);
-
-      await user.click(screen.getByRole('button', { name: 'View details for Test Game Alpha' }));
-
-      const gameDetail = await screen.findByTestId('game-detail');
-      await user.click(within(gameDetail).getByRole('button', { name: 'Edit profile' }));
-
-      await waitFor(() => {
-        expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toBeInTheDocument();
-      });
-
-      // Navigate to Profiles via command palette (no origin) — use the exact title to avoid
-      // ambiguity with other commands that mention "profiles" in their subtitle/keywords.
       await user.keyboard('{Control>}k{/Control}');
       const search = await screen.findByRole('searchbox', { name: 'Search commands' });
-      await user.type(search, 'Go to Profiles');
-      await user.keyboard('{Enter}');
+      await user.type(search, `Go to ${'Profiles'}`);
 
-      // 'Profiles' is not in the sidebar (accessible via palette only); wait for its RouteBanner h1
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: 'Profiles' })).toBeInTheDocument();
-      });
-
-      expect(screen.queryByRole('navigation', { name: 'Breadcrumb' })).not.toBeInTheDocument();
+      expect(screen.getByRole('status')).toHaveTextContent('No commands found');
+      expect(screen.queryByRole('button', { name: new RegExp(`Go to ${'Profiles'}`, 'i') })).not.toBeInTheDocument();
     } finally {
       rectSpy.mockRestore();
     }

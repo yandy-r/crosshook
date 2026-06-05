@@ -6,12 +6,12 @@ import { ROUTE_METADATA } from '../routeMetadata';
 
 describe('Inspector', () => {
   it('renders data-testid on root aside', () => {
-    render(<Inspector route="profiles" width={320} />);
+    render(<Inspector route="settings" width={320} />);
     expect(screen.getByTestId('inspector')).toBeInTheDocument();
   });
 
   it('shows empty route copy when route has no inspector body', () => {
-    render(<Inspector route="profiles" width={320} />);
+    render(<Inspector route="settings" width={320} />);
     expect(screen.getByText('No inspector content for this route')).toBeInTheDocument();
   });
 

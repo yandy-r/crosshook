@@ -21,7 +21,7 @@ let lastWizardProps: Record<string, unknown> = {};
 vi.mock('@/components/OnboardingWizard', () => ({
   OnboardingWizard: (props: Record<string, unknown>) => {
     lastWizardProps = props;
-    return props['open'] ? <div role="dialog">Onboarding Wizard</div> : null;
+    return props.open ? <div role="dialog">Onboarding Wizard</div> : null;
   },
 }));
 
@@ -209,10 +209,10 @@ describe('HeroProfileCardList', () => {
     await user.click(screen.getByRole('button', { name: '+ New' }));
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(lastWizardProps['mode']).toBe('create');
-    expect(lastWizardProps['open']).toBe(true);
+    expect(lastWizardProps.mode).toBe('create');
+    expect(lastWizardProps.open).toBe(true);
 
-    const seed = lastWizardProps['createSeed'] as Record<string, unknown>;
+    const seed = lastWizardProps.createSeed as Record<string, unknown>;
     expect(seed.gameName).toBe('Synthetic Quest');
     expect(seed.steamAppId).toBe('9999001');
     expect(seed.coverArtPath).toBe('/media/cover.png');
@@ -225,7 +225,7 @@ describe('HeroProfileCardList', () => {
 
     await user.click(screen.getByRole('button', { name: '+ New' }));
 
-    const seed = lastWizardProps['createSeed'] as Record<string, unknown>;
+    const seed = lastWizardProps.createSeed as Record<string, unknown>;
     expect(seed.executablePath).toBe('/games/game.exe');
   });
 
@@ -235,7 +235,7 @@ describe('HeroProfileCardList', () => {
 
     await user.click(screen.getByRole('button', { name: '+ New' }));
 
-    const seed = lastWizardProps['createSeed'] as Record<string, unknown>;
+    const seed = lastWizardProps.createSeed as Record<string, unknown>;
     expect(seed.executablePath).toBeUndefined();
   });
 
@@ -246,7 +246,7 @@ describe('HeroProfileCardList', () => {
 
     await user.click(screen.getByRole('button', { name: '+ New' }));
 
-    const seed = lastWizardProps['createSeed'] as Record<string, unknown>;
+    const seed = lastWizardProps.createSeed as Record<string, unknown>;
     expect(seed.steamAppId).toBeUndefined();
   });
 
@@ -257,7 +257,7 @@ describe('HeroProfileCardList', () => {
     await user.click(screen.getByRole('button', { name: '+ New' }));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
 
-    const onComplete = lastWizardProps['onComplete'] as (name?: string) => void;
+    const onComplete = lastWizardProps.onComplete as (name?: string) => void;
     act(() => {
       onComplete('NewProfile');
     });
@@ -272,7 +272,7 @@ describe('HeroProfileCardList', () => {
 
     await user.click(screen.getByRole('button', { name: '+ New' }));
 
-    const onComplete = lastWizardProps['onComplete'] as (name?: string) => void;
+    const onComplete = lastWizardProps.onComplete as (name?: string) => void;
     act(() => {
       onComplete(undefined);
     });
@@ -287,7 +287,7 @@ describe('HeroProfileCardList', () => {
 
     await user.click(screen.getByRole('button', { name: '+ New' }));
 
-    const onDismiss = lastWizardProps['onDismiss'] as () => void;
+    const onDismiss = lastWizardProps.onDismiss as () => void;
     act(() => {
       onDismiss();
     });
@@ -302,7 +302,7 @@ describe('HeroProfileCardList', () => {
 
     await user.click(screen.getByRole('button', { name: '+ New' }));
 
-    const onDismiss = lastWizardProps['onDismiss'] as () => void;
+    const onDismiss = lastWizardProps.onDismiss as () => void;
     act(() => {
       onDismiss();
     });
@@ -330,7 +330,7 @@ describe('HeroProfileCardList', () => {
     await user.click(screen.getByRole('button', { name: 'Create profile' }));
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(lastWizardProps['mode']).toBe('create');
+    expect(lastWizardProps.mode).toBe('create');
   });
 
   it('does not render "Create profile" CTA when cards are present', () => {

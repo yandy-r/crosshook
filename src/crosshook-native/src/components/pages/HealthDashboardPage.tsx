@@ -5,6 +5,7 @@ import { useOfflineReadiness } from '../../hooks/useOfflineReadiness';
 import type { TrendDirection } from '../../hooks/useProfileHealth';
 import { useProtonMigration } from '../../hooks/useProtonMigration';
 import { useVersionCheck } from '../../hooks/useVersionCheck';
+import type { AppNavigateOptions } from '../../types/navigation';
 import { formatRelativeTime } from '../../utils/format';
 import { HealthBadge } from '../HealthBadge';
 import { DashboardPanelSection } from '../layout/DashboardPanelSection';
@@ -22,7 +23,11 @@ import { SortArrow, TableToolbar } from './health-dashboard/TableControls';
 import { useHealthDashboardState } from './health-dashboard/useHealthDashboardState';
 import { getVersionStatusColor, getVersionStatusLabel, mergeOfflineReadinessForRow } from './health-dashboard/utils';
 
-export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRoute) => void }) {
+export function HealthDashboardPage({
+  onNavigate,
+}: {
+  onNavigate?: (route: AppRoute, options?: AppNavigateOptions) => void;
+}) {
   const { summary, loading, error, batchValidate, cachedSnapshots, revalidateSingle, trendByName, staleInfoByName } =
     useProfileHealthContext();
   const { selectProfile } = useProfileContext();
@@ -43,6 +48,7 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
   const [isVersionScanning, setIsVersionScanning] = useState(false);
   const [versionScanProgress, setVersionScanProgress] = useState<{ done: number; total: number } | null>(null);
+  const [navigationFallback, setNavigationFallback] = useState<string | null>(null);
 
   const {
     sortField,
@@ -65,8 +71,21 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
   } = useHealthDashboardState({ summary, loading, error, batchValidate, cachedSnapshots });
 
   async function handleFixNavigation(profileName: string) {
-    await selectProfile(profileName);
-    onNavigate?.('profiles');
+    try {
+      await selectProfile(profileName, { throwOnFailure: true });
+      setNavigationFallback(null);
+      onNavigate?.('library', {
+        openGameDetail: profileName,
+        profileName,
+        heroDetailTab: 'profiles',
+      });
+    } catch (err) {
+      setNavigationFallback(
+        err instanceof Error
+          ? err.message
+          : `Could not open ${profileName}. The profile may have been removed from the library.`
+      );
+    }
   }
 
   async function handleFixProtonPaths() {
@@ -154,6 +173,12 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
             </div>
           )}
 
+          {navigationFallback !== null ? (
+            <div role="status" className="crosshook-health-dashboard-error crosshook-panel">
+              <p>{navigationFallback}</p>
+            </div>
+          ) : null}
+
           <DashboardPanelSection
             eyebrow="Health overview"
             title="Monitor profile readiness across launch, version, and offline checks"
@@ -214,8 +239,8 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
             {isEmpty && (
               <div className="crosshook-health-dashboard-empty crosshook-panel">
                 <p>No profiles configured yet.</p>
-                <button type="button" className="crosshook-button" onClick={() => onNavigate?.('profiles')}>
-                  Go to Profiles
+                <button type="button" className="crosshook-button" onClick={() => onNavigate?.('library')}>
+                  Go to Library
                 </button>
               </div>
             )}

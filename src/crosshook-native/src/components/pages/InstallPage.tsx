@@ -5,6 +5,7 @@ import { useProfileContext } from '../../context/ProfileContext';
 import { useProtonInstalls } from '../../hooks/useProtonInstalls';
 import type { GameProfile } from '../../types';
 import type { InstallProfileReviewPayload } from '../../types/install';
+import type { AppNavigateOptions } from '../../types/navigation';
 import type { ProfileReviewSession } from '../../types/profile-review';
 import { profilesEqual } from '../../utils/profile-compare';
 import InstallGamePanel from '../InstallGamePanel';
@@ -23,7 +24,7 @@ type ReviewConfirmationState = ProfileReviewModalConfirmation & {
 };
 
 export interface InstallPageProps {
-  onNavigate?: (route: AppRoute) => void;
+  onNavigate?: (route: AppRoute, options?: AppNavigateOptions) => void;
 }
 
 function updateProfileReviewSession(
@@ -286,7 +287,11 @@ export function InstallPage({ onNavigate }: InstallPageProps) {
     }
 
     setProfileReviewSession(null);
-    onNavigate?.('profiles');
+    onNavigate?.('library', {
+      openGameDetail: profileNameTrimmed,
+      profileName: profileNameTrimmed,
+      heroDetailTab: 'profiles',
+    });
   }
 
   const reviewDirty = useMemo(
@@ -312,7 +317,7 @@ export function InstallPage({ onNavigate }: InstallPageProps) {
         'The review draft is still incomplete. Select the final executable before saving, and the draft will stay open until you finish.';
     } else {
       reviewDescription =
-        `${profileReviewSession.installMessage} Saving persists the profile and returns you to the Profiles view.`.trim();
+        `${profileReviewSession.installMessage} Saving persists the profile and opens its Library details.`.trim();
     }
 
     if (profileReviewSession.saveError) {

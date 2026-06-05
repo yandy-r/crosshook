@@ -13,6 +13,30 @@ export async function navigateViaCommandPalette(page: Page, commandTitle: string
   await expect(page.locator('[role="dialog"]')).toHaveCount(0);
 }
 
+export async function openLibraryHeroDetail(page: Page, profileName = 'Test Game Alpha'): Promise<void> {
+  const libraryTab = page.getByRole('tab', { name: 'Library', exact: true });
+  await expect(libraryTab).toBeVisible();
+  await libraryTab.click();
+  await expect(libraryTab).toHaveAttribute('aria-current', 'page');
+
+  await page.getByRole('button', { name: `View details for ${profileName}` }).click();
+  await expect(page.getByTestId('game-detail')).toBeVisible();
+}
+
+export async function openHeroDetailTab(
+  page: Page,
+  tabName: 'Launch options' | 'Profiles',
+  profileName = 'Test Game Alpha'
+): Promise<void> {
+  if (!(await page.getByTestId('game-detail').isVisible().catch(() => false))) {
+    await openLibraryHeroDetail(page, profileName);
+  }
+  const tab = page.getByTestId('game-detail').getByRole('tab', { name: tabName, exact: true });
+  await expect(tab).toBeVisible();
+  await tab.click();
+  await expect(tab).toHaveAttribute('aria-selected', 'true');
+}
+
 /** Resolves after `main.tsx` assigns `window.__CROSSHOOK_DEV__` (dev + Playwright only). */
 export async function waitForCrosshookDevIpc(page: Page): Promise<void> {
   await page.waitForFunction(() => Boolean(window.__CROSSHOOK_DEV__?.callCommand));

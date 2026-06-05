@@ -67,8 +67,6 @@ export function filterCommandPaletteCommands(
 
 const ROUTE_TITLES: Record<AppRoute, string> = {
   library: 'Go to Library',
-  profiles: 'Go to Profiles',
-  launch: 'Go to Launch',
   install: 'Go to Install & Run',
   community: 'Go to Browse',
   discover: 'Go to Discover',
@@ -81,8 +79,6 @@ const ROUTE_TITLES: Record<AppRoute, string> = {
 
 const ROUTE_KEYWORDS: Record<AppRoute, readonly string[]> = {
   library: ['games', 'browse'],
-  profiles: ['editor', 'profile'],
-  launch: ['run', 'play'],
   install: ['setup', 'exe', 'msi'],
   community: ['community', 'taps'],
   discover: ['search', 'trainers'],
@@ -95,8 +91,6 @@ const ROUTE_KEYWORDS: Record<AppRoute, readonly string[]> = {
 
 const ROUTE_ICON: Record<AppRoute, CommandPaletteIconId> = {
   library: 'library',
-  profiles: 'profiles',
-  launch: 'launch',
   install: 'install',
   community: 'browse',
   discover: 'discover',
@@ -109,8 +103,6 @@ const ROUTE_ICON: Record<AppRoute, CommandPaletteIconId> = {
 
 const ROUTE_SUBTITLE: Record<AppRoute, string> = {
   library: 'Browse your saved profiles, favorites, and launch shortcuts in one place.',
-  profiles: 'Create, select, and maintain profiles for each game and trainer setup.',
-  launch: 'Run the game or trainer with the active profile’s launch configuration.',
   install: 'Install games, apply updates, or run an arbitrary Windows EXE or MSI without committing it.',
   community: 'Search shared profiles from your taps and import them into your library.',
   discover: 'Search community trainer sources linked from CrossHook (external sites only).',
@@ -145,7 +137,7 @@ export function createProfileCommands(activeProfileName: string): readonly Comma
       action: 'launch_profile',
       profileName: trimmed,
       title: `Launch ${trimmed}`,
-      subtitle: 'Load the selected profile and switch to Launch.',
+      subtitle: 'Load the selected profile and open Library launch options.',
       keywords: ['run', 'active profile'],
       icon: 'launch',
       hint: 'Active profile',
@@ -155,7 +147,7 @@ export function createProfileCommands(activeProfileName: string): readonly Comma
       action: 'edit_profile',
       profileName: trimmed,
       title: `Edit ${trimmed}`,
-      subtitle: 'Load the selected profile in the Profiles editor.',
+      subtitle: 'Load the selected profile in Library profile details.',
       keywords: ['profiles', 'active profile'],
       icon: 'profiles',
       hint: 'Active profile',

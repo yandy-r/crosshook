@@ -2,8 +2,9 @@ import { useLaunchSubTabsProps } from '../../hooks/launch/useLaunchSubTabsProps'
 import type { AppNavigateOptions, GameDetailOrigin } from '../../types/navigation';
 import LaunchPanel from '../LaunchPanel';
 import { LaunchSubTabs } from '../LaunchSubTabs';
+import { Breadcrumb } from '../layout/Breadcrumb';
 import { buildGameDetailTrail } from '../layout/game-detail-trail';
-import { RouteBanner } from '../layout/RouteBanner';
+import { LaunchArt } from '../layout/PageBanner';
 import type { AppRoute } from '../layout/Sidebar';
 import { LaunchDepGateModal } from './launch/LaunchDepGateModal';
 import { LaunchProfileSelector } from './launch/LaunchProfileSelector';
@@ -47,11 +48,31 @@ export function LaunchPage({ origin, onNavigate }: LaunchPageProps = {}) {
     resolvedSteamAppId,
     hasSavedSelectedProfile,
   });
+  const trail = buildGameDetailTrail(origin, onNavigate, 'Launch');
 
   return (
     <div className="crosshook-page-scroll-shell crosshook-page-scroll-shell--fill crosshook-page-scroll-shell--launch">
       <div className="crosshook-route-stack crosshook-launch-page__grid">
-        <RouteBanner route="launch" trail={buildGameDetailTrail(origin, onNavigate, 'Launch')} />
+        <section className="crosshook-route-banner crosshook-panel" aria-labelledby="crosshook-legacy-launch-title">
+          <div className="crosshook-route-banner__inner">
+            <div className="crosshook-route-banner__body">
+              {trail && trail.length > 0 ? (
+                <Breadcrumb segments={trail} className="crosshook-route-banner__eyebrow" />
+              ) : (
+                <p className="crosshook-route-banner__eyebrow crosshook-heading-eyebrow">Game</p>
+              )}
+              <h1 id="crosshook-legacy-launch-title" className="crosshook-route-banner__title">
+                Launch
+              </h1>
+              <p className="crosshook-route-banner__summary crosshook-heading-copy">
+                Run the game or trainer with the active profile's launch configuration.
+              </p>
+            </div>
+            <div className="crosshook-route-banner__icon" aria-hidden="true">
+              <LaunchArt />
+            </div>
+          </div>
+        </section>
         <LaunchPanel
           profileId={profileId}
           method={profileState.launchMethod}

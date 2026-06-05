@@ -15,12 +15,12 @@ import {
   type LibraryViewMode,
   libraryCardDataEqual,
 } from '../../types/library';
-import type { AppNavigateOptions, LibraryFilterIntent, OpenGameDetailIntent } from '../../types/navigation';
+import type { LibraryFilterIntent, OpenGameDetailIntent } from '../../types/navigation';
 import { CollectionAssignMenu } from '../collections/CollectionAssignMenu';
 import { CollectionEditModal } from '../collections/CollectionEditModal';
 import { RouteBanner } from '../layout/RouteBanner';
-import type { AppRoute } from '../layout/Sidebar';
 import { GameDetail } from '../library/GameDetail';
+import type { HeroDetailTabId } from '../library/hero-detail-model';
 import { LibraryGrid } from '../library/LibraryGrid';
 import { LibraryList } from '../library/LibraryList';
 import { LibraryToolbar } from '../library/LibraryToolbar';
@@ -34,7 +34,6 @@ function loadViewMode(): LibraryViewMode {
 }
 
 interface LibraryPageProps {
-  onNavigate?: (route: AppRoute, options?: AppNavigateOptions) => void;
   libraryFilterIntent?: LibraryFilterIntent | null;
   openGameDetailIntent?: OpenGameDetailIntent | null;
   onLibraryFilterChange?: (key: LibraryFilterKey) => void;
@@ -42,7 +41,6 @@ interface LibraryPageProps {
 }
 
 export function LibraryPage({
-  onNavigate,
   libraryFilterIntent,
   openGameDetailIntent,
   onLibraryFilterChange,
@@ -63,11 +61,7 @@ export function LibraryPage({
     loading: activeCollectionMembersLoading,
   } = useCollectionMembers(activeCollectionId);
 
-  const {
-    summaries,
-    setSummaries,
-    loading: summariesLoading,
-  } = useLibrarySummaries(profiles, favoriteProfiles, activeCollectionId);
+  const { summaries, setSummaries } = useLibrarySummaries(profiles, favoriteProfiles, activeCollectionId);
   const libraryHasNoProfiles = !profilesLoading && profiles.length === 0;
   const { healthByName, loading: healthLoading } = useProfileHealthContext();
   const { setInspectorSelection, setLibraryInspectorHandlers, setLibraryShellMode } = useInspectorSelection();
@@ -76,6 +70,7 @@ export function LibraryPage({
   const [pageMode, setPageMode] = useState<'library' | 'detail'>('library');
   const [detailName, setDetailName] = useState<string | null>(null);
   const [detailSummarySnapshot, setDetailSummarySnapshot] = useState<LibraryCardData | null>(null);
+  const [requestedDetailTab, setRequestedDetailTab] = useState<HeroDetailTabId | undefined>();
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<LibraryViewMode>(loadViewMode);
   const [sortBy, setSortBy] = useState<LibrarySortKey>('recent');
@@ -159,7 +154,25 @@ export function LibraryPage({
     setInspectorPickName(name);
   }, []);
 
-  // Launch handler: select profile then navigate to launch page.
+  // Favorite handler: optimistic update
+  const handleOpenGameDetail = useCallback(
+    async (name: string, heroDetailTab?: HeroDetailTabId) => {
+      const card = summaries.find((s) => s.name === name);
+      if (!card) {
+        return;
+      }
+      setDetailSummarySnapshot(card);
+      setDetailName(name);
+      setRequestedDetailTab(heroDetailTab);
+      setInspectorPickName(name);
+      setPageMode('detail');
+      setLibraryShellMode('detail');
+      await selectProfile(name);
+    },
+    [selectProfile, summaries, setLibraryShellMode]
+  );
+
+  // Launch handler: select profile then open the Hero Detail launch tab.
   //
   // When an `activeCollectionId` is set globally (e.g. from the sidebar or a
   // recently-opened CollectionViewModal) AND the launched profile is actually
@@ -183,46 +196,21 @@ export function LibraryPage({
         const profileIsInActiveCollection = membersReady && activeCollectionMemberNamesRef.current.includes(name);
         const collectionIdForLoad = profileIsInActiveCollection ? (currentCollectionId ?? undefined) : undefined;
         await selectProfile(name, { collectionId: collectionIdForLoad });
-        const card = summaries.find((s) => s.name === name);
-        // NOTE(hero-detail-consolidation): delete with Phase 10 route removal.
-        onNavigate?.('launch', {
-          gameDetailOrigin: { profileName: name, displayName: card ? card.gameName || card.name : name },
-        });
+        await handleOpenGameDetail(name, 'launch-options');
       } finally {
         setLaunchingName(undefined);
       }
     },
-    [selectProfile, onNavigate, summaries]
+    [handleOpenGameDetail, selectProfile]
   );
 
-  // Edit handler: select profile then navigate to profiles page
+  // Edit handler: select profile then open the Hero Detail profiles tab.
   const handleEdit = useCallback(
     async (name: string) => {
       await selectProfile(name);
-      const card = summaries.find((s) => s.name === name);
-      // NOTE(hero-detail-consolidation): delete with Phase 10 route removal.
-      onNavigate?.('profiles', {
-        gameDetailOrigin: { profileName: name, displayName: card ? card.gameName || card.name : name },
-      });
+      await handleOpenGameDetail(name, 'profiles');
     },
-    [selectProfile, onNavigate, summaries]
-  );
-
-  // Favorite handler: optimistic update
-  const handleOpenGameDetail = useCallback(
-    async (name: string) => {
-      const card = summaries.find((s) => s.name === name);
-      if (!card) {
-        return;
-      }
-      setDetailSummarySnapshot(card);
-      setDetailName(name);
-      setInspectorPickName(name);
-      setPageMode('detail');
-      setLibraryShellMode('detail');
-      await selectProfile(name);
-    },
-    [selectProfile, summaries, setLibraryShellMode]
+    [handleOpenGameDetail, selectProfile]
   );
 
   const handledOpenGameDetailTokenRef = useRef<number | null>(null);
@@ -238,7 +226,7 @@ export function LibraryPage({
       return; // R6: unknown profile — drop the intent silently
     }
     handledOpenGameDetailTokenRef.current = openGameDetailIntent.token;
-    void handleOpenGameDetail(openGameDetailIntent.profileName);
+    void handleOpenGameDetail(openGameDetailIntent.profileName, openGameDetailIntent.heroDetailTab);
   }, [openGameDetailIntent, handleOpenGameDetail, summaries]);
 
   const handleBackFromDetail = useCallback(() => {
@@ -246,6 +234,7 @@ export function LibraryPage({
     setLibraryShellMode('library');
     setDetailName(null);
     setDetailSummarySnapshot(null);
+    setRequestedDetailTab(undefined);
   }, [setLibraryShellMode]);
 
   const handleCardContextMenu = useCallback(
@@ -419,7 +408,6 @@ export function LibraryPage({
                         onEdit={handleEdit}
                         onToggleFavorite={handleToggleFavorite}
                         launchingName={launchingName}
-                        onNavigate={onNavigate}
                         onAddGame={handleOpenAddGame}
                         hasNoProfiles={libraryHasNoProfiles}
                         onContextMenu={handleCardContextMenu}
@@ -434,7 +422,6 @@ export function LibraryPage({
                         onEdit={handleEdit}
                         onToggleFavorite={handleToggleFavorite}
                         launchingName={launchingName}
-                        onNavigate={onNavigate}
                         onAddGame={handleOpenAddGame}
                         hasNoProfiles={libraryHasNoProfiles}
                         onContextMenu={handleCardContextMenu}
@@ -454,6 +441,7 @@ export function LibraryPage({
                     onEdit={handleEdit}
                     onToggleFavorite={handleToggleFavorite}
                     launchingName={launchingName}
+                    requestedTab={requestedDetailTab}
                   />
                 ) : null}
               </div>

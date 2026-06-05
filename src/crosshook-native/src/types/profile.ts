@@ -342,8 +342,8 @@ export interface SerializedDuplicateProfileResult extends Omit<DuplicateProfileR
  *
  * Mirrors the Rust `CollectionDefaultsSection` struct in
  * `crates/crosshook-core/src/profile/models.rs`. The field set matches what the
- * inline editor inside `<CollectionViewModal>` exposes; users wanting to edit
- * `presets` / `active_preset` use the "Open in Profiles page →" link-out.
+ * inline editor inside `<CollectionViewModal>` exposes; profile-level
+ * `presets` / `active_preset` are edited from Library Hero Detail.
  *
  * Semantics:
  * - `undefined` (or absent) for any optional field means "inherit from the

@@ -2,8 +2,6 @@ import type { AppRoute } from '@/components/layout/Sidebar';
 
 const VALID_APP_ROUTES: Record<AppRoute, true> = {
   library: true,
-  profiles: true,
-  launch: true,
   install: true,
   community: true,
   discover: true,
