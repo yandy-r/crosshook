@@ -34,13 +34,15 @@ function launchStatusLabel(status: string): string {
 function HeroSection({ selection }: { selection: SelectedGame }) {
   const title = selection.gameName || selection.name;
   return (
-    <section className="crosshook-game-inspector__section" aria-labelledby="crosshook-game-inspector-hero-title">
-      <h2 id="crosshook-game-inspector-hero-title" className="crosshook-game-inspector__eyebrow">
-        Overview
-      </h2>
-      <p className="crosshook-game-inspector__title">{title}</p>
-      <p className="crosshook-game-inspector__subtitle">Profile: {selection.name}</p>
-    </section>
+    <header className="crosshook-inspector-hero crosshook-panel" aria-labelledby="crosshook-game-inspector-hero-title">
+      <div className="crosshook-inspector-hero__body">
+        <p className="crosshook-inspector-hero__eyebrow crosshook-heading-eyebrow">Overview</p>
+        <h2 id="crosshook-game-inspector-hero-title" className="crosshook-inspector-hero__title">
+          {title}
+        </h2>
+        <p className="crosshook-inspector-hero__subtitle">Profile: {selection.name}</p>
+      </div>
+    </header>
   );
 }
 
@@ -237,25 +239,31 @@ function RecentLaunchesSection({ selection }: { selection: SelectedGame }) {
 export default function GameInspector({ selection, onLaunch, onEditProfile, onToggleFavorite }: GameInspectorProps) {
   if (selection == null) {
     return (
-      <p className="crosshook-game-inspector__empty" role="status">
-        Select a game to see details
-      </p>
+      <div className="crosshook-inspector__body">
+        <p className="crosshook-game-inspector__empty" role="status">
+          Select a game to see details
+        </p>
+      </div>
     );
   }
 
   return (
-    <div className="crosshook-game-inspector">
+    <>
       <HeroSection selection={selection} />
-      <PillsSection selection={selection} />
-      <QuickActionsSection
-        selection={selection}
-        onLaunch={onLaunch}
-        onEditProfile={onEditProfile}
-        onToggleFavorite={onToggleFavorite}
-      />
-      <ActiveProfileSection selection={selection} />
-      <RecentLaunchesSection selection={selection} />
-      <HealthSection selection={selection} />
-    </div>
+      <div className="crosshook-inspector__body">
+        <div className="crosshook-game-inspector">
+          <PillsSection selection={selection} />
+          <QuickActionsSection
+            selection={selection}
+            onLaunch={onLaunch}
+            onEditProfile={onEditProfile}
+            onToggleFavorite={onToggleFavorite}
+          />
+          <ActiveProfileSection selection={selection} />
+          <RecentLaunchesSection selection={selection} />
+          <HealthSection selection={selection} />
+        </div>
+      </div>
+    </>
   );
 }

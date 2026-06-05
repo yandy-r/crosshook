@@ -60,6 +60,9 @@
   padding: 0 var(--crosshook-page-padding) var(--crosshook-page-padding);
   display: flex;
   flex-direction: column;
+  box-shadow:
+    inset 1px 0 0 rgba(255, 255, 255, 0.02),
+    inset -1px 0 0 rgba(255, 255, 255, 0.02);
 }
 
 .crosshook-content-viewport {
@@ -299,6 +302,10 @@
     height: calc(100dvh - var(--crosshook-page-padding));
     max-height: calc(100dvh - var(--crosshook-page-padding));
   }
+
+  .crosshook-inspector {
+    padding-top: max(10px, var(--crosshook-page-padding));
+  }
 }
 
 /* Inspector rail (Phase 4 unified desktop) */
@@ -309,8 +316,19 @@
   display: flex;
   flex-direction: column;
   border-left: 1px solid var(--crosshook-color-border);
-  background: var(--crosshook-color-surface-strong);
   box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.02);
+  /* Align hero banner top with sidebar brand + route banner (see .crosshook-page-scroll-shell--fill) */
+  padding: var(--crosshook-page-padding) 14px 20px;
+  box-sizing: border-box;
+}
+
+/* Shell columns — shared surface so main content matches sidebar + inspector rails */
+.crosshook-sidebar,
+.crosshook-content-area,
+.crosshook-inspector {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 26%),
+    var(--crosshook-color-surface-strong);
 }
 
 .crosshook-inspector--collapsed {
@@ -323,7 +341,6 @@
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 12px 14px 20px;
 }
 
 .crosshook-inspector__error,

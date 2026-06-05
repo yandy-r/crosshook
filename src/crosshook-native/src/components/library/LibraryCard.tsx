@@ -219,28 +219,6 @@ export function LibraryCard({
           <button
             type="button"
             className="crosshook-library-card__btn--glass"
-            aria-label={profile.isFavorite ? `Unfavorite ${displayName}` : `Favorite ${displayName}`}
-            aria-pressed={profile.isFavorite}
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleFavorite(profile.name, profile.isFavorite);
-            }}
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 20 20"
-              fill={profile.isFavorite ? 'currentColor' : 'none'}
-              stroke="currentColor"
-              strokeWidth="1.5"
-              aria-hidden="true"
-            >
-              <path d="M10 17.5S2 13 2 7.5A4 4 0 0 1 10 5.1 4 4 0 0 1 18 7.5C18 13 10 17.5 10 17.5z" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            className="crosshook-library-card__btn--glass"
             aria-label={`Edit ${displayName}`}
             onClick={(e) => {
               e.stopPropagation();
@@ -259,6 +237,28 @@ export function LibraryCard({
               aria-hidden="true"
             >
               <path d="M14.5 2.5l3 3L6 17H3v-3z" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            className="crosshook-library-card__btn--glass"
+            aria-label={profile.isFavorite ? `Unfavorite ${displayName}` : `Favorite ${displayName}`}
+            aria-pressed={profile.isFavorite}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFavorite(profile.name, profile.isFavorite);
+            }}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 20 20"
+              fill={profile.isFavorite ? 'currentColor' : 'none'}
+              stroke="currentColor"
+              strokeWidth="1.5"
+              aria-hidden="true"
+            >
+              <path d="M10 17.5S2 13 2 7.5A4 4 0 0 1 10 5.1 4 4 0 0 1 18 7.5C18 13 10 17.5 10 17.5z" />
             </svg>
           </button>
         </div>

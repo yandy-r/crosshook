@@ -45,22 +45,22 @@ export function Inspector({ route, selection, width, onLaunch, onEditProfile, on
       data-crosshook-focus-zone="inspector"
       aria-label="CrossHook inspector"
     >
-      <div className="crosshook-inspector__body">
-        {InspectorComponent == null ? (
+      {InspectorComponent == null ? (
+        <div className="crosshook-inspector__body">
           <p className="crosshook-inspector__empty-route" role="status">
             No inspector content for this route
           </p>
-        ) : (
-          <InspectorErrorBoundary key={`${route}-${selection?.name ?? 'none'}`}>
-            <InspectorComponent
-              selection={selection}
-              onLaunch={onLaunch}
-              onEditProfile={onEditProfile}
-              onToggleFavorite={onToggleFavorite}
-            />
-          </InspectorErrorBoundary>
-        )}
-      </div>
+        </div>
+      ) : (
+        <InspectorErrorBoundary key={`${route}-${selection?.name ?? 'none'}`}>
+          <InspectorComponent
+            selection={selection}
+            onLaunch={onLaunch}
+            onEditProfile={onEditProfile}
+            onToggleFavorite={onToggleFavorite}
+          />
+        </InspectorErrorBoundary>
+      )}
     </aside>
   );
 }
