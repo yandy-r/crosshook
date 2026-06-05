@@ -38,7 +38,7 @@ let lastWizardProps: Record<string, unknown> = {};
 vi.mock('@/components/OnboardingWizard', () => ({
   OnboardingWizard: (props: Record<string, unknown>) => {
     lastWizardProps = props;
-    return props['open'] ? <div role="dialog">Onboarding Wizard</div> : null;
+    return props.open ? <div role="dialog">Onboarding Wizard</div> : null;
   },
 }));
 
@@ -143,8 +143,14 @@ vi.mock('@/components/library/profiles/HeroProfileActionsBar', () => ({
 }));
 
 vi.mock('@/components/library/profiles/HeroProfileEditorSections', () => ({
-  HeroProfileEditorSections: (props: { launcherExportSlot?: import('react').ReactNode }) => (
-    <div data-testid="hero-profile-editor-sections">{props.launcherExportSlot ?? null}</div>
+  HeroProfileEditorSections: (props: {
+    launcherExportSlot?: import('react').ReactNode;
+    runtimeSectionRef?: import('react').RefObject<HTMLDivElement>;
+  }) => (
+    <div data-testid="hero-profile-editor-sections">
+      <div ref={props.runtimeSectionRef} data-testid="hero-detail-runtime-section" />
+      {props.launcherExportSlot ?? null}
+    </div>
   ),
 }));
 
@@ -462,6 +468,22 @@ describe('HeroDetailProfilesTab', () => {
     expect(screen.getByTestId('launcher-export-panel')).toBeInTheDocument();
   });
 
+  it('scrolls the runtime section into view when requested and consumes the target', async () => {
+    const onScrollTargetConsumed = vi.fn();
+    const scrollIntoViewSpy = vi.spyOn(window.HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {});
+
+    try {
+      renderProfilesTab({ scrollTarget: 'runtime', onScrollTargetConsumed });
+
+      await waitFor(() => {
+        expect(scrollIntoViewSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+        expect(onScrollTargetConsumed).toHaveBeenCalledTimes(1);
+      });
+    } finally {
+      scrollIntoViewSpy.mockRestore();
+    }
+  });
+
   it('does not render the LauncherExport panel when launch method is native', () => {
     contextState = buildContextState({
       profile: makeProfileDraft({
@@ -518,7 +540,7 @@ describe('HeroDetailProfilesTab', () => {
       expect(screen.getByRole('dialog')).toBeInTheDocument();
 
       // Simulate wizard completing with a new profile name
-      const onComplete = lastWizardProps['onComplete'] as (name?: string) => void;
+      const onComplete = lastWizardProps.onComplete as (name?: string) => void;
       act(() => {
         onComplete('BrandNewProfile');
       });
@@ -542,7 +564,7 @@ describe('HeroDetailProfilesTab', () => {
       expect(screen.getByRole('dialog')).toBeInTheDocument();
 
       // Dismiss the wizard
-      const onDismiss = lastWizardProps['onDismiss'] as () => void;
+      const onDismiss = lastWizardProps.onDismiss as () => void;
       act(() => {
         onDismiss();
       });
@@ -566,15 +588,15 @@ describe('HeroDetailProfilesTab', () => {
 
       await user.click(screen.getByRole('button', { name: /\+ new/i }));
 
-      expect(lastWizardProps['mode']).toBe('create');
-      expect(lastWizardProps['open']).toBe(true);
+      expect(lastWizardProps.mode).toBe('create');
+      expect(lastWizardProps.open).toBe(true);
 
-      const seed = lastWizardProps['createSeed'] as Record<string, unknown>;
+      const seed = lastWizardProps.createSeed as Record<string, unknown>;
       expect(seed).toBeDefined();
       // gameName from summary fixture
-      expect(seed['gameName']).toBe(summary.gameName);
+      expect(seed.gameName).toBe(summary.gameName);
       // steamAppId is the numeric string from the fixture
-      expect(seed['steamAppId']).toBe(summary.steamAppId);
+      expect(seed.steamAppId).toBe(summary.steamAppId);
     });
 
     it('smoke: wizard stays open when onComplete is never called', async () => {
@@ -585,7 +607,7 @@ describe('HeroDetailProfilesTab', () => {
 
       // onComplete is never invoked — wizard remains open
       expect(screen.getByRole('dialog')).toBeInTheDocument();
-      expect(lastWizardProps['open']).toBe(true);
+      expect(lastWizardProps.open).toBe(true);
     });
   });
 });

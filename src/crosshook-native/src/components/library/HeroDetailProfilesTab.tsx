@@ -12,6 +12,7 @@ import { resolveArtAppId } from '@/utils/art';
 import { resolveLaunchMethod } from '@/utils/launch';
 import { LauncherExport } from '../LauncherExport';
 import { useProfilesPageProton } from '../pages/profiles/useProfilesPageProton';
+import type { HeroDetailProfilesScrollTarget } from './hero-detail-model';
 import { HeroProfileActionsBar } from './profiles/HeroProfileActionsBar';
 import { HeroProfileCardList } from './profiles/HeroProfileCardList';
 import { HeroProfileEditorSections } from './profiles/HeroProfileEditorSections';
@@ -23,6 +24,8 @@ export interface HeroDetailProfilesTabProps {
   loadState: GameDetailsProfileLoadState;
   profileError: string | null;
   healthByName?: Partial<Record<string, EnrichedProfileHealthReport>>;
+  scrollTarget?: HeroDetailProfilesScrollTarget | null;
+  onScrollTargetConsumed?: () => void;
 }
 
 function ownsProfile(profileNames: Set<string>, selectedProfile: string): boolean {
@@ -35,6 +38,8 @@ export function HeroDetailProfilesTab({
   loadState,
   profileError,
   healthByName,
+  scrollTarget,
+  onScrollTargetConsumed,
 }: HeroDetailProfilesTabProps) {
   const {
     profile,
@@ -108,6 +113,7 @@ export function HeroDetailProfilesTab({
 
   // Ref for health-issues scroll target (per-card badge click)
   const healthIssuesRef = useRef<HTMLDivElement>(null);
+  const runtimeSectionRef = useRef<HTMLDivElement>(null);
 
   // Steam App ID for GameMetadataBar
   const steamAppId = resolveArtAppId(profile) || summary.steamAppId || undefined;
@@ -119,6 +125,14 @@ export function HeroDetailProfilesTab({
   // Shared action hook — handles duplicate / rename / preview / community-export /
   // history panel / mark-verified state, handlers, and F2 keyboard shortcut.
   const actions = useProfileActions({ setPendingLauncherReExport });
+
+  useEffect(() => {
+    if (scrollTarget !== 'runtime' || !runtimeSectionRef.current) {
+      return;
+    }
+    runtimeSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    onScrollTargetConsumed?.();
+  }, [onScrollTargetConsumed, scrollTarget]);
 
   useEffect(() => {
     if (cards.length === 0 || singletonOwnsGame) {
@@ -229,6 +243,7 @@ export function HeroDetailProfilesTab({
               showNetworkIsolationBadge={showNetworkIsolationBadge}
               versionStatus={versionStatus ?? undefined}
               healthIssuesRef={healthIssuesRef}
+              runtimeSectionRef={runtimeSectionRef}
               suggestion={protonState.suggestion}
               suggestionDismissed={protonState.suggestionDismissed}
               suggestionInstallError={protonState.suggestionInstallError}

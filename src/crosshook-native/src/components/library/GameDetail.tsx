@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePreferencesContext } from '@/context/PreferencesContext';
 import { useProfileContext } from '@/context/ProfileContext';
 import { useGameCoverArt } from '@/hooks/useGameCoverArt';
@@ -14,7 +14,7 @@ import { buildProfileLaunchRequest, resolveLaunchMethod } from '@/utils/launch';
 import { effectiveGameArtPath } from '@/utils/profile-art';
 import { HeroDetailHeader } from './HeroDetailHeader';
 import { HeroDetailTabs } from './HeroDetailTabs';
-import type { HeroDetailTabId } from './hero-detail-model';
+import type { HeroDetailProfilesScrollTarget, HeroDetailTabId, HeroDetailTabRequestOptions } from './hero-detail-model';
 import { resolveGameDetailsHero } from './hero-detail-model';
 
 export interface GameDetailProps {
@@ -43,6 +43,7 @@ export function GameDetail({
   launchingName,
 }: GameDetailProps) {
   const [activeTab, setActiveTab] = useState<HeroDetailTabId>('overview');
+  const [profilesScrollTarget, setProfilesScrollTarget] = useState<HeroDetailProfilesScrollTarget | null>(null);
   const fallbackDetailsProfile = useGameDetailsProfile(summary.name, true);
   const { settings, defaultSteamClientInstallPath } = usePreferencesContext();
   const ctx = useProfileContext();
@@ -170,6 +171,22 @@ export function GameDetail({
   const healthReport = healthByName[summary.name];
   const offlineReport = offlineReportFor(summary.name);
 
+  const handleSetActiveTab = useCallback((tab: HeroDetailTabId, options?: HeroDetailTabRequestOptions) => {
+    setProfilesScrollTarget(tab === 'profiles' ? (options?.profilesScrollTarget ?? null) : null);
+    setActiveTab(tab);
+  }, []);
+
+  const handleActiveTabChange = useCallback((tab: HeroDetailTabId) => {
+    if (tab !== 'profiles') {
+      setProfilesScrollTarget(null);
+    }
+    setActiveTab(tab);
+  }, []);
+
+  const handleProfilesScrollTargetConsumed = useCallback(() => {
+    setProfilesScrollTarget(null);
+  }, []);
+
   const panelProps = useMemo(
     () => ({
       summary,
@@ -192,8 +209,9 @@ export function GameDetail({
       onLaunch,
       launchingName,
       displayProfileName,
-      // TODO(#470 phase-7): replace `undefined` with the real expression and add it to this useMemo dependency array.
-      onSetActiveTab: undefined,
+      onSetActiveTab: handleSetActiveTab,
+      profilesScrollTarget,
+      onProfilesScrollTargetConsumed: handleProfilesScrollTargetConsumed,
     }),
     [
       summary,
@@ -216,6 +234,9 @@ export function GameDetail({
       onLaunch,
       launchingName,
       displayProfileName,
+      handleSetActiveTab,
+      profilesScrollTarget,
+      handleProfilesScrollTargetConsumed,
     ]
   );
 
@@ -241,7 +262,7 @@ export function GameDetail({
         onToggleFavorite={onToggleFavorite}
       />
       <div className="crosshook-hero-detail__body">
-        <HeroDetailTabs activeTab={activeTab} onActiveTabChange={setActiveTab} panelProps={panelProps} />
+        <HeroDetailTabs activeTab={activeTab} onActiveTabChange={handleActiveTabChange} panelProps={panelProps} />
       </div>
     </div>
   );
