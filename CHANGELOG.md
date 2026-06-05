@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 This file is generated with `git-cliff` from the repository history and release tags.
 
+## [v0.3.1] - 2026-06-05
+
+### Build
+
+- **native:** Upgrade deps for Tauri 2.11 and TypeScript 6 ([#500](https://github.com/yandy-r/crosshook/issues/500)) ([`3f56204`](https://github.com/yandy-r/crosshook/commit/3f56204ddc605dfda53d7bea3e1b1a1a0eae1d07))
+
 ## [v0.3.0] - 2026-06-05
 
 ### Bug Fixes
@@ -43,6 +49,8 @@ This file is generated with `git-cliff` from the repository history and release 
 - **ui:** Route wheel scroll to active ancestor ([`91af59b`](https://github.com/yandy-r/crosshook/commit/91af59b95a9faf3a357777b57975a5eb98856b97))
 
 - **profiles:** Stabilize auto-load after refresh ([#498](https://github.com/yandy-r/crosshook/issues/498)) ([`a2e48ac`](https://github.com/yandy-r/crosshook/commit/a2e48ac0cf56d11d98999f52a8fac8787eae3faa))
+
+- **ui:** Strip dev-mock sentinel from production bundle ([`6a41595`](https://github.com/yandy-r/crosshook/commit/6a41595a8d758c186945e5fda96f21553639516e))
 
 ### CI
 
