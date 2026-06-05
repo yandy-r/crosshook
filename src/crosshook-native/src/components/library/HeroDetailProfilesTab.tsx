@@ -11,12 +11,12 @@ import type { LibraryCardData, ProfileSummary } from '@/types/library';
 import { resolveArtAppId } from '@/utils/art';
 import { resolveLaunchMethod } from '@/utils/launch';
 import { LauncherExport } from '../LauncherExport';
-import { useProfilesPageProton } from '../pages/profiles/useProfilesPageProton';
 import type { HeroDetailProfilesScrollTarget } from './hero-detail-model';
 import { HeroProfileActionsBar } from './profiles/HeroProfileActionsBar';
 import { HeroProfileCardList } from './profiles/HeroProfileCardList';
 import { HeroProfileEditorSections } from './profiles/HeroProfileEditorSections';
 import { useHeroProfilesAutosave } from './profiles/useHeroProfilesAutosave';
+import { useProfilesPageProton } from './profiles/useProfilesPageProton';
 
 export interface HeroDetailProfilesTabProps {
   summary: LibraryCardData;

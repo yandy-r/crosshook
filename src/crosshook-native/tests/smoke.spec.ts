@@ -7,6 +7,8 @@ import {
   navigateViaCommandPalette,
   openHeroDetailTab,
   openLibraryHeroDetail,
+  removeMockProfileVariant,
+  seedMockProfileVariant,
   seedMockProfileRunning,
   waitForCrosshookDevIpc,
 } from './navigation-helpers';
@@ -105,7 +107,7 @@ test.describe('browser dev mode smoke', () => {
         ).toBeVisible();
         await expect(
           activeTabPanel.locator(
-            '.crosshook-dashboard-route-body, .crosshook-host-tool-dashboard, .crosshook-install-page-tabs, .crosshook-settings-panel, .crosshook-community-browser, .crosshook-discovery-panel, .crosshook-profiles-page__body, .crosshook-launch-page__grid'
+            '.crosshook-dashboard-route-body, .crosshook-host-tool-dashboard, .crosshook-install-page-tabs, .crosshook-settings-panel, .crosshook-community-browser, .crosshook-discovery-panel'
           )
         ).toBeVisible();
       }
@@ -118,6 +120,22 @@ test.describe('browser dev mode smoke', () => {
       expect(capture.errors, `Uncaught errors on route "${route}":\n${capture.errors.join('\n')}`).toEqual([]);
     });
   }
+});
+
+test.describe('appRoute regression guard', () => {
+  test('sidebar exposes no Profiles or Launch route tabs', async ({ page }) => {
+    const capture = attachConsoleCapture(page);
+
+    await page.goto('/?fixture=populated');
+
+    const sidebar = page.getByTestId('sidebar');
+    await expect(sidebar).toBeVisible();
+    await expect(sidebar.getByRole('tab', { name: 'Profiles', exact: true })).toHaveCount(0);
+    await expect(sidebar.getByRole('tab', { name: 'Launch', exact: true })).toHaveCount(0);
+    await expect(sidebar.getByRole('tab', { name: 'Library', exact: true })).toBeVisible();
+
+    expect(capture.errors, `appRoute guard errors:\n${capture.errors.join('\n')}`).toEqual([]);
+  });
 });
 
 test.describe('library inspector', () => {
@@ -232,6 +250,9 @@ test.describe('library sidebar quick filters', () => {
       'aria-pressed',
       'true'
     );
+    await expect(
+      page.locator('.crosshook-library-toolbar').getByRole('button', { name: 'Favorites', exact: true })
+    ).toHaveAttribute('aria-pressed', 'true');
 
     const currentlyPlaying = sidebar.getByRole('button', { name: 'Currently Playing', exact: true });
     await expect(currentlyPlaying).toBeVisible();
@@ -327,6 +348,59 @@ test.describe('Library hero detail panel smoke', () => {
     await expect(breadcrumb).toContainText('Test Game Alpha');
 
     expect(capture.errors, `Hero detail profile-tab smoke errors:\n${capture.errors.join('\n')}`).toEqual([]);
+  });
+
+  test('profiles card switch stays in Library and hero Launch registers output', async ({ page }) => {
+    const capture = attachConsoleCapture(page);
+    const variantName = 'Test Game Alpha - Modded';
+
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.goto('/?fixture=populated');
+    await waitForCrosshookDevIpc(page);
+
+    try {
+      await openLibraryHeroDetail(page, 'Test Game Alpha');
+      await seedMockProfileVariant(page, variantName, 'Test Game Alpha');
+
+      const gameDetail = page.getByTestId('game-detail');
+      const libraryTab = page.getByRole('tab', { name: 'Library', exact: true });
+      await expect(libraryTab).toHaveAttribute('aria-current', 'page');
+
+      await openHeroDetailTab(page, 'Profiles');
+      const profileCards = gameDetail.getByRole('list', { name: 'Profile cards' }).locator('> li');
+      await expect(profileCards).toHaveCount(2);
+
+      const secondCard = gameDetail.getByRole('button', {
+        name: `${variantName} - Test Game Alpha`,
+        exact: true,
+      });
+      await secondCard.click();
+      await expect(secondCard).toHaveAttribute('aria-current', 'true');
+      await expect(secondCard.getByText('Active', { exact: true })).toBeVisible();
+      await expect(gameDetail.getByRole('heading', { level: 3, name: variantName })).toBeVisible();
+
+      const heroLaunchButton = gameDetail
+        .locator('.crosshook-hero-detail__quick-actions')
+        .getByRole('button', { name: 'Launch', exact: true });
+      await expect(heroLaunchButton).toBeEnabled();
+      await heroLaunchButton.click();
+      await expect(gameDetail.getByRole('tab', { name: 'Launch options', exact: true })).toHaveAttribute(
+        'aria-selected',
+        'true'
+      );
+      await expect(gameDetail.getByRole('heading', { name: 'Launch command' })).toBeVisible();
+
+      const launchGameButton = gameDetail.getByRole('button', { name: 'Launch Game', exact: true });
+      await expect(launchGameButton).toBeEnabled();
+      await launchGameButton.click();
+
+      await expect(page.getByText(/^[1-9][0-9]* lines?$/)).toBeVisible();
+      await expect(libraryTab).toHaveAttribute('aria-current', 'page');
+    } finally {
+      await removeMockProfileVariant(page, variantName);
+    }
+
+    expect(capture.errors, `Hero detail card-switch launch errors:\n${capture.errors.join('\n')}`).toEqual([]);
   });
 });
 

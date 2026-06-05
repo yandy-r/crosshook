@@ -43,6 +43,7 @@ export async function waitForCrosshookDevIpc(page: Page): Promise<void> {
 }
 
 export async function seedMockProfileRunning(page: Page, profileName: string, running: boolean): Promise<void> {
+  await waitForCrosshookDevIpc(page);
   await page.evaluate(
     async ({ name, isRunning }) => {
       await window.__CROSSHOOK_DEV__?.callCommand<null>('_mock_set_profile_running', {
@@ -52,4 +53,26 @@ export async function seedMockProfileRunning(page: Page, profileName: string, ru
     },
     { name: profileName, isRunning: running }
   );
+}
+
+export async function seedMockProfileVariant(page: Page, profileName: string, gameName: string): Promise<void> {
+  await waitForCrosshookDevIpc(page);
+  await page.evaluate(
+    async ({ name, game }) => {
+      await window.__CROSSHOOK_DEV__?.callCommand<null>('_mock_add_profile', {
+        profileName: name,
+        gameName: game,
+      });
+    },
+    { name: profileName, game: gameName }
+  );
+}
+
+export async function removeMockProfileVariant(page: Page, profileName: string): Promise<void> {
+  await waitForCrosshookDevIpc(page);
+  await page.evaluate(async (name) => {
+    await window.__CROSSHOOK_DEV__?.callCommand<null>('_mock_remove_profile', {
+      profileName: name,
+    });
+  }, profileName);
 }

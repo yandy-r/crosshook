@@ -1,8 +1,8 @@
 import type { ComponentProps, RefObject } from 'react';
 
-import ConfigHistoryPanel from '../../ConfigHistoryPanel';
-import { OnboardingWizard } from '../../OnboardingWizard';
-import ProfilePreviewModal from '../../ProfilePreviewModal';
+import ConfigHistoryPanel from '@/components/ConfigHistoryPanel';
+import { OnboardingWizard } from '@/components/OnboardingWizard';
+import ProfilePreviewModal from '@/components/ProfilePreviewModal';
 
 interface PendingDeleteInfo {
   name: string;

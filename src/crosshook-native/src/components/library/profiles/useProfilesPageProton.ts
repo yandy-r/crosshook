@@ -1,11 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { CommunityIndexedProfileRow } from '@/hooks/profile/profileNotificationConstants';
+import { resolveProtonUpProviderForVersion, useProtonUp } from '@/hooks/useProtonUp';
 import { callCommand } from '@/lib/ipc';
+import type { ProtonInstallOption } from '@/types/proton';
+import type { ProtonUpSuggestion } from '@/types/protonup';
 
-import { resolveProtonUpProviderForVersion, useProtonUp } from '../../../hooks/useProtonUp';
-import type { ProtonInstallOption } from '../../../types/proton';
-import type { ProtonUpSuggestion } from '../../../types/protonup';
-import type { CommunityIndexedProfileRow } from './constants';
-import { sortProtonInstalls } from './utils';
+function sortProtonInstalls(installs: ProtonInstallOption[]): ProtonInstallOption[] {
+  return [...installs].sort((left, right) => {
+    if (left.is_official !== right.is_official) {
+      return left.is_official ? -1 : 1;
+    }
+
+    return left.name.localeCompare(right.name) || left.path.localeCompare(right.path);
+  });
+}
 
 interface UseProfilesPageProtonArgs {
   effectiveSteamClientInstallPath: string;

@@ -32,39 +32,6 @@ export function LibraryArt() {
   );
 }
 
-export function ProfilesArt() {
-  return (
-    <svg {...SVG_DEFAULTS} aria-hidden="true">
-      {/* Layered cards */}
-      <rect x="14" y="16" width="40" height="40" rx="6" opacity={0.15} />
-      <rect x="10" y="12" width="40" height="40" rx="6" opacity={0.4} />
-      {/* Avatar head */}
-      <circle cx="30" cy="26" r="6" opacity={0.4} />
-      {/* Avatar shoulders */}
-      <path d="M20 42 a10 10 0 0 1 20 0" opacity={0.4} />
-      {/* Accent dot */}
-      <circle cx="50" cy="48" r="2" fill="currentColor" opacity={0.25} stroke="none" />
-    </svg>
-  );
-}
-
-export function LaunchArt() {
-  return (
-    <svg {...SVG_DEFAULTS} aria-hidden="true">
-      {/* Outer halo ring */}
-      <circle cx="34" cy="32" r="22" opacity={0.18} />
-      {/* Play triangle */}
-      <path d="M24 16 L50 32 L24 48 Z" opacity={0.4} />
-      {/* Motion lines on left */}
-      <line x1="8" y1="22" x2="16" y2="22" opacity={0.3} />
-      <line x1="6" y1="32" x2="16" y2="32" opacity={0.35} />
-      <line x1="8" y1="42" x2="16" y2="42" opacity={0.3} />
-      {/* Center accent */}
-      <circle cx="34" cy="32" r="2" fill="currentColor" opacity={0.25} stroke="none" />
-    </svg>
-  );
-}
-
 export function InstallArt() {
   return (
     <svg {...SVG_DEFAULTS} aria-hidden="true">

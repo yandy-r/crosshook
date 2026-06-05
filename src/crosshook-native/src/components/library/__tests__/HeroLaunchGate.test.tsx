@@ -42,7 +42,7 @@ vi.mock('@/context/LaunchStateContext', () => ({
 // ── Hook mocks ────────────────────────────────────────────────────────────────
 
 const useLaunchDepGateMock = vi.fn();
-vi.mock('@/components/pages/launch/useLaunchDepGate', () => ({
+vi.mock('@/components/library/launch/useLaunchDepGate', () => ({
   useLaunchDepGate: (opts: unknown) => useLaunchDepGateMock(opts),
 }));
 
@@ -126,7 +126,7 @@ vi.mock('@/components/launch-panel/LaunchPanelFeedback', () => ({
   ),
 }));
 
-vi.mock('@/components/pages/launch/LaunchDepGateModal', () => ({
+vi.mock('@/components/library/launch/LaunchDepGateModal', () => ({
   LaunchDepGateModal: (props: { depGate: { depGatePackages: string[] | null } }) =>
     props.depGate.depGatePackages ? (
       <div role="dialog" aria-label="dep-gate-modal">

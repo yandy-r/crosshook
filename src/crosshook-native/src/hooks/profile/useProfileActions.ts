@@ -18,11 +18,11 @@
  */
 import { useCallback, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
-import { suggestedCommunityExportFilename } from '../../components/pages/profiles/utils';
 import { useProfileContext } from '../../context/ProfileContext';
 import { useProfileHealthContext } from '../../context/ProfileHealthContext';
 import { chooseSaveFile } from '../../utils/dialog';
 import type { CommunityExportResult } from '../useCommunityProfiles';
+import { suggestedCommunityExportFilename } from './communityExport';
 import { useProfileNotifications } from './useProfileNotifications';
 
 // ---------------------------------------------------------------------------

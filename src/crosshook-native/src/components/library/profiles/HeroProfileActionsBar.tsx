@@ -28,7 +28,7 @@ import {
 } from '@/hooks/useAcknowledgeVersionChange';
 import type { VersionCorrelationStatus } from '@/types/version';
 import type { ConfigHistoryPanel } from '../../ConfigHistoryPanel';
-import { ProfilesOverlays } from '../../pages/profiles/ProfilesOverlays';
+import { ProfilesOverlays } from './ProfilesOverlays';
 
 // ---------------------------------------------------------------------------
 // Types
