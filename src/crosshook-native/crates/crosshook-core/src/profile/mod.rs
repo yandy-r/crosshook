@@ -36,8 +36,9 @@ pub use models::{
     RuntimeSection, SteamSection, TrainerLoadingMode, TrainerSection,
 };
 pub use toml_store::{
-    bundled_optimization_preset_toml_key, profile_to_shareable_toml, DuplicateProfileResult,
-    ProfileStore, ProfileStoreError,
+    bundled_optimization_preset_toml_key, profile_to_shareable_toml,
+    profile_to_shareable_toml_with_options, DuplicateProfileResult, ProfileStore,
+    ProfileStoreError, ShareableTomlOptions,
 };
 pub mod health;
 pub mod mangohud;

@@ -24,6 +24,13 @@ pub(super) fn validate_manual_launch_preset_name(raw: &str) -> Result<String, Pr
     Ok(name.to_string())
 }
 
+/// Controls whether sensitive launch hook paths are included in shareable TOML.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ShareableTomlOptions {
+    /// When false (default), hook tables are stripped before serialization.
+    pub include_hooks: bool,
+}
+
 /// Serializes a `GameProfile` to a valid TOML string with comment headers
 /// indicating where to save the file for sharing.
 ///
@@ -33,7 +40,20 @@ pub fn profile_to_shareable_toml(
     name: &str,
     profile: &GameProfile,
 ) -> Result<String, toml::ser::Error> {
-    let toml_body = toml::to_string_pretty(profile)?;
+    profile_to_shareable_toml_with_options(name, profile, ShareableTomlOptions::default())
+}
+
+pub fn profile_to_shareable_toml_with_options(
+    name: &str,
+    profile: &GameProfile,
+    options: ShareableTomlOptions,
+) -> Result<String, toml::ser::Error> {
+    let mut profile = profile.clone();
+    if !options.include_hooks {
+        profile.pre_launch_hooks.clear();
+        profile.post_exit_hooks.clear();
+    }
+    let toml_body = toml::to_string_pretty(&profile)?;
     Ok(format!(
         "# CrossHook Profile: {name}\n\
          # https://github.com/yandy-r/crosshook\n\

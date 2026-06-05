@@ -5,8 +5,8 @@ use crate::profile::models::{resolve_launch_method, GameProfile};
 use crate::profile::toml_store::ProfileStore;
 
 use super::checks::{
-    check_file_path, check_optional_path, check_required_directory, check_required_executable,
-    check_required_file,
+    check_enabled_hook_path, check_file_path, check_optional_path, check_required_directory,
+    check_required_executable, check_required_file,
 };
 use super::types::{
     HealthCheckSummary, HealthIssue, HealthIssueSeverity, HealthStatus, ProfileHealthReport,
@@ -101,6 +101,25 @@ pub fn check_profile_health(name: &str, profile: &GameProfile) -> ProfileHealthR
         &effective_profile.runtime.working_directory,
     ) {
         issues.push(issue);
+    }
+
+    for (index, hook) in effective_profile.pre_launch_hooks.iter().enumerate() {
+        if hook.enabled {
+            if let Some(issue) =
+                check_enabled_hook_path(&format!("pre_launch_hooks[{index}].path"), &hook.path)
+            {
+                issues.push(issue);
+            }
+        }
+    }
+    for (index, hook) in effective_profile.post_exit_hooks.iter().enumerate() {
+        if hook.enabled {
+            if let Some(issue) =
+                check_enabled_hook_path(&format!("post_exit_hooks[{index}].path"), &hook.path)
+            {
+                issues.push(issue);
+            }
+        }
     }
 
     // Determine overall status.

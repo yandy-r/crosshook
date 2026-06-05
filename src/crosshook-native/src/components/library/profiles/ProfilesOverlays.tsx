@@ -23,6 +23,9 @@ interface ProfilesOverlaysProps {
   pendingRename: string | null;
   previewContent: string;
   profileName: string;
+  previewHooksStripped: boolean;
+  previewIncludeHooksPending: boolean;
+  onIncludeHooksInPreview: () => void | Promise<void>;
   renameError: string | null;
   renameInputRef: RefObject<HTMLInputElement>;
   renameNameTrimmed: string;
@@ -58,6 +61,9 @@ export function ProfilesOverlays({
   pendingRename,
   previewContent,
   profileName,
+  previewHooksStripped,
+  previewIncludeHooksPending,
+  onIncludeHooksInPreview,
   renameError,
   renameInputRef,
   renameNameTrimmed,
@@ -205,7 +211,14 @@ export function ProfilesOverlays({
       ) : null}
 
       {showProfilePreview ? (
-        <ProfilePreviewModal tomlContent={previewContent} profileName={profileName} onClose={onClosePreview} />
+        <ProfilePreviewModal
+          tomlContent={previewContent}
+          profileName={profileName}
+          hooksStripped={previewHooksStripped}
+          includeHooksPending={previewIncludeHooksPending}
+          onIncludeHooks={onIncludeHooksInPreview}
+          onClose={onClosePreview}
+        />
       ) : null}
 
       {showHistoryPanel && selectedProfile ? (

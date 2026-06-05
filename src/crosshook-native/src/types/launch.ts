@@ -1,7 +1,7 @@
 import type { ResolvedLaunchMethod } from '../utils/launch';
 import type { DiagnosticReport } from './diagnostics';
 import type { LaunchOptimizations } from './launch-optimizations';
-import type { GamescopeConfig, LaunchMethod, MangoHudConfig, TrainerLoadingMode } from './profile';
+import type { GamescopeConfig, LaunchHook, LaunchMethod, MangoHudConfig, TrainerLoadingMode } from './profile';
 import type { UmuPreference } from './settings';
 
 /** Tone for the auto-save status indicator shared across Launch page tabs. */
@@ -59,6 +59,8 @@ export interface LaunchRequest {
   gamescope: GamescopeConfig;
   trainer_gamescope?: GamescopeConfig;
   mangohud: MangoHudConfig;
+  pre_launch_hooks?: LaunchHook[];
+  post_exit_hooks?: LaunchHook[];
 }
 
 export type LaunchValidationSeverity = 'fatal' | 'warning' | 'info';
@@ -73,6 +75,11 @@ export interface LaunchValidationIssue {
   trainer_hash_current?: string;
   /** Community manifest expected digest when `code` is `trainer_hash_community_mismatch`. */
   trainer_sha256_community?: string;
+  hook_id?: string;
+  hook_name?: string;
+  hook_stage?: LaunchHook['stage'];
+  hook_exit_code?: number;
+  hook_timed_out?: boolean;
 }
 
 export type LaunchFeedback =
@@ -104,6 +111,25 @@ export function isLaunchValidationIssue(value: unknown): value is LaunchValidati
     return false;
   }
   if (candidate.trainer_sha256_community !== undefined && typeof candidate.trainer_sha256_community !== 'string') {
+    return false;
+  }
+  if (candidate.hook_id !== undefined && typeof candidate.hook_id !== 'string') {
+    return false;
+  }
+  if (candidate.hook_name !== undefined && typeof candidate.hook_name !== 'string') {
+    return false;
+  }
+  if (
+    candidate.hook_stage !== undefined &&
+    candidate.hook_stage !== 'pre-launch' &&
+    candidate.hook_stage !== 'post-exit'
+  ) {
+    return false;
+  }
+  if (candidate.hook_exit_code !== undefined && typeof candidate.hook_exit_code !== 'number') {
+    return false;
+  }
+  if (candidate.hook_timed_out !== undefined && typeof candidate.hook_timed_out !== 'boolean') {
     return false;
   }
   return true;

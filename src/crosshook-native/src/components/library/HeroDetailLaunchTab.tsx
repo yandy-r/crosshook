@@ -112,7 +112,7 @@ export function HeroDetailLaunchTab({
       <DashboardPanelSection title="Pre/post hooks" titleAs="h3" className="crosshook-hero-detail__section">
         <div className="crosshook-hero-detail__hooks-stack">
           <div className="crosshook-hero-detail__hook-banner">
-            <p>These hooks are saved to your profile. Runtime execution is coming in a future release.</p>
+            <p>Enabled hooks run locally around launch. Failures warn and do not block launch by default.</p>
             <a href="https://github.com/yandy-r/crosshook/issues/482" target="_blank" rel="noreferrer">
               Track runtime
             </a>

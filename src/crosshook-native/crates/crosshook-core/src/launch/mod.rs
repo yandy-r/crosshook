@@ -5,6 +5,7 @@ use crate::profile::GamescopeConfig;
 pub mod catalog;
 pub mod diagnostics;
 pub mod env;
+pub mod hooks;
 pub mod mangohud_presets;
 pub mod optimizations;
 pub mod preview;
@@ -25,6 +26,10 @@ pub use diagnostics::{analyze, should_surface_report, DiagnosticReport};
 pub use env::{
     BUILTIN_LAUNCH_OPTIMIZATION_ENV_VARS, PASSTHROUGH_DISPLAY_VARS, REQUIRED_PROTON_VARS,
     WINE_ENV_VARS_TO_CLEAR,
+};
+pub use hooks::{
+    build_launch_hook_execution_context, run_post_exit_hooks, run_pre_launch_hooks,
+    LaunchHookExecutionContext, DEFAULT_HOOK_TIMEOUT,
 };
 pub use optimizations::{
     build_steam_launch_options_command, escape_steam_token, is_known_launch_optimization_id,

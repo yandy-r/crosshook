@@ -52,7 +52,10 @@ export interface UseProfileActionsResult {
   previewError: string | null;
   showProfilePreview: boolean;
   profilePreviewContent: string;
+  profilePreviewHooksStripped: boolean;
+  profileHasConfiguredHooks: boolean;
   handlePreviewProfile: () => Promise<void>;
+  handleIncludeHooksInPreview: () => Promise<void>;
   handleCloseProfilePreview: () => void;
 
   // --- Community export ---
@@ -133,6 +136,10 @@ export function useProfileActions({ setPendingLauncherReExport }: UseProfileActi
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [showProfilePreview, setShowProfilePreview] = useState(false);
   const [profilePreviewContent, setProfilePreviewContent] = useState('');
+  const [profilePreviewHooksStripped, setProfilePreviewHooksStripped] = useState(false);
+
+  const profileHasConfiguredHooks =
+    (profile.pre_launch_hooks?.length ?? 0) > 0 || (profile.post_exit_hooks?.length ?? 0) > 0;
 
   // --- Community export state ---
   const [exportingCommunity, setExportingCommunity] = useState(false);
@@ -231,10 +238,33 @@ export function useProfileActions({ setPendingLauncherReExport }: UseProfileActi
       const toml = await callCommand<string>('profile_export_toml', {
         name: profileName,
         data: profile,
+        include_hooks: false,
       });
       setProfilePreviewContent(toml);
+      setProfilePreviewHooksStripped(profileHasConfiguredHooks);
       setPreviewError(null);
       setShowProfilePreview(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('Profile preview failed:', err);
+      setPreviewError(message);
+    } finally {
+      setPreviewing(false);
+    }
+  }, [profile, profileHasConfiguredHooks, profileName]);
+
+  const handleIncludeHooksInPreview = useCallback(async () => {
+    setPreviewing(true);
+    setPreviewError(null);
+    try {
+      const toml = await callCommand<string>('profile_export_toml', {
+        name: profileName,
+        data: profile,
+        include_hooks: true,
+      });
+      setProfilePreviewContent(toml);
+      setProfilePreviewHooksStripped(false);
+      setPreviewError(null);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error('Profile preview failed:', err);
@@ -246,6 +276,7 @@ export function useProfileActions({ setPendingLauncherReExport }: UseProfileActi
 
   const handleCloseProfilePreview = useCallback(() => {
     setShowProfilePreview(false);
+    setProfilePreviewHooksStripped(false);
     setPreviewError(null);
   }, []);
 
@@ -274,7 +305,10 @@ export function useProfileActions({ setPendingLauncherReExport }: UseProfileActi
     previewError,
     showProfilePreview,
     profilePreviewContent,
+    profilePreviewHooksStripped,
+    profileHasConfiguredHooks,
     handlePreviewProfile,
+    handleIncludeHooksInPreview,
     handleCloseProfilePreview,
 
     // Community export

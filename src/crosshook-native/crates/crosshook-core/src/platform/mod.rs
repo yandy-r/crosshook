@@ -17,7 +17,7 @@ mod xdg;
 pub use detect::{is_flatpak, normalize_flatpak_host_path};
 pub use gateway::{
     host_command, host_command_exists, host_command_with_env, host_command_with_env_and_directory,
-    host_std_command, host_std_command_with_env,
+    host_std_command, host_std_command_with_env, host_std_command_with_env_and_directory,
 };
 pub use host_fs::{
     host_path_is_dir, host_path_is_executable_file, host_path_is_file, host_read_dir_names,

@@ -4,8 +4,8 @@ use std::process::ExitStatus;
 
 use crosshook_core::launch::diagnostics::FailureMode;
 use crosshook_core::launch::{
-    analyze, diagnostics::MAX_LOG_TAIL_BYTES, should_surface_report, SessionKind, TeardownReason,
-    ValidationSeverity,
+    analyze, diagnostics::MAX_LOG_TAIL_BYTES, run_post_exit_hooks, should_surface_report,
+    SessionKind, TeardownReason, ValidationSeverity,
 };
 use crosshook_core::metadata::VersionCorrelationStatus;
 use crosshook_core::steam::discover_steam_root_candidates;
@@ -460,6 +460,18 @@ fn finalize_launch_session(context: &LaunchStreamContext) {
                 "launch session: cascading LinkedSessionExit to trainer children"
             );
         }
+    }
+
+    for warning in run_post_exit_hooks(
+        &context.hook_context.post_exit_hooks,
+        &context.hook_context.execution_context,
+    ) {
+        tracing::warn!(
+            hook_id = warning.hook_id.as_deref().unwrap_or(""),
+            code = warning.code.as_deref().unwrap_or(""),
+            message = %warning.message,
+            "post-exit launch hook warning"
+        );
     }
 
     registry.deregister(session_id);

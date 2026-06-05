@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::profile::{GamescopeConfig, MangoHudConfig, TrainerLoadingMode};
+use crate::profile::{GamescopeConfig, LaunchHook, MangoHudConfig, TrainerLoadingMode};
 use crate::settings::UmuPreference;
 
 pub const METHOD_STEAM_APPLAUNCH: &str = "steam_applaunch";
@@ -62,6 +62,10 @@ pub struct LaunchRequest {
     pub trainer_gamescope: Option<GamescopeConfig>,
     #[serde(default, skip_serializing_if = "MangoHudConfig::is_default")]
     pub mangohud: MangoHudConfig,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pre_launch_hooks: Vec<LaunchHook>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub post_exit_hooks: Vec<LaunchHook>,
 }
 
 pub type SteamLaunchRequest = LaunchRequest;
