@@ -1,8 +1,9 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { launchOptimizationsAutosaveDelayMs } from '@/hooks/profile/constants';
 import { makeLaunchPreview, makeLaunchRequest, makeLibraryCardData, makeProfileDraft } from '@/test/fixtures';
-import type { GameProfile } from '@/types/profile';
+import type { GameProfile, LaunchHook } from '@/types/profile';
 import { HeroDetailLaunchTab } from '../HeroDetailLaunchTab';
 
 const profileContextMock = vi.fn();
@@ -29,7 +30,7 @@ vi.mock('@/hooks/useLauncherExport', () => ({
 }));
 
 // Mock HeroLaunchGate so the shell test only exercises HeroDetailLaunchTab's
-// own layout: the gate section, and the hooks placeholder.
+// own layout: the gate section, and the hooks editor.
 // The mock forwards onPreviewLaunch (Dry-run) so we can verify it is wired
 // through from HeroDetailLaunchTab without exercising the full gate logic.
 vi.mock('../launch/HeroLaunchGate', () => ({
@@ -76,6 +77,17 @@ function makeProfile(overrides: Partial<GameProfile> = {}): GameProfile {
   });
 }
 
+function makeHook(overrides: Partial<LaunchHook> = {}): LaunchHook {
+  return {
+    id: 'hook-1',
+    name: 'Backup saves',
+    path: '/home/dev/scripts/backup-saves.sh',
+    stage: 'pre-launch',
+    enabled: true,
+    ...overrides,
+  };
+}
+
 function renderLaunchTab(
   props: Partial<React.ComponentProps<typeof HeroDetailLaunchTab>> = {},
   profileOverrides: Partial<GameProfile> = {}
@@ -95,7 +107,7 @@ function renderLaunchTab(
     settings: { umu_preference: 'auto' },
   });
 
-  return render(
+  const view = render(
     <HeroDetailLaunchTab
       summary={makeLibraryCardData()}
       launchRequest={makeLaunchRequest()}
@@ -106,6 +118,7 @@ function renderLaunchTab(
       {...props}
     />
   );
+  return { ...view, profile };
 }
 
 describe('HeroDetailLaunchTab', () => {
@@ -130,15 +143,23 @@ describe('HeroDetailLaunchTab', () => {
     consoleErrorSpy.mockRestore();
   });
 
-  it('renders the launch gate, sub-tabs host, and hooks sections', () => {
+  it('renders the launch gate, sub-tabs host, and live hooks sections', () => {
     renderLaunchTab();
 
     const headings = screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent);
     expect(headings).toContain('Launch command');
     expect(headings).toContain('Pre/post hooks');
     expect(screen.getByTestId('hero-launch-subtabs-host')).toBeInTheDocument();
-    expect(screen.getByText('No pre/post hooks configured yet')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Add hook (not yet available)' })).toBeDisabled();
+    expect(
+      screen.getByText('These hooks are saved to your profile. Runtime execution is coming in a future release.')
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Track runtime' })).toHaveAttribute(
+      'href',
+      'https://github.com/yandy-r/crosshook/issues/482'
+    );
+    expect(screen.getByRole('heading', { name: 'Pre-launch hooks' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Post-exit hooks' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: '+ Attach script or DLL' })).toHaveLength(2);
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
@@ -175,6 +196,89 @@ describe('HeroDetailLaunchTab', () => {
       });
 
       expect(persistProfileDraftSpy).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('adds a pre-launch hook and persists through the profile draft save path', async () => {
+    vi.useFakeTimers();
+    try {
+      const { profile } = renderLaunchTab();
+
+      fireEvent.click(screen.getAllByRole('button', { name: '+ Attach script or DLL' })[0]);
+
+      expect(updateProfileSpy).toHaveBeenCalledWith(expect.any(Function));
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(launchOptimizationsAutosaveDelayMs);
+      });
+
+      expect(persistProfileDraftSpy).toHaveBeenCalledWith(
+        'Synthetic Quest',
+        expect.objectContaining({
+          ...profile,
+          pre_launch_hooks: [
+            expect.objectContaining({
+              name: 'Pre-launch hook',
+              stage: 'pre-launch',
+              enabled: true,
+            }),
+          ],
+          post_exit_hooks: [],
+        })
+      );
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('removes the last post-exit hook and persists an empty post array', async () => {
+    vi.useFakeTimers();
+    try {
+      renderLaunchTab(
+        {},
+        {
+          post_exit_hooks: [makeHook({ id: 'post-1', name: 'Clean up overlay', stage: 'post-exit' })],
+        }
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Edit Clean up overlay' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(launchOptimizationsAutosaveDelayMs);
+      });
+
+      expect(persistProfileDraftSpy).toHaveBeenCalledWith(
+        'Synthetic Quest',
+        expect.objectContaining({
+          pre_launch_hooks: [],
+          post_exit_hooks: [],
+        })
+      );
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not mount hook controls when the displayed profile mismatches the selected profile', async () => {
+    vi.useFakeTimers();
+    try {
+      renderLaunchTab({ displayProfileName: 'Other Quest' });
+
+      expect(screen.getByText(/Hook settings apply to the selected profile \(Synthetic Quest\)/)).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: '+ Attach script or DLL' })).not.toBeInTheDocument();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(launchOptimizationsAutosaveDelayMs);
+      });
+
+      expect(persistProfileDraftSpy).not.toHaveBeenCalled();
+      expect(updateProfileSpy).not.toHaveBeenCalled();
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }
