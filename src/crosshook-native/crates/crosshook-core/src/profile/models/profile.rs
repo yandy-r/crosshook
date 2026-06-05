@@ -23,9 +23,8 @@ pub struct GameProfile {
     pub launch: LaunchSection,
     #[serde(default, skip_serializing_if = "LocalOverrideSection::is_empty")]
     pub local_override: LocalOverrideSection,
-    // TODO(hooks-runtime): consume in launcher — see issue #482.
-    // Declared-only in Phase 3 (#468); the containing vec is authoritative for
-    // stage. Keep these fields last; new scalar fields must go before them.
+    // The containing vec is authoritative for stage. Keep these fields last;
+    // new scalar fields must go before them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub pre_launch_hooks: Vec<LaunchHook>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

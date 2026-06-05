@@ -237,6 +237,8 @@ fn launch_request_from_profile(
             Some(profile.launch.trainer_gamescope.clone())
         },
         mangohud: profile.launch.mangohud.clone(),
+        pre_launch_hooks: profile.pre_launch_hooks.clone(),
+        post_exit_hooks: profile.post_exit_hooks.clone(),
     })
 }
 

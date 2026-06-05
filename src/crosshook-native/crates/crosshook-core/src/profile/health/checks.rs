@@ -332,3 +332,34 @@ pub(super) fn check_optional_path(field: &str, path: &str) -> Option<HealthIssue
         }),
     }
 }
+
+/// Check an enabled launch hook path. Missing or non-executable → `Warning`.
+pub(super) fn check_enabled_hook_path(field: &str, path: &str) -> Option<HealthIssue> {
+    let display = display_path(path);
+    if display.is_empty() {
+        return None;
+    }
+
+    if path_is_executable_visible_or_host(path) {
+        return None;
+    }
+
+    if path_is_file_visible_or_host(path) {
+        return Some(HealthIssue {
+            field: field.to_string(),
+            path: display.clone(),
+            message: format!("Enabled launch hook is not executable: {display}"),
+            remediation: "Run chmod +x on the hook script or disable the hook.".to_string(),
+            severity: HealthIssueSeverity::Warning,
+        });
+    }
+
+    Some(HealthIssue {
+        field: field.to_string(),
+        path: display.clone(),
+        message: format!("Enabled launch hook does not exist: {display}"),
+        remediation: "Update the hook path or disable the hook until the file is available."
+            .to_string(),
+        severity: HealthIssueSeverity::Warning,
+    })
+}

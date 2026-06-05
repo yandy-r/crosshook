@@ -103,10 +103,10 @@ export function HeroProfileActionsBar({
     // TOML preview state
     showProfilePreview,
     profilePreviewContent,
+    profilePreviewHooksStripped,
     handlePreviewProfile,
+    handleIncludeHooksInPreview,
     handleCloseProfilePreview,
-
-    // Community export
     handleExportCommunityProfile,
 
     // History panel
@@ -246,6 +246,9 @@ export function HeroProfileActionsBar({
         pendingRename={pendingRename}
         previewContent={profilePreviewContent}
         profileName={profileName}
+        previewHooksStripped={profilePreviewHooksStripped}
+        previewIncludeHooksPending={previewing}
+        onIncludeHooksInPreview={() => void handleIncludeHooksInPreview()}
         renameError={renameError}
         renameInputRef={renameInputRef}
         renameNameTrimmed={renameNameTrimmed}

@@ -26,7 +26,7 @@ vi.mock('../HeroDetailLaunchTab', () => ({
       </section>
       <section aria-label="Pre/post hooks">
         <h3>Pre/post hooks</h3>
-        <p>These hooks are saved to your profile. Runtime execution is coming in a future release.</p>
+        <p>Enabled hooks run locally around launch. Failures warn and do not block launch by default.</p>
       </section>
     </div>
   ),
@@ -217,7 +217,7 @@ describe('HeroDetailPanels', () => {
       screen.getByText('gamescope mangohud -- /usr/bin/umu-run /games/synthetic-quest/game.exe')
     ).toBeInTheDocument();
     expect(
-      screen.getByText('These hooks are saved to your profile. Runtime execution is coming in a future release.')
+      screen.getByText('Enabled hooks run locally around launch. Failures warn and do not block launch by default.')
     ).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Summary' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Raw preview' })).not.toBeInTheDocument();

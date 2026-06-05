@@ -317,9 +317,20 @@ export function registerProfileMutations(map: Map<string, Handler>): void {
   map.set(
     'profile_export_toml',
     withProfileFixtureGate('profile_export_toml', async (args) => {
-      const { name, data } = args as { name: string; data: GameProfile };
-      // Return a minimal TOML-like stub for the frontend to display
-      return `# CrossHook Profile Export\n# Profile: ${name}\n[game]\nname = "${data.game.name}"\nexecutable_path = "${data.game.executable_path}"\n`;
+      const {
+        name,
+        data,
+        include_hooks: includeHooks,
+      } = args as {
+        name: string;
+        data: GameProfile;
+        include_hooks?: boolean;
+      };
+      const hookSuffix =
+        includeHooks && ((data.pre_launch_hooks?.length ?? 0) > 0 || (data.post_exit_hooks?.length ?? 0) > 0)
+          ? `\n[[pre_launch_hooks]]\nname = "Mock Hook"\npath = "/tmp/mock-hook.sh"\n`
+          : '';
+      return `# CrossHook Profile Export\n# Profile: ${name}\n[game]\nname = "${data.game.name}"\nexecutable_path = "${data.game.executable_path}"${hookSuffix}`;
     })
   );
 }

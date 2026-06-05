@@ -48,6 +48,11 @@ fn validation_error_issue_packages_message_help_and_severity() {
             trainer_hash_stored: None,
             trainer_hash_current: None,
             trainer_sha256_community: None,
+            hook_id: None,
+            hook_name: None,
+            hook_stage: None,
+            hook_exit_code: None,
+            hook_timed_out: None,
         }
     );
 }

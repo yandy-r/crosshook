@@ -151,6 +151,8 @@ export function makeLaunchRequest(overrides: Partial<LaunchRequest> = {}): Launc
       battery: false,
       watt: false,
     },
+    pre_launch_hooks: [],
+    post_exit_hooks: [],
     ...overrides,
   };
 }

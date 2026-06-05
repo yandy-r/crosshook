@@ -151,7 +151,7 @@ describe('HeroDetailLaunchTab', () => {
     expect(headings).toContain('Pre/post hooks');
     expect(screen.getByTestId('hero-launch-subtabs-host')).toBeInTheDocument();
     expect(
-      screen.getByText('These hooks are saved to your profile. Runtime execution is coming in a future release.')
+      screen.getByText('Enabled hooks run locally around launch. Failures warn and do not block launch by default.')
     ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Track runtime' })).toHaveAttribute(
       'href',

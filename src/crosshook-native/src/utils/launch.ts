@@ -55,6 +55,8 @@ export function buildProfileLaunchRequest(
     gamescope: profile.launch.gamescope ?? DEFAULT_GAMESCOPE_CONFIG,
     trainer_gamescope: profile.launch.trainer_gamescope ?? DEFAULT_GAMESCOPE_CONFIG,
     mangohud: profile.launch.mangohud ?? DEFAULT_MANGOHUD_CONFIG,
+    pre_launch_hooks: [...(profile.pre_launch_hooks ?? [])],
+    post_exit_hooks: [...(profile.post_exit_hooks ?? [])],
   };
 }
 

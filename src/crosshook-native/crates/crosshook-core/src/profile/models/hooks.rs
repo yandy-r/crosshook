@@ -21,14 +21,11 @@ pub enum HookStage {
 
 /// A user-declared script invoked around the launch lifecycle.
 ///
-/// Declared, not yet executed — runtime execution is tracked in the
-/// hooks-runtime follow-up issue (see TODO(hooks-runtime) markers).
-///
 /// - `id` is an opaque client-minted identifier (frontend `crypto.randomUUID()`
 ///   at attach time); the backend never mints or interprets it.
 /// - `path` is a host-side absolute path. Per ADR-0001's scope boundary it is a
-///   user variable (not a denylisted tool name); future execution must apply
-///   `normalize_flatpak_host_path` and route through the host gateway.
+///   user variable (not a denylisted tool name); execution applies
+///   `normalize_flatpak_host_path` and routes through the host gateway.
 /// - `stage` mirrors the containing profile vec (`pre_launch_hooks` /
 ///   `post_exit_hooks`), which is authoritative. Producers keep them aligned, and
 ///   [`GameProfile::normalize_hooks`](crate::profile::GameProfile::normalize_hooks)

@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
 use crosshook_core::launch::{
-    LaunchSessionRegistry, LaunchValidationIssue, SessionId, SessionKind, WatchdogOutcome,
+    LaunchHookExecutionContext, LaunchSessionRegistry, LaunchValidationIssue, SessionId,
+    SessionKind, WatchdogOutcome,
 };
 use crosshook_core::metadata::MetadataStore;
+use crosshook_core::profile::LaunchHook;
 use serde::Serialize;
 
 pub(crate) const GAMESCOPE_XDG_BACKEND_SOURCE_MARKER: &str = "xdg_backend:";
@@ -81,4 +83,11 @@ pub(crate) struct LaunchStreamContext {
     pub(crate) session_id: SessionId,
     pub(crate) session_kind: SessionKind,
     pub(crate) session_registry: Arc<LaunchSessionRegistry>,
+    pub(crate) hook_context: LaunchHookStreamContext,
+}
+
+#[derive(Clone)]
+pub(crate) struct LaunchHookStreamContext {
+    pub(crate) post_exit_hooks: Vec<LaunchHook>,
+    pub(crate) execution_context: LaunchHookExecutionContext,
 }

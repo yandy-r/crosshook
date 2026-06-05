@@ -32,10 +32,20 @@ function focusElement(element: HTMLElement | null): boolean {
 interface ProfilePreviewModalProps {
   tomlContent: string;
   profileName: string;
+  hooksStripped?: boolean;
+  onIncludeHooks?: () => void;
+  includeHooksPending?: boolean;
   onClose: () => void;
 }
 
-export function ProfilePreviewModal({ tomlContent, profileName, onClose }: ProfilePreviewModalProps) {
+export function ProfilePreviewModal({
+  tomlContent,
+  profileName,
+  hooksStripped = false,
+  onIncludeHooks,
+  includeHooksPending = false,
+  onClose,
+}: ProfilePreviewModalProps) {
   const portalHostRef = useRef<HTMLElement | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
@@ -190,6 +200,24 @@ export function ProfilePreviewModal({ tomlContent, profileName, onClose }: Profi
 
         {/* Body */}
         <div className="crosshook-modal__body" style={{ gridRow: 3 }}>
+          {hooksStripped ? (
+            <div className="crosshook-preview-modal__hook-warning" role="note">
+              <p>
+                This profile has executable hooks. They are hidden from this export by default because shared hook paths
+                can be unsafe.
+              </p>
+              {onIncludeHooks ? (
+                <button
+                  type="button"
+                  className="crosshook-button crosshook-button--ghost"
+                  onClick={onIncludeHooks}
+                  disabled={includeHooksPending}
+                >
+                  {includeHooksPending ? 'Including hooks…' : 'Include hooks in TOML'}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           <pre className="crosshook-preview-modal__command-block">{tomlContent}</pre>
         </div>
 

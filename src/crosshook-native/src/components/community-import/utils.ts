@@ -97,6 +97,8 @@ export function buildLaunchRequest(profile: GameProfile, steamClientInstallPath:
     network_isolation: profile.launch.network_isolation ?? true,
     gamescope: profile.launch.gamescope ?? DEFAULT_GAMESCOPE_CONFIG,
     mangohud: profile.launch.mangohud ?? DEFAULT_MANGOHUD_CONFIG,
+    pre_launch_hooks: [...(profile.pre_launch_hooks ?? [])],
+    post_exit_hooks: [...(profile.post_exit_hooks ?? [])],
   };
 }
 

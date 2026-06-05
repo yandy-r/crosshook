@@ -366,7 +366,17 @@ pub fn profile_import_legacy(
 /// Serializes the provided in-memory profile to a shareable TOML string
 /// with comment headers indicating the save location.
 #[tauri::command]
-pub fn profile_export_toml(name: String, data: GameProfile) -> Result<String, String> {
-    crosshook_core::profile::profile_to_shareable_toml(&name, &data)
-        .map_err(|error| error.to_string())
+pub fn profile_export_toml(
+    name: String,
+    data: GameProfile,
+    include_hooks: Option<bool>,
+) -> Result<String, String> {
+    crosshook_core::profile::profile_to_shareable_toml_with_options(
+        &name,
+        &data,
+        crosshook_core::profile::ShareableTomlOptions {
+            include_hooks: include_hooks.unwrap_or(false),
+        },
+    )
+    .map_err(|error| error.to_string())
 }

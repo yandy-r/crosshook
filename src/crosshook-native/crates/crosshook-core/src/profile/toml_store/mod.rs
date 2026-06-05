@@ -9,4 +9,7 @@ mod tests;
 
 pub use error::ProfileStoreError;
 pub use store::{DuplicateProfileResult, ProfileStore};
-pub use utils::{bundled_optimization_preset_toml_key, profile_to_shareable_toml};
+pub use utils::{
+    bundled_optimization_preset_toml_key, profile_to_shareable_toml,
+    profile_to_shareable_toml_with_options, ShareableTomlOptions,
+};

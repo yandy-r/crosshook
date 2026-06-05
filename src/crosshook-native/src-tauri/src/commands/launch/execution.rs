@@ -3,8 +3,9 @@ use std::process::Stdio;
 use std::sync::Arc;
 
 use crosshook_core::launch::{
-    drain_cancel_into_outcome, gamescope_watchdog as gamescope_watchdog_core,
-    is_inside_gamescope_session,
+    build_launch_hook_execution_context, drain_cancel_into_outcome,
+    gamescope_watchdog as gamescope_watchdog_core, is_inside_gamescope_session,
+    run_pre_launch_hooks,
     script_runner::{
         build_flatpak_steam_trainer_command, build_helper_command, build_native_game_command,
         build_proton_game_command, build_proton_trainer_command, build_trainer_command,
@@ -19,7 +20,7 @@ use tauri::{AppHandle, Manager, State};
 use tokio::sync::broadcast;
 
 use super::portal::try_register_gamemode_portal_for_launch;
-use super::shared::{LaunchResult, LaunchStreamContext};
+use super::shared::{LaunchHookStreamContext, LaunchResult, LaunchStreamContext};
 use super::streaming::spawn_log_stream;
 use super::warnings::{collect_offline_launch_warnings, collect_trainer_hash_launch_warnings_ipc};
 use crate::commands::shared::{create_log_path, sanitize_display_path};
@@ -105,6 +106,13 @@ pub async fn launch_game(
 
     let gamemode_portal_guard = try_register_gamemode_portal_for_launch(&request, method).await;
 
+    let hook_context = build_launch_hook_execution_context(&request)
+        .map_err(|error| format!("failed to prepare launch hook context: {error}"))?;
+    warnings.extend(run_pre_launch_hooks(
+        &request.pre_launch_hooks,
+        &hook_context,
+    ));
+
     let child = command
         .spawn()
         .map_err(|error| format!("failed to launch helper: {error}"))?;
@@ -154,6 +162,10 @@ pub async fn launch_game(
         session_id,
         session_kind: SessionKind::Game,
         session_registry: session_registry.clone(),
+        hook_context: LaunchHookStreamContext {
+            post_exit_hooks: request.post_exit_hooks.clone(),
+            execution_context: hook_context,
+        },
     };
 
     let watchdog_app_handle = app.clone();
@@ -274,6 +286,13 @@ pub async fn launch_trainer(
     let gamemode_portal_guard =
         try_register_gamemode_portal_for_launch(&request, execution_method).await;
 
+    let hook_context = build_launch_hook_execution_context(&request)
+        .map_err(|error| format!("failed to prepare launch hook context: {error}"))?;
+    warnings.extend(run_pre_launch_hooks(
+        &request.pre_launch_hooks,
+        &hook_context,
+    ));
+
     let child = command.spawn().map_err(|error| {
         format!("failed to launch trainer (method={execution_method}): {error}")
     })?;
@@ -337,6 +356,10 @@ pub async fn launch_trainer(
         session_id,
         session_kind: SessionKind::Trainer,
         session_registry: session_registry.clone(),
+        hook_context: LaunchHookStreamContext {
+            post_exit_hooks: request.post_exit_hooks.clone(),
+            execution_context: hook_context,
+        },
     };
 
     let trainer_exe_name = Path::new(&request.trainer_host_path)

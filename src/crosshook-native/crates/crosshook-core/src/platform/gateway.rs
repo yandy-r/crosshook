@@ -253,6 +253,16 @@ pub fn host_std_command_with_env(
     host_std_command_with_env_inner(program, envs, None, custom_env_vars, is_flatpak())
 }
 
+/// Like [`host_command_with_env_and_directory`], but for synchronous [`std::process::Command`].
+pub fn host_std_command_with_env_and_directory(
+    program: &str,
+    envs: &BTreeMap<String, String>,
+    directory: Option<&str>,
+    custom_env_vars: &BTreeMap<String, String>,
+) -> StdCommand {
+    host_std_command_with_env_inner(program, envs, directory, custom_env_vars, is_flatpak())
+}
+
 pub(crate) fn host_std_command_with_env_inner(
     program: &str,
     envs: &BTreeMap<String, String>,
