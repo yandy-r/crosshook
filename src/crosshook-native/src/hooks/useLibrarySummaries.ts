@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { subscribeEvent } from '@/lib/events';
 import { callCommand } from '@/lib/ipc';
 
 import type { LibraryCardData, ProfileSummary } from '../types/library';
@@ -57,6 +58,21 @@ export function useLibrarySummaries(
   // Fetch on mount and whenever the profile list changes.
   useEffect(() => {
     void fetchSummaries();
+  }, [fetchSummaries]);
+
+  useEffect(() => {
+    let active = true;
+    const unlistenPromise = subscribeEvent<string>('profiles-changed', () => {
+      if (!active) {
+        return;
+      }
+      void fetchSummaries();
+    });
+
+    return () => {
+      active = false;
+      void unlistenPromise.then((unlisten) => unlisten());
+    };
   }, [fetchSummaries]);
 
   // Enrich with favorite state when favorites change (no network call).

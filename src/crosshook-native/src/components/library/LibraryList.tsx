@@ -15,6 +15,9 @@ interface LibraryListProps {
   onToggleFavorite: (name: string, current: boolean) => void;
   launchingName?: string;
   onNavigate?: (route: AppRoute, options?: AppNavigateOptions) => void;
+  onAddGame?: (restoreFocusTo?: HTMLElement | null) => void;
+  /** True when the library has zero profiles (not merely zero after search/filter). */
+  hasNoProfiles?: boolean;
   onContextMenu?: (position: { x: number; y: number }, profileName: string, restoreFocusTo: HTMLElement) => void;
 }
 
@@ -27,17 +30,35 @@ export function LibraryList({
   onEdit,
   onToggleFavorite,
   launchingName,
-  onNavigate,
+  onNavigate: _onNavigate,
+  onAddGame,
+  hasNoProfiles = false,
   onContextMenu,
 }: LibraryListProps) {
   if (profiles.length === 0) {
+    if (hasNoProfiles) {
+      return (
+        <div className="crosshook-library-empty">
+          <h2 className="crosshook-library-empty__heading">Add your first game</h2>
+          <p className="crosshook-library-empty__body">
+            CrossHook builds your library from saved game profiles. Add a game profile to choose its executable, runner,
+            trainer, and artwork.
+          </p>
+          {onAddGame ? (
+            <button
+              type="button"
+              className="crosshook-button crosshook-button--primary crosshook-library-empty__cta"
+              onClick={(event) => onAddGame(event.currentTarget)}
+            >
+              Add game
+            </button>
+          ) : null}
+        </div>
+      );
+    }
     return (
-      <div className="crosshook-library-empty">
-        <h2 className="crosshook-library-empty__heading">No game profiles yet</h2>
-        <p>Create your first profile to see it here.</p>
-        <button type="button" className="crosshook-library-empty__cta" onClick={() => onNavigate?.('profiles')}>
-          Create a profile
-        </button>
+      <div className="crosshook-library-empty crosshook-library-empty--filtered">
+        <p className="crosshook-library-empty__body">No games match your search or filters.</p>
       </div>
     );
   }

@@ -137,6 +137,14 @@ describe('buildHeroCreateSeed', () => {
     expect(seed.executablePath).toBe('/games/game.exe');
   });
 
+  it('omits executablePath when context profile name does not match selectedTrimmed', () => {
+    const staleContext = makeProfileDraft({
+      game: { name: 'card2', executable_path: '/games/other.exe' },
+    });
+    const seed = buildHeroCreateSeed(summary, [card1, card2], 'card1', staleContext);
+    expect(seed.executablePath).toBeUndefined();
+  });
+
   it('omits executablePath when selectedTrimmed does not match any card', () => {
     const seed = buildHeroCreateSeed(summary, [card1, card2], 'unknown-profile', baseProfile);
     expect(seed.executablePath).toBeUndefined();

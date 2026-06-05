@@ -56,9 +56,9 @@ describe('LibraryToolbar', () => {
     expect(onOpenCommandPalette).toHaveBeenCalledTimes(1);
   });
 
-  it('tab order reaches search, chips, view toggle, then palette trigger', async () => {
+  it('tab order reaches search, chips, view toggle, Add game, then palette trigger', async () => {
     const user = userEvent.setup();
-    render(<LibraryToolbar {...base} onOpenCommandPalette={vi.fn()} />);
+    render(<LibraryToolbar {...base} onAddGame={vi.fn()} onOpenCommandPalette={vi.fn()} />);
 
     await user.tab();
     expect(screen.getByRole('searchbox', { name: 'Search games' })).toHaveFocus();
@@ -87,11 +87,29 @@ describe('LibraryToolbar', () => {
     expect(screen.getByRole('button', { name: 'List view' })).toHaveFocus();
 
     await user.tab();
+    expect(screen.getByRole('button', { name: 'Add game' })).toHaveFocus();
+
+    await user.tab();
     expect(screen.getByRole('button', { name: 'Open command palette' })).toHaveFocus();
   });
 
   it('omits the command palette control when no handler is provided', () => {
     render(<LibraryToolbar {...base} />);
     expect(screen.queryByRole('button', { name: 'Open command palette' })).not.toBeInTheDocument();
+  });
+
+  it('invokes onAddGame from the Add game button', async () => {
+    const user = userEvent.setup();
+    const onAddGame = vi.fn();
+
+    render(<LibraryToolbar {...base} onAddGame={onAddGame} />);
+
+    await user.click(screen.getByRole('button', { name: 'Add game' }));
+    expect(onAddGame).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables Add game when addGameDisabled is true', () => {
+    render(<LibraryToolbar {...base} onAddGame={vi.fn()} addGameDisabled />);
+    expect(screen.getByRole('button', { name: 'Add game' })).toBeDisabled();
   });
 });

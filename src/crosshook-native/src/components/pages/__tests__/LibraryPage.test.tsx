@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ComponentProps } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -9,6 +9,7 @@ import { InspectorSelectionProvider, useInspectorSelection } from '@/context/Ins
 import { PreferencesProvider } from '@/context/PreferencesContext';
 import { ProfileProvider } from '@/context/ProfileContext';
 import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
+import { emitMockEvent } from '@/lib/events';
 import { renderWithMocks } from '@/test/render';
 import type { LibraryFilterIntent, OpenGameDetailIntent } from '@/types/navigation';
 import { LibraryPage } from '../LibraryPage';
@@ -17,6 +18,15 @@ vi.mock('@/lib/ipc', async () => {
   const { mockCallCommand } = await import('@/test/render');
   return { callCommand: mockCallCommand };
 });
+
+let lastWizardProps: Record<string, unknown> = {};
+
+vi.mock('@/components/OnboardingWizard', () => ({
+  OnboardingWizard: (props: Record<string, unknown>) => {
+    lastWizardProps = props;
+    return props['open'] ? <div role="dialog">Onboarding Wizard</div> : null;
+  },
+}));
 
 interface LibraryPageHarnessProps {
   libraryFilterIntent?: LibraryFilterIntent | null;
@@ -89,6 +99,7 @@ function renderLibraryHarness(
 
 describe('LibraryPage', () => {
   beforeEach(() => {
+    lastWizardProps = {};
     vi.spyOn(console, 'debug').mockImplementation(() => {});
     const memory = new Map<string, string>();
     vi.stubGlobal('localStorage', {
@@ -333,5 +344,132 @@ describe('LibraryPage', () => {
     });
 
     expect(screen.queryByTestId('game-detail')).not.toBeInTheDocument();
+  });
+
+  describe('add-game wizard', () => {
+    it('opens create-mode wizard without seed from the toolbar Add game button', async () => {
+      const user = userEvent.setup();
+      renderLibraryHarness();
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Add game' })).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByRole('button', { name: 'Add game' }));
+
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(lastWizardProps['mode']).toBe('create');
+      expect(lastWizardProps['createSeed']).toBeUndefined();
+    });
+
+    it('opens the same wizard from the empty-library CTA', async () => {
+      const user = userEvent.setup();
+      renderLibraryHarness({
+        handlerOverrides: {
+          profile_list_summaries: async () => [],
+          profile_list: async () => [],
+          profile_list_favorites: async () => [],
+        },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Add your first game')).toBeInTheDocument();
+        expect(screen.getAllByRole('button', { name: 'Add game' }).length).toBeGreaterThanOrEqual(1);
+      });
+
+      const emptyCta = document.querySelector('.crosshook-library-empty__cta');
+      expect(emptyCta).toBeInstanceOf(HTMLButtonElement);
+      await user.click(emptyCta as HTMLButtonElement);
+
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(lastWizardProps['mode']).toBe('create');
+      expect(lastWizardProps['createSeed']).toBeUndefined();
+    });
+
+    it('selects the created profile and updates the inspector on complete', async () => {
+      const user = userEvent.setup();
+      renderLibraryHarness();
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Select Test Game Alpha' })).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByRole('button', { name: 'Select Test Game Alpha' }));
+      await waitFor(() => {
+        expect(screen.getByTestId('inspector')).toHaveTextContent('Test Game Alpha');
+      });
+
+      await user.click(screen.getByRole('button', { name: 'Add game' }));
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+      const onComplete = lastWizardProps['onComplete'] as (name?: string) => void;
+      act(() => {
+        onComplete('Dev Game Beta');
+      });
+
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      });
+      expect(screen.getByTestId('inspector')).toHaveTextContent('Dev Game Beta');
+    });
+
+    it('refreshes library cards when profiles-changed fires', async () => {
+      let fetchCount = 0;
+      renderLibraryHarness({
+        handlerOverrides: {
+          profile_list_summaries: async () => {
+            fetchCount += 1;
+            if (fetchCount === 1) {
+              return [];
+            }
+            return [
+              {
+                name: 'Fresh Game',
+                gameName: 'Fresh Game',
+                steamAppId: '9999099',
+                networkIsolation: false,
+              },
+            ];
+          },
+          profile_list: async () => (fetchCount > 1 ? ['Fresh Game'] : []),
+        },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Add your first game')).toBeInTheDocument();
+      });
+
+      emitMockEvent('profiles-changed', '');
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Select Fresh Game' })).toBeInTheDocument();
+      });
+    });
+
+    it('restores prior inspector selection when the wizard is dismissed', async () => {
+      const user = userEvent.setup();
+      renderLibraryHarness();
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Select Test Game Alpha' })).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByRole('button', { name: 'Select Test Game Alpha' }));
+      await waitFor(() => {
+        expect(screen.getByTestId('inspector')).toHaveTextContent('Test Game Alpha');
+      });
+
+      await user.click(screen.getByRole('button', { name: 'Add game' }));
+
+      const onDismiss = lastWizardProps['onDismiss'] as () => void;
+      act(() => {
+        onDismiss();
+      });
+
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      });
+      expect(screen.getByTestId('inspector')).toHaveTextContent('Test Game Alpha');
+    });
   });
 });

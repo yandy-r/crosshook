@@ -23,6 +23,8 @@ interface LibraryToolbarProps {
   filter: LibraryFilterKey;
   onFilterChange: (key: LibraryFilterKey) => void;
   onOpenCommandPalette?: (restoreFocusTo?: HTMLElement | null) => void;
+  onAddGame?: (restoreFocusTo?: HTMLElement | null) => void;
+  addGameDisabled?: boolean;
 }
 
 export function LibraryToolbar({
@@ -35,6 +37,8 @@ export function LibraryToolbar({
   filter,
   onFilterChange,
   onOpenCommandPalette,
+  onAddGame,
+  addGameDisabled = false,
 }: LibraryToolbarProps) {
   return (
     <div className="crosshook-library-toolbar">
@@ -103,15 +107,29 @@ export function LibraryToolbar({
           </svg>
         </button>
       </div>
-      {onOpenCommandPalette ? (
-        <button
-          type="button"
-          className="crosshook-library-toolbar__palette-trigger"
-          aria-label="Open command palette"
-          onClick={(event) => onOpenCommandPalette?.(event.currentTarget)}
-        >
-          ⌘K
-        </button>
+      {onAddGame || onOpenCommandPalette ? (
+        <div className="crosshook-library-toolbar__trailing">
+          {onAddGame ? (
+            <button
+              type="button"
+              className="crosshook-button crosshook-button--primary crosshook-library-toolbar__add-game"
+              disabled={addGameDisabled}
+              onClick={(event) => onAddGame(event.currentTarget)}
+            >
+              Add game
+            </button>
+          ) : null}
+          {onOpenCommandPalette ? (
+            <button
+              type="button"
+              className="crosshook-library-toolbar__palette-trigger"
+              aria-label="Open command palette"
+              onClick={(event) => onOpenCommandPalette(event.currentTarget)}
+            >
+              ⌘K
+            </button>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );
