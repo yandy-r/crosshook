@@ -187,12 +187,23 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
 
   const { refreshProfiles, loadFavorites, setError } = crud;
 
+  const refreshProfilesRef = useRef(refreshProfiles);
+  const loadFavoritesRef = useRef(loadFavorites);
+  const setErrorRef = useRef(setError);
+  refreshProfilesRef.current = refreshProfiles;
+  loadFavoritesRef.current = loadFavorites;
+  setErrorRef.current = setError;
+
+  // Run the initial list/favorites fetch once on mount. `refreshProfiles` changes
+  // identity when `selectedProfile` updates (e.g. after `auto-load-profile`), and
+  // re-running this effect would call `refreshProfiles` again with an empty list,
+  // wiping the auto-loaded profile state.
   useEffect(() => {
-    void refreshProfiles().catch((err: unknown) => {
-      setError(err instanceof Error ? err.message : String(err));
+    void refreshProfilesRef.current().catch((err: unknown) => {
+      setErrorRef.current(err instanceof Error ? err.message : String(err));
     });
-    void loadFavorites();
-  }, [loadFavorites, refreshProfiles, setError]);
+    void loadFavoritesRef.current();
+  }, []);
 
   useEffect(() => {
     let active = true;

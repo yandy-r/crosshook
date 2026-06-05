@@ -178,6 +178,12 @@ export function useProfileCrud({
       setProfiles(names);
 
       if (names.length === 0) {
+        // Preserve an in-flight or completed auto-load when the list is still empty
+        // (startup race: `auto-load-profile` can finish before `profile_list` returns).
+        if (selectedProfile.trim()) {
+          return;
+        }
+
         const empty = createEmptyProfile();
         setSelectedProfile('');
         setProfileName('');
