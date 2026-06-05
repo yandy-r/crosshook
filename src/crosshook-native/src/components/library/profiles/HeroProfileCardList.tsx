@@ -56,7 +56,9 @@ export function buildHeroCreateSeed(
   }
 
   // Only seed executablePath when the context profile belongs to one of this game's cards.
-  if (selectedTrimmed && cards.some((c) => c.name === selectedTrimmed)) {
+  const contextProfileName = contextProfile.game.name.trim();
+  const isContextProfileInCards = cards.some((c) => c.name === contextProfileName);
+  if (selectedTrimmed && contextProfileName === selectedTrimmed && isContextProfileInCards) {
     const execPath = contextProfile.game.executable_path;
     if (execPath) {
       seed.executablePath = execPath;

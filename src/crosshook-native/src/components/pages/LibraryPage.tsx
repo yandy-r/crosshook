@@ -48,8 +48,15 @@ export function LibraryPage({
   onLibraryFilterChange,
   onOpenCommandPalette,
 }: LibraryPageProps) {
-  const { profiles, favoriteProfiles, selectProfile, toggleFavorite, refreshProfiles, activeCollectionId } =
-    useProfileContext();
+  const {
+    profiles,
+    favoriteProfiles,
+    selectProfile,
+    toggleFavorite,
+    refreshProfiles,
+    activeCollectionId,
+    loading: profilesLoading,
+  } = useProfileContext();
   const {
     memberNames: activeCollectionMemberNames,
     membersForCollectionId: activeCollectionMembersFetchedFor,
@@ -61,7 +68,7 @@ export function LibraryPage({
     setSummaries,
     loading: summariesLoading,
   } = useLibrarySummaries(profiles, favoriteProfiles, activeCollectionId);
-  const libraryHasNoProfiles = !summariesLoading && summaries.length === 0;
+  const libraryHasNoProfiles = !profilesLoading && profiles.length === 0;
   const { healthByName, loading: healthLoading } = useProfileHealthContext();
   const { setInspectorSelection, setLibraryInspectorHandlers, setLibraryShellMode } = useInspectorSelection();
   const runningProfiles = useRunningProfiles();

@@ -373,11 +373,13 @@ describe('LibraryPage', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Add game' })).toBeInTheDocument();
+        expect(screen.getByText('Add your first game')).toBeInTheDocument();
+        expect(screen.getAllByRole('button', { name: 'Add game' }).length).toBeGreaterThanOrEqual(1);
       });
 
-      const addButtons = screen.getAllByRole('button', { name: 'Add game' });
-      await user.click(addButtons[addButtons.length - 1]!);
+      const emptyCta = document.querySelector('.crosshook-library-empty__cta');
+      expect(emptyCta).toBeInstanceOf(HTMLButtonElement);
+      await user.click(emptyCta as HTMLButtonElement);
 
       expect(screen.getByRole('dialog')).toBeInTheDocument();
       expect(lastWizardProps['mode']).toBe('create');
