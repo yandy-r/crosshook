@@ -256,14 +256,16 @@ export function registerProfileMutations(map: Map<string, Handler>): void {
       executable_path:
         profile.game.executable_path || `/home/devuser/Games/${trimmedGameName.replace(/\s+/g, '')}/game.exe`,
     };
+    const existingTrainer = profile.trainer ?? {};
     profile.trainer = {
-      ...profile.trainer,
-      path: profile.trainer?.path || `/home/devuser/Trainers/${trimmedGameName.replace(/\s+/g, '')}/trainer.exe`,
+      ...existingTrainer,
+      path: existingTrainer.path || `/home/devuser/Trainers/${trimmedGameName.replace(/\s+/g, '')}/trainer.exe`,
     };
+    const existingRuntime = profile.runtime ?? {};
     profile.runtime = {
-      ...profile.runtime,
-      prefix_path: profile.runtime.prefix_path || `/home/devuser/.local/share/crosshook/prefixes/${trimmedGameName}`,
-      proton_path: profile.runtime.proton_path || '/home/devuser/.steam/root/compatibilitytools.d/GE-Proton',
+      ...existingRuntime,
+      prefix_path: existingRuntime.prefix_path || `/home/devuser/.local/share/crosshook/prefixes/${trimmedGameName}`,
+      proton_path: existingRuntime.proton_path || '/home/devuser/.steam/root/compatibilitytools.d/GE-Proton',
     };
     store.profiles.set(trimmedProfileName, profile);
     emitMockEvent('profiles-changed', { name: trimmedProfileName, action: 'mock-add' });

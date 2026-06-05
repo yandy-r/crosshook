@@ -31,13 +31,13 @@ During smoke validation, the new card-switch flow exposed that the Hero Detail h
 
 ## Validation
 
-| Command                | Result                                                                                 |
-| ---------------------- | -------------------------------------------------------------------------------------- |
-| `npm run typecheck`    | Pass                                                                                   |
-| `npm test`             | Pass: 54 files, 426 tests                                                              |
-| `npm run test:smoke`   | Pass: 88 tests                                                                         |
-| `./scripts/lint.sh`    | Pass, with existing warnings in `useAutoSaveChip.ts` and `Breadcrumb.tsx`              |
-| `npm run build:binary` | Pass, binary copied to `/home/yandy/.local/share/crosshook/artifacts/crosshook-native` |
+| Command                | Result                                                                       |
+| ---------------------- | ---------------------------------------------------------------------------- |
+| `npm run typecheck`    | Pass                                                                         |
+| `npm test`             | Pass: 54 files, 426 tests                                                    |
+| `npm run test:smoke`   | Pass: 88 tests                                                               |
+| `./scripts/lint.sh`    | Pass, with existing warnings in `useAutoSaveChip.ts` and `Breadcrumb.tsx`    |
+| `npm run build:binary` | Pass, binary copied to `~/.local/share/crosshook/artifacts/crosshook-native` |
 
 Focused validation also passed during implementation:
 
