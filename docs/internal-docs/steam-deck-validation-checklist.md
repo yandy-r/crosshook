@@ -30,17 +30,21 @@ gamescope -W 1280 -H 800 -r 60 -- ./CrossHook_amd64.AppImage
 
 ## Gotchas
 
-WebKitGTK (Tauri's webview) has sluggish native scroll velocity. CrossHook compensates with the `useScrollEnhance` hook at `src/crosshook-native/src/hooks/useScrollEnhance.ts`. The `SCROLLABLE` selector constant at line 8 determines which containers receive the enhanced scroll behavior:
+WebKitGTK (Tauri's webview) has sluggish native scroll velocity. CrossHook compensates with the `useScrollEnhance` hook at `src/crosshook-native/src/hooks/useScrollEnhance.ts`. The exported `SCROLL_ENHANCE_SELECTORS` constant (aliased as `SCROLLABLE` inside the hook) determines which containers receive the enhanced scroll behavior:
 
 ```
 .crosshook-route-card-scroll, .crosshook-page-scroll-body,
 .crosshook-subtab-content__inner--scroll, .crosshook-console-drawer__body,
-.crosshook-modal__body, .crosshook-prefix-deps__log-output,
-.crosshook-discovery-results, .crosshook-collections-sidebar__list,
-.crosshook-collection-assign-menu__list
+.crosshook-modal__body, .crosshook-palette__list,
+.crosshook-prefix-deps__log-output, .crosshook-discovery-results,
+.crosshook-collections-sidebar__list, .crosshook-collection-assign-menu__list,
+.crosshook-route-stack__body--scroll, .crosshook-sidebar__nav--scroll,
+.crosshook-inspector__body, .crosshook-hero-detail__body,
+.crosshook-hero-detail__profiles-editor, .crosshook-context-rail__body,
+.crosshook-install-page-tabs__panel-inner
 ```
 
-Any new `overflow-y: auto` container introduced by collection modals **must** be added to this selector. If omitted, the enhanced scroll targets a parent container instead, causing dual-scroll jank. Inner scroll containers should also apply `overscroll-behavior: contain` to prevent scroll chaining.
+Any new `overflow-y: auto` container introduced by collection modals **must** be added to `SCROLL_ENHANCE_SELECTORS`. If omitted, the enhanced scroll targets a parent container instead, causing dual-scroll jank. Inner scroll containers should also apply `overscroll-behavior: contain` to prevent scroll chaining.
 
 ## Expected env var assertion
 
@@ -106,6 +110,48 @@ Target: Steam Deck native (1280×800, WebKitGTK, gamepad + touchscreen). This se
 - [ ] Sidebar collapse is instant (no width transition)
 - [ ] Palette rows do not slide-in
 - [ ] No animation flash on any surface
+
+### Blocking issues (sign-off gate — must be zero)
+
+- [ ] NONE
+
+## Phase 12 — Hero Detail at 1280×800
+
+Target: Steam Deck native (1280×800, WebKitGTK, gamepad + touchscreen). Validate hero-detail fit at the deck viewport — layout should remain readable without horizontal page overflow. Two-column layouts are expected at 1280×800 (collapse breakpoint is 720px).
+
+**Desktop stand-in**:
+
+```bash
+gamescope -W 1280 -H 800 -r 60 -- ./CrossHook_amd64.AppImage
+```
+
+**Fast iteration** (not WebKitGTK-accurate — re-verify in Tauri dev mode):
+
+```bash
+./scripts/dev-native.sh --browser
+```
+
+Use browser devtools 1280×800 emulation for layout checks; confirm final behavior on hardware or Tauri dev.
+
+### Profiles tab at deck viewport
+
+- [ ] Two-column layout (`minmax(220px,280px) 1fr`) renders without horizontal page overflow
+- [ ] Cards rail and editor pane are both readable at 1280×800
+- [ ] Editor pane scrolls vertically (`.crosshook-hero-detail__profiles-editor` is in `SCROLL_ENHANCE_SELECTORS`)
+
+### Launch tab / hooks at deck viewport
+
+- [ ] Hook rows render readably (rows shrink via `min-width: 0`; stacking below 720px is expected, not a regression)
+- [ ] No horizontal page overflow on the Launch tab
+
+### Command preview at deck viewport
+
+- [ ] A long command in `.crosshook-hero-detail__highlighted-command` shows a horizontal scrollbar
+- [ ] Command preview scrolls horizontally without dragging the page (`overscroll-behavior: contain`)
+
+### Automated cross-check
+
+- [ ] `npm run test:smoke` passes (the `hero detail responsive no-horizontal-overflow` describe at `smoke.spec.ts:586-705` covers 1280×800)
 
 ### Blocking issues (sign-off gate — must be zero)
 

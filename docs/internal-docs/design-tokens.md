@@ -180,6 +180,30 @@ Used by host-readiness and health-check UIs to communicate tool status.
 
 ---
 
+## Command preview token classes
+
+Classes are emitted by `HighlightedCommandBlock.tsx` (`tokenClass()`, lines 17–19) inside
+`.crosshook-hero-detail__highlighted-command` (`hero-detail.css:269-286`, `white-space: pre;
+overflow-x: auto`). They **consume existing color tokens — they define no new tokens**. Used
+only in `hero-detail.css`; do not use elsewhere.
+
+| Class                                            | Token consumed                    | Default value               | Tone                                |
+| ------------------------------------------------ | --------------------------------- | --------------------------- | ----------------------------------- |
+| `.crosshook-hero-detail__command-token--comment` | `--crosshook-color-text-subtle`   | `rgba(224, 224, 224, 0.56)` | preview header / separators         |
+| `.crosshook-hero-detail__command-token--env-key` | `--crosshook-color-success`       | `#28c76f`                   | env var keys                        |
+| `.crosshook-hero-detail__command-token--value`   | `--crosshook-color-warning`       | `#f5c542`                   | env var values                      |
+| `.crosshook-hero-detail__command-token--binary`  | `--crosshook-color-accent-strong` | `#6ba3d9`                   | wrappers, proton + game executables |
+| `.crosshook-hero-detail__command-token--flag`    | `--crosshook-color-text-muted`    | `rgba(224, 224, 224, 0.76)` | command flags                       |
+
+The base class `.crosshook-hero-detail__command-token` is a structural hook with no CSS rule;
+only the five modifiers carry styling. The authoritative tone list is the `TokenTone` union at
+`HighlightedCommandBlock.tsx:9`.
+
+> **Note:** Issue #477 names these `--cmd-token--*` custom properties — those names do not
+> exist. Use the BEM class names above.
+
+---
+
 ## Pipeline connector tokens
 
 Connector lines between launch pipeline nodes. Use `color-mix()` variants only — never
