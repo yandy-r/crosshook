@@ -25,10 +25,24 @@ pub use queries::{
     validate_launch,
 };
 
-pub use execution::{__cmd__launch_game, __cmd__launch_trainer};
-pub use queries::{
-    __cmd__build_steam_launch_options_command, __cmd__check_game_running,
-    __cmd__check_gamescope_session, __cmd__launch_platform_status,
-    __cmd__list_launch_history_for_profile, __cmd__list_running_profiles, __cmd__preview_launch,
-    __cmd__validate_launch,
-};
+// Re-export Tauri command macros so `generate_handler!` can resolve `commands::launch::<name>`.
+pub use execution::__cmd__launch_game;
+pub use execution::__cmd__launch_trainer;
+pub use execution::__tauri_command_name_launch_game;
+pub use execution::__tauri_command_name_launch_trainer;
+pub use queries::__cmd__build_steam_launch_options_command;
+pub use queries::__cmd__check_game_running;
+pub use queries::__cmd__check_gamescope_session;
+pub use queries::__cmd__launch_platform_status;
+pub use queries::__cmd__list_launch_history_for_profile;
+pub use queries::__cmd__list_running_profiles;
+pub use queries::__cmd__preview_launch;
+pub use queries::__cmd__validate_launch;
+pub use queries::__tauri_command_name_build_steam_launch_options_command;
+pub use queries::__tauri_command_name_check_game_running;
+pub use queries::__tauri_command_name_check_gamescope_session;
+pub use queries::__tauri_command_name_launch_platform_status;
+pub use queries::__tauri_command_name_list_launch_history_for_profile;
+pub use queries::__tauri_command_name_list_running_profiles;
+pub use queries::__tauri_command_name_preview_launch;
+pub use queries::__tauri_command_name_validate_launch;
