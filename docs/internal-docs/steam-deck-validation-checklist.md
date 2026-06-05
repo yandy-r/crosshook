@@ -30,17 +30,21 @@ gamescope -W 1280 -H 800 -r 60 -- ./CrossHook_amd64.AppImage
 
 ## Gotchas
 
-WebKitGTK (Tauri's webview) has sluggish native scroll velocity. CrossHook compensates with the `useScrollEnhance` hook at `src/crosshook-native/src/hooks/useScrollEnhance.ts`. The `SCROLLABLE` selector constant at line 8 determines which containers receive the enhanced scroll behavior:
+WebKitGTK (Tauri's webview) has sluggish native scroll velocity. CrossHook compensates with the `useScrollEnhance` hook at `src/crosshook-native/src/hooks/useScrollEnhance.ts`. The exported `SCROLL_ENHANCE_SELECTORS` constant (aliased as `SCROLLABLE` inside the hook) determines which containers receive the enhanced scroll behavior:
 
 ```
 .crosshook-route-card-scroll, .crosshook-page-scroll-body,
 .crosshook-subtab-content__inner--scroll, .crosshook-console-drawer__body,
-.crosshook-modal__body, .crosshook-prefix-deps__log-output,
-.crosshook-discovery-results, .crosshook-collections-sidebar__list,
-.crosshook-collection-assign-menu__list
+.crosshook-modal__body, .crosshook-palette__list,
+.crosshook-prefix-deps__log-output, .crosshook-discovery-results,
+.crosshook-collections-sidebar__list, .crosshook-collection-assign-menu__list,
+.crosshook-route-stack__body--scroll, .crosshook-sidebar__nav--scroll,
+.crosshook-inspector__body, .crosshook-hero-detail__body,
+.crosshook-hero-detail__profiles-editor, .crosshook-context-rail__body,
+.crosshook-install-page-tabs__panel-inner
 ```
 
-Any new `overflow-y: auto` container introduced by collection modals **must** be added to this selector. If omitted, the enhanced scroll targets a parent container instead, causing dual-scroll jank. Inner scroll containers should also apply `overscroll-behavior: contain` to prevent scroll chaining.
+Any new `overflow-y: auto` container introduced by collection modals **must** be added to `SCROLL_ENHANCE_SELECTORS`. If omitted, the enhanced scroll targets a parent container instead, causing dual-scroll jank. Inner scroll containers should also apply `overscroll-behavior: contain` to prevent scroll chaining.
 
 ## Expected env var assertion
 
