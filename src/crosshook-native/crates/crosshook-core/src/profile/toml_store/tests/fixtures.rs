@@ -18,8 +18,23 @@ pub fn sample_profile() -> GameProfile {
             community_trainer_sha256: String::new(),
         },
         injection: crate::profile::InjectionSection {
+            loaded_hooks: vec![
+                crate::profile::LoadedDllHook {
+                    id: "legacy-dll-1".to_string(),
+                    name: "a".to_string(),
+                    path: "/dlls/a.dll".to_string(),
+                    enabled: true,
+                },
+                crate::profile::LoadedDllHook {
+                    id: "legacy-dll-2".to_string(),
+                    name: "b".to_string(),
+                    path: "/dlls/b.dll".to_string(),
+                    enabled: false,
+                },
+            ],
             dll_paths: vec!["/dlls/a.dll".to_string(), "/dlls/b.dll".to_string()],
             inject_on_launch: vec![true, false],
+            ..Default::default()
         },
         steam: crate::profile::SteamSection {
             enabled: true,

@@ -84,6 +84,7 @@ impl ProfileStore {
         effective.local_override = LocalOverrideSection::default();
         effective.launch.normalize_preset_selection();
         effective.normalize_hooks();
+        effective.normalize_injection();
         Ok(effective)
     }
 

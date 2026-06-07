@@ -41,9 +41,26 @@ pub fn check_profile_health(name: &str, profile: &GameProfile) -> ProfileHealthR
         ));
     }
 
-    // injection.dll_paths — each non-empty entry must exist as a file
+    // injection.loaded_hooks — enabled canonical DLL hook entries must point at files.
+    for (i, hook) in effective_profile.injection.loaded_hooks.iter().enumerate() {
+        if hook.enabled {
+            required_results.push(check_required_file(
+                &format!("injection.loaded_hooks[{i}].path"),
+                &hook.path,
+            ));
+        }
+    }
+
+    // injection.dll_paths — legacy mirror entries retain path validation during migration.
     for (i, dll_path) in effective_profile.injection.dll_paths.iter().enumerate() {
-        if !dll_path.trim().is_empty() {
+        let trimmed = dll_path.trim();
+        let represented_by_canonical = effective_profile
+            .injection
+            .loaded_hooks
+            .iter()
+            .any(|hook| hook.path.trim() == trimmed);
+
+        if !trimmed.is_empty() && !represented_by_canonical {
             required_results.push(check_file_path(
                 &format!("injection.dll_paths[{i}]"),
                 dll_path,

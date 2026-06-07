@@ -7,12 +7,17 @@ use crosshook_core::launch::{
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::LaunchHook;
 use serde::Serialize;
+use tauri::{AppHandle, Emitter};
 
 pub(crate) const GAMESCOPE_XDG_BACKEND_SOURCE_MARKER: &str = "xdg_backend:";
 pub(crate) const GAMESCOPE_XDG_BACKEND_MESSAGE_MARKER: &str =
     "Compositor released us but we were not acquired";
 pub(crate) const GAMESCOPE_XDG_BACKEND_SUPPRESSION_NOTICE: &str =
     "[crosshook] Suppressing repeated gamescope xdg_backend console noise. The raw launch log still contains every line.";
+
+fn is_false(value: &bool) -> bool {
+    !*value
+}
 
 #[derive(Debug, Default)]
 pub(crate) struct LaunchLogRelayState {
@@ -64,6 +69,115 @@ pub struct LaunchResult {
     pub helper_log_path: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<LaunchValidationIssue>,
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum InjectionLogLevel {
+    Info,
+    Warning,
+    Error,
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum InjectionLogSource {
+    Trainer,
+    Injection,
+    Runtime,
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum InjectionLogSessionKind {
+    Game,
+    Trainer,
+}
+
+impl From<SessionKind> for InjectionLogSessionKind {
+    fn from(value: SessionKind) -> Self {
+        match value {
+            SessionKind::Game => Self::Game,
+            SessionKind::Trainer => Self::Trainer,
+        }
+    }
+}
+
+/// Display-safe structured payload for the runtime-only `injection-log` event.
+///
+/// Keep `message` scoped and sanitized. Do not populate it with raw helper
+/// output, environment dumps, or unsanitized filesystem paths.
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct InjectionLogEvent {
+    pub(crate) timestamp: String,
+    pub(crate) profile_name: String,
+    pub(crate) session_id: String,
+    pub(crate) session_kind: InjectionLogSessionKind,
+    pub(crate) level: InjectionLogLevel,
+    pub(crate) source: InjectionLogSource,
+    pub(crate) message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) hook_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) hook_name: Option<String>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub(crate) unsupported_runtime: bool,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn build_injection_log_event(
+    timestamp: impl Into<String>,
+    profile_name: Option<&str>,
+    session_id: SessionId,
+    session_kind: SessionKind,
+    level: InjectionLogLevel,
+    source: InjectionLogSource,
+    message: impl Into<String>,
+    unsupported_runtime: bool,
+) -> InjectionLogEvent {
+    InjectionLogEvent {
+        timestamp: timestamp.into(),
+        profile_name: profile_name
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .unwrap_or("Unknown profile")
+            .to_string(),
+        session_id: session_id.to_string(),
+        session_kind: session_kind.into(),
+        level,
+        source,
+        message: message.into(),
+        hook_id: None,
+        hook_name: None,
+        unsupported_runtime,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn emit_injection_log_event(
+    app: &AppHandle,
+    profile_name: Option<&str>,
+    session_id: SessionId,
+    session_kind: SessionKind,
+    level: InjectionLogLevel,
+    source: InjectionLogSource,
+    message: impl Into<String>,
+    unsupported_runtime: bool,
+) {
+    let event = build_injection_log_event(
+        chrono::Utc::now().to_rfc3339(),
+        profile_name,
+        session_id,
+        session_kind,
+        level,
+        source,
+        message,
+        unsupported_runtime,
+    );
+
+    if let Err(error) = app.emit("injection-log", event) {
+        tracing::warn!(%error, "failed to emit injection-log event");
+    }
 }
 
 /// Context plumbed from a launch command into the log-stream task so the

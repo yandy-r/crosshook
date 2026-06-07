@@ -3,7 +3,7 @@ use std::fs;
 use tempfile::tempdir;
 
 use crate::profile::toml_store::ProfileStore;
-use crate::profile::GameProfile;
+use crate::profile::{GameProfile, LoadedDllHook};
 
 use super::super::{batch_check_health, check_profile_health, HealthStatus};
 use super::fixtures::{healthy_steam_profile, make_executable, make_proton_run_profile};
@@ -242,4 +242,70 @@ fn host_mounted_runtime_proton_path_is_healthy() {
         report.status,
         report.issues
     );
+}
+
+#[test]
+fn enabled_canonical_injection_hook_missing_path_reports_canonical_field() {
+    let tmp = tempdir().expect("tempdir");
+    let mut profile = healthy_steam_profile(tmp.path());
+    profile.injection.loaded_hooks = vec![LoadedDllHook {
+        id: "missing-dll".to_string(),
+        name: "Missing DLL".to_string(),
+        path: tmp
+            .path()
+            .join("missing-injection.dll")
+            .to_string_lossy()
+            .to_string(),
+        enabled: true,
+    }];
+    profile.injection.dll_paths.clear();
+    profile.injection.inject_on_launch.clear();
+
+    let report = check_profile_health("canonical-injection", &profile);
+
+    assert!(
+        matches!(report.status, HealthStatus::Stale),
+        "expected missing enabled DLL hook path to make profile stale, got {:?}; issues: {:?}",
+        report.status,
+        report.issues
+    );
+    assert!(report.issues.iter().any(|issue| {
+        issue.field == "injection.loaded_hooks[0].path"
+            && issue.path.ends_with("missing-injection.dll")
+    }));
+    assert!(!report
+        .issues
+        .iter()
+        .any(|issue| issue.field == "injection.dll_paths[0]"));
+}
+
+#[test]
+fn disabled_canonical_injection_hook_path_is_not_validated() {
+    let tmp = tempdir().expect("tempdir");
+    let mut profile = healthy_steam_profile(tmp.path());
+    profile.injection.loaded_hooks = vec![LoadedDllHook {
+        id: "disabled-dll".to_string(),
+        name: "Disabled DLL".to_string(),
+        path: tmp
+            .path()
+            .join("missing-disabled-injection.dll")
+            .to_string_lossy()
+            .to_string(),
+        enabled: false,
+    }];
+    profile.injection.dll_paths.clear();
+    profile.injection.inject_on_launch.clear();
+
+    let report = check_profile_health("disabled-injection", &profile);
+
+    assert!(
+        matches!(report.status, HealthStatus::Healthy),
+        "disabled canonical DLL hooks should not affect health, got {:?}; issues: {:?}",
+        report.status,
+        report.issues
+    );
+    assert!(!report
+        .issues
+        .iter()
+        .any(|issue| issue.field.starts_with("injection.")));
 }

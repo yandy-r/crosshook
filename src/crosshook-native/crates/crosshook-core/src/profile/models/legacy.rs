@@ -57,6 +57,7 @@ impl From<LegacyProfileData> for GameProfile {
             injection: InjectionSection {
                 dll_paths: vec![value.dll1_path, value.dll2_path],
                 inject_on_launch: vec![value.launch_inject1, value.launch_inject2],
+                ..Default::default()
             },
             steam: SteamSection {
                 enabled: value.use_steam_mode,

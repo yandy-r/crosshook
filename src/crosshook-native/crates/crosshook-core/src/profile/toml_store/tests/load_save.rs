@@ -3,7 +3,7 @@ use std::fs;
 use tempfile::tempdir;
 
 use super::super::utils::validate_name;
-use crate::profile::models::{CollectionDefaultsSection, LocalOverrideSection};
+use crate::profile::models::{CollectionDefaultsSection, LoadedDllHook, LocalOverrideSection};
 use crate::profile::toml_store::{ProfileStore, ProfileStoreError};
 
 use super::fixtures::sample_profile;
@@ -163,6 +163,105 @@ enabled = true
         crate::profile::models::HookStage::PreLaunch,
         "stage must be forced to match the pre_launch_hooks container on load"
     );
+}
+
+#[test]
+fn load_normalizes_legacy_injection_arrays_to_canonical_hooks() {
+    let temp_dir = tempdir().unwrap();
+    let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+    let profile_path = store.base_path.join("legacy-injection.toml");
+
+    fs::create_dir_all(&store.base_path).unwrap();
+    fs::write(
+        &profile_path,
+        r#"[game]
+name = "Legacy Injection"
+executable_path = "/games/test.exe"
+
+[launch]
+method = "native"
+
+[injection]
+dll_paths = ["/dlls/overlay.dll", "", "/dlls/metrics.dll"]
+inject_on_launch = [true]
+"#,
+    )
+    .unwrap();
+
+    let loaded = store.load("legacy-injection").unwrap();
+
+    assert_eq!(loaded.injection.loaded_hooks.len(), 2);
+    assert_eq!(loaded.injection.loaded_hooks[0].id, "legacy-dll-1");
+    assert_eq!(loaded.injection.loaded_hooks[0].name, "overlay");
+    assert_eq!(loaded.injection.loaded_hooks[0].path, "/dlls/overlay.dll");
+    assert!(loaded.injection.loaded_hooks[0].enabled);
+    assert_eq!(loaded.injection.loaded_hooks[1].id, "legacy-dll-3");
+    assert_eq!(loaded.injection.loaded_hooks[1].name, "metrics");
+    assert_eq!(loaded.injection.loaded_hooks[1].path, "/dlls/metrics.dll");
+    assert!(!loaded.injection.loaded_hooks[1].enabled);
+    assert_eq!(
+        loaded.injection.dll_paths,
+        vec!["/dlls/overlay.dll", "/dlls/metrics.dll"]
+    );
+    assert_eq!(loaded.injection.inject_on_launch, vec![true, false]);
+}
+
+#[test]
+fn save_persists_canonical_injection_hooks_and_legacy_mirrors() {
+    let temp_dir = tempdir().unwrap();
+    let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+
+    let mut profile = sample_profile();
+    profile.injection.loaded_hooks = vec![
+        LoadedDllHook {
+            id: "dll-overlay".to_string(),
+            name: "Overlay".to_string(),
+            path: "/dlls/overlay.dll".to_string(),
+            enabled: true,
+        },
+        LoadedDllHook {
+            id: "dll-metrics".to_string(),
+            name: "Metrics".to_string(),
+            path: "/dlls/metrics.dll".to_string(),
+            enabled: false,
+        },
+    ];
+    profile.injection.dll_paths = vec!["/stale/legacy.dll".to_string()];
+    profile.injection.inject_on_launch = vec![false, false, false];
+
+    store.save("canonical-injection", &profile).unwrap();
+
+    let content = fs::read_to_string(store.profile_path("canonical-injection").unwrap()).unwrap();
+    assert!(
+        content.contains("[[injection.loaded_hooks]]"),
+        "expected canonical loaded hook tables in saved TOML: {content}"
+    );
+    assert!(
+        content.contains("dll_paths = [")
+            && content.contains(r#""/dlls/overlay.dll""#)
+            && content.contains(r#""/dlls/metrics.dll""#),
+        "expected legacy dll_paths mirror to be refreshed: {content}"
+    );
+    assert!(
+        content.contains("inject_on_launch = [")
+            && content.contains("true,")
+            && content.contains("false,"),
+        "expected legacy enabled mirror to be refreshed: {content}"
+    );
+    assert!(
+        !content.contains("/stale/legacy.dll"),
+        "stale legacy mirror path must not be persisted: {content}"
+    );
+
+    let loaded = store.load("canonical-injection").unwrap();
+    assert_eq!(loaded.injection.loaded_hooks.len(), 2);
+    assert_eq!(loaded.injection.loaded_hooks[0].id, "dll-overlay");
+    assert_eq!(loaded.injection.loaded_hooks[1].id, "dll-metrics");
+    assert_eq!(
+        loaded.injection.dll_paths,
+        vec!["/dlls/overlay.dll", "/dlls/metrics.dll"]
+    );
+    assert_eq!(loaded.injection.inject_on_launch, vec![true, false]);
 }
 
 #[test]

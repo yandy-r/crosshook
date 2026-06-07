@@ -17,8 +17,8 @@ use tokio::sync::mpsc;
 
 use super::diagnostics::{diagnostic_method_for_log, safe_read_tail, sanitize_diagnostic_report};
 use super::shared::{
-    suppression_summary_line, transform_launch_log_line_for_ui, LaunchLogRelayState,
-    LaunchStreamContext,
+    emit_injection_log_event, suppression_summary_line, transform_launch_log_line_for_ui,
+    InjectionLogLevel, InjectionLogSource, LaunchLogRelayState, LaunchStreamContext,
 };
 use crate::commands::shared::sanitize_display_path;
 use crosshook_core::metadata::{compute_correlation_status, hash_trainer_file};
@@ -439,7 +439,59 @@ async fn finalize_launch_stream(
         tracing::warn!(%error, "failed to emit launch-complete event");
     }
 
+    emit_injection_stream_finalization(&app, &context, &report);
     finalize_launch_session(&context);
+}
+
+fn emit_injection_stream_finalization(
+    app: &AppHandle,
+    context: &LaunchStreamContext,
+    report: &crosshook_core::launch::diagnostics::DiagnosticReport,
+) {
+    if context.session_kind != SessionKind::Trainer {
+        return;
+    }
+
+    let teardown_reason = report.teardown_reason;
+    if teardown_reason.is_some_and(|reason| reason != TeardownReason::NaturalExit) {
+        emit_injection_log_event(
+            app,
+            context.profile_name.as_deref(),
+            context.session_id,
+            context.session_kind,
+            InjectionLogLevel::Warning,
+            InjectionLogSource::Runtime,
+            "Trainer session teardown was recorded.",
+            false,
+        );
+    }
+
+    if matches!(
+        report.exit_info.failure_mode,
+        FailureMode::CleanExit | FailureMode::Indeterminate
+    ) {
+        emit_injection_log_event(
+            app,
+            context.profile_name.as_deref(),
+            context.session_id,
+            context.session_kind,
+            InjectionLogLevel::Info,
+            InjectionLogSource::Trainer,
+            "Trainer launch completed.",
+            false,
+        );
+    } else {
+        emit_injection_log_event(
+            app,
+            context.profile_name.as_deref(),
+            context.session_id,
+            context.session_kind,
+            InjectionLogLevel::Error,
+            InjectionLogSource::Trainer,
+            "Trainer launch ended with diagnostics.",
+            false,
+        );
+    }
 }
 
 /// On game-session teardown, broadcast [`TeardownReason::LinkedSessionExit`]

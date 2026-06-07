@@ -1,4 +1,4 @@
-import type { GameProfile } from '../../types';
+import { DEFAULT_INJECTION_SECTION, type GameProfile } from '../../types';
 
 export function createEmptyProfile(): GameProfile {
   return {
@@ -12,8 +12,10 @@ export function createEmptyProfile(): GameProfile {
       loading_mode: 'source_directory',
     },
     injection: {
+      ...DEFAULT_INJECTION_SECTION,
       dll_paths: [],
-      inject_on_launch: [false, false],
+      inject_on_launch: [],
+      loaded_hooks: [],
     },
     steam: {
       enabled: false,
