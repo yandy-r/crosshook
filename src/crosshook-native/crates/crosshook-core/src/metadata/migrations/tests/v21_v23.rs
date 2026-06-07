@@ -189,15 +189,22 @@ fn migration_23_to_24_creates_umu_gameid_lookup_cache_table() {
         .unwrap();
     assert!(table_exists, "umu_gameid_lookup_cache table should exist");
 
-    let idx_exists: bool = conn
-        .prepare(
-            "SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_umu_gameid_lookup_cache_store_codename'",
-        )
+    let primary_key_columns: Vec<String> = conn
+        .prepare("PRAGMA table_info(umu_gameid_lookup_cache)")
         .unwrap()
-        .exists([])
-        .unwrap();
-    assert!(
-        idx_exists,
-        "unique index idx_umu_gameid_lookup_cache_store_codename should exist"
+        .query_map([], |row| {
+            let name: String = row.get(1)?;
+            let pk: i64 = row.get(5)?;
+            Ok((pk, name))
+        })
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter(|(pk, _)| *pk > 0)
+        .map(|(_, name)| name)
+        .collect();
+    assert_eq!(
+        primary_key_columns,
+        ["store", "codename"],
+        "umu_gameid_lookup_cache primary key should enforce unique store/codename rows"
     );
 }

@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 This file is generated with `git-cliff` from the repository history and release tags.
 
+## [v0.4.0] - 2026-06-07
+
+### Documentation
+
+- **roadmap:** Refresh post-release priorities ([`9e713b6`](https://github.com/yandy-r/crosshook/commit/9e713b6d8f7b725155f86827ea561c22b39bc3b0))
+
+- **roadmap:** Add upstream cross-links for glib advisory ([#26](https://github.com/yandy-r/crosshook/issues/26)) ([`82f0f9e`](https://github.com/yandy-r/crosshook/commit/82f0f9e0f2ed2a764de56d2e58164b0e3fbc8a12))
+
+- **roadmap:** Move Do next to top and refresh priorities ([`b40069c`](https://github.com/yandy-r/crosshook/commit/b40069c41b0535f25c8de20585346b46bd849548))
+
+### Features
+
+- **library:** Add trainer tab editor ([#501](https://github.com/yandy-r/crosshook/issues/501)) ([`985e5bf`](https://github.com/yandy-r/crosshook/commit/985e5bf9e4a1192e37b61462d72f93ac787ac69f))
+
+- **launch:** Add umu GAMEID lookup resolver ([#502](https://github.com/yandy-r/crosshook/issues/502)) ([`6474d50`](https://github.com/yandy-r/crosshook/commit/6474d50d3b88f1905b29abf93b8dbb022763dcf6))
+
 ## [v0.3.1] - 2026-06-05
 
 ### Build
