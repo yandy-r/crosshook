@@ -27,7 +27,58 @@ pub struct GameSection {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct LoadedDllHook {
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub id: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub name: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub path: String,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum InjectionMethod {
+    #[default]
+    Disabled,
+    LoadLibrary,
+    ManualMap,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum InjectionStage {
+    #[default]
+    TrainerLaunch,
+    GameProcessReady,
+    Manual,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum InjectionFallback {
+    #[default]
+    WarnAndContinue,
+    DisableHook,
+    AbortLaunch,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct InjectionSection {
+    #[serde(
+        rename = "loaded_hooks",
+        default,
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub loaded_hooks: Vec<LoadedDllHook>,
+    pub method: InjectionMethod,
+    pub stage: InjectionStage,
+    #[serde(rename = "timeout_ms", default)]
+    pub timeout_ms: u64,
+    pub fallback: InjectionFallback,
     #[serde(rename = "dll_paths", default)]
     pub dll_paths: Vec<String>,
     #[serde(rename = "inject_on_launch", default)]

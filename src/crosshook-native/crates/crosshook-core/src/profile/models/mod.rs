@@ -15,7 +15,10 @@ mod trainer;
 #[cfg(test)]
 mod tests;
 
-pub use game_meta::{GameSection, InjectionSection, LauncherSection, SteamSection};
+pub use game_meta::{
+    GameSection, InjectionFallback, InjectionMethod, InjectionSection, InjectionStage,
+    LauncherSection, LoadedDllHook, SteamSection,
+};
 pub use gamescope::{GamescopeConfig, GamescopeFilter};
 pub use hooks::{HookStage, LaunchHook};
 pub use launch::{CollectionDefaultsSection, LaunchOptimizationsSection, LaunchSection};

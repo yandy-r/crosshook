@@ -1,4 +1,5 @@
 import type { DiagnosticReport } from '../../../types/diagnostics';
+import type { InjectionLogEvent } from '../../../types/injection';
 import type { LaunchPreview, LaunchRequest, LaunchResult, LaunchValidationIssue } from '../../../types/launch';
 import type { LaunchHistoryEntry } from '../../../types/library';
 import { getActiveFixture } from '../../fixture';
@@ -137,6 +138,73 @@ function scheduleLaunchLogSequence(
   }, completeDelay);
 }
 
+function makeInjectionLogEvent(
+  request: LaunchRequest,
+  sessionId: string,
+  level: InjectionLogEvent['level'],
+  source: InjectionLogEvent['source'],
+  message: string,
+  unsupportedRuntime = false
+): InjectionLogEvent {
+  const profileName = request.profile_name?.trim() || 'Unknown profile';
+  return {
+    timestamp: new Date().toISOString(),
+    profile_name: profileName,
+    session_id: sessionId,
+    session_kind: 'trainer',
+    level,
+    source,
+    message,
+    unsupported_runtime: unsupportedRuntime,
+  };
+}
+
+function scheduleTrainerInjectionLogSequence(request: LaunchRequest, steamAppId: string): void {
+  const sessionId = `mock-trainer-session-${steamAppId}`;
+  const rows: Array<{
+    delayMs: number;
+    level: InjectionLogEvent['level'];
+    source: InjectionLogEvent['source'];
+    message: string;
+    unsupportedRuntime?: boolean;
+  }> = [
+    {
+      delayMs: 50,
+      level: 'info',
+      source: 'trainer',
+      message: 'Trainer launch requested.',
+    },
+    {
+      delayMs: 350,
+      level: 'info',
+      source: 'trainer',
+      message: 'Trainer process started.',
+    },
+    {
+      delayMs: 550,
+      level: 'warning',
+      source: 'injection',
+      message: 'DLL injection engine is not available; stored hook configuration was not applied.',
+      unsupportedRuntime: true,
+    },
+    {
+      delayMs: 1500,
+      level: 'info',
+      source: 'trainer',
+      message: 'Trainer launch completed.',
+    },
+  ];
+
+  rows.forEach((row) => {
+    scheduleLaunchTimeout(() => {
+      emitMockEvent(
+        'injection-log',
+        makeInjectionLogEvent(request, sessionId, row.level, row.source, row.message, row.unsupportedRuntime ?? false)
+      );
+    }, row.delayMs);
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Registration
 // ---------------------------------------------------------------------------
@@ -222,6 +290,7 @@ export function registerLaunch(map: Map<string, Handler>): void {
       '[mock] Trainer attached successfully. Cheat engine active.',
     ];
 
+    scheduleTrainerInjectionLogSequence(request, steamAppId);
     scheduleLaunchLogSequence(trainerLogLines, helperLogPath, 200, 250, request.profile_name);
 
     return makeLaunchResult('Trainer launch started.', logSuffix);

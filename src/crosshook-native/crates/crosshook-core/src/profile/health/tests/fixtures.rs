@@ -53,6 +53,7 @@ pub(super) fn healthy_steam_profile(tmp: &Path) -> GameProfile {
         injection: InjectionSection {
             dll_paths: vec![dll.to_string_lossy().to_string()],
             inject_on_launch: vec![true],
+            ..Default::default()
         },
         steam: SteamSection {
             enabled: true,

@@ -86,14 +86,16 @@ export function useProfileCrud({
     });
 
     const recentFiles = await callCommand<RecentFilesData>('recent_files_load');
+    const canonicalDllPaths = currentProfile.injection.loaded_hooks.map((hook) => hook.path);
+    const dllPaths = [
+      ...canonicalDllPaths,
+      ...currentProfile.injection.dll_paths.filter((dllPath) => !canonicalDllPaths.includes(dllPath)),
+    ];
     await callCommand('recent_files_save', {
       data: {
         game_paths: mergeRecentPaths(recentFiles.game_paths, currentProfile.game.executable_path),
         trainer_paths: mergeRecentPaths(recentFiles.trainer_paths, currentProfile.trainer.path),
-        dll_paths: currentProfile.injection.dll_paths.reduce(
-          (paths, dllPath) => mergeRecentPaths(paths, dllPath),
-          recentFiles.dll_paths
-        ),
+        dll_paths: dllPaths.reduce((paths, dllPath) => mergeRecentPaths(paths, dllPath), recentFiles.dll_paths),
       } satisfies RecentFilesData,
     });
   }, []);

@@ -32,6 +32,7 @@ pub(super) fn sample_profile() -> GameProfile {
         injection: InjectionSection {
             dll_paths: vec!["/dlls/a.dll".to_string(), "/dlls/b.dll".to_string()],
             inject_on_launch: vec![true, false],
+            ..Default::default()
         },
         steam: SteamSection {
             enabled: true,

@@ -22,7 +22,16 @@ use std::path::{Path, PathBuf};
 /// This function is fail-open — new fields silently survive export unless explicitly enumerated.
 pub(super) fn sanitize_profile_for_community_export(profile: &GameProfile) -> GameProfile {
     let mut out = profile.portable_profile();
+
+    // DLL hook declarations may carry local paths and enabled execution intent.
+    // Preserve portable identity/display metadata, but never export a machine-local
+    // DLL path or an enabled hook declaration.
+    for hook in &mut out.injection.loaded_hooks {
+        hook.path.clear();
+        hook.enabled = false;
+    }
     out.injection.dll_paths.clear();
+    out.injection.inject_on_launch.clear();
     out.steam.launcher.icon_path.clear();
     out.runtime.proton_path.clear();
     out.runtime.working_directory.clear();
@@ -61,6 +70,15 @@ pub(super) fn hydrate_imported_profile(profile: &GameProfile) -> GameProfile {
     {
         hook.enabled = false;
     }
+    for hook in &mut hydrated.injection.loaded_hooks {
+        hook.enabled = false;
+    }
+    hydrated.injection.inject_on_launch = hydrated
+        .injection
+        .loaded_hooks
+        .iter()
+        .map(|hook| hook.enabled)
+        .collect();
 
     let game_path = hydrated.game.executable_path.trim();
     if !game_path.is_empty() {

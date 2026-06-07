@@ -2,6 +2,7 @@ export * from './collections';
 export * from './diagnostics';
 export * from './discovery';
 export * from './health';
+export * from './injection';
 export * from './install';
 export * from './launch';
 export * from './launcher';

@@ -2,7 +2,7 @@ import type { ProfileHealthReport } from '@/types/health';
 import type { LaunchPreview, LaunchRequest } from '@/types/launch';
 import type { LibraryCardData } from '@/types/library';
 import type { Capability, HostToolCheckResult, HostToolInstallCommand, ReadinessCheckResult } from '@/types/onboarding';
-import { createDefaultProfile, type GameProfile } from '@/types/profile';
+import { createDefaultProfile, type GameProfile, normalizeInjectionSection } from '@/types/profile';
 
 export function makeInstallHint(overrides: Partial<HostToolInstallCommand> = {}): HostToolInstallCommand {
   return {
@@ -222,6 +222,10 @@ export function makeProfileDraft(overrides: Partial<GameProfile> = {}): GameProf
       ...base.trainer,
       ...(overrides.trainer ?? {}),
     },
+    injection: normalizeInjectionSection({
+      ...base.injection,
+      ...(overrides.injection ?? {}),
+    }),
     steam: {
       ...base.steam,
       ...(overrides.steam ?? {}),

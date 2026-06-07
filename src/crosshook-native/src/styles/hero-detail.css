@@ -471,6 +471,113 @@
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
 }
 
+.crosshook-hero-detail__trainer-tab,
+.crosshook-hero-detail__trainer-stack {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.crosshook-hero-detail__trainer-section,
+.crosshook-hero-detail__trainer-log {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--crosshook-color-border);
+  border-radius: var(--crosshook-radius-md);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.crosshook-hero-detail__trainer-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.crosshook-hero-detail__trainer-section-header > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.crosshook-hero-detail__trainer-log-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  min-width: 24px;
+  padding: 2px 8px;
+  border: 1px solid var(--crosshook-dashboard-pill-border);
+  border-radius: 999px;
+  background: var(--crosshook-dashboard-pill-bg);
+  color: var(--crosshook-color-text-muted);
+  font-size: 0.74rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.crosshook-hero-detail__trainer-log-rows {
+  display: grid;
+  gap: 8px;
+  max-height: 18rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+}
+
+.crosshook-hero-detail__trainer-log-row {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--crosshook-color-border-muted);
+  border-radius: var(--crosshook-radius-sm);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.crosshook-hero-detail__trainer-log-row--warning {
+  border-color: rgba(251, 191, 36, 0.55);
+  background: rgba(251, 191, 36, 0.08);
+}
+
+.crosshook-hero-detail__trainer-log-row--error {
+  border-color: rgba(248, 113, 113, 0.55);
+  background: rgba(248, 113, 113, 0.08);
+}
+
+.crosshook-hero-detail__trainer-log-row--unsupported {
+  border-style: dashed;
+}
+
+.crosshook-hero-detail__trainer-log-row p {
+  margin: 0;
+  color: var(--crosshook-color-text);
+  line-height: 1.42;
+  overflow-wrap: anywhere;
+}
+
+.crosshook-hero-detail__trainer-log-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--crosshook-color-text-muted);
+  font-size: 0.74rem;
+}
+
+.crosshook-hero-detail__trainer-log-meta span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+}
+
 .crosshook-hero-detail__launch-tab .crosshook-dashboard-panel-section,
 .crosshook-hero-detail__launch-tab .crosshook-dashboard-panel-section__content,
 .crosshook-hero-detail__launch-tab .crosshook-install-section,
@@ -974,6 +1081,16 @@
     position: static;
     width: 100%;
     margin-top: 8px;
+  }
+
+  .crosshook-hero-detail__trainer-section-header,
+  .crosshook-hero-detail__trainer-log-meta {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .crosshook-hero-detail__trainer-log-rows {
+    max-height: 16rem;
   }
 
   /* Narrow-width collapse for profile-actions bar (Task 2.2) and new editor

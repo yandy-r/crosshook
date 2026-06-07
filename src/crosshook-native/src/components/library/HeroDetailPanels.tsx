@@ -12,6 +12,7 @@ import { GameDetailsHealthSection } from './GameDetailsHealthSection';
 import { GameDetailsMetadataSection } from './GameDetailsMetadataSection';
 import { HeroDetailLaunchTab } from './HeroDetailLaunchTab';
 import { HeroDetailProfilesTab } from './HeroDetailProfilesTab';
+import { HeroDetailTrainerTab } from './HeroDetailTrainerTab';
 import type { HeroDetailProfilesScrollTarget, HeroDetailTabId, HeroDetailTabRequestOptions } from './hero-detail-model';
 import { displayPath } from './hero-detail-model';
 
@@ -294,27 +295,7 @@ export function HeroDetailPanels({
             <p className="crosshook-hero-detail__warn">{profileError ?? 'Failed to load profile.'}</p>
           ) : null}
           {profile && loadState === 'ready' ? (
-            <section
-              className="crosshook-hero-detail__section crosshook-hero-detail__section--card"
-              aria-label="Trainer"
-            >
-              <h3 className="crosshook-hero-detail__section-title">Trainer</h3>
-              <div className="crosshook-hero-detail__subsection">
-                <h4 className="crosshook-hero-detail__subsection-title">Configuration</h4>
-                <div className="crosshook-hero-detail__kv-list">
-                  <p className="crosshook-hero-detail__kv-item">
-                    <span className="crosshook-hero-detail__kv-key">Path</span>
-                    <span className="crosshook-hero-detail__kv-value crosshook-hero-detail__mono">
-                      {displayPath(profile.trainer.path)}
-                    </span>
-                  </p>
-                  <p className="crosshook-hero-detail__kv-item">
-                    <span className="crosshook-hero-detail__kv-key">Loading mode</span>
-                    <span className="crosshook-hero-detail__kv-value">{profile.trainer.loading_mode || 'Not set'}</span>
-                  </p>
-                </div>
-              </div>
-            </section>
+            <HeroDetailTrainerTab summary={summary} displayProfileName={displayProfileName} />
           ) : null}
         </div>
       );

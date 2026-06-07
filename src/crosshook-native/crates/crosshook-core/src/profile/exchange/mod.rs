@@ -43,6 +43,7 @@ mod tests {
             injection: crate::profile::InjectionSection {
                 dll_paths: vec!["/dlls/a.dll".to_string(), "/dlls/b.dll".to_string()],
                 inject_on_launch: vec![true, false],
+                ..Default::default()
             },
             steam: crate::profile::SteamSection {
                 enabled: true,
@@ -74,9 +75,15 @@ mod tests {
 
     fn sample_profile_sanitized_for_export() -> GameProfile {
         let mut p = sample_profile();
+        p.normalize_injection();
         p.game.executable_path.clear();
         p.trainer.path.clear();
+        for hook in &mut p.injection.loaded_hooks {
+            hook.path.clear();
+            hook.enabled = false;
+        }
         p.injection.dll_paths.clear();
+        p.injection.inject_on_launch.clear();
         p.steam.compatdata_path.clear();
         p.steam.proton_path.clear();
         p.steam.launcher.icon_path.clear();
@@ -112,6 +119,26 @@ mod tests {
         );
         let trainer = prof.get("trainer").and_then(Value::as_object).unwrap();
         assert_eq!(trainer.get("path").and_then(Value::as_str), Some(""));
+        let injection = prof.get("injection").and_then(Value::as_object).unwrap();
+        let loaded_hooks = injection
+            .get("loaded_hooks")
+            .and_then(Value::as_array)
+            .unwrap();
+        assert_eq!(loaded_hooks.len(), 2);
+        assert!(loaded_hooks.iter().all(|hook| {
+            hook.get("path")
+                .and_then(Value::as_str)
+                .is_none_or(str::is_empty)
+                && hook.get("enabled").and_then(Value::as_bool) == Some(false)
+        }));
+        assert!(injection
+            .get("dll_paths")
+            .and_then(Value::as_array)
+            .is_none_or(Vec::is_empty));
+        assert!(injection
+            .get("inject_on_launch")
+            .and_then(Value::as_array)
+            .is_none_or(Vec::is_empty));
         let steam = prof.get("steam").and_then(Value::as_object).unwrap();
         assert_eq!(
             steam.get("compatdata_path").and_then(Value::as_str),
@@ -147,7 +174,9 @@ mod tests {
         // Import may hydrate steam.proton_path from a local Steam install when app_id is set;
         // compare the portable shape expected from the exported manifest.
         loaded.steam.proton_path.clear();
-        assert_eq!(loaded, shareable);
+        let mut expected_imported = shareable;
+        expected_imported.normalize_injection();
+        assert_eq!(loaded, expected_imported);
     }
 
     #[test]
@@ -317,6 +346,13 @@ mod tests {
         ]);
         value["profile"]["pre_launch_hooks"] = hooks_json;
         value["profile"]["post_exit_hooks"] = post_hooks_json;
+        value["profile"]["injection"]["loaded_hooks"] = serde_json::json!([
+            { "id": "dll-a", "name": "Injected A", "path": "/dlls/a.dll", "enabled": true },
+            { "id": "dll-b", "name": "Injected B", "path": "/dlls/b.dll", "enabled": true },
+        ]);
+        value["profile"]["injection"]["dll_paths"] =
+            serde_json::json!(["/dlls/a.dll", "/dlls/b.dll"]);
+        value["profile"]["injection"]["inject_on_launch"] = serde_json::json!([true, true]);
         fs::write(&export_path, serde_json::to_string_pretty(&value).unwrap()).unwrap();
 
         let imported = import_community_profile(&export_path, &import_dir).unwrap();
@@ -346,5 +382,16 @@ mod tests {
             "/scripts/pre-a.sh"
         );
         assert_eq!(imported.profile.post_exit_hooks[0].id, "post-a");
+        assert_eq!(imported.profile.injection.loaded_hooks.len(), 2);
+        assert!(imported
+            .profile
+            .injection
+            .loaded_hooks
+            .iter()
+            .all(|hook| !hook.enabled));
+        assert_eq!(
+            imported.profile.injection.inject_on_launch,
+            vec![false, false]
+        );
     }
 }

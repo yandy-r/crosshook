@@ -93,6 +93,39 @@ export interface BundledOptimizationPreset {
 }
 export type TrainerLoadingMode = 'source_directory' | 'copy_to_prefix';
 
+export type InjectionMethod = 'disabled' | 'load_library' | 'manual_map';
+export type InjectionStage = 'trainer_launch' | 'game_process_ready' | 'manual';
+export type InjectionFallback = 'warn_and_continue' | 'disable_hook' | 'abort_launch';
+
+export interface LoadedDllHook {
+  id: string;
+  name: string;
+  path: string;
+  enabled: boolean;
+}
+
+export interface InjectionSection {
+  /** Legacy mirror retained for older profile consumers. Prefer `loaded_hooks`. */
+  dll_paths: string[];
+  /** Legacy mirror retained for older profile consumers. Prefer `loaded_hooks.enabled`. */
+  inject_on_launch: boolean[];
+  loaded_hooks: LoadedDllHook[];
+  method: InjectionMethod;
+  stage: InjectionStage;
+  timeout_ms: number;
+  fallback: InjectionFallback;
+}
+
+export const DEFAULT_INJECTION_SECTION: InjectionSection = {
+  dll_paths: [],
+  inject_on_launch: [],
+  loaded_hooks: [],
+  method: 'disabled',
+  stage: 'trainer_launch',
+  timeout_ms: 0,
+  fallback: 'warn_and_continue',
+};
+
 export interface GameProfile {
   game: {
     name: string;
@@ -112,10 +145,7 @@ export interface GameProfile {
     /** Optional digest from community profile manifest (advisory at launch). */
     community_trainer_sha256?: string;
   };
-  injection: {
-    dll_paths: string[];
-    inject_on_launch: boolean[];
-  };
+  injection: InjectionSection;
   steam: {
     enabled: boolean;
     app_id: string;
@@ -185,7 +215,12 @@ export interface SerializedLocalOverrideSection {
   runtime?: Partial<NonNullable<GameProfile['local_override']>['runtime']>;
 }
 
-export interface SerializedGameProfile extends Omit<GameProfile, 'runtime' | 'local_override'> {
+export interface SerializedInjectionSection extends Partial<Omit<InjectionSection, 'loaded_hooks'>> {
+  loaded_hooks?: Array<Partial<LoadedDllHook>>;
+}
+
+export interface SerializedGameProfile extends Omit<GameProfile, 'runtime' | 'local_override' | 'injection'> {
+  injection?: SerializedInjectionSection;
   runtime?: Partial<GameProfile['runtime']>;
   local_override?: SerializedLocalOverrideSection;
 }
@@ -230,7 +265,55 @@ const DEFAULT_LAUNCH_SECTION: GameProfile['launch'] = {
   network_isolation: true,
 };
 
+function loadedDllHookNameFromPath(path: string, index: number): string {
+  const basename = path.split(/[\\/]/).pop()?.trim() ?? '';
+  return basename || `DLL hook ${index + 1}`;
+}
+
+function normalizeLoadedDllHook(hook: Partial<LoadedDllHook>, index: number): LoadedDllHook {
+  const path = hook.path ?? '';
+  return {
+    id: hook.id?.trim() || `loaded-dll-hook-${index + 1}`,
+    name: hook.name?.trim() || loadedDllHookNameFromPath(path, index),
+    path,
+    enabled: hook.enabled ?? false,
+  };
+}
+
+function normalizeLegacyLoadedDllHooks(injection: SerializedInjectionSection | undefined): LoadedDllHook[] {
+  const dllPaths = injection?.dll_paths ?? [];
+  const injectOnLaunch = injection?.inject_on_launch ?? [];
+  return dllPaths.map((path, index) =>
+    normalizeLoadedDllHook(
+      {
+        id: `legacy-dll-hook-${index + 1}`,
+        name: loadedDllHookNameFromPath(path, index),
+        path,
+        enabled: injectOnLaunch[index] ?? false,
+      },
+      index
+    )
+  );
+}
+
+export function normalizeInjectionSection(injection: SerializedInjectionSection | undefined): InjectionSection {
+  const hasCanonicalLoadedHooks = injection?.loaded_hooks !== undefined;
+  const loaded_hooks = hasCanonicalLoadedHooks
+    ? (injection.loaded_hooks?.map((hook, index) => normalizeLoadedDllHook(hook, index)) ?? [])
+    : normalizeLegacyLoadedDllHooks(injection);
+
+  return {
+    ...DEFAULT_INJECTION_SECTION,
+    ...(injection ?? {}),
+    loaded_hooks,
+    dll_paths: loaded_hooks.map((hook) => hook.path),
+    inject_on_launch: loaded_hooks.map((hook) => hook.enabled),
+  };
+}
+
 export function normalizeSerializedGameProfile(profile: SerializedGameProfile): GameProfile {
+  const injection = normalizeInjectionSection(profile.injection);
+
   return {
     ...profile,
     game: {
@@ -245,11 +328,7 @@ export function normalizeSerializedGameProfile(profile: SerializedGameProfile): 
       required_protontricks: [...(profile.trainer.required_protontricks ?? [])],
       community_trainer_sha256: profile.trainer.community_trainer_sha256 ?? '',
     },
-    injection: {
-      ...profile.injection,
-      dll_paths: [...profile.injection.dll_paths],
-      inject_on_launch: [...profile.injection.inject_on_launch],
-    },
+    injection,
     steam: {
       ...profile.steam,
       launcher: {
@@ -303,7 +382,7 @@ export function createDefaultProfile(): GameProfile {
       type: '',
       loading_mode: 'source_directory',
     },
-    injection: { dll_paths: [], inject_on_launch: [] },
+    injection: DEFAULT_INJECTION_SECTION,
     steam: {
       enabled: false,
       app_id: '',

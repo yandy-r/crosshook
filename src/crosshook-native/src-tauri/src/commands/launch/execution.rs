@@ -20,7 +20,10 @@ use tauri::{AppHandle, Manager, State};
 use tokio::sync::broadcast;
 
 use super::portal::try_register_gamemode_portal_for_launch;
-use super::shared::{LaunchHookStreamContext, LaunchResult, LaunchStreamContext};
+use super::shared::{
+    emit_injection_log_event, InjectionLogLevel, InjectionLogSource, LaunchHookStreamContext,
+    LaunchResult, LaunchStreamContext,
+};
 use super::streaming::spawn_log_stream;
 use super::warnings::{collect_offline_launch_warnings, collect_trainer_hash_launch_warnings_ipc};
 use crate::commands::shared::{create_log_path, sanitize_display_path};
@@ -293,32 +296,6 @@ pub async fn launch_trainer(
         &hook_context,
     ));
 
-    let child = command.spawn().map_err(|error| {
-        format!("failed to launch trainer (method={execution_method}): {error}")
-    })?;
-    let child_pid = child.id();
-
-    let sanitized_log_path = sanitize_display_path(&log_path.to_string_lossy());
-    let operation_id = record_launch_start(
-        &metadata_store,
-        request.profile_name.as_deref(),
-        execution_method,
-        &sanitized_log_path,
-    )
-    .await;
-
-    let snap_steam_app_id = request.steam.app_id.clone();
-    let snap_trainer_host_path = {
-        let path = request.trainer_host_path.trim().to_string();
-        if path.is_empty() {
-            None
-        } else {
-            Some(path)
-        }
-    };
-    let snap_profile_name = request.profile_name.clone();
-    let snap_steam_client_path = request.steam.steam_client_install_path.clone();
-
     let profile_key = session_profile_key(&request);
     let watchdog_outcome = WatchdogOutcome::new();
 
@@ -344,6 +321,80 @@ pub async fn launch_trainer(
             "launch session: trainer registered without parent game"
         );
     }
+
+    emit_injection_log_event(
+        &app,
+        request.profile_name.as_deref(),
+        session_id,
+        SessionKind::Trainer,
+        InjectionLogLevel::Info,
+        InjectionLogSource::Trainer,
+        "Trainer launch requested.",
+        false,
+    );
+
+    let child = match command.spawn() {
+        Ok(child) => child,
+        Err(error) => {
+            emit_injection_log_event(
+                &app,
+                request.profile_name.as_deref(),
+                session_id,
+                SessionKind::Trainer,
+                InjectionLogLevel::Error,
+                InjectionLogSource::Trainer,
+                "Trainer launch failed before the trainer process started.",
+                false,
+            );
+            session_registry.deregister(session_id);
+            return Err(format!(
+                "failed to launch trainer (method={execution_method}): {error}"
+            ));
+        }
+    };
+    let child_pid = child.id();
+
+    emit_injection_log_event(
+        &app,
+        request.profile_name.as_deref(),
+        session_id,
+        SessionKind::Trainer,
+        InjectionLogLevel::Info,
+        InjectionLogSource::Trainer,
+        "Trainer process started.",
+        false,
+    );
+    emit_injection_log_event(
+        &app,
+        request.profile_name.as_deref(),
+        session_id,
+        SessionKind::Trainer,
+        InjectionLogLevel::Warning,
+        InjectionLogSource::Injection,
+        "DLL injection engine is not available; stored hook configuration was not applied.",
+        true,
+    );
+
+    let sanitized_log_path = sanitize_display_path(&log_path.to_string_lossy());
+    let operation_id = record_launch_start(
+        &metadata_store,
+        request.profile_name.as_deref(),
+        execution_method,
+        &sanitized_log_path,
+    )
+    .await;
+
+    let snap_steam_app_id = request.steam.app_id.clone();
+    let snap_trainer_host_path = {
+        let path = request.trainer_host_path.trim().to_string();
+        if path.is_empty() {
+            None
+        } else {
+            Some(path)
+        }
+    };
+    let snap_profile_name = request.profile_name.clone();
+    let snap_steam_client_path = request.steam.steam_client_install_path.clone();
 
     let stream_context = LaunchStreamContext {
         metadata_store,

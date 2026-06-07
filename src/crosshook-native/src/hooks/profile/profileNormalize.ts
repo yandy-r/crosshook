@@ -1,6 +1,6 @@
 import type { GameProfile, SerializedGameProfile } from '../../types';
 import type { LaunchOptimizations } from '../../types/launch-optimizations';
-import { normalizeSerializedGameProfile } from '../../types/profile';
+import { normalizeInjectionSection, normalizeSerializedGameProfile } from '../../types/profile';
 import { resolveLaunchMethod } from '../../utils/launch';
 import type { OptimizationEntry } from '../../utils/optimization-catalog';
 import { normalizeLaunchOptimizationIds } from './launchOptimizationIds';
@@ -56,6 +56,7 @@ export function normalizeProfileForEdit(
       type: normalizedProfile.trainer.type.trim(),
       loading_mode: normalizedProfile.trainer.loading_mode ?? 'source_directory',
     },
+    injection: normalizeInjectionSection(normalizedProfile.injection),
     steam: {
       ...normalizedProfile.steam,
       enabled: method === 'steam_applaunch',

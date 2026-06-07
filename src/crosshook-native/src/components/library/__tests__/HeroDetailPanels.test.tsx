@@ -6,7 +6,7 @@ import { PreferencesProvider } from '@/context/PreferencesContext';
 import { ProfileProvider } from '@/context/ProfileContext';
 import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
 import type { UseGameMetadataResult } from '@/hooks/useGameMetadata';
-import { makeLaunchPreview, makeLaunchRequest, makeLibraryCardData } from '@/test/fixtures';
+import { makeLaunchPreview, makeLaunchRequest, makeLibraryCardData, makeProfileDraft } from '@/test/fixtures';
 import type { LaunchPreview, LaunchRequest } from '@/types/launch';
 import type { HeroDetailLaunchTabProps } from '../HeroDetailLaunchTab';
 import { HeroDetailPanels } from '../HeroDetailPanels';
@@ -27,6 +27,23 @@ vi.mock('../HeroDetailLaunchTab', () => ({
       <section aria-label="Pre/post hooks">
         <h3>Pre/post hooks</h3>
         <p>Enabled hooks run locally around launch. Failures warn and do not block launch by default.</p>
+      </section>
+    </div>
+  ),
+}));
+
+vi.mock('../HeroDetailTrainerTab', () => ({
+  HeroDetailTrainerTab: ({ displayProfileName }: { displayProfileName?: string }) => (
+    <div data-testid="mock-hero-detail-trainer-tab">
+      <section aria-label="Loaded DLL hooks">
+        <h3>Loaded DLL hooks</h3>
+        <p>Trainer tab for {displayProfileName ?? 'selected profile'}</p>
+      </section>
+      <section aria-label="Injection configuration">
+        <h3>Injection configuration</h3>
+      </section>
+      <section aria-label="Recent injection log">
+        <h3>Recent injection log</h3>
       </section>
     </div>
   ),
@@ -243,6 +260,41 @@ describe('HeroDetailPanels', () => {
     expect(
       screen.getByText('Launch preview is unavailable until the game executable is set on this profile.')
     ).toBeInTheDocument();
+  });
+
+  it('renders the trainer branch through the trainer tab component', () => {
+    renderHeroDetailPanels({
+      mode: 'trainer',
+      profile: makeProfileDraft(),
+      loadState: 'ready',
+      displayProfileName: 'Synthetic Quest',
+    });
+
+    expect(screen.getByTestId('mock-hero-detail-trainer-tab')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Loaded DLL hooks' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Injection configuration' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Recent injection log' })).toBeInTheDocument();
+    expect(screen.getByText('Trainer tab for Synthetic Quest')).toBeInTheDocument();
+  });
+
+  it('renders trainer loading and error states around the trainer branch', () => {
+    renderHeroDetailPanels({
+      mode: 'trainer',
+      profile: null,
+      loadState: 'loading',
+      profileError: null,
+    });
+
+    expect(screen.getByText('Loading trainer configuration…')).toBeInTheDocument();
+
+    renderHeroDetailPanels({
+      mode: 'trainer',
+      profile: null,
+      loadState: 'error',
+      profileError: 'Trainer profile failed.',
+    });
+
+    expect(screen.getByText('Trainer profile failed.')).toBeInTheDocument();
   });
 });
 
