@@ -113,8 +113,6 @@ pub(super) fn migrate_23_to_24(conn: &Connection) -> Result<(), MetadataStoreErr
             PRIMARY KEY (store, codename),
             CHECK (status IN ('found', 'missing', 'error'))
         );
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_umu_gameid_lookup_cache_store_codename
-            ON umu_gameid_lookup_cache(store, codename);
         ",
     )
     .map_err(|source| MetadataStoreError::Database {
