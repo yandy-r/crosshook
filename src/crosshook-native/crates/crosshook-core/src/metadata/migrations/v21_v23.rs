@@ -95,3 +95,30 @@ pub(super) fn migrate_22_to_23(conn: &Connection) -> Result<(), MetadataStoreErr
 
     Ok(())
 }
+
+/// Dedicated umu GAMEID lookup cache table (issue #233).
+pub(super) fn migrate_23_to_24(conn: &Connection) -> Result<(), MetadataStoreError> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS umu_gameid_lookup_cache (
+            store        TEXT NOT NULL,
+            codename     TEXT NOT NULL,
+            umu_id       TEXT,
+            status       TEXT NOT NULL,
+            payload_json TEXT,
+            fetched_at   TEXT NOT NULL,
+            expires_at   TEXT,
+            last_error   TEXT,
+            updated_at   TEXT NOT NULL,
+            PRIMARY KEY (store, codename),
+            CHECK (status IN ('found', 'missing', 'error'))
+        );
+        ",
+    )
+    .map_err(|source| MetadataStoreError::Database {
+        action: "run metadata migration 23 to 24",
+        source,
+    })?;
+
+    Ok(())
+}

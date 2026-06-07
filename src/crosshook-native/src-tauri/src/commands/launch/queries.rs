@@ -8,6 +8,8 @@ use crosshook_core::launch::{
 };
 use crosshook_core::metadata::{LaunchHistoryEntry, MetadataStore, MAX_HISTORY_LIST_LIMIT};
 use crosshook_core::profile::GamescopeConfig;
+use crosshook_core::settings::{AppSettingsData, SettingsStore};
+use crosshook_core::umu_database;
 use tauri::State;
 
 fn map_error(e: impl ToString) -> String {
@@ -20,7 +22,19 @@ pub fn validate_launch(request: LaunchRequest) -> Result<(), LaunchValidationIss
 }
 
 #[tauri::command]
-pub fn preview_launch(request: LaunchRequest) -> Result<LaunchPreview, String> {
+pub async fn preview_launch(
+    request: LaunchRequest,
+    settings_store: State<'_, SettingsStore>,
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<LaunchPreview, String> {
+    let mut request = request;
+    let settings = settings_store
+        .load()
+        .unwrap_or_else(|_| AppSettingsData::default());
+    request.resolved_umu_game_id = Some(
+        umu_database::resolve_umu_game_id(&request, settings.umu_database_lookup, &metadata_store)
+            .await,
+    );
     build_launch_preview(&request).map_err(|error| error.to_string())
 }
 

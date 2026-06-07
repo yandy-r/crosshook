@@ -61,6 +61,8 @@ mod tests {
                 working_directory: String::new(),
                 steam_app_id: String::new(),
                 umu_game_id: String::new(),
+                umu_store: String::new(),
+                umu_codename: String::new(),
                 umu_preference: None,
             },
             launch: crate::profile::LaunchSection {

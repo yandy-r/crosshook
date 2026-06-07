@@ -10,8 +10,8 @@ pub struct RuntimeSection {
     pub proton_path: String,
     #[serde(rename = "working_directory", default)]
     pub working_directory: String,
-    /// Optional Steam App ID for media/metadata lookup only.
-    /// Does NOT affect launch behavior.
+    /// Optional Steam App ID used for media/metadata lookup and as umu-run `GAMEID`
+    /// fallback for Proton launches when no explicit `umu_game_id` is set.
     #[serde(
         rename = "steam_app_id",
         default,
@@ -26,6 +26,20 @@ pub struct RuntimeSection {
         skip_serializing_if = "String::is_empty"
     )]
     pub umu_game_id: String,
+    /// Optional store hint for online umu GAMEID lookup.
+    #[serde(
+        rename = "umu_store",
+        default,
+        skip_serializing_if = "String::is_empty"
+    )]
+    pub umu_store: String,
+    /// Optional codename hint for online umu GAMEID lookup.
+    #[serde(
+        rename = "umu_codename",
+        default,
+        skip_serializing_if = "String::is_empty"
+    )]
+    pub umu_codename: String,
     /// Optional per-profile umu preference override.
     /// `None` (TOML key absent) → inherit `AppSettingsData.umu_preference` global default.
     /// `Some(x)` → use `x` regardless of global default.
@@ -44,6 +58,8 @@ impl RuntimeSection {
             && self.working_directory.trim().is_empty()
             && self.steam_app_id.trim().is_empty()
             && self.umu_game_id.trim().is_empty()
+            && self.umu_store.trim().is_empty()
+            && self.umu_codename.trim().is_empty()
             && self.umu_preference.is_none()
     }
 }

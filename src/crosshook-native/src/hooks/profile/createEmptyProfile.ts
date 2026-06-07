@@ -31,6 +31,10 @@ export function createEmptyProfile(): GameProfile {
       prefix_path: '',
       proton_path: '',
       working_directory: '',
+      steam_app_id: '',
+      umu_game_id: '',
+      umu_store: '',
+      umu_codename: '',
     },
     launch: {
       method: 'proton_run',

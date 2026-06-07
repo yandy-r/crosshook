@@ -431,6 +431,18 @@ export function registerLaunch(map: Map<string, Handler>): void {
                 request?.runtime?.steam_app_id ??
                 ''
               ).trim();
+              const lookupEnabled = getStore().settings.umu_database_lookup === 'enabled';
+              const lookupStore = request?.runtime?.umu_store?.trim() ?? '';
+              const lookupCodename = request?.runtime?.umu_codename?.trim() ?? '';
+              const hasLookupHints = lookupStore.length > 0 && lookupCodename.length > 0;
+              const resolvedGameId = appId || (lookupEnabled && hasLookupHints ? 'UMU-MOCK-LOOKUP' : 'umu-0');
+              const resolutionSource = appId
+                ? 'steam_app_id'
+                : lookupEnabled
+                  ? hasLookupHints
+                    ? 'fresh_lookup'
+                    : 'missing_hints'
+                  : 'lookup_disabled';
               const csvCoverage: 'found' | 'missing' | 'unknown' =
                 appId === '' ? 'unknown' : mockFoundAppIds.has(appId) ? 'found' : 'missing';
               return {
@@ -439,6 +451,21 @@ export function registerLaunch(map: Map<string, Handler>): void {
                 will_use_umu: true,
                 reason: 'using umu-run at /usr/bin/umu-run',
                 csv_coverage: csvCoverage,
+                gameid_resolution: {
+                  game_id: resolvedGameId,
+                  store: lookupStore || null,
+                  source: resolutionSource,
+                  lookup_key:
+                    lookupStore && lookupCodename
+                      ? {
+                          store: lookupStore,
+                          codename: lookupCodename,
+                        }
+                      : null,
+                  fetched_at: null,
+                  expires_at: null,
+                  error_category: null,
+                },
               };
             })()
           : null,

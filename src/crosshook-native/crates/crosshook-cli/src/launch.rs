@@ -10,8 +10,10 @@ use crosshook_core::launch::{
     self, build_launch_preview, LaunchRequest, RuntimeLaunchConfig, SteamLaunchConfig,
     ValidationSeverity, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };
+use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::{resolve_launch_method, GameProfile};
 use crosshook_core::settings::{SettingsStore, UmuPreference};
+use crosshook_core::umu_database;
 use tokio::fs::{self, OpenOptions};
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use tokio::time::{sleep, Duration};
@@ -46,8 +48,14 @@ pub(crate) async fn launch_profile(
         .runtime
         .umu_preference
         .unwrap_or(settings.umu_preference);
-    let request = launch_request_from_profile(&profile, &profile_name, effective_umu_preference)
-        .map_err(|e| CliError::LaunchFailure(e.to_string()))?;
+    let mut request =
+        launch_request_from_profile(&profile, &profile_name, effective_umu_preference)
+            .map_err(|e| CliError::LaunchFailure(e.to_string()))?;
+    let metadata_store = MetadataStore::try_new().unwrap_or_else(|_| MetadataStore::disabled());
+    request.resolved_umu_game_id = Some(
+        umu_database::resolve_umu_game_id(&request, settings.umu_database_lookup, &metadata_store)
+            .await,
+    );
     launch::validate(&request).map_err(|e| CliError::LaunchFailure(e.to_string()))?;
 
     if command.dry_run {
@@ -214,6 +222,8 @@ fn launch_request_from_profile(
                 working_directory: profile.runtime.working_directory.clone(),
                 steam_app_id: profile.runtime.steam_app_id.clone(),
                 umu_game_id: profile.runtime.umu_game_id.clone(),
+                umu_store: profile.runtime.umu_store.clone(),
+                umu_codename: profile.runtime.umu_codename.clone(),
             },
             METHOD_NATIVE => RuntimeLaunchConfig {
                 working_directory: profile.runtime.working_directory.clone(),
@@ -229,6 +239,7 @@ fn launch_request_from_profile(
         profile_name: Some(profile_name.to_string()),
         custom_env_vars: profile.launch.custom_env_vars.clone(),
         umu_preference,
+        resolved_umu_game_id: None,
         network_isolation: profile.launch.network_isolation,
         gamescope: profile.launch.gamescope.clone(),
         trainer_gamescope: if profile.launch.trainer_gamescope.is_default() {

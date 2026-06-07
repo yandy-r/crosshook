@@ -3,7 +3,7 @@ use crosshook_core::discovery::ExternalTrainerSourceSubscription;
 use crosshook_core::settings::{
     clamp_recent_files_limit, resolve_profiles_directory_from_config, AppSettingsData,
     RecentFilesData, RecentFilesStore, RecentFilesStoreError, SettingsStore, SettingsStoreError,
-    UmuPreference,
+    UmuDatabaseLookupPreference, UmuPreference,
 };
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -56,6 +56,7 @@ pub struct AppSettingsIpcData {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub protonup_include_prereleases: Option<bool>,
     pub umu_preference: UmuPreference,
+    pub umu_database_lookup: UmuDatabaseLookupPreference,
     /// RFC 3339 timestamp of when the user dismissed the umu install nag; `None` = not dismissed.
     pub install_nag_dismissed_at: Option<String>,
     /// RFC 3339 timestamp of when the user dismissed the Steam Deck caveats; `None` = not dismissed.
@@ -105,6 +106,7 @@ impl AppSettingsIpcData {
             protonup_default_install_root: Some(data.protonup_default_install_root),
             protonup_include_prereleases: Some(data.protonup_include_prereleases),
             umu_preference: data.umu_preference,
+            umu_database_lookup: data.umu_database_lookup,
             install_nag_dismissed_at: data.install_nag_dismissed_at,
             steam_deck_caveats_dismissed_at: data.steam_deck_caveats_dismissed_at,
             host_tool_dashboard_dismissed_hints: data.host_tool_dashboard_dismissed_hints,
@@ -154,6 +156,8 @@ pub struct SettingsSaveRequest {
     pub protonup_binary_path: Option<String>,
     #[serde(default)]
     pub umu_preference: Option<UmuPreference>,
+    #[serde(default)]
+    pub umu_database_lookup: Option<UmuDatabaseLookupPreference>,
     #[serde(default)]
     pub host_tool_dashboard_dismissed_hints: Option<Vec<String>>,
     #[serde(default)]
@@ -212,6 +216,9 @@ fn merge_settings_from_request(
             .protonup_binary_path
             .unwrap_or(current.protonup_binary_path),
         umu_preference: data.umu_preference.unwrap_or(current.umu_preference),
+        umu_database_lookup: data
+            .umu_database_lookup
+            .unwrap_or(current.umu_database_lookup),
         host_tool_dashboard_dismissed_hints: data
             .host_tool_dashboard_dismissed_hints
             .unwrap_or(current.host_tool_dashboard_dismissed_hints),
@@ -361,6 +368,7 @@ mod tests {
             protonup_auto_suggest: None,
             protonup_binary_path: None,
             umu_preference: None,
+            umu_database_lookup: None,
             host_tool_dashboard_dismissed_hints: None,
             host_tool_dashboard_default_category_filter: None,
             install_nag_dismissed_at: None,

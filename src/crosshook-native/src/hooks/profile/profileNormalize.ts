@@ -6,6 +6,17 @@ import type { OptimizationEntry } from '../../utils/optimization-catalog';
 import { normalizeLaunchOptimizationIds } from './launchOptimizationIds';
 import { deriveGameName, deriveLauncherDisplayName, stripAutomaticLauncherSuffix } from './profileDisplayNames';
 
+const UMU_RUNTIME_HINT_MAX_LENGTH = 128;
+
+function normalizeUmuRuntimeHint(value: string | undefined, options: { lowercase: boolean }): string {
+  const trimmed = (value ?? '').trim();
+  if ([...trimmed].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)) {
+    return '';
+  }
+  const capped = trimmed.slice(0, UMU_RUNTIME_HINT_MAX_LENGTH);
+  return options.lowercase ? capped.toLowerCase() : capped;
+}
+
 function normalizeLaunchPresetsSection(
   profile: GameProfile,
   optionsById: Record<string, OptimizationEntry>,
@@ -70,6 +81,8 @@ export function normalizeProfileForEdit(
       prefix_path: runtime.prefix_path.trim(),
       proton_path: runtime.proton_path.trim(),
       working_directory: runtime.working_directory.trim(),
+      umu_store: normalizeUmuRuntimeHint(runtime.umu_store, { lowercase: true }),
+      umu_codename: normalizeUmuRuntimeHint(runtime.umu_codename, { lowercase: false }),
     },
     launch: {
       ...normalizedProfile.launch,

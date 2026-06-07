@@ -9,7 +9,8 @@ use super::common::{
 };
 use super::proton_resolution::resolve_launch_proton_path;
 use super::umu::{
-    proton_path_dirname, resolved_umu_game_id_for_env, should_use_umu, warn_on_umu_fallback,
+    proton_path_dirname, resolved_umu_game_id_for_env, resolved_umu_store_for_env, should_use_umu,
+    warn_on_umu_fallback,
 };
 use crate::launch::runtime_helpers::{
     build_direct_proton_command_with_wrappers_in_directory,
@@ -48,6 +49,9 @@ pub fn build_proton_game_command(
     merge_optimization_and_custom_into_map(&mut env, &directives.env, &BTreeMap::new());
     if use_umu {
         env.insert("GAMEID".to_string(), resolved_umu_game_id_for_env(request));
+        if let Some(store) = resolved_umu_store_for_env(request) {
+            env.insert("STORE".to_string(), store);
+        }
         env.insert("PROTON_VERB".to_string(), "waitforexitandrun".to_string());
         env.insert(
             "PROTONPATH".to_string(),

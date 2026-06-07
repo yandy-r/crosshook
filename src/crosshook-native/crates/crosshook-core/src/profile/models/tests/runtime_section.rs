@@ -51,12 +51,37 @@ fn runtime_section_umu_game_id_roundtrip() {
         working_directory: String::new(),
         steam_app_id: String::new(),
         umu_game_id: "custom-42".to_string(),
+        umu_store: String::new(),
+        umu_codename: String::new(),
         umu_preference: None,
     };
     let toml = toml::to_string(&section).unwrap();
     assert!(toml.contains("umu_game_id = \"custom-42\""));
     let parsed: RuntimeSection = toml::from_str(&toml).unwrap();
     assert_eq!(parsed.umu_game_id, "custom-42");
+}
+
+#[test]
+fn runtime_section_umu_store_and_codename_roundtrip() {
+    let section = RuntimeSection {
+        umu_store: "gog".to_string(),
+        umu_codename: "Cyberpunk_2077".to_string(),
+        ..RuntimeSection::default()
+    };
+    let toml = toml::to_string(&section).unwrap();
+    assert!(toml.contains("umu_store = \"gog\""));
+    assert!(toml.contains("umu_codename = \"Cyberpunk_2077\""));
+    let parsed: RuntimeSection = toml::from_str(&toml).unwrap();
+    assert_eq!(parsed.umu_store, "gog");
+    assert_eq!(parsed.umu_codename, "Cyberpunk_2077");
+}
+
+#[test]
+fn runtime_section_empty_umu_store_and_codename_omitted_from_toml() {
+    let section = RuntimeSection::default();
+    let toml = toml::to_string(&section).unwrap();
+    assert!(!toml.contains("umu_store"));
+    assert!(!toml.contains("umu_codename"));
 }
 
 #[test]
@@ -68,5 +93,14 @@ fn runtime_section_is_empty_considers_umu_game_id() {
     section.umu_game_id = "   ".to_string();
     assert!(section.is_empty()); // whitespace-only trims to empty
     section.umu_game_id = String::new();
+    assert!(section.is_empty());
+    section.umu_store = "gog".to_string();
+    assert!(!section.is_empty());
+    section.umu_store = "   ".to_string();
+    assert!(section.is_empty());
+    section.umu_store = String::new();
+    section.umu_codename = "Cyberpunk_2077".to_string();
+    assert!(!section.is_empty());
+    section.umu_codename = "   ".to_string();
     assert!(section.is_empty());
 }

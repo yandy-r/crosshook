@@ -1,4 +1,4 @@
-//! Schema migrations. Current: v23. Tier files: [`v1_v10`], [`v11_v20`], [`v21_v23`].
+//! Schema migrations. Current: v24. Tier files: [`v1_v10`], [`v11_v20`], [`v21_v23`].
 //! See [`super`] for the metadata facade.
 
 mod v11_v20;
@@ -222,6 +222,15 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
         conn.pragma_update(None, "user_version", 23_u32)
             .map_err(|source| MetadataStoreError::Database {
                 action: "update metadata schema version to 23",
+                source,
+            })?;
+    }
+
+    if version < 24 {
+        v21_v23::migrate_23_to_24(conn)?;
+        conn.pragma_update(None, "user_version", 24_u32)
+            .map_err(|source| MetadataStoreError::Database {
+                action: "update metadata schema version to 24",
                 source,
             })?;
     }

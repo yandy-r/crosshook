@@ -1,4 +1,6 @@
+use crosshook_core::metadata::MetadataStore;
 use crosshook_core::umu_database;
+use tauri::State;
 
 #[tauri::command]
 pub async fn refresh_umu_database() -> Result<umu_database::UmuDatabaseRefreshStatus, String> {
@@ -22,4 +24,13 @@ pub fn check_umu_coverage(app_id: Option<String>) -> umu_database::CsvCoverage {
         return umu_database::CsvCoverage::Unknown;
     }
     umu_database::check_coverage(trimmed, Some("steam"))
+}
+
+#[tauri::command]
+pub fn clear_umu_gameid_lookup_cache(
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<usize, String> {
+    metadata_store
+        .clear_umu_gameid_cache()
+        .map_err(|error| error.to_string())
 }

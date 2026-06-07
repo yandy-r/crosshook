@@ -242,6 +242,24 @@ fn settings_backward_compat_without_umu_preference() {
 }
 
 #[test]
+fn settings_backward_compat_without_umu_database_lookup() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = SettingsStore::with_base_path(dir.path().to_path_buf());
+    let path = store.settings_path();
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(
+        &path,
+        "auto_load_last_profile = false\nlast_used_profile = \"\"\n",
+    )
+    .unwrap();
+    let loaded = store.load().unwrap();
+    assert_eq!(
+        loaded.umu_database_lookup,
+        UmuDatabaseLookupPreference::Disabled
+    );
+}
+
+#[test]
 fn settings_backward_compat_without_install_nag_dismissed_at() {
     let dir = tempfile::tempdir().unwrap();
     let store = SettingsStore::with_base_path(dir.path().to_path_buf());
@@ -323,6 +341,18 @@ fn settings_roundtrip_umu_preference_umu() {
 }
 
 #[test]
+fn settings_roundtrip_umu_database_lookup_enabled() {
+    let toml = "umu_database_lookup = \"enabled\"\n";
+    let parsed: AppSettingsData = toml::from_str(toml).unwrap();
+    assert_eq!(
+        parsed.umu_database_lookup,
+        UmuDatabaseLookupPreference::Enabled
+    );
+    let serialized = toml::to_string(&parsed).unwrap();
+    assert!(serialized.contains("umu_database_lookup = \"enabled\""));
+}
+
+#[test]
 fn settings_backward_compat_without_host_tool_dashboard_fields() {
     let dir = tempfile::tempdir().unwrap();
     let store = SettingsStore::with_base_path(dir.path().to_path_buf());
@@ -374,5 +404,19 @@ fn umu_preference_from_str_rejects_unknown() {
     assert_eq!(
         UmuPreference::from_str("proton").unwrap(),
         UmuPreference::Proton
+    );
+}
+
+#[test]
+fn umu_database_lookup_from_str_rejects_unknown() {
+    use std::str::FromStr;
+    assert!(UmuDatabaseLookupPreference::from_str("auto").is_err());
+    assert_eq!(
+        UmuDatabaseLookupPreference::from_str("disabled").unwrap(),
+        UmuDatabaseLookupPreference::Disabled
+    );
+    assert_eq!(
+        UmuDatabaseLookupPreference::from_str("enabled").unwrap(),
+        UmuDatabaseLookupPreference::Enabled
     );
 }

@@ -237,6 +237,8 @@ fn check_launcher_for_profile_resolves_legacy_empty_method_as_steam() {
             working_directory: String::new(),
             steam_app_id: String::new(),
             umu_game_id: String::new(),
+            umu_store: String::new(),
+            umu_codename: String::new(),
             umu_preference: None,
         },
         launch: LaunchSection {
