@@ -109,5 +109,5 @@ Implemented an in-context Hero Detail Trainer tab editor for per-profile loaded 
 
 ## Next Steps
 
-- [ ] Code review via `$code-review`
-- [ ] Create PR via `$prp-pr`
+- [ ] Monitor user feedback on the trainer tab editor after merge
+- [ ] Track runtime DLL injection engine work as a follow-up (configuration is persisted; execution remains stored-only until the engine ships)

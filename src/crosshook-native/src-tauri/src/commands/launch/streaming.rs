@@ -466,10 +466,10 @@ fn emit_injection_stream_finalization(
         );
     }
 
-    if matches!(
-        report.exit_info.failure_mode,
-        FailureMode::CleanExit | FailureMode::Indeterminate
-    ) {
+    let natural_clean_exit = report.teardown_reason == Some(TeardownReason::NaturalExit)
+        && report.exit_info.failure_mode == FailureMode::CleanExit;
+
+    if natural_clean_exit {
         emit_injection_log_event(
             app,
             context.profile_name.as_deref(),
@@ -478,6 +478,17 @@ fn emit_injection_stream_finalization(
             InjectionLogLevel::Info,
             InjectionLogSource::Trainer,
             "Trainer launch completed.",
+            false,
+        );
+    } else if report.exit_info.failure_mode == FailureMode::Indeterminate {
+        emit_injection_log_event(
+            app,
+            context.profile_name.as_deref(),
+            context.session_id,
+            context.session_kind,
+            InjectionLogLevel::Warning,
+            InjectionLogSource::Runtime,
+            "Trainer launch outcome is indeterminate.",
             false,
         );
     } else {

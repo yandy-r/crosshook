@@ -67,6 +67,8 @@ export function InjectionLogTail({ profileName, sessionId, sessionKind }: Inject
   );
 
   useEffect(() => {
+    setRows([]);
+    nextRowIdRef.current = 1;
     let active = true;
 
     const unlisten = subscribeEvent<InjectionLogEvent>('injection-log', (event) => {
