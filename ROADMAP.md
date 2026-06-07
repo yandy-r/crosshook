@@ -1,11 +1,11 @@
 # CrossHook Roadmap
 
 Living priority map for what to build next. Updated from `main` commit history,
-GitHub releases, open issues, and recent PR state (**2026-06-05**).
+GitHub releases, open issues, and recent PR state (**2026-06-07**).
 
 **How to use this file**
 
-- Treat **P0** as the current sprint unless blocked.
+- Treat **Do next** as the current sprint unless blocked.
 - Link implementation PRs with `Closes #...` or `Part of #...` per
   [`.github/pull_request_template.md`](.github/pull_request_template.md).
 - When a phase ships, check off or close the matching issue and update this file
@@ -15,19 +15,51 @@ GitHub releases, open issues, and recent PR state (**2026-06-05**).
 
 ---
 
-## Snapshot
+## Do next
 
-| Area                          | Status                                                                                                                                                                                                                              |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Latest release**            | [v0.3.1](https://github.com/yandy-r/crosshook/releases/tag/v0.3.1) (2026-06-05) — includes Unified Desktop, Hero Detail Consolidation, hook runtime execution, production mock-sentinel fix, and Tauri / TypeScript dependency bump |
-| **Unified Desktop Redesign**  | **Shipped** — responsive shell, Hero Detail mode, command palette, context rail, status bar, route reworks, responsive smoke, polish, and design-token docs                                                                         |
-| **Hero Detail Consolidation** | **Shipped** — profile editing, launch tab, hook editor, overview deep-links, route removal, legacy page deletion, smoke rewrite, and cleanup all landed                                                                             |
-| **Open issues**               | 18 (see [Open issue inventory](#open-issue-inventory))                                                                                                                                                                              |
-| **Open PRs**                  | 0                                                                                                                                                                                                                                   |
+Prioritized actions for the current cycle. Work top-to-bottom; skip only when
+blocked.
+
+| #   | Action                                                                                                                                                                                                                                                                                                                                                                                                                          | Why now                                                                                                                                                                        |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | **Cut the next release from `main`** — run `./scripts/prepare-release.sh`, validate changelog sections, tag after smoke on native build. Includes trainer tab editor ([#479](https://github.com/yandy-r/crosshook/issues/479) / [#501](https://github.com/yandy-r/crosshook/pull/501)) and umu GAMEID lookup ([#233](https://github.com/yandy-r/crosshook/issues/233) / [#502](https://github.com/yandy-r/crosshook/pull/502)). | Both features landed on `main` after [v0.3.1](https://github.com/yandy-r/crosshook/releases/tag/v0.3.1); users cannot get them from a tagged release yet.                      |
+| 2   | **Refresh or close [#78](https://github.com/yandy-r/crosshook/issues/78)** — reconcile the deep-research tracker with the current 17-issue board; close checklist items that shipped.                                                                                                                                                                                                                                           | Only open high-priority tracker; checklist is stale after Hero Detail, trainer tab, and GAMEID work.                                                                           |
+| 3   | **Start [#123](https://github.com/yandy-r/crosshook/issues/123)** — config history semantic diff, retention UI, and UX polish. Write a focused PRP plan with storage boundaries before coding.                                                                                                                                                                                                                                  | Best next user-facing slice for reliability and explainability; aligns with the "diagnosable, shareable" direction from [#78](https://github.com/yandy-r/crosshook/issues/78). |
+| 4   | **Groom Flatpak submission track** — review [#210](https://github.com/yandy-r/crosshook/issues/210) / [#206](https://github.com/yandy-r/crosshook/issues/206) against Phase 4 isolation ([#412](https://github.com/yandy-r/crosshook/pull/412)).                                                                                                                                                                                | Per-app isolation shipped; Flathub is the next distribution milestone when the release train clears.                                                                           |
+
+**Strategic principle** (from [#78](https://github.com/yandy-r/crosshook/issues/78)): invest in making the
+trainer-on-Linux workflow **reliable, diagnosable, and shareable** — depth over
+breadth. Hero Detail consolidation, the trainer tab editor, and GAMEID auto-resolve
+all align; the next feature should preserve that direction rather than broaden
+launcher scope prematurely.
 
 ---
 
-## Recently shipped
+## Snapshot
+
+| Area                          | Status                                                                                                                                                                                                               |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Latest release**            | [v0.3.1](https://github.com/yandy-r/crosshook/releases/tag/v0.3.1) (2026-06-05) — Tauri 2.11 / TypeScript 6 dep bump on top of v0.3.0                                                                                |
+| **On `main`, unreleased**     | Trainer tab editor ([#501](https://github.com/yandy-r/crosshook/pull/501)), umu GAMEID lookup resolver ([#502](https://github.com/yandy-r/crosshook/pull/502))                                                       |
+| **Unified Desktop Redesign**  | **Shipped** (v0.3.0) — responsive shell, Hero Detail mode, command palette, context rail, status bar, route reworks                                                                                                  |
+| **Hero Detail Consolidation** | **Shipped** (v0.3.0) — profile/launch/hook editing in Hero Detail; legacy `/profiles` and `/launch` routes removed; trainer tab editor completed on `main` ([#479](https://github.com/yandy-r/crosshook/issues/479)) |
+| **Open issues**               | 17 (see [Open issue inventory](#open-issue-inventory))                                                                                                                                                               |
+| **Open PRs**                  | 0                                                                                                                                                                                                                    |
+
+---
+
+## Recently shipped on `main` (unreleased)
+
+Work merged after [v0.3.1](https://github.com/yandy-r/crosshook/releases/tag/v0.3.1); target the next release tag.
+
+| PR                                                    | Issue                                                   | Summary                                                                             |
+| ----------------------------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| [#501](https://github.com/yandy-r/crosshook/pull/501) | [#479](https://github.com/yandy-r/crosshook/issues/479) | Hero Detail Trainer tab — loaded hooks editor, injection config, injection log tail |
+| [#502](https://github.com/yandy-r/crosshook/pull/502) | [#233](https://github.com/yandy-r/crosshook/issues/233) | Auto-resolve GAMEID via umu-database HTTP lookups with SQLite cache (schema v24)    |
+
+---
+
+## Recently shipped releases
 
 ### v0.3.1 (2026-06-05)
 
@@ -57,7 +89,7 @@ work, plus the launch-hook runtime and production-bundle fix.
 ## Recently completed PRs
 
 These PRs landed after [v0.2.11](https://github.com/yandy-r/crosshook/releases/tag/v0.2.11)
-and are now included in `v0.3.0` / `v0.3.1`.
+and are included in `v0.3.0` / `v0.3.1` or on `main` awaiting the next tag.
 
 ### Hero Detail Consolidation
 
@@ -77,11 +109,12 @@ and are now included in `v0.3.0` / `v0.3.1`.
 | 10-11 | [#475](https://github.com/yandy-r/crosshook/issues/475), [#476](https://github.com/yandy-r/crosshook/issues/476) / [#496](https://github.com/yandy-r/crosshook/pull/496) | Deleted legacy pages and rewrote smoke coverage for Hero Detail flows           |
 | 12    | [#477](https://github.com/yandy-r/crosshook/issues/477) / [#497](https://github.com/yandy-r/crosshook/pull/497)                                                          | Design-token docs, command-preview tokens, release copy, and dead-asset cleanup |
 | +     | [#482](https://github.com/yandy-r/crosshook/issues/482) / [#499](https://github.com/yandy-r/crosshook/pull/499)                                                          | Runtime execution for the hook schema introduced during consolidation           |
+| +     | [#479](https://github.com/yandy-r/crosshook/issues/479) / [#501](https://github.com/yandy-r/crosshook/pull/501)                                                          | Trainer tab editor — loaded hooks, injection config, log tail                   |
 | Bug   | [#484](https://github.com/yandy-r/crosshook/issues/484) / [#498](https://github.com/yandy-r/crosshook/pull/498)                                                          | Fixed flaky profile auto-load behavior surfaced during route-removal cleanup    |
 
 **Current product state:** Library / Hero Detail is the single per-game
 workspace. Standalone `/profiles` and `/launch` routes and pages are removed.
-Trainer tab full editing remains deferred under [#479](https://github.com/yandy-r/crosshook/issues/479).
+Trainer tab editing is complete on `main`.
 
 ### Unified Desktop Redesign
 
@@ -110,41 +143,28 @@ Trainer tab full editing remains deferred under [#479](https://github.com/yandy-
 | [#394](https://github.com/yandy-r/crosshook/pull/394)                                                                                                               | Conventional Commit PR-title autofix normalization                        |
 | [#351](https://github.com/yandy-r/crosshook/pull/351), [#353](https://github.com/yandy-r/crosshook/pull/353), [#354](https://github.com/yandy-r/crosshook/pull/354) | Frontend, coverage, Playwright, and Tauri E2E test foundation             |
 | [#382](https://github.com/yandy-r/crosshook/pull/382)-[#410](https://github.com/yandy-r/crosshook/pull/410)                                                         | Broad module-splitting/refactor pass across core, CLI, frontend, settings |
-
----
-
-## P0 — Post-release hygiene
-
-Keep this small. `v0.3.1` is current, and there are no open PRs.
-
-| Item                                                                   | Action                                                                                                      | Why now                                                       |
-| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| Refresh or close [#78](https://github.com/yandy-r/crosshook/issues/78) | Reconcile the deep-research tracker with the current issue board; many checklist entries are already closed | It is the only open high-priority tracker and now reads stale |
-| Verify release notes for `v0.3.0` / `v0.3.1`                           | Confirm the public release notes reflect Hero Detail, hook runtime, production-bundle fix, and dep upgrade  | These releases shipped a large amount of user-visible work    |
-| Triage [#479](https://github.com/yandy-r/crosshook/issues/479)         | Decide whether the Trainer tab editor is the next feature slice or should remain explicitly deferred        | It is the direct follow-up to Hero Detail Consolidation       |
+| [#502](https://github.com/yandy-r/crosshook/pull/502)                                                                                                               | umu GAMEID lookup resolver with SQLite cache (schema v24)                 |
 
 ---
 
 ## P1 — Next product slices
 
-| Issue                                                   | Summary                                                                      | Suggested next step                                                                  |
-| ------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| [#479](https://github.com/yandy-r/crosshook/issues/479) | Hero Detail Trainer tab editor upgrade: loaded hooks, injection config, logs | Best next user-facing continuation if Hero Detail should become fully editable       |
-| [#123](https://github.com/yandy-r/crosshook/issues/123) | Config history semantic diff, retention UI, and UX polish                    | Good fit if the next goal is reliability / explainability over another large UI pass |
-| [#233](https://github.com/yandy-r/crosshook/issues/233) | Auto-resolve GAMEID via `umu-database` HTTP lookups with SQLite cache        | Good fit if launch setup friction is the next priority                               |
+| Issue                                                   | Summary                                                   | Notes                                                                                |
+| ------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| [#123](https://github.com/yandy-r/crosshook/issues/123) | Config history semantic diff, retention UI, and UX polish | **Recommended next feature** — reliability / explainability over another UI overhaul |
+| [#71](https://github.com/yandy-r/crosshook/issues/71)   | Lutris profile import                                     | Migration aid; good when onboarding friction is the priority                         |
 
 ---
 
 ## P2 — Platform & distribution
 
-Strategic work, but not blocking the current release train.
+Strategic work, not blocking the current release train.
 
 | Issue                                                   | Summary                                        | Notes                                                                                              |
 | ------------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | [#210](https://github.com/yandy-r/crosshook/issues/210) | Flatpak Phase 4 — Flathub submission           | Depends on per-app isolation ([ADR-0004](docs/architecture/adr-0004-flatpak-per-app-isolation.md)) |
 | [#206](https://github.com/yandy-r/crosshook/issues/206) | Submit CrossHook to Flathub                    | Child of Flatpak track                                                                             |
 | [#69](https://github.com/yandy-r/crosshook/issues/69)   | Flatpak as secondary packaging format          | Substantial groundwork landed in [#412](https://github.com/yandy-r/crosshook/pull/412)             |
-| [#71](https://github.com/yandy-r/crosshook/issues/71)   | Lutris profile import                          | Migration aid                                                                                      |
 | [#76](https://github.com/yandy-r/crosshook/issues/76)   | macOS port investigation (GPTK 2)              | Out of core Linux scope                                                                            |
 | [#249](https://github.com/yandy-r/crosshook/issues/249) | Custom Proton fork "tinkerers" UX              | UMU / advanced-user follow-up                                                                      |
 | [#250](https://github.com/yandy-r/crosshook/issues/250) | Non-x86_64 architectures (umu container scope) | UMU / compatibility follow-up                                                                      |
@@ -202,27 +222,17 @@ Tauri ecosystem migration to gtk4-rs / WebKitGTK6.
 
 Re-evaluate [#26](https://github.com/yandy-r/crosshook/issues/26) when a Tauri
 release ships with gtk4-rs / webkit6 and resolves `glib >= 0.20.0`. Latest local
-check: 2026-06-05 (see issue comment).
-
-**Strategic principle** (from [#78](https://github.com/yandy-r/crosshook/issues/78)):
-invest in making the trainer-on-Linux workflow **reliable, diagnosable, and
-shareable** — depth over breadth. The shipped Hero Detail work aligns with this;
-the next feature should preserve that direction rather than broaden launcher
-scope prematurely.
+check: 2026-06-07 (see issue comment).
 
 ---
 
 ## Open issue inventory
 
-All 18 open issues grouped by theme (2026-06-05).
+All 17 open issues grouped by theme (2026-06-07).
 
 ### Active tracker / hygiene (1)
 
 #78
-
-### Hero Detail follow-up (1)
-
-#479
 
 ### Unified Desktop deferred (8)
 
@@ -236,9 +246,9 @@ All 18 open issues grouped by theme (2026-06-05).
 
 #249, #250
 
-### Other features (2)
+### Other features (1)
 
-#123, #233
+#123
 
 ---
 
@@ -252,16 +262,3 @@ All 18 open issues grouped by theme (2026-06-05).
 | [`docs/research/additional-features/deep-research-report.md`](docs/research/additional-features/deep-research-report.md)             | Source for [#78](https://github.com/yandy-r/crosshook/issues/78) backlog |
 | [`CHANGELOG.md`](CHANGELOG.md)                                                                                                       | Release history (git-cliff)                                              |
 | [`AGENTS.md`](AGENTS.md)                                                                                                             | Agent/repo policy                                                        |
-
----
-
-## Suggested next actions
-
-1. Refresh or close [#78](https://github.com/yandy-r/crosshook/issues/78) so
-   the only high-priority open tracker reflects the post-`v0.3.1` state.
-2. Decide whether [#479](https://github.com/yandy-r/crosshook/issues/479) is the
-   next product slice. If yes, write a focused PRP plan for the Trainer tab
-   editor with explicit storage/runtime boundaries.
-3. If the next cycle should be smaller, pull [#123](https://github.com/yandy-r/crosshook/issues/123)
-   or [#233](https://github.com/yandy-r/crosshook/issues/233) instead of
-   starting another route-scale UI project.
