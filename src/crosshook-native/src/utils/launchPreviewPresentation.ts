@@ -1,4 +1,4 @@
-import type { EnvVarSource, PreviewEnvVar } from '@/types/launch';
+import type { EnvVarSource, PreviewEnvVar, UmuGameIdResolutionSource } from '@/types/launch';
 
 /** Returns a readable label for a launch preview method identifier. */
 export function launchMethodLabel(method: string): string {
@@ -43,4 +43,29 @@ export function groupPreviewEnvBySource(vars: PreviewEnvVar[]): [string, Preview
     }
   }
   return Array.from(groups.entries());
+}
+
+export function umuGameIdResolutionSourceLabel(source: UmuGameIdResolutionSource): string {
+  switch (source) {
+    case 'explicit_override':
+      return 'profile override';
+    case 'steam_app_id':
+      return 'Steam app id';
+    case 'fresh_cache':
+      return 'cache hit';
+    case 'fresh_lookup':
+      return 'fresh HTTP lookup';
+    case 'stale_cache':
+      return 'stale cache fallback';
+    case 'cached_not_found':
+      return 'cached not found';
+    case 'lookup_disabled':
+      return 'lookup disabled';
+    case 'missing_hints':
+      return 'missing store/codename';
+    case 'api_unavailable':
+      return 'API unavailable';
+    case 'fallback':
+      return 'fallback';
+  }
 }

@@ -1,4 +1,5 @@
 import { DashboardPanelSection } from './layout/DashboardPanelSection';
+import { AdvancedSettingsSection } from './settings/AdvancedSettingsSection';
 import { DiagnosticExportSection } from './settings/DiagnosticExportSection';
 import { LoggingAndUiSection } from './settings/LoggingAndUiSection';
 import { ManageLaunchersSection } from './settings/ManageLaunchersSection';
@@ -79,6 +80,8 @@ export function SettingsPanel({
           <PrefixStorageHealthSection />
 
           <DiagnosticExportSection />
+
+          <AdvancedSettingsSection />
 
           <SteamGridDbSection hasApiKey={settings.has_steamgriddb_api_key} onApiKeyChange={onSteamGridDbApiKeyChange} />
         </div>

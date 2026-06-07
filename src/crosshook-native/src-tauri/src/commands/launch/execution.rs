@@ -16,6 +16,8 @@ use crosshook_core::launch::{
 };
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::ProfileStore;
+use crosshook_core::settings::{AppSettingsData, SettingsStore};
+use crosshook_core::umu_database;
 use tauri::{AppHandle, Manager, State};
 use tokio::sync::broadcast;
 
@@ -43,11 +45,26 @@ fn session_profile_key(request: &LaunchRequest) -> String {
         .to_string()
 }
 
+async fn enrich_umu_gameid_resolution(
+    request: &mut LaunchRequest,
+    settings_store: &SettingsStore,
+    metadata_store: &MetadataStore,
+) {
+    let settings = settings_store
+        .load()
+        .unwrap_or_else(|_| AppSettingsData::default());
+    request.resolved_umu_game_id = Some(
+        umu_database::resolve_umu_game_id(request, settings.umu_database_lookup, metadata_store)
+            .await,
+    );
+}
+
 #[tauri::command]
 pub async fn launch_game(
     app: AppHandle,
     request: LaunchRequest,
     profile_store: State<'_, ProfileStore>,
+    settings_store: State<'_, SettingsStore>,
     session_registry: State<'_, Arc<LaunchSessionRegistry>>,
 ) -> Result<LaunchResult, String> {
     let mut request = request;
@@ -56,6 +73,7 @@ pub async fn launch_game(
     validate(&request).map_err(|error| error.to_string())?;
     let profile_store = profile_store.inner().clone();
     let metadata_store = app.state::<MetadataStore>().inner().clone();
+    enrich_umu_gameid_resolution(&mut request, settings_store.inner(), &metadata_store).await;
     let session_registry = session_registry.inner().clone();
     let mut warnings = collect_offline_launch_warnings(
         &request,
@@ -205,6 +223,7 @@ pub async fn launch_trainer(
     app: AppHandle,
     request: LaunchRequest,
     profile_store: State<'_, ProfileStore>,
+    settings_store: State<'_, SettingsStore>,
     session_registry: State<'_, Arc<LaunchSessionRegistry>>,
 ) -> Result<LaunchResult, String> {
     let mut request = request;
@@ -213,6 +232,7 @@ pub async fn launch_trainer(
     validate(&request).map_err(|error| error.to_string())?;
     let profile_store = profile_store.inner().clone();
     let metadata_store = app.state::<MetadataStore>().inner().clone();
+    enrich_umu_gameid_resolution(&mut request, settings_store.inner(), &metadata_store).await;
     let session_registry = session_registry.inner().clone();
     let mut warnings = collect_offline_launch_warnings(
         &request,

@@ -7,7 +7,8 @@ use super::common::{prepare_gamescope_launch, should_skip_gamescope};
 use super::proton_resolution::resolve_launch_proton_path;
 use super::trainer_staging::stage_trainer_into_prefix;
 use super::umu::{
-    proton_path_dirname, resolved_umu_game_id_for_env, should_use_umu, warn_on_umu_fallback,
+    proton_path_dirname, resolved_umu_game_id_for_env, resolved_umu_store_for_env, should_use_umu,
+    warn_on_umu_fallback,
 };
 use crate::launch::runtime_helpers::{
     build_direct_proton_command_with_wrappers_in_directory,
@@ -91,6 +92,9 @@ pub(super) fn build_proton_trainer_command_with_umu_override(
     );
     if use_umu {
         env.insert("GAMEID".to_string(), resolved_umu_game_id_for_env(request));
+        if let Some(store) = resolved_umu_store_for_env(request) {
+            env.insert("STORE".to_string(), store);
+        }
         env.insert("PROTON_VERB".to_string(), "runinprefix".to_string());
         env.insert(
             "PROTONPATH".to_string(),

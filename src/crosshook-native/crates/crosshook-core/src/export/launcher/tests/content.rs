@@ -198,6 +198,9 @@ fn umu_export_emits_trainer_env_contract_with_runtime_precedence() {
     let content = build_trainer_script_content(&request, "Test Game");
 
     assert!(content.contains("export GAMEID='custom-override'"));
+    assert!(
+        content.contains("online lookup is resolved during CrossHook launch and preview commands")
+    );
     assert!(content.contains("export PROTON_VERB='runinprefix'"));
     assert!(content.contains("export PROTONPATH='/opt/proton'"));
     assert!(content.contains("WARNING: umu preference requested but umu-run is unavailable"));

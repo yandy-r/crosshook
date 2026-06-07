@@ -168,6 +168,8 @@ impl InstallGameRequest {
                 working_directory: String::new(),
                 steam_app_id: String::new(),
                 umu_game_id: String::new(),
+                umu_store: String::new(),
+                umu_codename: String::new(),
                 umu_preference: None,
             }
         } else if method == "native" {
@@ -177,6 +179,8 @@ impl InstallGameRequest {
                 working_directory: working_directory.trim().to_string(),
                 steam_app_id: String::new(),
                 umu_game_id: String::new(),
+                umu_store: String::new(),
+                umu_codename: String::new(),
                 umu_preference: None,
             }
         } else {
@@ -186,6 +190,8 @@ impl InstallGameRequest {
                 working_directory: working_directory.trim().to_string(),
                 steam_app_id: self.steam_app_id.trim().to_string(),
                 umu_game_id: String::new(),
+                umu_store: String::new(),
+                umu_codename: String::new(),
                 umu_preference: None,
             }
         };

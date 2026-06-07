@@ -4,9 +4,11 @@
 //! an HTTP cache refresh client, and path resolution across multiple system
 //! install locations.
 
+pub mod api_client;
 pub mod client;
 pub mod coverage;
 pub mod paths;
+pub mod resolver;
 
 /// Relative path under `data_local_dir()` where CrossHook caches the umu-database CSV.
 ///
@@ -35,3 +37,4 @@ pub enum CsvCoverage {
 pub use client::{refresh_umu_database, Error, UmuDatabaseRefreshStatus};
 pub use coverage::check_coverage;
 pub use paths::resolve_umu_database_path;
+pub use resolver::resolve_umu_game_id;

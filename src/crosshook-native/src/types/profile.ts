@@ -162,6 +162,8 @@ export interface GameProfile {
     working_directory: string;
     steam_app_id?: string;
     umu_game_id?: string;
+    umu_store?: string;
+    umu_codename?: string;
     /**
      * Per-profile umu preference override. `undefined` inherits the global
      * `AppSettingsData.umu_preference`; otherwise overrides it for this profile only.
@@ -231,6 +233,8 @@ const DEFAULT_RUNTIME_SECTION: GameProfile['runtime'] = {
   working_directory: '',
   steam_app_id: '',
   umu_game_id: '',
+  umu_store: '',
+  umu_codename: '',
 };
 
 const DEFAULT_LOCAL_OVERRIDE_SECTION: NonNullable<GameProfile['local_override']> = {

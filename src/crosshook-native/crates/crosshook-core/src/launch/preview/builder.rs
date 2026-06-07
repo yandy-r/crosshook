@@ -206,6 +206,7 @@ fn build_umu_decision_preview(request: &LaunchRequest) -> UmuDecisionPreview {
         will_use_umu,
         reason,
         csv_coverage,
+        gameid_resolution: request.resolved_umu_game_id.clone(),
     }
 }
 

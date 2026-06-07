@@ -4,6 +4,7 @@ export type { ExternalTrainerSourceSubscription } from './discovery';
 
 /** Three-way umu launcher preference. Mirrors Rust `crosshook_core::settings::UmuPreference`. */
 export type UmuPreference = 'auto' | 'umu' | 'proton';
+export type UmuDatabaseLookupPreference = 'disabled' | 'enabled';
 
 export interface CommunityTapSubscription {
   url: string;
@@ -44,6 +45,8 @@ export interface SettingsSaveRequest {
   protonup_include_prereleases?: boolean;
   /** Non-Steam launch preference: `auto` (umu when available, else Proton), `umu` (always umu-run), `proton` (always direct Proton). */
   umu_preference: UmuPreference;
+  /** Opt-in online `(store,codename) -> umu GAMEID` lookup. */
+  umu_database_lookup: UmuDatabaseLookupPreference;
   /** Capability-level hint dismissals for the host-tool dashboard. */
   host_tool_dashboard_dismissed_hints?: string[];
   /** Optional default category filter for the host-tool dashboard. */
@@ -91,6 +94,7 @@ export function toSettingsSaveRequest(s: AppSettingsData): SettingsSaveRequest {
     protonup_default_install_root: s.protonup_default_install_root,
     protonup_include_prereleases: s.protonup_include_prereleases,
     umu_preference: s.umu_preference,
+    umu_database_lookup: s.umu_database_lookup,
     host_tool_dashboard_dismissed_hints: s.host_tool_dashboard_dismissed_hints,
     host_tool_dashboard_default_category_filter: s.host_tool_dashboard_default_category_filter,
   };
@@ -136,6 +140,7 @@ export const DEFAULT_APP_SETTINGS: AppSettingsData = {
   protonup_default_install_root: '',
   protonup_include_prereleases: false,
   umu_preference: 'auto',
+  umu_database_lookup: 'disabled',
   host_tool_dashboard_dismissed_hints: [],
   host_tool_dashboard_default_category_filter: null,
   install_nag_dismissed_at: null,

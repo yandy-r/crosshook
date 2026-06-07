@@ -12,8 +12,8 @@ pub use error::ValidationError;
 pub use issues::{LaunchValidationIssue, ValidationSeverity};
 pub use models::{
     is_inside_gamescope_session, LaunchOptimizationsRequest, LaunchRequest, RuntimeLaunchConfig,
-    SteamLaunchConfig, SteamLaunchRequest, METHOD_NATIVE, METHOD_PROTON_RUN,
-    METHOD_STEAM_APPLAUNCH,
+    SteamLaunchConfig, SteamLaunchRequest, UmuGameIdLookupKey, UmuGameIdResolution,
+    UmuGameIdResolutionSource, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };
 pub use validation::{validate, validate_all};
 

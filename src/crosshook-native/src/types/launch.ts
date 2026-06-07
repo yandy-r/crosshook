@@ -42,6 +42,10 @@ export interface LaunchRequest {
     steam_app_id?: string;
     /** Optional protonfix override; takes precedence over steam_app_id. */
     umu_game_id?: string;
+    /** Optional store hint for online umu GAMEID lookup. */
+    umu_store?: string;
+    /** Optional codename hint for online umu GAMEID lookup. */
+    umu_codename?: string;
   };
   optimizations: LaunchOptimizations;
   launch_trainer_only: boolean;
@@ -173,6 +177,32 @@ export interface PreviewValidation {
 }
 
 export type UmuCsvCoverage = 'found' | 'missing' | 'unknown';
+export type UmuGameIdResolutionSource =
+  | 'explicit_override'
+  | 'steam_app_id'
+  | 'fresh_cache'
+  | 'fresh_lookup'
+  | 'stale_cache'
+  | 'cached_not_found'
+  | 'lookup_disabled'
+  | 'missing_hints'
+  | 'api_unavailable'
+  | 'fallback';
+
+export interface UmuGameIdLookupKey {
+  store: string;
+  codename: string;
+}
+
+export interface UmuGameIdResolutionPreview {
+  game_id: string;
+  store: string | null;
+  source: UmuGameIdResolutionSource;
+  lookup_key: UmuGameIdLookupKey | null;
+  fetched_at: string | null;
+  expires_at: string | null;
+  error_category: string | null;
+}
 
 export interface UmuDecisionPreview {
   requested_preference: UmuPreference;
@@ -180,6 +210,7 @@ export interface UmuDecisionPreview {
   will_use_umu: boolean;
   reason: string;
   csv_coverage: UmuCsvCoverage;
+  gameid_resolution?: UmuGameIdResolutionPreview | null;
 }
 
 export interface UmuDatabaseRefreshStatus {

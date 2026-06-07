@@ -97,6 +97,8 @@ pub(super) fn proton_request() -> (tempfile::TempDir, LaunchRequest) {
         working_directory: String::new(),
         steam_app_id: String::new(),
         umu_game_id: String::new(),
+        umu_store: String::new(),
+        umu_codename: String::new(),
     };
     request.steam = SteamLaunchConfig::default();
     (temp_dir, request)

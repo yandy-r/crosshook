@@ -27,4 +27,6 @@ export function registerUmuDatabase(map: Map<string, Handler>): void {
     if (trimmed === '') return 'unknown';
     return MOCK_FOUND_APP_IDS.has(trimmed) ? 'found' : 'missing';
   });
+
+  map.set('clear_umu_gameid_lookup_cache', async () => 3);
 }

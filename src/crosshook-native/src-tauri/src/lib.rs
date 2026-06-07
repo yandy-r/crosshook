@@ -587,6 +587,7 @@ pub fn run() {
             // UMU database
             commands::umu_database::refresh_umu_database,
             commands::umu_database::check_umu_coverage,
+            commands::umu_database::clear_umu_gameid_lookup_cache,
         ])
         .run(tauri::generate_context!())
         .expect("error while running CrossHook Native");

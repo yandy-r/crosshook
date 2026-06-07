@@ -7,6 +7,7 @@ import type { GameProfile } from '@/types/profile';
 import { copyToClipboard } from '@/utils/clipboard';
 import { resolveLaunchMethod } from '@/utils/launch';
 import { buildLauncherExportRequest, deriveLauncherName, safeTrim } from '@/utils/launcherExport';
+import { umuGameIdResolutionSourceLabel } from '@/utils/launchPreviewPresentation';
 import { DashboardPanelSection } from '../../layout/DashboardPanelSection';
 import { HighlightedCommandBlock } from '../HighlightedCommandBlock';
 
@@ -291,6 +292,30 @@ export function HeroLaunchCommandSection({
       ) : null}
       {previewLoading ? <p className="crosshook-hero-detail__muted">Building launch preview...</p> : null}
       {previewError ? <p className="crosshook-hero-detail__warn">{previewError}</p> : null}
+      {preview?.umu_decision?.gameid_resolution ? (
+        <div className="crosshook-hero-detail__meta-grid" role="group" aria-label="umu GAMEID resolution">
+          <span>
+            <strong>umu GAMEID:</strong> {preview.umu_decision.gameid_resolution.game_id}
+          </span>
+          <span>
+            <strong>Source:</strong> {umuGameIdResolutionSourceLabel(preview.umu_decision.gameid_resolution.source)}
+          </span>
+          {preview.umu_decision.gameid_resolution.lookup_key ? (
+            <span>
+              <strong>Key:</strong> {preview.umu_decision.gameid_resolution.lookup_key.store}/
+              {preview.umu_decision.gameid_resolution.lookup_key.codename}
+            </span>
+          ) : null}
+          {preview.umu_decision.gameid_resolution.expires_at ? (
+            <span>
+              <strong>Expires:</strong>{' '}
+              <time dateTime={preview.umu_decision.gameid_resolution.expires_at}>
+                {new Date(preview.umu_decision.gameid_resolution.expires_at).toLocaleString()}
+              </time>
+            </span>
+          ) : null}
+        </div>
+      ) : null}
       {preview ? <HighlightedCommandBlock preview={preview} profileName={resolvedProfileName} /> : null}
       {notSelectableHint ? (
         <p className="crosshook-hero-detail__muted" role="note">

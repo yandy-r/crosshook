@@ -67,6 +67,40 @@ impl FromStr for UmuPreference {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum UmuDatabaseLookupPreference {
+    #[default]
+    Disabled,
+    Enabled,
+}
+
+impl UmuDatabaseLookupPreference {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Disabled => "disabled",
+            Self::Enabled => "enabled",
+        }
+    }
+
+    pub fn is_enabled(self) -> bool {
+        self == Self::Enabled
+    }
+}
+
+impl FromStr for UmuDatabaseLookupPreference {
+    type Err = String;
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.trim() {
+            "disabled" => Ok(Self::Disabled),
+            "enabled" => Ok(Self::Enabled),
+            other => Err(format!(
+                "unsupported umu database lookup preference: {other}"
+            )),
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct AppSettingsData {
@@ -129,6 +163,9 @@ pub struct AppSettingsData {
     /// User preference for umu-launcher vs direct Proton invocation.
     #[serde(default)]
     pub umu_preference: UmuPreference,
+    /// User opt-in for online umu `(store,codename) -> GAMEID` lookup.
+    #[serde(default)]
+    pub umu_database_lookup: UmuDatabaseLookupPreference,
     /// Capability-level host-tool hints the user chose to dismiss permanently.
     #[serde(default)]
     pub host_tool_dashboard_dismissed_hints: Vec<String>,
@@ -176,6 +213,7 @@ impl Default for AppSettingsData {
             protonup_default_install_root: String::new(),
             protonup_include_prereleases: false,
             umu_preference: UmuPreference::Auto,
+            umu_database_lookup: UmuDatabaseLookupPreference::Disabled,
             host_tool_dashboard_dismissed_hints: Vec::new(),
             host_tool_dashboard_default_category_filter: None,
             install_nag_dismissed_at: None,
@@ -234,6 +272,7 @@ impl fmt::Debug for AppSettingsData {
                 &self.protonup_include_prereleases,
             )
             .field("umu_preference", &self.umu_preference)
+            .field("umu_database_lookup", &self.umu_database_lookup)
             .field(
                 "host_tool_dashboard_dismissed_hints",
                 &self.host_tool_dashboard_dismissed_hints,

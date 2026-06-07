@@ -21,12 +21,28 @@ pub(crate) fn resolve_steam_app_id_for_umu(request: &LaunchRequest) -> &str {
 }
 
 pub(super) fn resolved_umu_game_id_for_env(request: &LaunchRequest) -> String {
+    if let Some(resolution) = &request.resolved_umu_game_id {
+        let trimmed = resolution.game_id.trim();
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
+        }
+    }
     let trimmed = resolve_steam_app_id_for_umu(request).trim();
     if trimmed.is_empty() {
         "umu-0".to_string()
     } else {
         trimmed.to_string()
     }
+}
+
+pub(super) fn resolved_umu_store_for_env(request: &LaunchRequest) -> Option<String> {
+    request
+        .resolved_umu_game_id
+        .as_ref()
+        .and_then(|resolution| resolution.store.as_deref())
+        .map(str::trim)
+        .filter(|store| !store.is_empty())
+        .map(str::to_string)
 }
 
 pub(crate) fn force_no_umu_for_launch_request(request: &LaunchRequest) -> bool {
@@ -95,7 +111,10 @@ pub(super) fn warn_on_umu_fallback(request: &LaunchRequest) {
 
 #[cfg(test)]
 mod tests {
-    use super::resolved_umu_game_id_for_env;
+    use super::{resolved_umu_game_id_for_env, resolved_umu_store_for_env};
+    use crate::launch::request::{
+        UmuGameIdLookupKey, UmuGameIdResolution, UmuGameIdResolutionSource,
+    };
     use crate::launch::LaunchRequest;
 
     #[test]
@@ -117,5 +136,43 @@ mod tests {
         let mut request = LaunchRequest::default();
         request.runtime.steam_app_id = "999".to_string();
         assert_eq!(resolved_umu_game_id_for_env(&request), "999");
+    }
+
+    #[test]
+    fn resolved_umu_game_id_prefers_resolved_lookup_result() {
+        let mut request = LaunchRequest::default();
+        request.steam.app_id = "70".to_string();
+        request.runtime.umu_game_id = "custom-7".to_string();
+        request.resolved_umu_game_id = Some(UmuGameIdResolution {
+            game_id: "UMU-RESOLVED".to_string(),
+            store: Some("gog".to_string()),
+            source: UmuGameIdResolutionSource::FreshLookup,
+            lookup_key: Some(UmuGameIdLookupKey {
+                store: "gog".to_string(),
+                codename: "game".to_string(),
+            }),
+            fetched_at: None,
+            expires_at: None,
+            error_category: None,
+        });
+
+        assert_eq!(resolved_umu_game_id_for_env(&request), "UMU-RESOLVED");
+        assert_eq!(resolved_umu_store_for_env(&request).as_deref(), Some("gog"));
+    }
+
+    #[test]
+    fn resolved_umu_store_ignores_empty_store() {
+        let mut request = LaunchRequest::default();
+        request.resolved_umu_game_id = Some(UmuGameIdResolution {
+            game_id: "UMU-RESOLVED".to_string(),
+            store: Some("   ".to_string()),
+            source: UmuGameIdResolutionSource::FreshLookup,
+            lookup_key: None,
+            fetched_at: None,
+            expires_at: None,
+            error_category: None,
+        });
+
+        assert_eq!(resolved_umu_store_for_env(&request), None);
     }
 }

@@ -52,6 +52,10 @@ pub struct LaunchRequest {
     /// Defaults to `UmuPreference::Auto`, which prefers umu-run when available and falls back to direct Proton otherwise.
     #[serde(default)]
     pub umu_preference: UmuPreference,
+    /// Backend-populated umu GAMEID resolution. Skipped during deserialization so
+    /// IPC callers cannot inject a derived GAMEID.
+    #[serde(default, skip_deserializing, skip_serializing_if = "Option::is_none")]
+    pub resolved_umu_game_id: Option<UmuGameIdResolution>,
     /// When true, trainer processes are launched in an isolated network namespace
     /// via `unshare --net`.
     #[serde(default = "default_network_isolation")]
@@ -97,6 +101,63 @@ pub struct RuntimeLaunchConfig {
     /// Optional protonfix override. When set, takes precedence over `steam_app_id` for umu GAMEID.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub umu_game_id: String,
+    /// Optional store hint used by the opt-in umu GAMEID resolver.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub umu_store: String,
+    /// Optional codename hint used by the opt-in umu GAMEID resolver.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub umu_codename: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UmuGameIdResolutionSource {
+    ExplicitOverride,
+    SteamAppId,
+    FreshCache,
+    FreshLookup,
+    StaleCache,
+    CachedNotFound,
+    LookupDisabled,
+    MissingHints,
+    ApiUnavailable,
+    Fallback,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UmuGameIdLookupKey {
+    pub store: String,
+    pub codename: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UmuGameIdResolution {
+    pub game_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub store: Option<String>,
+    pub source: UmuGameIdResolutionSource,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lookup_key: Option<UmuGameIdLookupKey>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fetched_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_category: Option<String>,
+}
+
+impl Default for UmuGameIdResolution {
+    fn default() -> Self {
+        Self {
+            game_id: "umu-0".to_string(),
+            store: None,
+            source: UmuGameIdResolutionSource::Fallback,
+            lookup_key: None,
+            fetched_at: None,
+            expires_at: None,
+            error_category: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]

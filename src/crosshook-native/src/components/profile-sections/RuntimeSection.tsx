@@ -214,6 +214,32 @@ export function RuntimeSection({
               }
             />
 
+            <FieldRow
+              label="umu store"
+              value={profile.runtime.umu_store ?? ''}
+              onChange={(value) =>
+                onUpdateProfile((current) => ({
+                  ...current,
+                  runtime: { ...current.runtime, umu_store: value },
+                }))
+              }
+              placeholder="gog"
+              helperText="Used only when Settings -> umu GAMEID lookup is enabled; leave blank to skip store/codename lookup."
+            />
+
+            <FieldRow
+              label="umu codename"
+              value={profile.runtime.umu_codename ?? ''}
+              onChange={(value) =>
+                onUpdateProfile((current) => ({
+                  ...current,
+                  runtime: { ...current.runtime, umu_codename: value },
+                }))
+              }
+              placeholder="cyberpunk_2077"
+              helperText="Used only when Settings -> umu GAMEID lookup is enabled; leave blank to skip store/codename lookup."
+            />
+
             {showLauncherMetadata ? (
               <LauncherMetadataFields profile={profile} onUpdateProfile={onUpdateProfile} />
             ) : null}

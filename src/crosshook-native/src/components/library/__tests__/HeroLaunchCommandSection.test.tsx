@@ -164,6 +164,43 @@ describe('HeroLaunchCommandSection', () => {
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['explicit_override', 'profile override'],
+    ['fresh_cache', 'cache hit'],
+    ['lookup_disabled', 'lookup disabled'],
+    ['fallback', 'fallback'],
+  ] as const)('renders umu GAMEID %s resolution with the %s label', (source, label) => {
+    renderCommandSection({
+      preview: makeLaunchPreview({
+        umu_decision: {
+          requested_preference: 'umu',
+          umu_run_path_on_backend_path: '/usr/bin/umu-run',
+          will_use_umu: true,
+          reason: 'using umu-run at /usr/bin/umu-run',
+          csv_coverage: 'found',
+          gameid_resolution: {
+            game_id: 'mock-gameid',
+            store: 'gog',
+            source,
+            lookup_key: {
+              store: 'gog',
+              codename: 'synthetic-quest',
+            },
+            fetched_at: '2026-04-23T12:00:00.000Z',
+            expires_at: null,
+            error_category: null,
+          },
+        },
+      }),
+    });
+
+    const resolution = screen.getByRole('group', { name: 'umu GAMEID resolution' });
+    expect(resolution).toHaveTextContent('umu GAMEID: mock-gameid');
+    expect(resolution).toHaveTextContent(`Source: ${label}`);
+    expect(resolution).toHaveTextContent('Key: gog/synthetic-quest');
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
+
   // ── Dry-run button ───────────────────────────────────────────────────────────
 
   it('dry-run button is enabled when launchRequest + onPreviewLaunch are present', () => {

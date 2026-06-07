@@ -199,7 +199,7 @@ src/crosshook-native/              # Primary source root
 **Location**: `~/.local/share/crosshook/metadata.db`
 **Mode**: WAL (write-ahead logging)
 **Permissions**: `0600` (owner read/write only)
-**Current schema version**: 23
+**Current schema version**: 24
 **Access**: `MetadataStore::try_new()` in `crosshook-core`
 **Migrations**: `src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs`
 
@@ -229,6 +229,7 @@ src/crosshook-native/              # Primary source root
 | `readiness_nag_dismissals`       |     v21      | TTL dismissals for per-tool readiness nags (global)                                                                                                         |
 | `host_readiness_snapshots`       |     v21      | Last cached generalized host readiness snapshot (single row)                                                                                                |
 | `proton_release_catalog`         |     v22      | Cached Proton release metadata (per-provider, per-version). TTL-driven. Legacy `external_cache_entries` `protonup:catalog:*` keys are evicted on migration. |
+| `umu_gameid_lookup_cache`        |     v24      | Cached opt-in umu GAMEID lookup results for `(store, codename)`, including misses and stale fallback metadata.                                              |
 
 ### Persistence design classification
 

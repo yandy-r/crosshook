@@ -161,4 +161,6 @@ pub struct UmuDecisionPreview {
     /// Coverage status of the profile's app id in the umu-database CSV.
     /// `Unknown` when no app id is available or no CSV source is reachable.
     pub csv_coverage: crate::umu_database::CsvCoverage,
+    /// Runtime GAMEID resolution details used by the command builder.
+    pub gameid_resolution: Option<crate::launch::request::UmuGameIdResolution>,
 }

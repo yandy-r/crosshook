@@ -250,7 +250,7 @@ fn build_umu_env_exports(request: &SteamExternalLauncherExportRequest) -> String
     let resolved_proton_path =
         resolve_launch_proton_path(&request.proton_path, &request.steam_client_install_path);
     format!(
-        "  export GAMEID={}\n  export PROTON_VERB='runinprefix'\n  export PROTONPATH={}\n",
+        "  # External launcher exports use profile and Steam GAMEID fields only; online lookup is resolved during CrossHook launch and preview commands.\n  export GAMEID={}\n  export PROTON_VERB='runinprefix'\n  export PROTONPATH={}\n",
         shell_single_quoted(&resolve_umu_game_id_for_env(request)),
         shell_single_quoted(&proton_path_dirname(&resolved_proton_path))
     )

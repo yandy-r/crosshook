@@ -166,3 +166,38 @@ fn migration_22_to_23_evicts_stale_proton_release_catalog_rows() {
         "v22→v23 migration must evict proton_release_catalog rows so published_at repopulates"
     );
 }
+
+#[test]
+fn migration_23_to_24_creates_umu_gameid_lookup_cache_table() {
+    let conn = db::open_in_memory().unwrap();
+    run_migrations(&conn).unwrap();
+
+    let version: u32 = conn
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .unwrap();
+    assert!(
+        version >= 24,
+        "schema version should be at least 24 after migration 23→24, got {version}"
+    );
+
+    let table_exists: bool = conn
+        .prepare(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='umu_gameid_lookup_cache'",
+        )
+        .unwrap()
+        .exists([])
+        .unwrap();
+    assert!(table_exists, "umu_gameid_lookup_cache table should exist");
+
+    let idx_exists: bool = conn
+        .prepare(
+            "SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_umu_gameid_lookup_cache_store_codename'",
+        )
+        .unwrap()
+        .exists([])
+        .unwrap();
+    assert!(
+        idx_exists,
+        "unique index idx_umu_gameid_lookup_cache_store_codename should exist"
+    );
+}

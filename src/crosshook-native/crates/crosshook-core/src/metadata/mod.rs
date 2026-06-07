@@ -16,7 +16,7 @@
 //! - [`store`] — `MetadataStore` struct, constructors, `with_conn*` helpers
 //! - [`util`] — shared utilities (`in_clause_placeholders`)
 //! - [`db`] — SQLite connection opening (permissions, symlink guard)
-//! - [`migrations`] — schema migrations (current: **v23**)
+//! - [`migrations`] — schema migrations (current: **v24**)
 //! - [`models`] — shared row types, error type, size limits
 //!
 //! ## Per-domain operations (`*_ops.rs` → delegates to `*_store.rs`)
@@ -26,6 +26,7 @@
 //! - [`community_ops`] / [`community_index`] — community tap indexing, trainer search
 //! - [`collections_ops`] / [`collections`] — collections, favorites, per-collection defaults
 //! - [`cache_ops`] / [`cache_store`] — generic external cache (`external_cache_entries`)
+//! - [`umu_gameid_cache_ops`] / [`umu_gameid_cache_store`] — umu GAMEID lookup cache
 //! - [`launch_queries`] — usage-insights queries (`query_most_launched`, etc.)
 //! - [`health_ops`] / [`health_store`] — profile health snapshots
 //! - [`game_image_ops`] / [`game_image_store`] — Steam game image cache
@@ -86,6 +87,8 @@ mod readiness_dismissal_store;
 mod readiness_snapshot_store;
 mod store;
 mod suggestion_store;
+mod umu_gameid_cache_ops;
+mod umu_gameid_cache_store;
 mod util;
 mod version_ops;
 mod version_store;
@@ -133,4 +136,8 @@ pub use profile_sync::sha256_hex;
 pub use proton_catalog_store::ProtonCatalogRow;
 pub use readiness_snapshot_store::HostReadinessSnapshotRow;
 pub use store::MetadataStore;
+pub use umu_gameid_cache_store::UmuGameIdCacheRow;
+pub(crate) use umu_gameid_cache_store::{
+    normalize_umu_gameid_codename, normalize_umu_gameid_store,
+};
 pub use version_store::{compute_correlation_status, hash_trainer_file};

@@ -41,6 +41,8 @@ export function buildProfileLaunchRequest(
       working_directory: profile.runtime.working_directory,
       steam_app_id: profile.runtime.steam_app_id ?? '',
       umu_game_id: profile.runtime.umu_game_id ?? '',
+      umu_store: profile.runtime.umu_store ?? '',
+      umu_codename: profile.runtime.umu_codename ?? '',
     },
     optimizations: {
       enabled_option_ids: [...profile.launch.optimizations.enabled_option_ids],
