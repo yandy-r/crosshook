@@ -4,7 +4,13 @@ All notable changes to this project will be documented in this file.
 
 This file is generated with `git-cliff` from the repository history and release tags.
 
-## [v0.4.0] - 2026-06-07
+## [v0.4.1] - 2026-06-08
+
+### Bug Fixes
+
+- **launch:** Allow Steam hook optimizations ([`2d662a6`](https://github.com/yandy-r/crosshook/commit/2d662a64c2380d211fe291bc3fd506606bc49022))
+
+## [v0.4.0] - 2026-06-08
 
 ### Documentation
 
