@@ -10,8 +10,8 @@ use crate::launch::runtime_helpers::{
     merge_runtime_proton_into_map, resolve_effective_working_directory,
 };
 use crate::launch::{
-    resolve_launch_directives, LaunchRequest, LaunchValidationIssue, METHOD_PROTON_RUN,
-    METHOD_STEAM_APPLAUNCH,
+    resolve_launch_directives, resolve_launch_directives_for_method, LaunchDirectives,
+    LaunchRequest, LaunchValidationIssue, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };
 use crate::platform::{
     host_std_command_with_env_and_directory, normalize_flatpak_host_path,
@@ -35,7 +35,7 @@ pub fn build_launch_hook_execution_context(
     request: &LaunchRequest,
 ) -> Result<LaunchHookExecutionContext, crate::launch::request::ValidationError> {
     let method = request.resolved_method();
-    let directives = resolve_launch_directives(request)?;
+    let directives = resolve_launch_hook_directives(request, method)?;
 
     let mut env = host_environment_map();
     match method {
@@ -90,6 +90,20 @@ pub fn build_launch_hook_execution_context(
         working_directory,
         custom_env_vars: request.custom_env_vars.clone(),
     })
+}
+
+fn resolve_launch_hook_directives(
+    request: &LaunchRequest,
+    method: &str,
+) -> Result<LaunchDirectives, crate::launch::request::ValidationError> {
+    match method {
+        METHOD_STEAM_APPLAUNCH if request.launch_trainer_only => Ok(LaunchDirectives::default()),
+        METHOD_STEAM_APPLAUNCH => resolve_launch_directives_for_method(
+            &request.optimizations.enabled_option_ids,
+            METHOD_PROTON_RUN,
+        ),
+        _ => resolve_launch_directives(request),
+    }
 }
 
 fn merge_steam_compat_env(map: &mut BTreeMap<String, String>, request: &LaunchRequest) {
@@ -292,6 +306,7 @@ fn wait_with_timeout(child: &mut Child, timeout: Duration) -> HookWaitOutcome {
 mod tests {
     use super::*;
     use crate::launch::request::ValidationSeverity;
+    use crate::launch::{SteamLaunchConfig, METHOD_STEAM_APPLAUNCH};
     use std::fs;
     use std::sync::{Mutex, MutexGuard};
 
@@ -352,6 +367,77 @@ mod tests {
             Some("launch_hook_not_executable")
         );
         assert_eq!(warnings[0].severity, ValidationSeverity::Warning);
+    }
+
+    #[test]
+    fn steam_launch_hook_context_accepts_launch_optimizations() {
+        let mut request = steam_hook_request();
+        request.optimizations.enabled_option_ids = vec![
+            "disable_steam_input".to_string(),
+            "enable_dxvk_async".to_string(),
+        ];
+
+        let context =
+            build_launch_hook_execution_context(&request).expect("steam launch hook context");
+
+        assert_eq!(
+            context
+                .env
+                .get("STEAM_COMPAT_DATA_PATH")
+                .map(String::as_str),
+            Some("/tmp/compat")
+        );
+        assert_eq!(
+            context
+                .env
+                .get("STEAM_COMPAT_CLIENT_INSTALL_PATH")
+                .map(String::as_str),
+            Some("/tmp/steam")
+        );
+        assert_eq!(
+            context.env.get("PROTON_NO_STEAMINPUT").map(String::as_str),
+            Some("1")
+        );
+        assert_eq!(context.env.get("DXVK_ASYNC").map(String::as_str), Some("1"));
+    }
+
+    #[test]
+    fn steam_trainer_hook_context_ignores_game_launch_optimizations() {
+        let mut request = steam_hook_request();
+        request.launch_trainer_only = true;
+        request.optimizations.enabled_option_ids = vec![
+            "disable_steam_input".to_string(),
+            "enable_dxvk_async".to_string(),
+        ];
+
+        let context =
+            build_launch_hook_execution_context(&request).expect("steam trainer hook context");
+
+        assert_eq!(
+            context
+                .env
+                .get("STEAM_COMPAT_DATA_PATH")
+                .map(String::as_str),
+            Some("/tmp/compat")
+        );
+        assert_eq!(context.env.get("PROTON_NO_STEAMINPUT"), None);
+        assert_eq!(context.env.get("DXVK_ASYNC"), None);
+    }
+
+    fn steam_hook_request() -> LaunchRequest {
+        LaunchRequest {
+            method: METHOD_STEAM_APPLAUNCH.to_string(),
+            game_path: "/games/My Game/game.exe".to_string(),
+            trainer_path: "/trainers/trainer.exe".to_string(),
+            trainer_host_path: "/trainers/trainer.exe".to_string(),
+            steam: SteamLaunchConfig {
+                app_id: "12345".to_string(),
+                compatdata_path: "/tmp/compat".to_string(),
+                proton_path: "/tmp/proton".to_string(),
+                steam_client_install_path: "/tmp/steam".to_string(),
+            },
+            ..Default::default()
+        }
     }
 
     fn write_hook_script(

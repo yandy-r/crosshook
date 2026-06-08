@@ -57,7 +57,7 @@ impl ValidationError {
                 format!("Launch optimization '{option_id}' was selected more than once.")
             }
             Self::LaunchOptimizationsUnsupportedForMethod(method) => {
-                format!("Launch optimizations are only supported for proton_run launches, not '{method}'.")
+                format!("Launch optimizations are only supported for proton_run or steam_applaunch launches, not '{method}'.")
             }
             Self::LaunchOptimizationNotSupportedForMethod { option_id, method } => {
                 format!(
@@ -239,7 +239,7 @@ impl ValidationError {
             }
             Self::LaunchOptimizationsUnsupportedForMethod(method) => {
                 format!(
-                    "Switch the profile to 'proton_run' to use launch optimizations, or clear the selected optimizations for '{method}'."
+                    "Switch the profile to 'proton_run' or 'steam_applaunch' to use launch optimizations, or clear the selected optimizations for '{method}'."
                 )
             }
             Self::LaunchOptimizationNotSupportedForMethod { option_id, method } => {
