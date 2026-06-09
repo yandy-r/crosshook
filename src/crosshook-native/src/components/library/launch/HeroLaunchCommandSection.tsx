@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { usePreferencesContext } from '@/context/PreferencesContext';
 import { useProfileContext } from '@/context/ProfileContext';
 import { type SteamExternalLauncherExportRequest, useLauncherExport } from '@/hooks/useLauncherExport';
@@ -24,34 +24,64 @@ function profileCanExport(profile: GameProfile): boolean {
   return Boolean(safeTrim(profile.runtime.prefix_path) && safeTrim(profile.runtime.proton_path));
 }
 
-function ExportDesktopButton({
+type ExportDesktopState = ReturnType<typeof useLauncherExport>;
+
+const ExportDesktopContext = createContext<ExportDesktopState | null>(null);
+
+function ExportDesktopProvider({
   request,
   profile,
   steamClientInstallPath,
   targetHomePath,
+  children,
 }: {
   request: SteamExternalLauncherExportRequest;
   profile: GameProfile;
   steamClientInstallPath: string;
   targetHomePath: string;
+  children: React.ReactNode;
 }) {
-  const { errorMessage, statusMessage, result, isExporting, exportLauncher } = useLauncherExport({
+  const exportState = useLauncherExport({
     request,
     profile,
     steamClientInstallPath,
     targetHomePath,
   });
 
+  return <ExportDesktopContext.Provider value={exportState}>{children}</ExportDesktopContext.Provider>;
+}
+
+function ExportDesktopButton({ className }: { className: string }) {
+  const exportState = useContext(ExportDesktopContext);
+  if (!exportState) {
+    return null;
+  }
+
+  const { isExporting, exportLauncher } = exportState;
+
+  return (
+    <button
+      type="button"
+      className={className}
+      disabled={isExporting}
+      onClick={() => void exportLauncher()}
+      title="Export .desktop launcher"
+    >
+      {isExporting ? 'Exporting…' : '.desktop'}
+    </button>
+  );
+}
+
+function ExportDesktopFeedback() {
+  const exportState = useContext(ExportDesktopContext);
+  if (!exportState) {
+    return null;
+  }
+
+  const { errorMessage, statusMessage, result } = exportState;
+
   return (
     <>
-      <button
-        type="button"
-        className="crosshook-button crosshook-button--secondary"
-        disabled={isExporting}
-        onClick={() => void exportLauncher()}
-      >
-        {isExporting ? 'Exporting...' : '.desktop'}
-      </button>
       {statusMessage ? (
         <p className="crosshook-hero-detail__launch-status" role="status">
           {statusMessage}
@@ -211,16 +241,20 @@ export function HeroLaunchCommandSection({
     })();
   }
 
-  return (
-    <DashboardPanelSection
-      title="Launch command"
-      titleAs="h3"
-      className="crosshook-hero-detail__section"
-      actions={
-        <div className="crosshook-hero-detail__launch-actions">
+  const secondaryActionClass = 'crosshook-button crosshook-button--secondary crosshook-button--small';
+  const primaryActionClass = 'crosshook-button crosshook-button--small';
+
+  const launchToolbar = (
+    <div className="crosshook-hero-detail__launch-actions">
+      <div
+        className="crosshook-hero-detail__profile-actions crosshook-hero-detail__launch-actions-toolbar"
+        role="toolbar"
+        aria-label="Launch command actions"
+      >
+        <div className="crosshook-hero-detail__profile-actions-group" role="group" aria-label="Preview and export">
           <button
             type="button"
-            className="crosshook-button crosshook-button--secondary"
+            className={secondaryActionClass}
             disabled={!canPreview}
             onClick={() => {
               if (launchRequest) {
@@ -230,31 +264,30 @@ export function HeroLaunchCommandSection({
           >
             {previewLoading ? 'Building...' : 'Dry-run'}
           </button>
-          <button
-            type="button"
-            className="crosshook-button crosshook-button--secondary"
-            disabled={!canCopy}
-            onClick={() => void handleCopy()}
-          >
+          <button type="button" className={secondaryActionClass} disabled={!canCopy} onClick={() => void handleCopy()}>
             Copy
           </button>
           {exportRequest ? (
-            <ExportDesktopButton
-              request={exportRequest}
-              profile={profile}
-              steamClientInstallPath={steamClientInstallPath}
-              targetHomePath={targetHomePath}
-            />
+            <ExportDesktopButton className={secondaryActionClass} />
           ) : (
-            <button type="button" className="crosshook-button crosshook-button--secondary" disabled>
+            <button type="button" className={secondaryActionClass} disabled title="Export .desktop launcher">
               .desktop
             </button>
           )}
+        </div>
+
+        <div className="crosshook-hero-detail__profile-actions-divider" role="presentation" aria-hidden="true" />
+
+        <div
+          className="crosshook-hero-detail__profile-actions-group crosshook-hero-detail__profile-actions-group--trailing"
+          role="group"
+          aria-label="Launch profile"
+        >
           {isInPlaceMode ? (
             <>
               <button
                 type="button"
-                className="crosshook-button"
+                className={primaryActionClass}
                 disabled={!canLaunchGame}
                 aria-label={isGameRunning ? 'Game Running' : isBusy && !isIdle ? 'Launching…' : 'Launch Game'}
                 onClick={() => handleInPlaceLaunch('game')}
@@ -263,7 +296,7 @@ export function HeroLaunchCommandSection({
               </button>
               <button
                 type="button"
-                className="crosshook-button crosshook-button--secondary"
+                className={secondaryActionClass}
                 disabled={!canLaunchTrainer}
                 onClick={() => handleInPlaceLaunch('trainer')}
               >
@@ -273,7 +306,7 @@ export function HeroLaunchCommandSection({
           ) : (
             <button
               type="button"
-              className="crosshook-button"
+              className={primaryActionClass}
               disabled={!legacyCanLaunch}
               onClick={() => {
                 void onLaunch?.(resolvedProfileName);
@@ -283,8 +316,38 @@ export function HeroLaunchCommandSection({
             </button>
           )}
         </div>
-      }
-    >
+      </div>
+
+      <div className="crosshook-hero-detail__launch-actions-messages">
+        {exportRequest ? <ExportDesktopFeedback /> : null}
+        {copyStatus === 'copied' ? (
+          <p className="crosshook-hero-detail__launch-status" role="status">
+            Command copied.
+          </p>
+        ) : null}
+        {copyStatus === 'failed' ? (
+          <p className="crosshook-hero-detail__warn" role="alert">
+            Failed to copy command.
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+
+  return (
+    <DashboardPanelSection title="Launch command" titleAs="h3" className="crosshook-hero-detail__section">
+      {exportRequest ? (
+        <ExportDesktopProvider
+          request={exportRequest}
+          profile={profile}
+          steamClientInstallPath={steamClientInstallPath}
+          targetHomePath={targetHomePath}
+        >
+          {launchToolbar}
+        </ExportDesktopProvider>
+      ) : (
+        launchToolbar
+      )}
       {!launchRequest ? (
         <p className="crosshook-hero-detail__muted">
           Launch preview is unavailable until the game executable is set on this profile.
@@ -320,16 +383,6 @@ export function HeroLaunchCommandSection({
       {notSelectableHint ? (
         <p className="crosshook-hero-detail__muted" role="note">
           {notSelectableHint}
-        </p>
-      ) : null}
-      {copyStatus === 'copied' ? (
-        <p className="crosshook-hero-detail__launch-status" role="status">
-          Command copied.
-        </p>
-      ) : null}
-      {copyStatus === 'failed' ? (
-        <p className="crosshook-hero-detail__warn" role="alert">
-          Failed to copy command.
         </p>
       ) : null}
     </DashboardPanelSection>

@@ -147,78 +147,109 @@ export function HeroProfileActionsBar({
     await confirmDelete(selectedProfile);
   };
 
+  const secondaryActionClass = 'crosshook-button crosshook-button--secondary crosshook-button--small';
+  const dangerActionClass = 'crosshook-button crosshook-button--danger crosshook-button--small';
+
   return (
     <>
-      {/* Action buttons bar */}
-      <div className="crosshook-hero-detail__profile-actions">
-        <button
-          type="button"
-          className="crosshook-button crosshook-button--secondary"
-          onClick={() => void handleDuplicate()}
-          disabled={!canDuplicate || duplicating}
-        >
-          {duplicating ? 'Duplicating…' : 'Duplicate'}
-        </button>
-
-        <button
-          type="button"
-          className="crosshook-button crosshook-button--secondary"
-          onClick={() => {
-            if (!canRename || !selectedProfile) return;
-            setPendingRename(selectedProfile);
-            setRenameValue(selectedProfile);
-          }}
-          disabled={!canRename || renaming}
-        >
-          {renaming ? 'Renaming…' : 'Rename'}
-        </button>
-
-        <button
-          type="button"
-          className="crosshook-button crosshook-button--secondary"
-          onClick={() => void handlePreviewProfile()}
-          disabled={!canPreview || previewing}
-        >
-          {previewing ? 'Loading Preview…' : 'Preview Profile'}
-        </button>
-
-        <button
-          type="button"
-          className="crosshook-button crosshook-button--secondary"
-          onClick={() => void handleExportCommunityProfile()}
-          disabled={!canExportCommunity || exportingCommunity}
-        >
-          {exportingCommunity ? 'Exporting…' : 'Export as Community Profile'}
-        </button>
-
-        {showMarkVerified ? (
+      <div className="crosshook-hero-detail__profile-actions" role="toolbar" aria-label="Profile actions">
+        <div className="crosshook-hero-detail__profile-actions-group" role="group" aria-label="Edit profile">
           <button
             type="button"
-            className="crosshook-button crosshook-button--secondary"
-            onClick={() => void handleMarkVerified()}
-            disabled={markingVerified}
+            className={secondaryActionClass}
+            onClick={() => void handleDuplicate()}
+            disabled={!canDuplicate || duplicating}
           >
-            {markingVerified ? 'Verifying…' : 'Mark as Verified'}
+            {duplicating ? 'Duplicating…' : 'Duplicate'}
           </button>
+
+          <button
+            type="button"
+            className={secondaryActionClass}
+            onClick={() => {
+              if (!canRename || !selectedProfile) return;
+              setPendingRename(selectedProfile);
+              setRenameValue(selectedProfile);
+            }}
+            disabled={!canRename || renaming}
+          >
+            {renaming ? 'Renaming…' : 'Rename'}
+          </button>
+        </div>
+
+        <div className="crosshook-hero-detail__profile-actions-divider" role="presentation" aria-hidden="true" />
+
+        <div className="crosshook-hero-detail__profile-actions-group" role="group" aria-label="Preview and export">
+          <button
+            type="button"
+            className={secondaryActionClass}
+            onClick={() => void handlePreviewProfile()}
+            disabled={!canPreview || previewing}
+            aria-label={previewing ? 'Loading preview' : 'Preview profile'}
+          >
+            {previewing ? 'Loading…' : 'Preview'}
+          </button>
+
+          <button
+            type="button"
+            className={secondaryActionClass}
+            onClick={() => void handleExportCommunityProfile()}
+            disabled={!canExportCommunity || exportingCommunity}
+            aria-label={exportingCommunity ? 'Exporting community profile' : 'Export as community profile'}
+            title="Export as Community Profile"
+          >
+            {exportingCommunity ? 'Exporting…' : 'Community Export'}
+          </button>
+        </div>
+
+        {showMarkVerified ? (
+          <>
+            <div className="crosshook-hero-detail__profile-actions-divider" role="presentation" aria-hidden="true" />
+
+            <div
+              className="crosshook-hero-detail__profile-actions-group"
+              role="group"
+              aria-label="Version verification"
+            >
+              <button
+                type="button"
+                className={secondaryActionClass}
+                onClick={() => void handleMarkVerified()}
+                disabled={markingVerified}
+              >
+                {markingVerified ? 'Verifying…' : 'Mark as Verified'}
+              </button>
+            </div>
+          </>
         ) : null}
 
-        <button
-          type="button"
-          className="crosshook-button crosshook-button--secondary"
-          onClick={() => setShowHistoryPanel(true)}
-          disabled={!canViewHistory}
-        >
-          History
-        </button>
+        <div className="crosshook-hero-detail__profile-actions-divider" role="presentation" aria-hidden="true" />
 
-        <button
-          type="button"
-          className="crosshook-button crosshook-button--danger"
-          onClick={() => void handleDelete()}
-          disabled={!canDelete || deleting}
+        <div className="crosshook-hero-detail__profile-actions-group" role="group" aria-label="Configuration history">
+          <button
+            type="button"
+            className={secondaryActionClass}
+            onClick={() => setShowHistoryPanel(true)}
+            disabled={!canViewHistory}
+          >
+            History
+          </button>
+        </div>
+
+        <div
+          className="crosshook-hero-detail__profile-actions-group crosshook-hero-detail__profile-actions-group--trailing"
+          role="group"
+          aria-label="Delete profile"
         >
-          {deleting ? 'Deleting…' : 'Delete'}
-        </button>
+          <button
+            type="button"
+            className={dangerActionClass}
+            onClick={() => void handleDelete()}
+            disabled={!canDelete || deleting}
+          >
+            {deleting ? 'Deleting…' : 'Delete'}
+          </button>
+        </div>
       </div>
 
       {/* Inline error / status surfaces */}
