@@ -6,7 +6,11 @@
 
 ## Context
 
-CrossHook is a native Linux desktop application (Tauri v2, AppImage today, Flatpak target tracked under issue #276). Its job is to _orchestrate_ Windows game and trainer launches through Proton/Wine — it does not run Wine itself. Every tool that must interact with a game process (gamescope, MangoHud, winetricks, unshare, umu-run, git) therefore executes as a _host_ process, not inside any sandbox.
+CrossHook is a native Linux desktop application distributed as a Flatpak (Tauri
+v2). Its job is to _orchestrate_ Windows game and trainer launches through
+Proton/Wine — it does not run Wine itself. Every tool that must interact with a
+game process (gamescope, MangoHud, winetricks, unshare, umu-run, git) therefore
+executes as a _host_ process, not inside any sandbox.
 
 When packaged as a Flatpak, host-tool execution must traverse `flatpak-spawn --host`. Without a single abstraction, scattered `Command::new(...)` calls would silently break under Flatpak for three independent reasons:
 
@@ -14,7 +18,9 @@ When packaged as a Flatpak, host-tool execution must traverse `flatpak-spawn --h
 2. **`.env()` is silently dropped by `flatpak-spawn`.** Rust's `Command::env()` / `Command::envs()` set env vars on the _sandbox_ side of the `flatpak-spawn` call, not on the host child. The host process receives none of them. This is not an error — it is the documented behaviour of `flatpak-spawn --host`.
 3. **Host filesystem paths must be normalized.** Flatpak remaps host paths under `/run/host`. A path like `/run/host/usr/share/steam/...` is valid inside the sandbox but the host process expects `/usr/share/steam/...`. Passing the un-normalized path to `flatpak-spawn --host` causes the command to fail.
 
-These three failure modes are invisible in native or AppImage builds, which is exactly what makes them dangerous: a developer running the AppImage cannot observe the breakage that Flatpak users would see.
+These three failure modes are invisible in unsandboxed developer runs, which is
+exactly what makes them dangerous: a developer running the app outside Flatpak
+cannot observe the breakage that Flatpak users would see.
 
 ---
 

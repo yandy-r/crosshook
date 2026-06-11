@@ -38,9 +38,9 @@ ground-truth facts change. Never duplicate `CLAUDE.md` policy prose here.
 
 ## MUST / MUST NOT
 
-- **Platform**: CrossHook is a **native Linux** desktop app (Tauri v2, AppImage). It does **not** run under Wine/Proton; it **orchestrates** launching Windows games via Proton/Wine.
+- **Platform**: CrossHook is a **native Linux** desktop app (Tauri v2, Flatpak distribution). It does **not** run under Wine/Proton; it **orchestrates** launching Windows games via Proton/Wine.
 - **Host-tool gateway**: Host-tool execution at the Flatpak boundary **must** route through `src/crosshook-native/crates/crosshook-core/src/platform.rs` (`host_command`, `host_std_command`, `host_command_with_env`, `host_command_exists`, and friends). Direct `Command::new("<host-tool>")` for tools in the denylist (`proton`, `umu-run`, `gamescope`, `mangohud`, `winetricks`, `protontricks`, `gamemoderun`) is rejected by `scripts/check-host-gateway.sh`. See [`docs/architecture/adr-0001-platform-host-gateway.md`](docs/architecture/adr-0001-platform-host-gateway.md) for the full contract, scope boundary (does not apply to in-sandbox subprocess code), and escape hatches.
-- **Proton download manager**: Native Proton version management (AppImage + Flatpak parity, provider catalog, install/uninstall) is handled by the dedicated Proton Manager at the `/proton-manager` route. Catalog data lives in the `proton_release_catalog` SQLite table (v22). Architecture decisions are documented in [`docs/architecture/adr-0003-proton-download-manager.md`](docs/architecture/adr-0003-proton-download-manager.md).
+- **Proton download manager**: Native Proton version management for the Flatpak-distributed app (provider catalog, install/uninstall) is handled by the dedicated Proton Manager at the `/proton-manager` route. Catalog data lives in the `proton_release_catalog` SQLite table (v22). Architecture decisions are documented in [`docs/architecture/adr-0003-proton-download-manager.md`](docs/architecture/adr-0003-proton-download-manager.md).
 - **Architecture**: Business logic lives in `crosshook-core`. Keep `crosshook-cli` and `src-tauri` thin (IPC and CLI only).
 - **Trainer execution parity**: Treat trainer subprocesses by their **actual runtime path**, not just the parent game launch method. Steam profiles still launch trainers through Proton, so Steam trainer launches must stay aligned with `proton_run` semantics for `effective_trainer_gamescope()`, launch optimization env, and `runtime.working_directory`. In Flatpak, if the shell-helper path diverges from the working `proton_run` trainer path, prefer reusing the direct Proton trainer builder and record/analyze the execution as `proton_run` rather than keeping a separate helper-only env reconstruction path. Parity extends to **lifecycle cleanup**: trainer launches register with `LaunchSessionRegistry` (`src/crosshook-native/crates/crosshook-core/src/launch/session/`) and spawn a gamescope watchdog when the same predicate the game path uses is true, so trainer-side gamescope is torn down on trainer exit _and_ on parent-game teardown via the registry's `cancel_linked_children` cascade. Never kill another session's process tree — each session owns its own `ShutdownTarget`.
 - **Tauri IPC**: Expose backend operations as `#[tauri::command]` handlers with **`snake_case` names** matching frontend `invoke()` calls. Use **Serde** on all types that cross the IPC boundary.
@@ -118,9 +118,8 @@ Pre-commit setup: `./scripts/setup-dev-hooks.sh` (installs [Lefthook](https://le
 ```bash
 ./scripts/dev-native.sh
 ./scripts/dev-native.sh --browser    # browser-only dev mode (no Rust toolchain), loopback only
-./scripts/build-native.sh                    # AppImage: runs generate-assets + sync to src-tauri/icons, then tauri build
-./scripts/build-native-container.sh          # uses host DIST_DIR/CARGO_TARGET_DIR (XDG by default)
-./scripts/build-native.sh --binary-only
+./scripts/build-release-binary.sh     # production Tauri binary used as Flatpak input
+./scripts/build-flatpak.sh --rebuild --strict
 ./scripts/install-native-build-deps.sh
 cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core
 ./scripts/lint.sh                    # check all linters
@@ -140,7 +139,7 @@ Primary source root: `src/crosshook-native/`. CI release workflow: `.github/work
 
 ### Browser Dev Mode
 
-`./scripts/dev-native.sh --browser` (or `--web`) starts Vite at `http://localhost:5173` and routes IPC through the shared adapter: browser dev mode serves hand-rolled mock handlers for `callCommand()` and `subscribeEvent()` — no Rust toolchain or running Tauri backend is required. Raw `invoke()` / `listen()` bypass the mock bridge, so frontend code must use the adapter APIs to participate in mocks and to be exercised consistently with CI checks. The server binds loopback only; `--host 0.0.0.0` is unsupported per security policy (BR-9). Native Tauri dev (`./scripts/dev-native.sh` without flags) uses a separate auto-selected port starting at 1420 so browser dev and native dev can run in parallel. Because mock handlers return synthetic data, real Tauri behavior must be re-verified with `./scripts/dev-native.sh` (no flag) before merging any UI changes. To add or extend handlers for new commands, see `src/crosshook-native/src/lib/mocks/README.md`. The CI sentinel `verify:no-mocks` runs after every AppImage build and will refuse any production bundle that contains mock code — keeping the mock layer strictly development-only.
+`./scripts/dev-native.sh --browser` (or `--web`) starts Vite at `http://localhost:5173` and routes IPC through the shared adapter: browser dev mode serves hand-rolled mock handlers for `callCommand()` and `subscribeEvent()` — no Rust toolchain or running Tauri backend is required. Raw `invoke()` / `listen()` bypass the mock bridge, so frontend code must use the adapter APIs to participate in mocks and to be exercised consistently with CI checks. The server binds loopback only; `--host 0.0.0.0` is unsupported per security policy (BR-9). Native Tauri dev (`./scripts/dev-native.sh` without flags) uses a separate auto-selected port starting at 1420 so browser dev and native dev can run in parallel. Because mock handlers return synthetic data, real Tauri behavior must be re-verified with `./scripts/dev-native.sh` (no flag) before merging any UI changes. To add or extend handlers for new commands, see `src/crosshook-native/src/lib/mocks/README.md`. The CI sentinel `verify:no-mocks` runs after the production release-binary build and will refuse any production bundle that contains mock code — keeping the mock layer strictly development-only.
 
 ---
 
@@ -148,7 +147,7 @@ Primary source root: `src/crosshook-native/`. CI release workflow: `.github/work
 
 | Layer                  | Technology                         | Notes                                                                                         |
 | ---------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------- |
-| Desktop shell          | **Tauri v2**                       | Rust backend + WebView frontend; packaged as AppImage                                         |
+| Desktop shell          | **Tauri v2**                       | Rust backend + WebView frontend; distributed as a Flatpak                                     |
 | Core business logic    | **Rust** (`crosshook-core` crate)  | All launch orchestration, profile management, community taps, metadata persistence, settings  |
 | IPC layer              | **Tauri commands** (`src-tauri`)   | Thin wrappers over `crosshook-core`; `snake_case` command names; Serde on all boundary types  |
 | Frontend               | **React 18 + TypeScript** (strict) | Vite dev server; `invoke()` wrapped in custom hooks; BEM-like `crosshook-*` CSS classes       |
@@ -243,4 +242,4 @@ When implementing features, classify every new datum before writing code:
 
 Do **not** cache binary blobs (images, archives) in `external_cache_entries` — payloads over 512 KiB store `NULL payload_json` silently. Use the filesystem with a tracking table for large binaries.
 
-**Flatpak per-app isolation (Phase 4+)**: When running as a Flatpak, CrossHook uses per-app data directories (`~/.var/app/dev.crosshook.CrossHook/{config,cache,data}/`) by default. On first run, host AppImage data is imported one-way (config verbatim; data selectively — metadata DB + community + media + launchers; skip prefixes/artifacts/cache/logs/runtime-helpers). Wine prefixes remain on the host via `crosshook_core::flatpak_migration::host_prefix_root()`. Opt-in shared mode: `CROSSHOOK_FLATPAK_HOST_XDG=1`. See [ADR-0004](docs/architecture/adr-0004-flatpak-per-app-isolation.md).
+**Flatpak per-app isolation (Phase 4+)**: When running as a Flatpak, CrossHook uses per-app data directories (`~/.var/app/dev.crosshook.CrossHook/{config,cache,data}/`) by default. On first run, legacy host/AppImage-era data is imported one-way (config verbatim; data selectively — metadata DB + community + media + launchers; skip prefixes/artifacts/cache/logs/runtime-helpers). Wine prefixes remain on the host via `crosshook_core::flatpak_migration::host_prefix_root()`. Opt-in shared mode: `CROSSHOOK_FLATPAK_HOST_XDG=1`. See [ADR-0004](docs/architecture/adr-0004-flatpak-per-app-isolation.md).

@@ -1,7 +1,7 @@
 //! Runtime platform detection for Flatpak sandboxing.
 //!
-//! CrossHook runs both as a native Linux binary (AppImage, dev build) and
-//! inside a Flatpak sandbox. Several subsystems need to know which of the two
+//! CrossHook runs both as a host/dev Linux binary and inside a Flatpak sandbox.
+//! Several subsystems need to know which of the two
 //! environments they are running in so they can adjust process spawning and
 //! resource path resolution. This module remains the single source of truth
 //! for that decision while delegating the implementation to focused

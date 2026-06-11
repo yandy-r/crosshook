@@ -1,6 +1,6 @@
 # CrossHook
 
-[![Download CrossHook](https://img.shields.io/badge/Download-CrossHook_AppImage-00C853?style=for-the-badge)](https://github.com/yandy-r/crosshook/releases)
+[![Download CrossHook](https://img.shields.io/badge/Download-CrossHook_Flatpak-00C853?style=for-the-badge)](https://github.com/yandy-r/crosshook/releases)
 [![GitHub Release](https://img.shields.io/github/v/release/yandy-r/crosshook?style=for-the-badge&color=blue&label=Latest)](https://github.com/yandy-r/crosshook/releases)
 [![License](https://img.shields.io/github/license/yandy-r/crosshook?style=for-the-badge&color=green)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Steam%20Deck-blue?style=for-the-badge&logo=linux)](https://github.com/yandy-r/crosshook)
@@ -27,22 +27,22 @@ saving it.
 
 ## Download
 
-Get the latest AppImage from [GitHub Releases](https://github.com/yandy-r/crosshook/releases).
+Get the latest Flatpak bundle from [GitHub Releases](https://github.com/yandy-r/crosshook/releases).
+Current releases publish Flatpak bundles only.
 
 ```bash
-# Download the AppImage (adjust the version as needed)
-chmod +x CrossHook_*.AppImage
-./CrossHook_*.AppImage
+# Download the .flatpak bundle from the release, then install and run it
+flatpak install --user --reinstall ./CrossHook_*.flatpak
+flatpak run dev.crosshook.CrossHook
 ```
 
-No installation required. The AppImage is a single portable file that runs on any modern Linux
-distribution.
+The Flatpak bundle is the supported in-repo distribution package.
 
 ## Quick Start
 
-1. Download the AppImage from the [Releases page](https://github.com/yandy-r/crosshook/releases).
-2. Make it executable: `chmod +x CrossHook_*.AppImage`
-3. Launch it: `./CrossHook_*.AppImage`
+1. Download the Flatpak bundle from the [Releases page](https://github.com/yandy-r/crosshook/releases).
+2. Install or update it: `flatpak install --user --reinstall ./CrossHook_*.flatpak`
+3. Launch it: `flatpak run dev.crosshook.CrossHook`
 4. Select a game from the auto-populated Steam library.
 5. Choose a trainer or mod, pick a launch mode, and hit Launch.
 
@@ -167,29 +167,25 @@ Install build dependencies automatically using the included script:
 ./scripts/install-native-build-deps.sh
 ```
 
-Or install manually. You need: `cargo`, `npm`, `patchelf`, and development libraries for GTK3,
-libsoup3, WebKitGTK 4.1, and OpenSSL. AppImage builds also need `rsvg-convert` (e.g. `librsvg2-bin`
-on Debian/Ubuntu) and ImageMagick for regenerating icons from `assets/*.svg` before bundling.
+Or install manually. You need: `cargo`, `npm`, `flatpak`, `flatpak-builder`, and development
+libraries for GTK3, libsoup3, WebKitGTK 4.1, and OpenSSL. Flatpak packaging also uses ImageMagick
+for regenerating icons from `assets/*.svg` before bundling.
 
-### Build the AppImage
+### Build the Flatpak Bundle
 
 ```bash
-./scripts/build-native.sh
+./scripts/build-flatpak.sh --strict
 ```
 
-Before `tauri build`, this runs `./scripts/generate-assets.sh` and copies the generated monogram
-(`assets/icon-512.png`) into `src/crosshook-native/src-tauri/icons/icon.png`, which is what Tauri
-uses for the AppImage icon. To refresh branding only: run those two scripts, or edit SVGs under
-`assets/` and run `./scripts/generate-assets.sh` followed by `./scripts/lib/sync-tauri-icons.sh`.
+The Flatpak helper builds the production Tauri binary, stages runtime helpers and generated icons,
+and produces a `.flatpak` bundle. For Flatpak packaging details, see
+[packaging/flatpak/README.md](packaging/flatpak/README.md).
 
-By default the AppImage is copied to `$XDG_DATA_HOME/crosshook/artifacts` (not `./dist`). CI releases still use `./dist`. Use `./scripts/build-native.sh --print-paths` to see the resolved paths, or set `DIST_DIR` / `CARGO_TARGET_DIR` to override. Additional options:
+To install or update the locally built bundle immediately:
 
 ```bash
-# Build the release binary only (skip AppImage bundling)
-./scripts/build-native.sh --binary-only
-
-# Install dependencies first, then build
-./scripts/build-native.sh --install-deps --yes
+./scripts/build-flatpak.sh --rebuild --install --strict
+flatpak run dev.crosshook.CrossHook
 ```
 
 ### Development
@@ -218,18 +214,21 @@ before merging UI changes. For security, the server binds loopback only;
 
 Contributors adding new `#[tauri::command]` handlers should register a matching mock
 in the [mock handler registry](src/crosshook-native/src/lib/mocks/README.md). Production
-AppImage builds enforce a `verify:no-mocks` CI sentinel that rejects any bundle
+Release builds enforce a `verify:no-mocks` CI sentinel that rejects any bundle
 containing mock code -- the feature has zero production surface.
 
 ### CI
 
-The [release](.github/workflows/release.yml) GitHub Actions workflow builds and uploads the AppImage
-to a GitHub Release on every version tag push (`v*`).
+The [release](.github/workflows/release.yml) GitHub Actions workflow builds and uploads the Flatpak
+bundle to a GitHub Release on every version tag push (`v*`).
 
 ## Release Notes
 
-- Releases publish a single **AppImage** artifact for x86_64 Linux.
-- The AppImage is self-contained and portable -- no system-level installation needed.
+- Releases publish a **Flatpak** bundle for x86_64 Linux.
+- Flatpak is the supported packaged distribution format for CrossHook.
+- Legacy AppImage-era host data is imported into the Flatpak sandbox on first launch as a one-way
+  compatibility bridge for existing users. This does not mean AppImage remains an active
+  distribution target.
 - User state (profiles, settings) is stored in `~/.config/crosshook/` or the XDG config directory,
   separate from the application binary.
 - Install prefixes default under `~/.local/share/crosshook/prefixes/<slug>` and are only saved into

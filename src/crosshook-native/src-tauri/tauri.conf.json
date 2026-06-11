@@ -28,9 +28,6 @@
     }
   },
   "bundle": {
-    "active": true,
-    "targets": ["appimage"],
-    "resources": ["../runtime-helpers/*.sh"],
-    "icon": ["icons/icon.png"]
+    "active": false
   }
 }

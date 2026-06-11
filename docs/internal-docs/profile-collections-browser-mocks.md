@@ -38,7 +38,7 @@ Sentinel strings checked at build time: `[dev-mock]`, `getMockRegistry`, `regist
 
 ## CI sentinel
 
-The `verify:no-mocks` step in `.github/workflows/release.yml:105-120` scans the production JS bundle for mock-mode sentinel strings after the AppImage build:
+The `verify:no-mocks` step in `.github/workflows/release.yml` scans the production JS bundle for mock-mode sentinel strings after the release-binary build:
 
 ```yaml
 - name: Verify no mock code in production bundle

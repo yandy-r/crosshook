@@ -194,6 +194,11 @@ that output were uploaded to a web host it would ship mock code as a public
 website — this is an intentional foot-gun. The `dev:browser` script is only
 meant for local development. Never publish the `webdev` build output.
 
+Production bundle validation must continue to reject mock code. Release CI runs
+the mock-code sentinel against the production JavaScript assets emitted by the
+Tauri release-binary build before those assets are staged into Flatpak. Keep the
+sentinel tied to production bundle contents, not to a specific package artifact.
+
 ---
 
 ## Cross-References

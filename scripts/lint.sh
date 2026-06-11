@@ -163,7 +163,9 @@ fi
 if (( RUN_SHELL )); then
   if (( SCOPED )); then
     shell_files=()
-    mapfile -t shell_files < <(list_scoped_repo_paths "$SCOPE" "scripts/" ".sh")
+    while IFS= read -r shell_file; do
+      [[ -f "$shell_file" ]] && shell_files+=("$shell_file")
+    done < <(list_scoped_repo_paths "$SCOPE" "scripts/" ".sh")
 
     if (( ${#shell_files[@]} == 0 )); then
       echo "=== Shell ==="
@@ -174,7 +176,9 @@ if (( RUN_SHELL )); then
     fi
   else
     shell_files=()
-    mapfile -t shell_files < <(list_repo_paths "scripts/" ".sh")
+    while IFS= read -r shell_file; do
+      [[ -f "$shell_file" ]] && shell_files+=("$shell_file")
+    done < <(list_repo_paths "scripts/" ".sh")
 
     if (( ${#shell_files[@]} == 0 )); then
       echo "=== Shell ==="

@@ -8,7 +8,8 @@ This checklist covers input accessibility and scroll behavior validation for Cro
 - **Desktop alternative**: A standard Linux desktop with gamescope launched manually, e.g.:
 
 ```bash
-gamescope -W 1280 -H 800 -r 60 -- ./CrossHook_amd64.AppImage
+./scripts/build-flatpak.sh --rebuild --install --strict
+gamescope -W 1280 -H 800 -r 60 -- flatpak run dev.crosshook.CrossHook
 ```
 
 - **Input**: All checks must be completable using only the Steam Deck's built-in controls (D-pad, A/B/X/Y buttons, triggers, **Context/Menu**). No mouse, touchpad, or external keyboard should be required for the core flow (check 7). For the assign menu (check 3), use **only** those controls to open **CollectionAssignMenu** from a library card: focus the card with the D-pad, invoke the Phase 5 controller mapping (Context/Menu or the mapped combo), confirm the **Add to collection** UI appears, and verify it is fully navigable with D-pad and face buttons.
@@ -122,7 +123,8 @@ Target: Steam Deck native (1280×800, WebKitGTK, gamepad + touchscreen). Validat
 **Desktop stand-in**:
 
 ```bash
-gamescope -W 1280 -H 800 -r 60 -- ./CrossHook_amd64.AppImage
+./scripts/build-flatpak.sh --rebuild --install --strict
+gamescope -W 1280 -H 800 -r 60 -- flatpak run dev.crosshook.CrossHook
 ```
 
 **Fast iteration** (not WebKitGTK-accurate — re-verify in Tauri dev mode):

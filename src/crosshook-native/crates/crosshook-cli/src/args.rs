@@ -69,7 +69,7 @@ pub struct LaunchCommand {
     #[arg(long, hide = true, value_name = "PATH")]
     pub profile_dir: Option<PathBuf>,
 
-    /// Override the helper scripts directory (default: bundled AppImage scripts)
+    /// Override the helper scripts directory (default: packaged or development helper scripts)
     #[arg(long, hide = true, value_name = "PATH")]
     pub scripts_dir: Option<PathBuf>,
 

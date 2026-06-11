@@ -9,9 +9,10 @@
 Phase 1 of the Flatpak distribution effort (`override_xdg_for_flatpak_host_access()`,
 ADR-0001 table row) was a deliberate stop-gap: it rewrites `XDG_CONFIG_HOME`,
 `XDG_DATA_HOME`, and `XDG_CACHE_HOME` back to their host defaults so the Flatpak
-and the AppImage share one on-disk tree. That avoided a silent data-loss first-run
-experience (empty UI for AppImage users who install the Flatpak) and was the
-correct Phase 1 call. It is, however, not how Flathub apps are expected to behave.
+could share the legacy host/AppImage-era on-disk tree. That avoided a silent
+data-loss first-run experience (empty UI for users migrating from the old
+AppImage-era install path to the Flatpak) and was the correct Phase 1 call. It
+is, however, not how Flathub apps are expected to behave.
 
 Three pressures make the stop-gap unsustainable for Phase 4 (Flathub submission):
 
@@ -25,10 +26,10 @@ Three pressures make the stop-gap unsustainable for Phase 4 (Flathub submission)
    `~/.config/crosshook/` (outside the sandbox data directory) surprises users and
    breaks backup/restore tooling that keys on `~/.var/app/`.
 
-3. **AppImage data preservation.** An AppImage user installing the Flatpak for the
-   first time must not lose their profiles, game metadata, and community taps. A
-   one-way import on first run preserves that data inside the sandbox without
-   requiring the host-override hack.
+3. **Legacy data preservation.** A user migrating from the old host/AppImage-era
+   data tree to the Flatpak for the first time must not lose their profiles,
+   game metadata, and community taps. A one-way import on first run preserves
+   that data inside the sandbox without requiring the host-override hack.
 
 Wine prefix sizes (10–100 GB typical) make a full copy infeasible. The prefix root
 must stay on the host filesystem regardless of sandbox XDG.
@@ -53,7 +54,8 @@ Flatpak sandbox XDG vars are used as-is.
 
 On the first Flatpak launch, `crosshook_core::flatpak_migration::run()` detects
 that the sandbox data directory is empty (filesystem-state driven — no sentinel
-file, no DB flag) and imports the host AppImage tree into the sandbox:
+file, no DB flag) and imports the legacy host/AppImage-era tree into the
+sandbox:
 
 ```
 include subtrees: crosshook/community, crosshook/media, crosshook/launchers
@@ -91,16 +93,17 @@ startup and all stores resolve to host paths. This opt-in is:
 
 - **Flathub eligibility unblocked.** Per-app isolation satisfies the standard
   Flathub sandbox contract; the XDG override is no longer a submission blocker.
-- **User data preserved on upgrade.** AppImage users who install the Flatpak see
-  their profiles, game metadata, community taps, and settings intact on first run.
+- **User data preserved on upgrade.** Users migrating from legacy
+  host/AppImage-era data see their profiles, game metadata, community taps, and
+  settings intact on first run.
 - **Host/sandbox trees cleanly separated.** Tools that back up `~/.var/app/` capture
-  the full CrossHook state; host AppImage state is unaffected by Flatpak resets.
+  the full CrossHook state; legacy host state is unaffected by Flatpak resets.
 
 ### Negative
 
 - **One-way migration — host edits don't sync.** After first import, changes made
-  to the host AppImage tree (e.g., new profiles added via the AppImage) are not
-  reflected in the sandbox and vice versa. Users running both simultaneously should
+  to the legacy host/AppImage-era tree are not reflected in the sandbox and vice
+  versa. Users who still run an old AppImage alongside the Flatpak should
   designate one as primary.
 - **Sandbox reset triggers re-import.** A `flatpak uninstall --delete-data` removes
   the sandbox tree; the next Flatpak launch re-imports from the host (idempotent,

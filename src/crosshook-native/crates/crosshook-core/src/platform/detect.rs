@@ -21,7 +21,7 @@ pub fn is_flatpak() -> bool {
 /// the corresponding host path (`/usr/bin/foo`).
 ///
 /// This repair is applied unconditionally so paths persisted by the Flatpak
-/// build continue to work when reused later by the native/AppImage build.
+/// build continue to work when reused later by host/dev tooling.
 /// Non-Unix paths (for example `C:\Games\foo.exe`) and relative paths are
 /// returned unchanged aside from trimming outer whitespace.
 pub fn normalize_flatpak_host_path(path: &str) -> String {

@@ -44,8 +44,8 @@ pub fn host_command(program: &str) -> Command {
 /// variables that can poison Proton/Wine launches.
 /// Outside Flatpak the vars are forwarded normally via `.envs()`.
 ///
-/// Phase 3 Proton/Wine callers should use this helper unconditionally so the
-/// code behaves correctly in both AppImage and Flatpak deployments.
+/// Proton/Wine callers should use this helper unconditionally so the code
+/// behaves correctly in both host/dev and Flatpak deployments.
 /// `custom_env_vars` are user-controlled launch overrides. Under Flatpak they
 /// are applied via a short-lived `0600` env file and `bash` so values are not
 /// exposed on the `flatpak-spawn --env=` argv.

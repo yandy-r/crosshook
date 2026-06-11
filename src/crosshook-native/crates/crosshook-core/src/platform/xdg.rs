@@ -6,8 +6,7 @@ use super::env::{EnvSink, SystemEnv};
 
 /// Redirects `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CACHE_HOME`, and
 /// `XDG_STATE_HOME` to the host's real XDG locations when running inside a
-/// Flatpak sandbox, so the
-/// Flatpak build and the AppImage share the same data on disk.
+/// Flatpak sandbox in the opt-in shared-data mode.
 ///
 /// Flatpak normally remaps these three variables to per-app directories under
 /// `~/.var/app/<app-id>/`, which means `directories::BaseDirs::new()` — and

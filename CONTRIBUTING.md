@@ -43,13 +43,15 @@ Supports pacman, apt, dnf, and zypper.
 git clone https://github.com/yandy-r/crosshook.git
 cd crosshook
 ./scripts/install-native-build-deps.sh --yes
-./scripts/build-native.sh
+./scripts/build-release-binary.sh
 ```
 
-By default, build outputs go to XDG locations (`./scripts/build-native.sh --print-paths`). CI uses `./dist`. Full AppImage builds run `./scripts/generate-assets.sh` first (needs `rsvg-convert` and ImageMagick); `install-native-build-deps.sh` installs those where available. For just the release binary (faster, skips icon regeneration and AppImage):
+By default, build outputs go to XDG locations (`./scripts/build-release-binary.sh --print-paths`).
+CI uses `./dist`. The release binary is the production Tauri binary consumed by Flatpak packaging.
+To build a local Flatpak bundle:
 
 ```bash
-./scripts/build-native.sh --binary-only
+./scripts/build-flatpak.sh --rebuild --strict
 ```
 
 ### Development Mode
@@ -84,8 +86,9 @@ instructions if missing).
 cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core
 ```
 
-There is no frontend test framework configured. UI changes are verified by running the dev app or
-building the AppImage.
+For frontend changes, run `npm run typecheck` from `src/crosshook-native/` and verify the UI in
+dev mode. Build or packaging changes should also pass `./scripts/build-flatpak.sh --rebuild
+--strict`.
 
 ## Project Architecture
 
@@ -97,7 +100,7 @@ All source lives under `src/crosshook-native/`:
 | `crates/crosshook-cli/`  | Thin CLI binary wrapping core                                                       |
 | `src-tauri/`             | Tauri IPC layer -- `#[tauri::command]` handlers, thin glue                          |
 | `src/`                   | React/TypeScript frontend -- components, hooks, contexts, styles                    |
-| `runtime-helpers/`       | Shell scripts bundled into the AppImage, run under Proton at launch time            |
+| `runtime-helpers/`       | Shell scripts staged into the Flatpak bundle, run under Proton at launch time       |
 | `scripts/`               | Dev, build, and release scripts                                                     |
 
 **Key rule**: business logic belongs in `crosshook-core`. The CLI and Tauri crates must stay thin
@@ -183,8 +186,10 @@ submitting:
 1. **Link the issue** -- every PR should reference an issue (`Closes #...`)
 2. **Label the PR** -- use the [label taxonomy](#labels) below; do not invent ad-hoc labels
 3. **Pass the build checklist**:
-   - `./scripts/build-native.sh --binary-only` builds without errors
+   - `./scripts/build-release-binary.sh` builds without errors
+   - `./scripts/lint.sh` passes, or the relevant lint/typecheck subset is documented
    - `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core` passes
+   - `./scripts/build-flatpak.sh --rebuild --strict` passes for build/packaging changes
 4. **Area-specific checks** -- the PR template includes conditional items for changes touching
    launch, steam, profiles, UI components, and runtime helpers
 
