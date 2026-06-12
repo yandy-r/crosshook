@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 This file is generated with `git-cliff` from the repository history and release tags.
 
+## [v0.5.0] - 2026-06-12
+
+### Bug Fixes
+
+- **profiles:** Use effective steam path for proton ([`940182e`](https://github.com/yandy-r/crosshook/commit/940182e16eb16171943561b9762169d013cccf84))
+
+### Build
+
+- **release:** Remove AppImage distribution ([#503](https://github.com/yandy-r/crosshook/issues/503)) ([`3fff5f0`](https://github.com/yandy-r/crosshook/commit/3fff5f0c1411286f0ce41e17b8e0b819e01788e1))
+
+### Documentation
+
+- **roadmap:** Retire completed Flatpak target ([`382c931`](https://github.com/yandy-r/crosshook/commit/382c931bbbec51108a3311a2de0f02febe0a34d5))
+
+### Features
+
+- **ui:** Declutter hero detail profile and launch action toolbars ([`0d44239`](https://github.com/yandy-r/crosshook/commit/0d442396c488c20a038e82d2e056ce55e3eb9f9d))
+
 ## [v0.4.1] - 2026-06-08
 
 ### Bug Fixes
