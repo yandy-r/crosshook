@@ -174,7 +174,7 @@ for regenerating icons from `assets/*.svg` before bundling.
 ### Build the Flatpak Bundle
 
 ```bash
-./scripts/build-flatpak.sh --strict
+./scripts/build-flatpak.sh --rebuild --strict
 ```
 
 The Flatpak helper builds the production Tauri binary, stages runtime helpers and generated icons,

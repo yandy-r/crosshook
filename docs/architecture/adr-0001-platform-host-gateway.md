@@ -8,9 +8,10 @@
 
 CrossHook is a native Linux desktop application distributed as a Flatpak (Tauri
 v2). Its job is to _orchestrate_ Windows game and trainer launches through
-Proton/Wine — it does not run Wine itself. Every tool that must interact with a
-game process (gamescope, MangoHud, winetricks, unshare, umu-run, git) therefore
-executes as a _host_ process, not inside any sandbox.
+Proton/Wine — it does not run Wine itself. Tools that interact with game
+processes (gamescope, MangoHud, winetricks, umu-run) and general host utilities
+(e.g. git, unshare) therefore execute as _host_ processes, not inside any
+sandbox.
 
 When packaged as a Flatpak, host-tool execution must traverse `flatpak-spawn --host`. Without a single abstraction, scattered `Command::new(...)` calls would silently break under Flatpak for three independent reasons:
 

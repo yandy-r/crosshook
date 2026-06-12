@@ -210,20 +210,29 @@ fi
 
 # ---- Ensure the release binary exists --------------------------------------
 BINARY_PATH="$DIST_DIR/crosshook-native"
+BINARY_TARGET_TRIPLE_PATH="$DIST_DIR/crosshook-native.target-triple"
+CACHED_TARGET_TRIPLE=""
+if [[ -f "$BINARY_TARGET_TRIPLE_PATH" ]]; then
+  CACHED_TARGET_TRIPLE="$(<"$BINARY_TARGET_TRIPLE_PATH")"
+fi
+
 if (( REBUILD )); then
   log "--rebuild: refreshing Flatpak release binary input"
   "$ROOT_DIR/scripts/build-release-binary.sh"
-elif [[ ! -x "$BINARY_PATH" ]]; then
+elif [[ ! -x "$BINARY_PATH" || "$CACHED_TARGET_TRIPLE" != "$TARGET_TRIPLE" ]]; then
   if (( SKIP_BUILD )); then
-    die "release binary not found at $BINARY_PATH and --skip-build was set"
+    die "release binary for $TARGET_TRIPLE not found at $BINARY_PATH and --skip-build was set"
   fi
-  log "release binary input missing, running build-release-binary.sh"
+  log "release binary missing/stale (cached triple: ${CACHED_TARGET_TRIPLE:-none}); rebuilding for $TARGET_TRIPLE"
   "$ROOT_DIR/scripts/build-release-binary.sh"
 else
   log "reusing cached release binary: $BINARY_PATH"
   log "(pass --rebuild to refresh the Flatpak release binary input)"
 fi
 [[ -x "$BINARY_PATH" ]] || die "release binary still missing at $BINARY_PATH"
+[[ -f "$BINARY_TARGET_TRIPLE_PATH" ]] || die "missing target metadata at $BINARY_TARGET_TRIPLE_PATH"
+[[ "$(<"$BINARY_TARGET_TRIPLE_PATH")" == "$TARGET_TRIPLE" ]] \
+  || die "cached release binary target does not match $TARGET_TRIPLE"
 
 # ---- Ensure Flatpak icon inputs exist ---------------------------------------
 # These files are generated from SVG sources by scripts/generate-assets.sh and

@@ -116,6 +116,7 @@ BINARY_PATH="$CARGO_TARGET_DIR/$TARGET_TRIPLE/release/crosshook-native"
 
 mkdir -p "$DIST_DIR"
 cp -f "$BINARY_PATH" "$DIST_DIR/"
+printf '%s\n' "$TARGET_TRIPLE" > "$DIST_DIR/crosshook-native.target-triple"
 
 echo "Built release binary:"
 echo "  $BINARY_PATH"
