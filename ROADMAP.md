@@ -1,7 +1,7 @@
 # CrossHook Roadmap
 
 Living priority map for what to build next. Updated from `main` commit history,
-GitHub releases, open issues, and recent PR state (**2026-06-07**).
+GitHub releases, open issues, and recent PR state (**2026-06-12**).
 
 **How to use this file**
 
@@ -20,12 +20,12 @@ GitHub releases, open issues, and recent PR state (**2026-06-07**).
 Prioritized actions for the current cycle. Work top-to-bottom; skip only when
 blocked.
 
-| #   | Action                                                                                                                                                                                                                                                                                                                                                                                                                          | Why now                                                                                                                                                                        |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | **Cut the next release from `main`** — run `./scripts/prepare-release.sh`, validate changelog sections, tag after smoke on native build. Includes trainer tab editor ([#479](https://github.com/yandy-r/crosshook/issues/479) / [#501](https://github.com/yandy-r/crosshook/pull/501)) and umu GAMEID lookup ([#233](https://github.com/yandy-r/crosshook/issues/233) / [#502](https://github.com/yandy-r/crosshook/pull/502)). | Both features landed on `main` after [v0.3.1](https://github.com/yandy-r/crosshook/releases/tag/v0.3.1); users cannot get them from a tagged release yet.                      |
-| 2   | **Refresh or close [#78](https://github.com/yandy-r/crosshook/issues/78)** — reconcile the deep-research tracker with the current 17-issue board; close checklist items that shipped.                                                                                                                                                                                                                                           | Only open high-priority tracker; checklist is stale after Hero Detail, trainer tab, and GAMEID work.                                                                           |
-| 3   | **Start [#123](https://github.com/yandy-r/crosshook/issues/123)** — config history semantic diff, retention UI, and UX polish. Write a focused PRP plan with storage boundaries before coding.                                                                                                                                                                                                                                  | Best next user-facing slice for reliability and explainability; aligns with the "diagnosable, shareable" direction from [#78](https://github.com/yandy-r/crosshook/issues/78). |
-| 4   | **Groom Flatpak submission track** — review [#210](https://github.com/yandy-r/crosshook/issues/210) / [#206](https://github.com/yandy-r/crosshook/issues/206) against Phase 4 isolation ([#412](https://github.com/yandy-r/crosshook/pull/412)).                                                                                                                                                                                | Per-app isolation shipped; Flathub is the next distribution milestone when the release train clears.                                                                           |
+| #   | Action                                                                                                                                                                                                                                                                                               | Why now                                                                                                                                                                        |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | **Cut the next release from `main`** — run `./scripts/prepare-release.sh`, validate changelog sections, tag after smoke on native build. Includes the Flatpak-only distribution cleanup ([#503](https://github.com/yandy-r/crosshook/pull/503)) and the effective Steam path Proton fix (`940182e`). | [v0.4.1](https://github.com/yandy-r/crosshook/releases/tag/v0.4.1) shipped the Steam hook fix; the next tag should publish the Flatpak-only release surface.                   |
+| 2   | **Refresh or close [#78](https://github.com/yandy-r/crosshook/issues/78)** — reconcile the deep-research tracker with the current 16-issue board; close checklist items that shipped.                                                                                                                | Only open high-priority tracker; checklist is stale after Hero Detail, trainer tab, GAMEID work, and Flatpak packaging.                                                        |
+| 3   | **Start [#123](https://github.com/yandy-r/crosshook/issues/123)** — config history semantic diff, retention UI, and UX polish. Write a focused PRP plan with storage boundaries before coding.                                                                                                       | Best next user-facing slice for reliability and explainability; aligns with the "diagnosable, shareable" direction from [#78](https://github.com/yandy-r/crosshook/issues/78). |
+| 4   | **Groom Flatpak submission track** — review [#210](https://github.com/yandy-r/crosshook/issues/210) / [#206](https://github.com/yandy-r/crosshook/issues/206) against Phase 4 isolation ([#412](https://github.com/yandy-r/crosshook/pull/412)).                                                     | Per-app isolation shipped; Flathub is the next distribution milestone when the release train clears.                                                                           |
 
 **Strategic principle** (from [#78](https://github.com/yandy-r/crosshook/issues/78)): invest in making the
 trainer-on-Linux workflow **reliable, diagnosable, and shareable** — depth over
@@ -39,27 +39,48 @@ launcher scope prematurely.
 
 | Area                          | Status                                                                                                                                                                                                               |
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Latest release**            | [v0.3.1](https://github.com/yandy-r/crosshook/releases/tag/v0.3.1) (2026-06-05) — Tauri 2.11 / TypeScript 6 dep bump on top of v0.3.0                                                                                |
-| **On `main`, unreleased**     | Trainer tab editor ([#501](https://github.com/yandy-r/crosshook/pull/501)), umu GAMEID lookup resolver ([#502](https://github.com/yandy-r/crosshook/pull/502))                                                       |
+| **Latest release**            | [v0.4.1](https://github.com/yandy-r/crosshook/releases/tag/v0.4.1) (2026-06-08) — Steam hook optimization fix on top of v0.4.0                                                                                       |
+| **On `main`, unreleased**     | Flatpak-only release packaging ([#503](https://github.com/yandy-r/crosshook/pull/503)); effective Steam path for Proton profile launches (`940182e`)                                                                 |
 | **Unified Desktop Redesign**  | **Shipped** (v0.3.0) — responsive shell, Hero Detail mode, command palette, context rail, status bar, route reworks                                                                                                  |
 | **Hero Detail Consolidation** | **Shipped** (v0.3.0) — profile/launch/hook editing in Hero Detail; legacy `/profiles` and `/launch` routes removed; trainer tab editor completed on `main` ([#479](https://github.com/yandy-r/crosshook/issues/479)) |
-| **Open issues**               | 17 (see [Open issue inventory](#open-issue-inventory))                                                                                                                                                               |
+| **Open issues**               | 16 after retiring the completed Flatpak packaging target [#69](https://github.com/yandy-r/crosshook/issues/69) (see [Open issue inventory](#open-issue-inventory))                                                   |
 | **Open PRs**                  | 0                                                                                                                                                                                                                    |
 
 ---
 
-## Recently shipped on `main` (unreleased)
+## Recently landed on `main` (unreleased)
 
-Work merged after [v0.3.1](https://github.com/yandy-r/crosshook/releases/tag/v0.3.1); target the next release tag.
+Work merged after [v0.4.1](https://github.com/yandy-r/crosshook/releases/tag/v0.4.1); target the next release tag.
 
-| PR                                                    | Issue                                                   | Summary                                                                             |
-| ----------------------------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| [#501](https://github.com/yandy-r/crosshook/pull/501) | [#479](https://github.com/yandy-r/crosshook/issues/479) | Hero Detail Trainer tab — loaded hooks editor, injection config, injection log tail |
-| [#502](https://github.com/yandy-r/crosshook/pull/502) | [#233](https://github.com/yandy-r/crosshook/issues/233) | Auto-resolve GAMEID via umu-database HTTP lookups with SQLite cache (schema v24)    |
+| Commit / PR                                                                                                               | Issue                                                 | Summary                                                        |
+| ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------- |
+| [`940182e`](https://github.com/yandy-r/crosshook/commit/940182e1)                                                         | -                                                     | Use effective Steam path when building Proton profile requests |
+| [`3fff5f0`](https://github.com/yandy-r/crosshook/commit/3fff5f0c) / [#503](https://github.com/yandy-r/crosshook/pull/503) | [#69](https://github.com/yandy-r/crosshook/issues/69) | Remove AppImage distribution and make Flatpak the release path |
 
 ---
 
 ## Recently shipped releases
+
+### v0.4.1 (2026-06-08)
+
+Release focused on a Steam launch regression after v0.4.0.
+
+| Commit / PR                                                       | Summary                                       |
+| ----------------------------------------------------------------- | --------------------------------------------- |
+| [`ba9de12`](https://github.com/yandy-r/crosshook/commit/ba9de128) | `chore(release): prepare v0.4.1`              |
+| [`2d662a6`](https://github.com/yandy-r/crosshook/commit/2d662a64) | `fix(launch): allow Steam hook optimizations` |
+
+### v0.4.0 (2026-06-07)
+
+Release captured the trainer tab editor, umu GAMEID lookup resolver, and roadmap
+updates after v0.3.1.
+
+| Commit / PR                                                                                                               | Summary                                                                             |
+| ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| [`56468b1`](https://github.com/yandy-r/crosshook/commit/56468b14)                                                         | `chore(release): prepare v0.4.0`                                                    |
+| [`6474d50`](https://github.com/yandy-r/crosshook/commit/6474d50d) / [#502](https://github.com/yandy-r/crosshook/pull/502) | Auto-resolve GAMEID via umu-database HTTP lookups with SQLite cache (schema v24)    |
+| [`985e5bf`](https://github.com/yandy-r/crosshook/commit/985e5bf9) / [#501](https://github.com/yandy-r/crosshook/pull/501) | Hero Detail Trainer tab — loaded hooks editor, injection config, injection log tail |
+| [`b40069c`](https://github.com/yandy-r/crosshook/commit/b40069c4)                                                         | `docs(roadmap): move Do next to top and refresh priorities`                         |
 
 ### v0.3.1 (2026-06-05)
 
@@ -143,6 +164,7 @@ Trainer tab editing is complete on `main`.
 | [#394](https://github.com/yandy-r/crosshook/pull/394)                                                                                                               | Conventional Commit PR-title autofix normalization                        |
 | [#351](https://github.com/yandy-r/crosshook/pull/351), [#353](https://github.com/yandy-r/crosshook/pull/353), [#354](https://github.com/yandy-r/crosshook/pull/354) | Frontend, coverage, Playwright, and Tauri E2E test foundation             |
 | [#382](https://github.com/yandy-r/crosshook/pull/382)-[#410](https://github.com/yandy-r/crosshook/pull/410)                                                         | Broad module-splitting/refactor pass across core, CLI, frontend, settings |
+| [#503](https://github.com/yandy-r/crosshook/pull/503)                                                                                                               | Flatpak-only release distribution; AppImage release surface removed       |
 | [#502](https://github.com/yandy-r/crosshook/pull/502)                                                                                                               | umu GAMEID lookup resolver with SQLite cache (schema v24)                 |
 
 ---
@@ -164,7 +186,6 @@ Strategic work, not blocking the current release train.
 | ------------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | [#210](https://github.com/yandy-r/crosshook/issues/210) | Flatpak Phase 4 — Flathub submission           | Depends on per-app isolation ([ADR-0004](docs/architecture/adr-0004-flatpak-per-app-isolation.md)) |
 | [#206](https://github.com/yandy-r/crosshook/issues/206) | Submit CrossHook to Flathub                    | Child of Flatpak track                                                                             |
-| [#69](https://github.com/yandy-r/crosshook/issues/69)   | Flatpak as secondary packaging format          | Substantial groundwork landed in [#412](https://github.com/yandy-r/crosshook/pull/412)             |
 | [#76](https://github.com/yandy-r/crosshook/issues/76)   | macOS port investigation (GPTK 2)              | Out of core Linux scope                                                                            |
 | [#249](https://github.com/yandy-r/crosshook/issues/249) | Custom Proton fork "tinkerers" UX              | UMU / advanced-user follow-up                                                                      |
 | [#250](https://github.com/yandy-r/crosshook/issues/250) | Non-x86_64 architectures (umu container scope) | UMU / compatibility follow-up                                                                      |
@@ -228,7 +249,8 @@ check: 2026-06-07 (see issue comment).
 
 ## Open issue inventory
 
-All 17 open issues grouped by theme (2026-06-07).
+All 16 open issues grouped by theme after closing the completed Flatpak packaging
+target [#69](https://github.com/yandy-r/crosshook/issues/69) (2026-06-12).
 
 ### Active tracker / hygiene (1)
 
@@ -238,9 +260,9 @@ All 17 open issues grouped by theme (2026-06-07).
 
 #426, #427, #428, #429, #430, #431, #432, #433
 
-### Platform / build (6)
+### Platform / build (5)
 
-#26, #69, #71, #76, #206, #210
+#26, #71, #76, #206, #210
 
 ### UMU deferred (2)
 
