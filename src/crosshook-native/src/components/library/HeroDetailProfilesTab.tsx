@@ -74,14 +74,13 @@ export function HeroDetailProfilesTab({
   const selectedTrimmed = selectedProfile.trim();
   const profileExists = selectedTrimmed.length > 0 && profiles.includes(selectedTrimmed);
   const launchMethod = resolveLaunchMethod(profile);
-  const { installs: protonInstalls, error: protonInstallsError } = useProtonInstalls({
-    steamClientInstallPath,
-  });
-
   const effectiveSteamClientInstallPath = useMemo(
     () => defaultSteamClientInstallPath || steamClientInstallPath,
     [defaultSteamClientInstallPath, steamClientInstallPath]
   );
+  const { installs: protonInstalls, error: protonInstallsError } = useProtonInstalls({
+    steamClientInstallPath: effectiveSteamClientInstallPath,
+  });
 
   // Proton suggestion banner (community-recommended version)
   const protonState = useProfilesPageProton({

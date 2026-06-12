@@ -468,6 +468,30 @@ describe('HeroDetailProfilesTab', () => {
     expect(screen.getByTestId('launcher-export-panel')).toBeInTheDocument();
   });
 
+  it('loads Proton installs from the effective Steam path when a settings default overrides the profile path', async () => {
+    contextState = buildContextState({
+      steamClientInstallPath: '/mnt/secondary-library/Steam',
+      profile: makeProfileDraft({
+        launch: {
+          method: 'steam_applaunch' as LaunchMethod,
+          optimizations: { enabled_option_ids: [] },
+          custom_env_vars: {},
+        },
+      }),
+    });
+    preferencesContextMock.mockReturnValue({
+      defaultSteamClientInstallPath: '/home/devuser/.steam/steam',
+    });
+
+    renderProfilesTab();
+
+    await waitFor(() => {
+      expect(callCommandMock).toHaveBeenCalledWith('list_proton_installs', {
+        steamClientInstallPath: '/home/devuser/.steam/steam',
+      });
+    });
+  });
+
   it('scrolls the runtime section into view when requested and consumes the target', async () => {
     const onScrollTargetConsumed = vi.fn();
     const scrollIntoViewSpy = vi.spyOn(window.HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {});
