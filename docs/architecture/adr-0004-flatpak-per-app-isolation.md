@@ -106,9 +106,12 @@ startup and all stores resolve to host paths. This opt-in is:
   versa. Users who still run an old AppImage alongside the Flatpak should
   designate one as primary.
 - **Sandbox reset triggers re-import.** A `flatpak uninstall --delete-data` removes
-  the sandbox tree; the next Flatpak launch re-imports from the host (idempotent,
-  but the operation runs again and may duplicate community tap state if the host
-  tree changed in the interim).
+  the sandbox tree; the next Flatpak launch re-imports from the current host tree.
+  Any changes made only inside the sandbox are lost, and whatever exists on the host
+  at that moment becomes the new source of truth. The reset itself does not
+  duplicate community tap state — that can only happen if the host tree changed in
+  the interim and the re-imported content differs from what the sandbox had before
+  the reset.
 
 ### Neutral
 

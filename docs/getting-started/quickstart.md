@@ -103,9 +103,9 @@ flatpak run dev.crosshook.CrossHook
 
 ## Legacy Data Import
 
-If you used CrossHook during the AppImage era, the Flatpak imports existing host data from `~/.config/crosshook/` and `~/.local/share/crosshook/` into the Flatpak sandbox on first launch. This is a one-way compatibility bridge for existing users, not ongoing dual-distribution support. Current releases publish Flatpak bundles only.
+If you used CrossHook during the AppImage era, the Flatpak imports existing host data from the **legacy/AppImage import source** (`~/.config/crosshook/` and `~/.local/share/crosshook/`) into the Flatpak sandbox on first launch. After import, live Flatpak config and metadata live under the sandbox tree (for example `~/.var/app/dev.crosshook.CrossHook/config/crosshook/` and `~/.var/app/dev.crosshook.CrossHook/data/crosshook/`). This is a one-way compatibility bridge for existing users, not ongoing dual-distribution support. Current releases publish Flatpak bundles only.
 
-Wine prefixes stay on the host under `~/.local/share/crosshook/prefixes/` because they can be very large and need to remain reachable by Proton/WINE tooling.
+Wine prefixes stay on the host under `~/.local/share/crosshook/prefixes/` (legacy/AppImage import source and ongoing host location for Flatpak installs) because they can be very large and need to remain reachable by Proton/WINE tooling.
 
 ## First Launch
 
@@ -128,7 +128,7 @@ Profiles save your game, trainer, and launch configuration so you can reuse the 
 4. Choose a launch mode (see [Launch modes](#launch-modes) below).
 5. Save the profile with a descriptive name.
 
-Profiles are saved as TOML files in `~/.config/crosshook/profiles/`. When you use `Install Game`, CrossHook defaults the prefix under `~/.local/share/crosshook/prefixes/<slug>`, runs the installer through `proton run`, then opens the generated profile in a review modal. You can adjust the draft there and save it explicitly; once save succeeds, CrossHook opens the Profile tab with that new profile selected. You can edit saved profiles by hand if needed. A profile looks like this:
+Profiles are saved as TOML files. **Flatpak (current release):** `~/.var/app/dev.crosshook.CrossHook/config/crosshook/profiles/`. **Legacy/AppImage import source:** `~/.config/crosshook/profiles/` (imported into the sandbox on first Flatpak launch; not the live path after migration). When you use `Install Game`, CrossHook defaults the prefix under `~/.local/share/crosshook/prefixes/<slug>` on the host for both Flatpak and legacy installs (Flatpak does not relocate prefixes into the sandbox). It runs the installer through `proton run`, then opens the generated profile in a review modal. You can adjust the draft there and save it explicitly; once save succeeds, CrossHook opens the Profile tab with that new profile selected. You can edit saved profiles by hand if needed. A profile looks like this:
 
 ```toml
 [game]

@@ -34,7 +34,7 @@ At runtime, unhandled commands throw with a `[dev-mock]` prefix:
 
 The `console.debug('[mock] callCommand', name, args)` log line fires for every mock invocation in dev mode.
 
-Sentinel strings checked at build time: `[dev-mock]`, `getMockRegistry`, `registerMocks`, `MOCK MODE`.
+Sentinel strings checked at build time: `[dev-mock]`, `getMockRegistry`, `registerMocks`, `MOCK MODE`, `__MOCK_VALIDATION_ERROR__`, `__MOCK_VALIDATION_WARNING__`.
 
 ## CI sentinel
 
@@ -43,11 +43,20 @@ The `verify:no-mocks` step in `.github/workflows/release.yml` scans the producti
 ```yaml
 - name: Verify no mock code in production bundle
   run: |
-    if grep -rl '\[dev-mock\]\|getMockRegistry\|registerMocks\|MOCK MODE' \
-        src/crosshook-native/dist/assets/*.js 2>/dev/null; then
-      echo "::error::Mock code found in production bundle — refusing to ship"
+    echo "Checking dist/assets/ for mock-mode sentinel strings..."
+    if ! compgen -G "src/crosshook-native/dist/assets/*.js" > /dev/null; then
+      echo "::error::No JS assets found under src/crosshook-native/dist/assets/ — build output missing or glob did not match" >&2
       exit 1
     fi
+    if grep -rl '\[dev-mock\]\|getMockRegistry\|registerMocks\|MOCK MODE\|__MOCK_VALIDATION_ERROR__\|__MOCK_VALIDATION_WARNING__' \
+        src/crosshook-native/dist/assets/*.js 2>/dev/null; then
+      echo "::error::Mock code found in production bundle — refusing to ship" >&2
+      echo "This is a CRITICAL security failure. The __WEB_DEV_MODE__ define" >&2
+      echo "or the dynamic-import dead-branch failed to eliminate mock code." >&2
+      echo "Sentinel strings checked: [dev-mock], getMockRegistry, registerMocks, MOCK MODE, __MOCK_VALIDATION_ERROR__, __MOCK_VALIDATION_WARNING__" >&2
+      exit 1
+    fi
+    echo "Bundle clean — no mock strings found"
 ```
 
 If any sentinel is found, the release workflow fails with a `CRITICAL security failure` error. This guards against the `__WEB_DEV_MODE__` Vite define or the dynamic-import dead-branch failing to eliminate mock code from the production bundle.

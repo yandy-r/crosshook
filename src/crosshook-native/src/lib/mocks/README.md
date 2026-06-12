@@ -113,8 +113,8 @@ All synthetic data must satisfy these constraints (BR-7):
   `"Dev Test Game"`. No real game titles.
 - **Steam App IDs**: use values ≥ `9999001` to avoid collisions with real Steam
   catalog entries.
-- **File paths**: use `/home/devuser/…` or `/mock/…` prefixes. No real system
-  paths.
+- **File paths**: use `/mock/…` prefixes only (e.g. `/mock/games/synthetic-quest/`).
+  No real system paths.
 - **No real network activity**: mocks must never make HTTP requests or access
   the filesystem.
 

@@ -113,8 +113,8 @@ All source lives under `src/crosshook-native/`:
 - **Naming**: `snake_case` for functions, variables, modules
 - **Modules**: directories with `mod.rs`
 - **Errors**: `Result` with `anyhow` or project-specific error types
-- **Formatting**: `cargo fmt` (standard defaults -- no `rustfmt.toml`)
-- **Linting**: `cargo clippy` (standard defaults -- no `clippy.toml`)
+- **Formatting**: `cargo fmt` (uses `src/crosshook-native/rustfmt.toml`)
+- **Linting**: `cargo clippy` (workspace lints in `src/crosshook-native/Cargo.toml`; CI runs with `-D warnings`)
 
 ### TypeScript / React
 
