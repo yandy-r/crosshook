@@ -29,9 +29,10 @@ Closes #<!-- issue number -->
 ### Checklist
 
 - [ ] `./scripts/lint.sh` passes (or run `./scripts/format.sh` / `./scripts/lint.sh --fix`; same-repo PRs may get a formatting bot commit from `lint-autofix.yml`)
-- [ ] `./scripts/build-native.sh --binary-only` builds without errors
+- [ ] `./scripts/build-release-binary.sh` builds without errors
 - [ ] `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core` passes
-- [ ] `./scripts/build-native.sh` produces a valid AppImage (if touching build/packaging)
+- [ ] `npm run typecheck` passes from `src/crosshook-native/` (if touching frontend TypeScript)
+- [ ] `./scripts/build-flatpak.sh --rebuild --strict` passes (if touching build/packaging)
 - [ ] Tested on target platform (Linux desktop or Steam Deck)
 - [ ] **If touching crates/crosshook-core/src/launch/**: Verified game and trainer launch works
 - [ ] **If touching crates/crosshook-core/src/steam/**: Verified Steam auto-populate and Proton discovery

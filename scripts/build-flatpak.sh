@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# Build a CrossHook Flatpak bundle from the native release binary.
+# Build a CrossHook Flatpak bundle from the release binary.
 #
-# Stages the pre-built binary, runtime helper scripts, branding icons,
-# desktop entry, and AppStream metadata into a temporary directory alongside
-# a copy of the committed manifest, then runs flatpak-builder + flatpak
+# Stages the pre-built binary, runtime helper scripts, Flatpak icon inputs,
+# desktop entry, and AppStream metadata into a temporary directory alongside a
+# copy of the committed manifest, then runs flatpak-builder + flatpak
 # build-bundle to produce an installable .flatpak file at
 # $DIST_DIR/CrossHook_<arch>.flatpak.
+#
+# assets/icon-128.png, assets/icon-256.png, and assets/icon-512.png are
+# Flatpak packaging inputs generated from SVG sources by scripts/generate-assets.sh.
 #
 # This is the Phase 1 bundle path (see docs/prps/prds/flatpak-distribution.prd.md).
 # It uses the manifest's `simple` buildsystem and a pre-built binary so there
@@ -50,21 +53,22 @@ Build a Flatpak bundle for CrossHook.
 
 By default the script reuses an existing release binary at
 $DIST_DIR/crosshook-native when one is present (fast path, packaging
-only). If the binary is missing it auto-runs ./scripts/build-native.sh
---binary-only once. Pass --rebuild to always re-run the native build
-first (for the code-change → test loop), or --skip-build to fail if
-the cached binary is missing (for explicit "package what I already
-built" workflows).
+only). If the binary is missing it auto-runs
+./scripts/build-release-binary.sh once. Pass --rebuild to always
+refresh the Flatpak packaging input first (for the code-change → test
+loop), or --skip-build to fail if the cached binary is missing (for
+explicit "package what I already built" workflows).
 
 Options:
-  --rebuild         Always run ./scripts/build-native.sh --binary-only
-                    before packaging, even if a cached binary exists.
-                    Use this after Rust code changes.
-  --skip-build      Never auto-run build-native.sh; require the binary
-                    at $DIST_DIR/crosshook-native to already exist.
+  --rebuild         Always run ./scripts/build-release-binary.sh before
+                    packaging, even if a cached binary exists. Use this
+                    after code changes that affect the Flatpak binary.
+  --skip-build      Never auto-run build-release-binary.sh; require the
+                    binary at $DIST_DIR/crosshook-native to already exist.
                     Mutually exclusive with --rebuild.
-  --install-deps    Install flatpak, flatpak-builder, and the GNOME
-                    runtime + SDK on the host before building.
+  --install-deps    Install flatpak, flatpak-builder, asset-generation
+                    tools, and the GNOME runtime + SDK on the host before
+                    building.
   --yes, -y         Forward non-interactive install mode to apt/dnf/pacman.
   --keep-staging    Do not delete the staging directory after the build.
   --install         After building, flatpak install --user the bundle.
@@ -147,24 +151,24 @@ if (( INSTALL_DEPS )); then
   if command -v pacman >/dev/null 2>&1; then
     sudo_cmd=()
     (( EUID != 0 )) && sudo_cmd=(sudo)
-    pacman_args=(-S --needed flatpak flatpak-builder)
+    pacman_args=(-S --needed flatpak flatpak-builder librsvg imagemagick)
     (( INSTALL_DEPS_YES )) && pacman_args+=(--noconfirm)
     "${sudo_cmd[@]}" pacman "${pacman_args[@]}"
   elif command -v dnf >/dev/null 2>&1; then
     sudo_cmd=()
     (( EUID != 0 )) && sudo_cmd=(sudo)
-    dnf_args=(install flatpak flatpak-builder)
+    dnf_args=(install flatpak flatpak-builder librsvg2-tools ImageMagick)
     (( INSTALL_DEPS_YES )) && dnf_args+=(-y)
     "${sudo_cmd[@]}" dnf "${dnf_args[@]}"
   elif command -v apt-get >/dev/null 2>&1; then
     sudo_cmd=()
     (( EUID != 0 )) && sudo_cmd=(sudo)
-    apt_args=(install flatpak flatpak-builder)
+    apt_args=(install flatpak flatpak-builder librsvg2-bin imagemagick)
     (( INSTALL_DEPS_YES )) && apt_args+=(-y)
     "${sudo_cmd[@]}" apt-get update
     "${sudo_cmd[@]}" apt-get "${apt_args[@]}"
   else
-    die "no supported package manager found; install flatpak + flatpak-builder manually"
+    die "no supported package manager found; install flatpak, flatpak-builder, rsvg-convert, and ImageMagick manually"
   fi
 
   if ! flatpak remote-list --user 2>/dev/null | grep -q '^flathub'; then
@@ -206,22 +210,33 @@ fi
 
 # ---- Ensure the release binary exists --------------------------------------
 BINARY_PATH="$DIST_DIR/crosshook-native"
+BINARY_TARGET_TRIPLE_PATH="$DIST_DIR/crosshook-native.target-triple"
+CACHED_TARGET_TRIPLE=""
+if [[ -f "$BINARY_TARGET_TRIPLE_PATH" ]]; then
+  CACHED_TARGET_TRIPLE="$(<"$BINARY_TARGET_TRIPLE_PATH")"
+fi
+
 if (( REBUILD )); then
-  log "--rebuild: running build-native.sh --binary-only"
-  "$ROOT_DIR/scripts/build-native.sh" --binary-only
-elif [[ ! -x "$BINARY_PATH" ]]; then
+  log "--rebuild: refreshing Flatpak release binary input"
+  "$ROOT_DIR/scripts/build-release-binary.sh"
+elif [[ ! -x "$BINARY_PATH" || "$CACHED_TARGET_TRIPLE" != "$TARGET_TRIPLE" ]]; then
   if (( SKIP_BUILD )); then
-    die "release binary not found at $BINARY_PATH and --skip-build was set"
+    die "release binary for $TARGET_TRIPLE not found at $BINARY_PATH and --skip-build was set"
   fi
-  log "release binary missing, running build-native.sh --binary-only"
-  "$ROOT_DIR/scripts/build-native.sh" --binary-only
+  log "release binary missing/stale (cached triple: ${CACHED_TARGET_TRIPLE:-none}); rebuilding for $TARGET_TRIPLE"
+  "$ROOT_DIR/scripts/build-release-binary.sh"
 else
   log "reusing cached release binary: $BINARY_PATH"
-  log "(pass --rebuild to re-run build-native.sh after Rust changes)"
+  log "(pass --rebuild to refresh the Flatpak release binary input)"
 fi
 [[ -x "$BINARY_PATH" ]] || die "release binary still missing at $BINARY_PATH"
+[[ -f "$BINARY_TARGET_TRIPLE_PATH" ]] || die "missing target metadata at $BINARY_TARGET_TRIPLE_PATH"
+[[ "$(<"$BINARY_TARGET_TRIPLE_PATH")" == "$TARGET_TRIPLE" ]] \
+  || die "cached release binary target does not match $TARGET_TRIPLE"
 
-# ---- Ensure icon sizes exist -----------------------------------------------
+# ---- Ensure Flatpak icon inputs exist ---------------------------------------
+# These files are generated from SVG sources by scripts/generate-assets.sh and
+# are staged directly into the Flatpak manifest's hicolor icon install paths.
 for size in 128 256 512; do
   if [[ ! -f "$ASSETS_DIR/icon-${size}.png" ]]; then
     log "generating branding assets"

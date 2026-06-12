@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared defaults for CrossHook native build output locations.
+# Shared defaults for CrossHook release build output locations.
 # Source after ROOT_DIR is set. Pre-set DIST_DIR / CARGO_TARGET_DIR always win.
 #
 # Modes:
@@ -61,20 +61,4 @@ crosshook_build_paths_init() {
     mkdir -p "$DIST_DIR" "$CARGO_TARGET_DIR"
   fi
   return 0
-}
-
-# Print candidate AppImage bundle directories (newest layout first). Requires
-# NATIVE_DIR, TARGET_TRIPLE, CARGO_TARGET_DIR.
-crosshook_appimage_bundle_dirs() {
-  local native_dir="${1:?}"
-  local triple="${2:?}"
-  local cargo_target="${3:?}"
-
-  printf '%s\n' \
-    "$cargo_target/$triple/release/bundle/appimage" \
-    "$cargo_target/release/bundle/appimage" \
-    "$native_dir/src-tauri/target/$triple/release/bundle/appimage" \
-    "$native_dir/src-tauri/target/release/bundle/appimage" \
-    "$native_dir/target/$triple/release/bundle/appimage" \
-    "$native_dir/target/release/bundle/appimage"
 }

@@ -7,7 +7,11 @@ usage() {
   cat <<'EOF'
 Usage: ./scripts/install-native-build-deps.sh [--yes]
 
-Install the host packages required to build the native Tauri/AppImage target.
+Install the host packages required by scripts/build-release-binary.sh.
+
+This helper prepares a host to run `tauri build --no-bundle` for the
+release binary consumed by Flatpak packaging. It does not install the Flatpak
+toolchain; use `scripts/build-flatpak.sh --install-deps` for that.
 
 Options:
   --yes, -y   Run the package-manager install non-interactively where supported
@@ -50,15 +54,11 @@ install_with_pacman() {
   local -a packages=(
     base-devel
     curl
-    file
     gtk3
-    imagemagick
     libsoup3
-    librsvg
     nodejs
     npm
     openssl
-    patchelf
     pkgconf
     rust
     webkit2gtk-4.1
@@ -73,16 +73,12 @@ install_with_apt() {
   local -a packages=(
     build-essential
     curl
-    file
-    imagemagick
     libgtk-3-dev
     libsoup-3.0-dev
     libssl-dev
     libwebkit2gtk-4.1-dev
-    librsvg2-bin
     nodejs
     npm
-    patchelf
     pkg-config
     rustc
     cargo
@@ -98,18 +94,14 @@ install_with_dnf() {
   local -a packages=(
     cargo
     curl
-    file
     gcc
     gcc-c++
     gtk3-devel
-    ImageMagick
     libsoup3-devel
-    librsvg2-tools
     make
     nodejs
     npm
     openssl-devel
-    patchelf
     pkgconf-pkg-config
     rust
     webkit2gtk4.1-devel
@@ -124,7 +116,6 @@ install_with_zypper() {
   local -a packages=(
     cargo
     curl
-    file
     gcc
     gcc-c++
     gtk3-devel
@@ -133,7 +124,6 @@ install_with_zypper() {
     nodejs
     npm
     libopenssl-devel
-    patchelf
     pkgconf-pkg-config
     rust
     webkit2gtk3-devel
@@ -145,19 +135,19 @@ install_with_zypper() {
 }
 
 if command -v pacman >/dev/null 2>&1; then
-  echo "Installing native build dependencies with pacman..."
+  echo "Installing release-binary build dependencies with pacman..."
   install_with_pacman
 elif command -v apt-get >/dev/null 2>&1; then
-  echo "Installing native build dependencies with apt-get..."
+  echo "Installing release-binary build dependencies with apt-get..."
   install_with_apt
 elif command -v dnf >/dev/null 2>&1; then
-  echo "Installing native build dependencies with dnf..."
+  echo "Installing release-binary build dependencies with dnf..."
   install_with_dnf
 elif command -v zypper >/dev/null 2>&1; then
-  echo "Installing native build dependencies with zypper..."
+  echo "Installing release-binary build dependencies with zypper..."
   install_with_zypper
 else
-  die "unsupported package manager; install cargo, npm, patchelf, GTK3, libsoup3, and webkit2gtk 4.1 manually"
+  die "unsupported package manager; install cargo, npm, GTK3, libsoup3, OpenSSL, pkg-config, and webkit2gtk 4.1 manually"
 fi
 
-echo "Native build dependencies are installed."
+echo "Release-binary build dependencies are installed."

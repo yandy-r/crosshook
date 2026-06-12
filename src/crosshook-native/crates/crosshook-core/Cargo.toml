@@ -5,7 +5,7 @@ edition = "2021"
 
 [features]
 default = []
-# Enable catalog-only Luxtorpeda + Boxtron providers (Batch 3). Disabled in AppImage/Flatpak release builds.
+# Enable catalog-only Luxtorpeda + Boxtron providers (Batch 3). Disabled in release builds.
 experimental-providers = []
 # ts-rs type export prototype (Phase 5). Off by default.
 ts-rs = ["dep:ts-rs"]

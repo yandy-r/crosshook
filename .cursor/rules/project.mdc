@@ -1,6 +1,6 @@
 ---
 description: CrossHook project rules
-globs: ["**/*"]
+globs: ['**/*']
 alwaysApply: true
 ---
 
@@ -16,7 +16,7 @@ Normative guidelines for AI agents in this repository. Stack overview, directory
 
 ## MUST / MUST NOT
 
-- **Platform**: CrossHook is a **native Linux** desktop app (Tauri v2, AppImage). It does **not** run under Wine/Proton; it **orchestrates** launching Windows games via Proton/Wine.
+- **Platform**: CrossHook is a **native Linux** desktop app (Tauri v2, Flatpak distribution). It does **not** run under Wine/Proton; it **orchestrates** launching Windows games via Proton/Wine.
 - **Architecture**: Business logic lives in `crosshook-core`. Keep `crosshook-cli` and `src-tauri` thin (IPC and CLI only).
 - **Trainer execution parity**: Treat trainer subprocesses by their **actual runtime path**, not just the parent game launch method. Steam profiles still launch trainers through Proton, so Steam trainer launches must stay aligned with `proton_run` semantics for `effective_trainer_gamescope()`, launch optimization env, and `runtime.working_directory`. In Flatpak, if the shell-helper path diverges from the working `proton_run` trainer path, prefer reusing the direct Proton trainer builder and record/analyze the execution as `proton_run` rather than keeping a separate helper-only env reconstruction path.
 - **Tauri IPC**: Expose backend operations as `#[tauri::command]` handlers with **`snake_case` names** matching frontend `invoke()` calls. Use **Serde** on all types that cross the IPC boundary.
@@ -61,9 +61,8 @@ For storage changes, plans must also:
 ```bash
 ./scripts/dev-native.sh
 ./scripts/dev-native.sh --browser    # browser-only dev mode (no Rust toolchain), loopback only
-./scripts/build-native.sh                    # AppImage: runs generate-assets + sync to src-tauri/icons, then tauri build
-./scripts/build-native-container.sh          # uses host DIST_DIR/CARGO_TARGET_DIR (XDG by default)
-./scripts/build-native.sh --binary-only
+./scripts/build-release-binary.sh     # production Tauri binary used as Flatpak input
+./scripts/build-flatpak.sh --rebuild --strict
 ./scripts/install-native-build-deps.sh
 cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core
 ```
@@ -72,21 +71,21 @@ Primary source root: `src/crosshook-native/`. CI release workflow: `.github/work
 
 ### Browser Dev Mode
 
-`./scripts/dev-native.sh --browser` (or `--web`) starts Vite at `http://localhost:5173` and routes IPC through the shared adapter: browser dev mode serves hand-rolled mock handlers for `callCommand()` and `subscribeEvent()` — no Rust toolchain or running Tauri backend is required. Raw `invoke()` / `listen()` bypass the mock bridge, so frontend code must use the adapter APIs to participate in mocks and to be exercised consistently with CI checks. The server binds loopback only; `--host 0.0.0.0` is unsupported per security policy (BR-9). Because mock handlers return synthetic data, real Tauri behavior must be re-verified with `./scripts/dev-native.sh` (no flag) before merging any UI changes. To add or extend handlers for new commands, see `src/crosshook-native/src/lib/mocks/README.md`. The CI sentinel `verify:no-mocks` runs after every AppImage build and will refuse any production bundle that contains mock code — keeping the mock layer strictly development-only.
+`./scripts/dev-native.sh --browser` (or `--web`) starts Vite at `http://localhost:5173` and routes IPC through the shared adapter: browser dev mode serves hand-rolled mock handlers for `callCommand()` and `subscribeEvent()` — no Rust toolchain or running Tauri backend is required. Raw `invoke()` / `listen()` bypass the mock bridge, so frontend code must use the adapter APIs to participate in mocks and to be exercised consistently with CI checks. The server binds loopback only; `--host 0.0.0.0` is unsupported per security policy (BR-9). Because mock handlers return synthetic data, real Tauri behavior must be re-verified with `./scripts/dev-native.sh` (no flag) before merging any UI changes. To add or extend handlers for new commands, see `src/crosshook-native/src/lib/mocks/README.md`. The CI sentinel `verify:no-mocks` runs after the production release-binary build and will refuse any production bundle that contains mock code — keeping the mock layer strictly development-only.
 
 ---
 
 ## Stack Overview
 
-| Layer | Technology | Notes |
-| --- | --- | --- |
-| Desktop shell | **Tauri v2** | Rust backend + WebView frontend; packaged as AppImage |
-| Core business logic | **Rust** (`crosshook-core` crate) | All launch orchestration, profile management, community taps, metadata persistence, settings |
-| IPC layer | **Tauri commands** (`src-tauri`) | Thin wrappers over `crosshook-core`; `snake_case` command names; Serde on all boundary types |
-| Frontend | **React 18 + TypeScript** (strict) | Vite dev server; `invoke()` wrapped in custom hooks; BEM-like `crosshook-*` CSS classes |
-| Persistence — settings | **TOML** (`settings.toml`) | User-editable preferences; deserialized via `AppSettingsData` |
-| Persistence — metadata | **SQLite** via `rusqlite` | WAL mode, `0600` permissions; schema migrations in `crosshook-core`; see SQLite section below |
-| CLI | `crosshook-cli` crate | Thin wrapper over `crosshook-core`; no business logic |
+| Layer                  | Technology                         | Notes                                                                                         |
+| ---------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------- |
+| Desktop shell          | **Tauri v2**                       | Rust backend + WebView frontend; distributed as a Flatpak                                     |
+| Core business logic    | **Rust** (`crosshook-core` crate)  | All launch orchestration, profile management, community taps, metadata persistence, settings  |
+| IPC layer              | **Tauri commands** (`src-tauri`)   | Thin wrappers over `crosshook-core`; `snake_case` command names; Serde on all boundary types  |
+| Frontend               | **React 18 + TypeScript** (strict) | Vite dev server; `invoke()` wrapped in custom hooks; BEM-like `crosshook-*` CSS classes       |
+| Persistence — settings | **TOML** (`settings.toml`)         | User-editable preferences; deserialized via `AppSettingsData`                                 |
+| Persistence — metadata | **SQLite** via `rusqlite`          | WAL mode, `0600` permissions; schema migrations in `crosshook-core`; see SQLite section below |
+| CLI                    | `crosshook-cli` crate              | Thin wrapper over `crosshook-core`; no business logic                                         |
 
 ---
 
@@ -137,38 +136,38 @@ src/crosshook-native/              # Primary source root
 
 ### Table inventory
 
-| Table | Since schema | Purpose |
-| --- | :---: | --- |
-| `profiles` | v1 | Core profile records |
-| `profile_name_history` | v1 | Rename audit trail |
-| `launchers` | v3 | Known launcher executables |
-| `launch_operations` | v3 | Per-launch history and diagnostics |
-| `community_taps` | v4 | Subscribed community tap sources |
-| `community_profiles` | v4 | Fetched community profile snapshots |
-| `external_cache_entries` | v4 | Generic HTTP response cache (512 KiB payload cap per entry) |
-| `collections` | v4 | Named profile collections |
-| `collection_profiles` | v4 | Collection ↔ profile membership |
-| `health_snapshots` | v6 | Periodic profile health check results |
-| `version_snapshots` | v9 | Game/trainer version correlation records; includes `trainer_file_hash` |
-| `bundled_optimization_presets` | v10 | Built-in optimization preset definitions |
-| `profile_launch_preset_metadata` | v10 | Per-profile preset activation state |
-| `config_revisions` | v11 | TOML snapshots with SHA-256 for config history/rollback |
-| `optimization_catalog` | v12 | Data-driven optimization catalog entries |
-| `trainer_hash_cache` | v13 | SHA-256 hash per trainer per profile |
-| `offline_readiness_snapshots` | v13 | Offline readiness state snapshots |
-| `community_tap_offline_state` | v13 | Per-tap offline availability state |
-| `host_readiness_catalog` | v21 | Persisted host-tool readiness catalog (from TOML merge) |
-| `readiness_nag_dismissals` | v21 | TTL dismissals for per-tool readiness nags (global) |
-| `host_readiness_snapshots` | v21 | Last cached generalized host readiness snapshot (single row) |
+| Table                            | Since schema | Purpose                                                                |
+| -------------------------------- | :----------: | ---------------------------------------------------------------------- |
+| `profiles`                       |      v1      | Core profile records                                                   |
+| `profile_name_history`           |      v1      | Rename audit trail                                                     |
+| `launchers`                      |      v3      | Known launcher executables                                             |
+| `launch_operations`              |      v3      | Per-launch history and diagnostics                                     |
+| `community_taps`                 |      v4      | Subscribed community tap sources                                       |
+| `community_profiles`             |      v4      | Fetched community profile snapshots                                    |
+| `external_cache_entries`         |      v4      | Generic HTTP response cache (512 KiB payload cap per entry)            |
+| `collections`                    |      v4      | Named profile collections                                              |
+| `collection_profiles`            |      v4      | Collection ↔ profile membership                                        |
+| `health_snapshots`               |      v6      | Periodic profile health check results                                  |
+| `version_snapshots`              |      v9      | Game/trainer version correlation records; includes `trainer_file_hash` |
+| `bundled_optimization_presets`   |     v10      | Built-in optimization preset definitions                               |
+| `profile_launch_preset_metadata` |     v10      | Per-profile preset activation state                                    |
+| `config_revisions`               |     v11      | TOML snapshots with SHA-256 for config history/rollback                |
+| `optimization_catalog`           |     v12      | Data-driven optimization catalog entries                               |
+| `trainer_hash_cache`             |     v13      | SHA-256 hash per trainer per profile                                   |
+| `offline_readiness_snapshots`    |     v13      | Offline readiness state snapshots                                      |
+| `community_tap_offline_state`    |     v13      | Per-tap offline availability state                                     |
+| `host_readiness_catalog`         |     v21      | Persisted host-tool readiness catalog (from TOML merge)                |
+| `readiness_nag_dismissals`       |     v21      | TTL dismissals for per-tool readiness nags (global)                    |
+| `host_readiness_snapshots`       |     v21      | Last cached generalized host readiness snapshot (single row)           |
 
 ### Persistence design classification
 
 When implementing features, classify every new datum before writing code:
 
-| Kind of data | Layer | Examples |
-| --- | --- | --- |
-| User-editable preferences | `settings.toml` (`AppSettingsData`) | Toggle switches, API keys, default paths |
-| Operational / history / cache metadata | SQLite `MetadataStore` | Launch logs, health snapshots, HTTP cache, version hashes |
-| Ephemeral runtime state | In-memory only | Active launch handle, transient UI loading flags |
+| Kind of data                           | Layer                               | Examples                                                  |
+| -------------------------------------- | ----------------------------------- | --------------------------------------------------------- |
+| User-editable preferences              | `settings.toml` (`AppSettingsData`) | Toggle switches, API keys, default paths                  |
+| Operational / history / cache metadata | SQLite `MetadataStore`              | Launch logs, health snapshots, HTTP cache, version hashes |
+| Ephemeral runtime state                | In-memory only                      | Active launch handle, transient UI loading flags          |
 
 Do **not** cache binary blobs (images, archives) in `external_cache_entries` — payloads over 512 KiB store `NULL payload_json` silently. Use the filesystem with a tracking table for large binaries.

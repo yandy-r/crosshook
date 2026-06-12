@@ -113,8 +113,8 @@ All synthetic data must satisfy these constraints (BR-7):
   `"Dev Test Game"`. No real game titles.
 - **Steam App IDs**: use values ≥ `9999001` to avoid collisions with real Steam
   catalog entries.
-- **File paths**: use `/home/devuser/…` or `/mock/…` prefixes. No real system
-  paths.
+- **File paths**: use `/mock/…` prefixes only (e.g. `/mock/games/synthetic-quest/`).
+  No real system paths.
 - **No real network activity**: mocks must never make HTTP requests or access
   the filesystem.
 
@@ -193,6 +193,11 @@ reloads with the same URL.
 that output were uploaded to a web host it would ship mock code as a public
 website — this is an intentional foot-gun. The `dev:browser` script is only
 meant for local development. Never publish the `webdev` build output.
+
+Production bundle validation must continue to reject mock code. Release CI runs
+the mock-code sentinel against the production JavaScript assets emitted by the
+Tauri release-binary build before those assets are staged into Flatpak. Keep the
+sentinel tied to production bundle contents, not to a specific package artifact.
 
 ---
 

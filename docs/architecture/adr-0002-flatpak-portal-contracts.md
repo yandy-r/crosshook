@@ -66,7 +66,7 @@ pub enum GameModeBackend {
     /// CrossHook registers its own PID with `org.freedesktop.portal.GameMode`.
     /// Host games continue to use `gamemoderun` as the wrapper.
     Portal,
-    /// Native build (AppImage, etc.) or Flatpak with an unreachable portal.
+    /// Host/dev build or Flatpak with an unreachable portal.
     /// `gamemoderun` is the only path; there is no CrossHook-self registration.
     HostGamemodeRun,
     /// Neither the portal nor `gamemoderun` is reachable.

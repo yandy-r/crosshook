@@ -1,9 +1,16 @@
 # PRD: Flatpak Distribution Target
 
 **Issue**: [#69](https://github.com/yandy-r/crosshook/issues/69)
-**Status**: Ready for planning
+**Status**: Superseded by Flatpak-only distribution
 **Date**: 2026-04-10
 **Spec**: [`docs/prps/specs/flatpak-distribution-spec.md`](../specs/flatpak-distribution-spec.md)
+
+> **Historical note:** This PRD records the original Flatpak-secondary plan from
+> April 2026, when AppImage was still treated as CrossHook's primary
+> distribution. It is superseded by the `feat/remove-native` Flatpak-only
+> distribution work. The AppImage-primary wording below is retained as historical
+> context for the decisions that led to the current Flatpak packaging, host-tool
+> gateway, portal, Proton Manager, and per-app isolation contracts.
 
 ---
 

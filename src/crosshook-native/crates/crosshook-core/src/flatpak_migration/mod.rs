@@ -1,8 +1,8 @@
-//! Flatpak first-run migration: import host AppImage data into the sandbox on first launch.
+//! Flatpak first-run migration: import legacy host/AppImage-era data into the sandbox on first launch.
 //!
 //! Decision gate lives in `src-tauri/src/lib.rs`: when running under Flatpak and
 //! `CROSSHOOK_FLATPAK_HOST_XDG` is unset, `run()` is invoked before any store's
-//! `BaseDirs::new()` call to populate the sandbox tree from the host AppImage tree (one-way, idempotent).
+//! `BaseDirs::new()` call to populate the sandbox tree from the legacy host data tree (one-way, idempotent).
 
 mod copier;
 mod detector;

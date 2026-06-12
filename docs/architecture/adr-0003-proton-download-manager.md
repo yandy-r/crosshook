@@ -1,4 +1,4 @@
-# ADR-0003: Native Proton download manager architecture
+# ADR-0003: Proton download manager architecture
 
 **Status**: Accepted — 2026-04-17
 
@@ -6,11 +6,11 @@
 
 ## Context
 
-CrossHook is a native Linux desktop application (Tauri v2, AppImage today,
-Flatpak target tracked under issue [#276]). Issue [#274] adds a native Proton
-version manager — download, verify, and extract GE-Proton and Proton-CachyOS
-releases — that works consistently in both AppImage and Flatpak without
-bundling a sandbox helper or shelling out to a host-side tool.
+CrossHook is a native Linux desktop application distributed as a Flatpak (Tauri
+v2). Issue [#274] adds an in-process Proton version manager — download, verify,
+and extract GE-Proton and Proton-CachyOS releases — that works inside the
+Flatpak sandbox without bundling a sandbox helper or shelling out to a
+host-side tool.
 
 The design is grounded in three research anchors from the Flatpak deep-research
 series:
@@ -41,10 +41,10 @@ etc.) that cross the Tauri IPC boundary via Serde. Settings fields
 `protonup_include_prereleases`) already exist in
 `src/crosshook-native/crates/crosshook-core/src/settings/mod.rs`.
 
-This ADR captures the architecture for completing that scaffolding to full
-parity: the provider trait model, install-root resolution, the host-gateway
-exemption, the SQLite cache boundary, and the rescan-is-truth rule for
-installed inventory.
+This ADR captures the architecture for completing that scaffolding as a
+Flatpak-compatible in-process feature: the provider trait model,
+install-root resolution, the host-gateway exemption, the SQLite cache boundary,
+and the rescan-is-truth rule for installed inventory.
 
 [#274]: https://github.com/yandy-r/crosshook/issues/274
 [#276]: https://github.com/yandy-r/crosshook/issues/276
@@ -115,8 +115,8 @@ denylist enforced by `scripts/check-host-gateway.sh`.
 
 No Proton install step shells out to a host-side `tar`, `unzstd`, or
 similar binary. All archive I/O is handled by Rust crates linked into
-`crosshook-core`. This is what makes the feature work identically in
-AppImage and Flatpak without a sandbox helper.
+`crosshook-core`. This is what makes the feature work inside Flatpak without a
+sandbox helper.
 
 [ADR-0001]: ./adr-0001-platform-host-gateway.md
 
@@ -163,11 +163,11 @@ not a stale cache.
 
 ## Consequences
 
-### AppImage + Flatpak parity
+### Flatpak-compatible in-process implementation
 
-Both packaging targets work out of the box. `reqwest`, `flate2`, `xz2`, and
-`tar` link into `crosshook-core` and run in-process in both environments.
-Flatpak users whose only writable compat-tools path is native Steam
+`reqwest`, `flate2`, `xz2`, and `tar` link into `crosshook-core` and run
+in-process inside the Flatpak sandbox. Users whose only writable compat-tools
+path is native Steam
 (`~/.local/share/Steam/compatibilitytools.d`) get that path automatically;
 no manual configuration is required.
 
@@ -190,7 +190,7 @@ choice at the provider level rather than a silent skip in orchestration logic.
 
 ### No sandbox bundling
 
-CrossHook does not ship any Proton build inside its Flatpak or AppImage.
+CrossHook does not ship any Proton build inside its Flatpak.
 Bundling Proton into the app package is explicitly out of scope: it would
 make the package multi-gigabytes, require legal review of each Proton
 variant's license, and re-create a maintenance burden that ProtonUp-Qt

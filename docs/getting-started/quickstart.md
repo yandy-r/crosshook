@@ -13,41 +13,43 @@ If you want the deeper Steam-specific workflow details, jump to the [Steam / Pro
    4. [Install CrossHook](#install-crosshook)
       1. [Linux Desktop](#linux-desktop)
       2. [Steam Deck](#steam-deck)
-   5. [First Launch](#first-launch)
-   6. [Create a Profile](#create-a-profile)
-   7. [Custom environment variables](#custom-environment-variables)
-   8. [ProtonDB guidance](#protondb-guidance)
-   9. [Launch a Game with a Trainer](#launch-a-game-with-a-trainer)
-   10. [Dry Run / Preview Mode](#dry-run--preview-mode)
-   11. [Launch Modes](#launch-modes)
+   5. [Update CrossHook](#update-crosshook)
+   6. [Legacy Data Import](#legacy-data-import)
+   7. [First Launch](#first-launch)
+   8. [Create a Profile](#create-a-profile)
+   9. [Custom environment variables](#custom-environment-variables)
+   10. [ProtonDB guidance](#protondb-guidance)
+   11. [Launch a Game with a Trainer](#launch-a-game-with-a-trainer)
+   12. [Dry Run / Preview Mode](#dry-run--preview-mode)
+   13. [Launch Modes](#launch-modes)
        1. [Steam App Launch (`steam_applaunch`)](#steam-app-launch-steam_applaunch)
        2. [Proton Run (`proton_run`)](#proton-run-proton_run)
        3. [Native (`native`)](#native-native)
-   12. [External Launcher Export](#external-launcher-export)
-   13. [Community Profiles](#community-profiles)
-   14. [Pinned Profiles](#pinned-profiles)
-   15. [Health Dashboard](#health-dashboard)
-   16. [Diagnostic Export](#diagnostic-export)
-   17. [Using the CLI](#using-the-cli)
+   14. [External Launcher Export](#external-launcher-export)
+   15. [Community Profiles](#community-profiles)
+   16. [Pinned Profiles](#pinned-profiles)
+   17. [Health Dashboard](#health-dashboard)
+   18. [Diagnostic Export](#diagnostic-export)
+   19. [Using the CLI](#using-the-cli)
        1. [Check system status](#check-system-status)
        2. [Manage profiles](#manage-profiles)
        3. [Steam discovery](#steam-discovery)
        4. [Launch a game](#launch-a-game)
        5. [Generate shell completions](#generate-shell-completions)
        6. [Export diagnostics](#export-diagnostics)
-   18. [Troubleshooting](#troubleshooting)
-   19. [Related Guides](#related-guides)
+   20. [Troubleshooting](#troubleshooting)
+   21. [Related Guides](#related-guides)
 
 ## Supported Environments
 
-| Environment   | How CrossHook runs               | Best use case                                        |
-| ------------- | -------------------------------- | ---------------------------------------------------- |
-| Linux Desktop | Run the AppImage directly        | Desktop Linux users with Steam/Proton games          |
-| Steam Deck    | Run the AppImage in Desktop Mode | SteamOS users running trainers alongside Steam games |
+| Environment   | How CrossHook runs                 | Best use case                                        |
+| ------------- | ---------------------------------- | ---------------------------------------------------- |
+| Linux Desktop | Install and run the Flatpak bundle | Desktop Linux users with Steam/Proton games          |
+| Steam Deck    | Install and run the Flatpak bundle | SteamOS users running trainers alongside Steam games |
 
 ## What You Need
 
-- The CrossHook AppImage.
+- The CrossHook Flatpak bundle from the [GitHub Releases page](https://github.com/yandy-r/crosshook/releases). Current releases publish Flatpak bundles only.
 - A game installed through Steam with Proton, or a native Linux game.
 - A trainer executable (FLiNG, WeMod standalone, or similar) for the game you want to modify.
 - For **Steam App Launch** mode: the game's Steam App ID. CrossHook auto-populates this when it discovers your Steam libraries.
@@ -57,38 +59,53 @@ If you want the deeper Steam-specific workflow details, jump to the [Steam / Pro
 
 ### Linux Desktop
 
-1. Download the latest AppImage from the [GitHub Releases page](https://github.com/yandy-r/crosshook/releases).
-2. Make the AppImage executable:
+1. Download the latest `.flatpak` bundle from the [GitHub Releases page](https://github.com/yandy-r/crosshook/releases).
+2. Install the bundle:
 
    ```bash
-   chmod +x CrossHook-*.AppImage
+   flatpak install --user --reinstall ./CrossHook_*.flatpak
    ```
 
-3. Run it:
+3. Run CrossHook:
 
    ```bash
-   ./CrossHook-*.AppImage
+   flatpak run dev.crosshook.CrossHook
    ```
 
-4. Optionally, move the AppImage to a permanent location such as `~/Applications/` and add it to your application launcher.
+The Flatpak install also adds CrossHook to your desktop application launcher.
 
 ### Steam Deck
 
 1. Switch to Desktop Mode.
-2. Download the latest AppImage from the GitHub Releases page using the built-in browser.
-3. Open a terminal (Konsole) and make the AppImage executable:
+2. Download the latest `.flatpak` bundle from the GitHub Releases page using the built-in browser.
+3. Open a terminal (Konsole) and install the bundle:
 
    ```bash
-   chmod +x ~/Downloads/CrossHook-*.AppImage
+   flatpak install --user --reinstall ~/Downloads/CrossHook_*.flatpak
    ```
 
-4. Run the AppImage directly from Desktop Mode:
+4. Run CrossHook from Desktop Mode:
 
    ```bash
-   ~/Downloads/CrossHook-*.AppImage
+   flatpak run dev.crosshook.CrossHook
    ```
 
-The AppImage is a self-contained binary. It survives SteamOS updates and does not require Flatpak or any package manager.
+After installation, CrossHook is also available from the application launcher. The user-level Flatpak install survives SteamOS updates.
+
+## Update CrossHook
+
+Download the newer release bundle and reinstall it over the existing user install:
+
+```bash
+flatpak install --user --reinstall ./CrossHook_*.flatpak
+flatpak run dev.crosshook.CrossHook
+```
+
+## Legacy Data Import
+
+If you used CrossHook during the AppImage era, the Flatpak imports existing host data from the **legacy/AppImage import source** (`~/.config/crosshook/` and `~/.local/share/crosshook/`) into the Flatpak sandbox on first launch. After import, live Flatpak config and metadata live under the sandbox tree (for example `~/.var/app/dev.crosshook.CrossHook/config/crosshook/` and `~/.var/app/dev.crosshook.CrossHook/data/crosshook/`). This is a one-way compatibility bridge for existing users, not ongoing dual-distribution support. Current releases publish Flatpak bundles only.
+
+Wine prefixes stay on the host under `~/.local/share/crosshook/prefixes/` (legacy/AppImage import source and ongoing host location for Flatpak installs) because they can be very large and need to remain reachable by Proton/WINE tooling.
 
 ## First Launch
 
@@ -111,7 +128,7 @@ Profiles save your game, trainer, and launch configuration so you can reuse the 
 4. Choose a launch mode (see [Launch modes](#launch-modes) below).
 5. Save the profile with a descriptive name.
 
-Profiles are saved as TOML files in `~/.config/crosshook/profiles/`. When you use `Install Game`, CrossHook defaults the prefix under `~/.local/share/crosshook/prefixes/<slug>`, runs the installer through `proton run`, then opens the generated profile in a review modal. You can adjust the draft there and save it explicitly; once save succeeds, CrossHook opens the Profile tab with that new profile selected. You can edit saved profiles by hand if needed. A profile looks like this:
+Profiles are saved as TOML files. **Flatpak (current release):** `~/.var/app/dev.crosshook.CrossHook/config/crosshook/profiles/`. **Legacy/AppImage import source:** `~/.config/crosshook/profiles/` (imported into the sandbox on first Flatpak launch; not the live path after migration). When you use `Install Game`, CrossHook defaults the prefix under `~/.local/share/crosshook/prefixes/<slug>` on the host for both Flatpak and legacy installs (Flatpak does not relocate prefixes into the sandbox). It runs the installer through `proton run`, then opens the generated profile in a review modal. You can adjust the draft there and save it explicitly; once save succeeds, CrossHook opens the Profile tab with that new profile selected. You can edit saved profiles by hand if needed. A profile looks like this:
 
 ```toml
 [game]
@@ -264,7 +281,7 @@ If you run into issues, CrossHook can generate a diagnostic bundle containing sy
 
 ## Using the CLI
 
-CrossHook includes a standalone CLI binary (`crosshook`) for headless operation, scripting, and automation. All commands support `--json` for machine-readable output and `--verbose` for diagnostic detail.
+Source builds include a standalone CLI binary (`crosshook`) for headless operation, scripting, and automation. Current public releases publish the Flatpak bundle only, not a separate CLI archive. All CLI commands support `--json` for machine-readable output and `--verbose` for diagnostic detail.
 
 ### Check system status
 

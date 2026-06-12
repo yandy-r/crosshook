@@ -26,7 +26,7 @@ Certain repo scripts (`./scripts/lint.sh`, `./scripts/format.sh`) require extra 
 
 ## MUST / MUST NOT
 
-- **Platform**: CrossHook is a **native Linux** desktop app (Tauri v2, AppImage). It does **not** run under Wine/Proton; it **orchestrates** launching Windows games via Proton/Wine.
+- **Platform**: CrossHook is a **native Linux** desktop app (Tauri v2, Flatpak distribution). It does **not** run under Wine/Proton; it **orchestrates** launching Windows games via Proton/Wine.
 - **Host-tool gateway**: Host-tool execution at the Flatpak boundary **must** route through `src/crosshook-native/crates/crosshook-core/src/platform.rs` (`host_command`, `host_std_command`, `host_command_with_env`, `host_command_exists`, and friends). Direct `Command::new("<host-tool>")` for tools in the denylist (`proton`, `umu-run`, `gamescope`, `mangohud`, `winetricks`, `protontricks`, `gamemoderun`) is rejected by `scripts/check-host-gateway.sh`. See [`docs/architecture/adr-0001-platform-host-gateway.md`](docs/architecture/adr-0001-platform-host-gateway.md) for the full contract, scope boundary (does not apply to in-sandbox subprocess code), and escape hatches.
 - **Architecture**: Business logic lives in `crosshook-core`. Keep `crosshook-cli` and `src-tauri` thin (IPC and CLI only).
 - **Trainer execution parity**: Treat trainer subprocesses by their **actual runtime path**, not just the parent game launch method. Steam profiles still launch trainers through Proton, so Steam trainer launches must stay aligned with `proton_run` semantics for `effective_trainer_gamescope()`, launch optimization env, and `runtime.working_directory`. In Flatpak, if the shell-helper path diverges from the working `proton_run` trainer path, prefer reusing the direct Proton trainer builder and record/analyze the execution as `proton_run` rather than keeping a separate helper-only env reconstruction path. Parity extends to **lifecycle cleanup**: trainer launches register with `LaunchSessionRegistry` (`src/crosshook-native/crates/crosshook-core/src/launch/session/`) and spawn a gamescope watchdog when the same predicate the game path uses is true, so trainer-side gamescope is torn down on trainer exit _and_ on parent-game teardown via the registry's `cancel_linked_children` cascade. Never kill another session's process tree — each session owns its own `ShutdownTarget`.
@@ -105,9 +105,8 @@ Full table inventory, persistence classification, and `external_cache_entries` p
 ```bash
 ./scripts/dev-native.sh
 ./scripts/dev-native.sh --browser    # browser-only dev mode (no Rust toolchain), loopback only
-./scripts/build-native.sh
-./scripts/build-native-container.sh
-./scripts/build-native.sh --binary-only
+./scripts/build-release-binary.sh     # production Tauri binary used as Flatpak input
+./scripts/build-flatpak.sh --rebuild --strict
 ./scripts/install-native-build-deps.sh
 cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core
 ./scripts/lint.sh                    # check all linters
