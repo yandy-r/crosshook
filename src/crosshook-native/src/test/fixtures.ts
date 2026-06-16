@@ -1,5 +1,10 @@
 import type { ProfileHealthReport } from '@/types/health';
 import type { LaunchPreview, LaunchRequest } from '@/types/launch';
+import {
+  type CommandArgumentCatalogPayload,
+  type CommandArgumentEntry,
+  DEFAULT_LAUNCH_COMMAND_ARGUMENTS,
+} from '@/types/launch-command-arguments';
 import type { LibraryCardData } from '@/types/library';
 import type { Capability, HostToolCheckResult, HostToolInstallCommand, ReadinessCheckResult } from '@/types/onboarding';
 import { createDefaultProfile, type GameProfile, normalizeInjectionSection } from '@/types/profile';
@@ -94,6 +99,58 @@ export function makeProfileHealthReport(overrides: Partial<ProfileHealthReport> 
 }
 
 /**
+ * Factory for a single command-argument catalog entry (aligned with default_command_argument_catalog.toml).
+ */
+export function makeCommandArgumentEntry(overrides: Partial<CommandArgumentEntry> = {}): CommandArgumentEntry {
+  return {
+    id: 'force_vulkan',
+    tokens: ['-force_vulkan'],
+    label: 'Force Vulkan renderer',
+    description: 'Pass a Vulkan-forcing switch when the game supports it.',
+    help_text:
+      'Some Unity and native builds accept -force_vulkan. Many titles ignore it or crash — verify per game before relying on it.',
+    category: 'graphics',
+    advanced: false,
+    community: false,
+    applicable_methods: ['proton_run', 'steam_applaunch'],
+    conflicts_with: ['force_dx11', 'force_dx12'],
+    ...overrides,
+  };
+}
+
+/** Factory for command-argument catalog payloads used in UI and mock parity tests. */
+export function makeCommandArgumentCatalogPayload(
+  overrides: Partial<CommandArgumentCatalogPayload> = {}
+): CommandArgumentCatalogPayload {
+  return {
+    catalog_version: 1,
+    entries: [
+      makeCommandArgumentEntry(),
+      makeCommandArgumentEntry({
+        id: 'force_dx11',
+        tokens: ['-dx11'],
+        label: 'Force DirectX 11',
+        description: 'Request a DirectX 11 code path when the game reads launch switches.',
+        help_text:
+          'Common on Source and some Unreal titles, but not universal. Wrong switches can prevent startup or leave you on an unintended renderer.',
+        conflicts_with: ['force_vulkan', 'force_dx12'],
+      }),
+      makeCommandArgumentEntry({
+        id: 'skip_launcher',
+        tokens: ['-skip_launcher'],
+        label: 'Skip in-game launcher',
+        description: 'Skip a publisher launcher when the game honors the switch.',
+        help_text:
+          'Works on some Unity and older PC builds. Useless or harmful on titles without a separate launcher step.',
+        category: 'compatibility',
+        conflicts_with: [],
+      }),
+    ],
+    ...overrides,
+  };
+}
+
+/**
  * Factory for `LaunchRequest` used in launch-tab and gate tests.
  * Commonly overridden fields: `method`, `game_path`, `optimizations`.
  */
@@ -117,6 +174,7 @@ export function makeLaunchRequest(overrides: Partial<LaunchRequest> = {}): Launc
       steam_app_id: '9999001',
     },
     optimizations: { enabled_option_ids: [] },
+    command_arguments: { ...DEFAULT_LAUNCH_COMMAND_ARGUMENTS },
     launch_trainer_only: false,
     launch_game_only: false,
     profile_name: 'Synthetic Quest',
@@ -237,6 +295,17 @@ export function makeProfileDraft(overrides: Partial<GameProfile> = {}): GameProf
     launch: {
       ...base.launch,
       ...(overrides.launch ?? {}),
+      command_arguments: {
+        ...base.launch.command_arguments,
+        ...(overrides.launch?.command_arguments ?? {}),
+        enabled_argument_ids: [
+          ...(overrides.launch?.command_arguments?.enabled_argument_ids ??
+            base.launch.command_arguments.enabled_argument_ids),
+        ],
+        custom_args: [
+          ...(overrides.launch?.command_arguments?.custom_args ?? base.launch.command_arguments.custom_args),
+        ],
+      },
     },
   };
 

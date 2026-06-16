@@ -1,5 +1,6 @@
 import type { ResolvedLaunchMethod } from '../utils/launch';
 import type { DiagnosticReport } from './diagnostics';
+import type { LaunchCommandArguments } from './launch-command-arguments';
 import type { LaunchOptimizations } from './launch-optimizations';
 import type { GamescopeConfig, LaunchHook, LaunchMethod, MangoHudConfig, TrainerLoadingMode } from './profile';
 import type { UmuPreference } from './settings';
@@ -48,6 +49,7 @@ export interface LaunchRequest {
     umu_codename?: string;
   };
   optimizations: LaunchOptimizations;
+  command_arguments: LaunchCommandArguments;
   launch_trainer_only: boolean;
   launch_game_only: boolean;
   /**

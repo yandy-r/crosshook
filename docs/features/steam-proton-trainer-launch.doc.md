@@ -10,6 +10,8 @@ This guide covers the three launch methods, auto-discovery, launcher export, and
 
 - [Overview](#overview)
 - [Launch methods](#launch-methods)
+- [Launch Optimizations](#launch-optimizations)
+- [Command arguments](#command-arguments)
 - [Custom environment variables](#custom-environment-variables)
 - [ProtonDB guidance](#protondb-guidance)
 - [Auto-populate and Steam discovery](#auto-populate-and-steam-discovery)
@@ -50,7 +52,7 @@ This is the primary mode for Steam-managed games. The workflow has two phases:
 1. **Game launch**: CrossHook runs `steam -applaunch <appid>` to start the game. Steam initializes DRM, the Steam overlay, and the correct Proton runtime.
 2. **Trainer launch**: Once the game process is detected, CrossHook launches the trainer through Proton with a clean environment. By default, it runs the trainer from its original host directory so stateful bundles such as Aurora keep one shared install. When needed, you can switch the profile to `Copy into prefix`, which stages the trainer into `pfx/drive_c/CrossHook/StagedTrainers/` before launch.
 
-**Steam Launch Options (optional):** For the same curated toggles as direct Proton launches, use the **Steam launch options** panel in the main view. CrossHook does not write into Steam; copy the generated single line into the game’s **Properties → General → Launch Options** in the Steam client. The line uses the same env vars and wrapper order as `proton_run` (for example `PROTON_*=1` assignments, then `mangohud` / `gamemoderun` / `game-performance` when enabled) and always ends with `%command%`. If the profile defines **custom environment variables**, their `KEY=value` tokens are merged on the same line after optimization env assignments and before wrappers, so a custom value wins when a key overlaps an optimization.
+**Steam Launch Options (optional):** For the same curated toggles as direct Proton launches, use the **Steam launch options** panel in the main view. CrossHook does not write into Steam — not for launch optimizations, custom environment variables, or **command arguments**. After you edit any of those settings, copy the generated single line into the game’s **Properties → General → Launch Options** in the Steam client. The line uses the same env vars and wrapper order as `proton_run` (for example `PROTON_*=1` assignments, then `mangohud` / `gamemoderun` / `game-performance` when enabled), then `%command%`, then any **command arguments** you configured. If the profile defines **custom environment variables**, their `KEY=value` tokens are merged on the same line after optimization env assignments and before wrappers, so a custom value wins when a key overlaps an optimization.
 
 Required profile fields:
 
@@ -102,10 +104,29 @@ The **Launch Optimizations** panel appears in the right column for `proton_run` 
 
 - It presents curated toggles instead of raw env-var editing, using the same mapping to Proton env vars and host wrappers as the `proton_run` launch path.
 - For **`proton_run`**, selections apply when CrossHook builds the game/trainer `proton run` commands.
-- For **`steam_applaunch`**, CrossHook does not apply those settings to the `steam -applaunch` step automatically. Use the **Steam launch options** panel to copy a one-line string into Steam’s per-game Launch Options; it ends with `%command%` so Steam prepends your env vars and wrappers correctly.
+- For **`steam_applaunch`**, CrossHook does not apply those settings to the `steam -applaunch` step automatically. Use the **Steam launch options** panel to copy a one-line string into Steam’s per-game Launch Options; env vars and wrappers come before `%command%`, and any **command arguments** come after `%command%`.
 - Option labels stay grouped by area (input, performance, display, graphics, compatibility). Every visible option has an info icon with help text.
 - Saved profiles autosave this section after a short debounce; new profiles show a save-first warning until they are written once.
 - Advanced and community-documented entries stay visually separated. Wrapper-based toggles require the matching binaries on `PATH`; the Steam line generator surfaces a clear error if a dependency is missing.
+
+## Command arguments
+
+The **Command Arguments** panel sits in the same launch configuration surface as **Launch Optimizations** for `proton_run` and `steam_applaunch` profiles. Command arguments are separate from launch optimizations: optimizations produce environment variables and host wrappers; command arguments produce argv tokens passed to the **game executable**, not to the trainer.
+
+- **Curated toggles:** CrossHook ships a conservative catalog (for example renderer switches and launcher-skip flags). Each entry has help text and may be gated by launch method or conflict with other entries.
+- **Custom token rows:** Add ordered one-token-per-row arguments (for example `-nologos` or `+fps_max 60`). Tokens are stored as structured strings, not a single shell line, so CrossHook can append them safely with `Command::arg`.
+- **Placement for `proton_run`:** Resolved tokens appear immediately after the game executable in CrossHook-built `proton run` or `umu-run` commands — wrappers and Proton/umu setup come first, then the game path, then the arguments. The same rule applies when CrossHook routes through `umu-run` under a `proton_run` profile.
+- **Placement for `steam_applaunch`:** The **Steam launch options** preview appends resolved tokens after `%command%`. Env vars and wrappers stay before `%command%`; game arguments stay after it.
+- **No trainer inheritance:** Game command arguments apply only to the game launch path. Trainer launches (including trainer-only) do not receive the profile’s game argument tokens.
+- **Profile TOML persistence:** Selections are saved under `[launch.command_arguments]` in the profile file. The section is omitted when empty.
+
+```toml
+[launch.command_arguments]
+enabled_argument_ids = ["force_vulkan", "skip_launcher"]
+custom_args = ["-nologos"]
+```
+
+Saved profiles autosave this section after a short debounce, like launch optimizations. For **`steam_applaunch`**, editing command arguments updates the copy/paste Steam line in the UI only — CrossHook still does not write into Steam; paste the new line into Steam’s Launch Options yourself. For **`proton_run`**, the same tokens are applied when CrossHook builds the real game command. **`native`** profiles do not support command arguments in the current implementation.
 
 ## Custom environment variables
 
@@ -131,7 +152,7 @@ CrossHook supports a dry run mode that shows exactly what commands, environment 
 - Debugging launch configurations that fail silently.
 - Sharing your launch configuration with others for troubleshooting.
 
-The dry run output includes the full `proton run` command line, all exported environment variables (including merged **Profile custom** entries), and the trainer staging steps (if applicable).
+The dry run output includes the full `proton run` command line (with **command arguments** after the game executable when configured), the generated Steam launch-options string (with arguments after `%command%` when applicable), all exported environment variables (including merged **Profile custom** entries), and the trainer staging steps (if applicable). Trainer-only previews omit game command arguments.
 
 ## Auto-Populate and Steam Discovery
 
@@ -358,6 +379,8 @@ The Health Dashboard uses the SQLite metadata layer for persistent tracking acro
 - **No macOS support yet.** The native application currently targets Linux. macOS support is planned for a future release.
 - **Trainer compatibility depends on the Proton version.** A trainer that fails under one Proton version may work under a different one (especially GE-Proton). CrossHook does not control Proton compatibility.
 - **Native mode does not support trainers.** The `native` launch method runs Linux-native executables only and does not include a trainer step.
+- **Command arguments are not supported for `native` launches.** Use `steam_applaunch` or `proton_run` for curated or custom game argv tokens.
+- **CrossHook does not modify Steam launch options automatically.** For `steam_applaunch`, env vars, wrappers, and command arguments appear only in the generated copy/paste line until you paste it into Steam.
 
 ## Troubleshooting
 

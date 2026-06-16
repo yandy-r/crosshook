@@ -1,8 +1,21 @@
 use std::fs;
 
+use crate::launch::request::models::LaunchCommandArgumentsRequest;
 use crate::launch::request::{validate, validate_all, ValidationError, METHOD_NATIVE};
 
 use super::support::{native_request, proton_request, steam_request};
+
+fn with_command_arguments(
+    mut request: crate::launch::request::LaunchRequest,
+    enabled_argument_ids: Vec<String>,
+    custom_args: Vec<String>,
+) -> crate::launch::request::LaunchRequest {
+    request.command_arguments = LaunchCommandArgumentsRequest {
+        enabled_argument_ids,
+        custom_args,
+    };
+    request
+}
 
 #[test]
 fn validates_steam_applaunch_request() {
@@ -237,5 +250,197 @@ fn validate_all_proton_collects_directive_error_alongside_path_issues() {
             .iter()
             .any(|issue| issue.code.as_deref() == Some("unknown_launch_optimization")),
         "expected directive error issue in: {issues:?}"
+    );
+}
+
+#[test]
+fn proton_run_accepts_valid_command_arguments() {
+    let (_temp_dir, request) = proton_request();
+    let request = with_command_arguments(
+        request,
+        vec!["force_vulkan".to_string()],
+        vec![
+            "--flag=value".to_string(),
+            "+set".to_string(),
+            "-dx11".to_string(),
+            "/path/with spaces/game.exe".to_string(),
+        ],
+    );
+
+    assert_eq!(validate(&request), Ok(()));
+    assert!(validate_all(&request).is_empty());
+}
+
+#[test]
+fn steam_applaunch_accepts_valid_command_arguments() {
+    let (_temp_dir, request) = steam_request();
+    let request = with_command_arguments(
+        request,
+        vec!["skip_launcher".to_string()],
+        vec!["-windowed".to_string()],
+    );
+
+    assert_eq!(validate(&request), Ok(()));
+}
+
+#[test]
+fn proton_run_rejects_unknown_command_argument() {
+    let (_temp_dir, request) = proton_request();
+    let request = with_command_arguments(request, vec!["not_a_real_argument".to_string()], vec![]);
+
+    assert_eq!(
+        validate(&request),
+        Err(ValidationError::UnknownCommandArgument(
+            "not_a_real_argument".to_string()
+        ))
+    );
+}
+
+#[test]
+fn proton_run_rejects_duplicate_command_arguments() {
+    let (_temp_dir, request) = proton_request();
+    let request = with_command_arguments(
+        request,
+        vec!["force_vulkan".to_string(), "force_vulkan".to_string()],
+        vec![],
+    );
+
+    assert_eq!(
+        validate(&request),
+        Err(ValidationError::DuplicateCommandArgument(
+            "force_vulkan".to_string()
+        ))
+    );
+}
+
+#[test]
+fn proton_run_rejects_incompatible_command_arguments() {
+    let (_temp_dir, request) = proton_request();
+    let request = with_command_arguments(
+        request,
+        vec!["force_vulkan".to_string(), "force_dx11".to_string()],
+        vec![],
+    );
+
+    assert_eq!(
+        validate(&request),
+        Err(ValidationError::IncompatibleCommandArguments {
+            first: "force_vulkan".to_string(),
+            second: "force_dx11".to_string(),
+        })
+    );
+}
+
+#[test]
+fn native_rejects_nonempty_command_arguments() {
+    let (_temp_dir, request) = native_request();
+    let request = with_command_arguments(request, vec![], vec!["-windowed".to_string()]);
+
+    assert_eq!(
+        validate(&request),
+        Err(ValidationError::CommandArgumentsUnsupportedForMethod(
+            METHOD_NATIVE.to_string()
+        ))
+    );
+}
+
+#[test]
+fn native_rejects_curated_command_arguments() {
+    let (_temp_dir, request) = native_request();
+    let request = with_command_arguments(request, vec!["force_vulkan".to_string()], vec![]);
+
+    assert_eq!(
+        validate(&request),
+        Err(ValidationError::CommandArgumentsUnsupportedForMethod(
+            METHOD_NATIVE.to_string()
+        ))
+    );
+}
+
+#[test]
+fn proton_run_rejects_empty_custom_command_argument_token() {
+    let (_temp_dir, request) = proton_request();
+    let request = with_command_arguments(request, vec![], vec!["   ".to_string()]);
+
+    assert_eq!(
+        validate(&request),
+        Err(ValidationError::CommandArgumentCustomTokenEmpty)
+    );
+}
+
+#[test]
+fn proton_run_rejects_control_characters_in_custom_command_argument() {
+    let (_temp_dir, request) = proton_request();
+    let request = with_command_arguments(request, vec![], vec!["bad\x07arg".to_string()]);
+
+    assert_eq!(
+        validate(&request),
+        Err(ValidationError::CommandArgumentCustomTokenContainsControlCharacter)
+    );
+}
+
+#[test]
+fn proton_run_rejects_nul_in_custom_command_argument() {
+    let (_temp_dir, request) = proton_request();
+    let request = with_command_arguments(request, vec![], vec!["bad\x00arg".to_string()]);
+
+    assert_eq!(
+        validate(&request),
+        Err(ValidationError::CommandArgumentCustomTokenContainsControlCharacter)
+    );
+}
+
+#[test]
+fn proton_run_rejects_excessive_custom_command_argument_length() {
+    let (_temp_dir, request) = proton_request();
+    let request = with_command_arguments(request, vec![], vec!["a".repeat(513)]);
+
+    assert_eq!(
+        validate(&request),
+        Err(ValidationError::CommandArgumentTokenTooLong { max_len: 512 })
+    );
+}
+
+#[test]
+fn proton_run_rejects_excessive_command_argument_token_count() {
+    let (_temp_dir, request) = proton_request();
+    let custom_args = (0..65).map(|index| format!("-arg{index}")).collect();
+
+    let request = with_command_arguments(request, vec![], custom_args);
+
+    assert_eq!(
+        validate(&request),
+        Err(ValidationError::CommandArgumentTokenCountExceeded { max_count: 64 })
+    );
+}
+
+#[test]
+fn validate_all_collects_command_argument_issues() {
+    let (_temp_dir, request) = proton_request();
+    let request = with_command_arguments(
+        request,
+        vec!["unknown_argument".to_string()],
+        vec!["   ".to_string(), "bad\x00arg".to_string()],
+    );
+
+    let issues = validate_all(&request);
+    assert!(
+        issues
+            .iter()
+            .any(|issue| issue.code.as_deref() == Some("unknown_command_argument")),
+        "expected unknown command argument issue in: {issues:?}"
+    );
+    assert!(
+        issues
+            .iter()
+            .any(|issue| issue.code.as_deref() == Some("command_argument_custom_token_empty")),
+        "expected empty custom token issue in: {issues:?}"
+    );
+    assert!(
+        issues.iter().any(|issue| {
+            issue.code.as_deref()
+                == Some("command_argument_custom_token_contains_control_character")
+        }),
+        "expected control character issue in: {issues:?}"
     );
 }

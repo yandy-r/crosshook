@@ -419,3 +419,191 @@ fn proton_game_command_does_not_include_unshare_net() {
         "game command args must not contain --net"
     );
 }
+
+#[test]
+fn proton_game_command_appends_curated_and_custom_arguments_after_game_executable() {
+    let temp_dir = tempfile::tempdir().expect("temp dir");
+    let prefix_path = temp_dir.path().join("prefix");
+    let proton_path = temp_dir.path().join("proton");
+    let game_path = temp_dir.path().join("game.exe");
+    let log_path = temp_dir.path().join("game.log");
+    let steam_client_path = temp_dir.path().join("steam-client");
+
+    fs::create_dir_all(&prefix_path).expect("prefix dir");
+    fs::create_dir_all(&steam_client_path).expect("steam client dir");
+    write_executable_file(&proton_path);
+    fs::write(&game_path, b"game").expect("game exe");
+
+    let request = LaunchRequest {
+        method: crate::launch::METHOD_PROTON_RUN.to_string(),
+        game_path: game_path.to_string_lossy().into_owned(),
+        trainer_path: String::new(),
+        trainer_host_path: String::new(),
+        trainer_loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
+        steam: crate::launch::SteamLaunchConfig {
+            app_id: String::new(),
+            compatdata_path: String::new(),
+            proton_path: String::new(),
+            steam_client_install_path: steam_client_path.to_string_lossy().into_owned(),
+        },
+        runtime: crate::launch::RuntimeLaunchConfig {
+            prefix_path: prefix_path.to_string_lossy().into_owned(),
+            proton_path: proton_path.to_string_lossy().into_owned(),
+            working_directory: String::new(),
+            steam_app_id: String::new(),
+            umu_game_id: String::new(),
+            umu_store: String::new(),
+            umu_codename: String::new(),
+        },
+        optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
+        command_arguments: crate::launch::request::LaunchCommandArgumentsRequest {
+            enabled_argument_ids: vec!["force_vulkan".to_string()],
+            custom_args: vec!["+set sv_cheats 1".to_string()],
+        },
+        launch_trainer_only: false,
+        launch_game_only: true,
+        profile_name: None,
+        umu_preference: crate::settings::UmuPreference::Proton,
+        ..Default::default()
+    };
+
+    let command = build_proton_game_command(&request, &log_path).expect("game command");
+    let args = command
+        .as_std()
+        .get_args()
+        .map(|arg| arg.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+    let game_path_str = game_path.to_string_lossy().into_owned();
+    let game_idx = args
+        .iter()
+        .position(|arg| arg == &game_path_str)
+        .expect("game executable path in args");
+
+    assert_eq!(
+        command.as_std().get_program().to_string_lossy(),
+        proton_path.to_string_lossy()
+    );
+    assert_eq!(
+        args,
+        vec![
+            "run".to_string(),
+            game_path_str.clone(),
+            "-force_vulkan".to_string(),
+            "+set sv_cheats 1".to_string(),
+        ]
+    );
+    assert!(
+        args[game_idx + 1..]
+            .iter()
+            .any(|arg| arg == "-force_vulkan"),
+        "curated args must follow game executable"
+    );
+    assert!(
+        args[game_idx + 1..]
+            .iter()
+            .any(|arg| arg == "+set sv_cheats 1"),
+        "custom args must follow game executable"
+    );
+}
+
+#[test]
+fn proton_game_command_appends_arguments_after_game_executable_with_gamescope() {
+    let temp_dir = tempfile::tempdir().expect("temp dir");
+    let wrapper_dir = temp_dir.path().join("wrappers");
+    let prefix_path = temp_dir.path().join("prefix");
+    let proton_path = temp_dir.path().join("proton");
+    let game_path = temp_dir.path().join("game.exe");
+    let log_path = temp_dir.path().join("game.log");
+    let steam_client_path = temp_dir.path().join("steam-client");
+
+    fs::create_dir_all(&wrapper_dir).expect("wrapper dir");
+    fs::create_dir_all(&prefix_path).expect("prefix dir");
+    fs::create_dir_all(&steam_client_path).expect("steam client dir");
+    write_executable_file(&wrapper_dir.join("mangohud"));
+    write_executable_file(&proton_path);
+    fs::write(&game_path, b"game").expect("game exe");
+
+    let _command_search_path =
+        crate::launch::test_support::ScopedCommandSearchPath::new(&wrapper_dir);
+    let request = LaunchRequest {
+        method: crate::launch::METHOD_PROTON_RUN.to_string(),
+        game_path: game_path.to_string_lossy().into_owned(),
+        trainer_path: String::new(),
+        trainer_host_path: String::new(),
+        trainer_loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
+        steam: crate::launch::SteamLaunchConfig {
+            app_id: String::new(),
+            compatdata_path: String::new(),
+            proton_path: String::new(),
+            steam_client_install_path: steam_client_path.to_string_lossy().into_owned(),
+        },
+        runtime: crate::launch::RuntimeLaunchConfig {
+            prefix_path: prefix_path.to_string_lossy().into_owned(),
+            proton_path: proton_path.to_string_lossy().into_owned(),
+            working_directory: String::new(),
+            steam_app_id: String::new(),
+            umu_game_id: String::new(),
+            umu_store: String::new(),
+            umu_codename: String::new(),
+        },
+        optimizations: crate::launch::request::LaunchOptimizationsRequest {
+            enabled_option_ids: vec!["show_mangohud_overlay".to_string()],
+        },
+        command_arguments: crate::launch::request::LaunchCommandArgumentsRequest {
+            enabled_argument_ids: vec!["skip_launcher".to_string()],
+            custom_args: vec!["-windowed".to_string()],
+        },
+        gamescope: crate::profile::GamescopeConfig {
+            enabled: true,
+            fullscreen: true,
+            ..Default::default()
+        },
+        launch_trainer_only: false,
+        launch_game_only: true,
+        profile_name: None,
+        umu_preference: crate::settings::UmuPreference::Proton,
+        ..Default::default()
+    };
+
+    let command = build_proton_game_command(&request, &log_path).expect("game command");
+    let args = command
+        .as_std()
+        .get_args()
+        .map(|arg| arg.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        command.as_std().get_program().to_string_lossy(),
+        "gamescope"
+    );
+    let game_path_str = game_path.to_string_lossy().into_owned();
+    let double_dash_idx = args
+        .iter()
+        .position(|arg| arg == "--")
+        .expect("gamescope --");
+    let game_idx = args
+        .iter()
+        .position(|arg| arg == &game_path_str)
+        .expect("game executable path in args");
+    let skip_launcher_idx = args
+        .iter()
+        .position(|arg| arg == "-skip_launcher")
+        .expect("-skip_launcher arg");
+    let windowed_idx = args
+        .iter()
+        .position(|arg| arg == "-windowed")
+        .expect("-windowed custom arg");
+
+    assert!(
+        double_dash_idx < game_idx,
+        "game exe must follow gamescope --"
+    );
+    assert!(
+        skip_launcher_idx > game_idx && windowed_idx > game_idx,
+        "command args must follow game executable, not gamescope/wrapper tokens"
+    );
+    assert!(
+        skip_launcher_idx > double_dash_idx && windowed_idx > double_dash_idx,
+        "command args must not appear before gamescope -- separator"
+    );
+}

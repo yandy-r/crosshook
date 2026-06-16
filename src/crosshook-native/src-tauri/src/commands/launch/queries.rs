@@ -2,9 +2,10 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use crosshook_core::launch::{
     build_launch_preview,
-    build_steam_launch_options_command as build_steam_launch_options_command_core, validate,
-    LaunchPlatformCapabilities, LaunchPreview, LaunchRequest, LaunchSessionRegistry,
-    LaunchValidationIssue, SessionKind,
+    build_steam_launch_options_command as build_steam_launch_options_command_core,
+    escape_steam_token, resolve_command_arguments_for_method, validate, LaunchPlatformCapabilities,
+    LaunchPreview, LaunchRequest, LaunchSessionRegistry, LaunchValidationIssue, SessionKind,
+    METHOD_STEAM_APPLAUNCH,
 };
 use crosshook_core::metadata::{LaunchHistoryEntry, MetadataStore, MAX_HISTORY_LIST_LIMIT};
 use crosshook_core::profile::GamescopeConfig;
@@ -42,19 +43,40 @@ pub async fn preview_launch(
 /// plus profile custom env vars (custom wins on duplicate keys in the prefix).
 ///
 /// When `gamescope` is provided and enabled, the gamescope compositor is inserted as a wrapper
-/// (e.g. `gamescope -w 2560 -h 1440 -f -- %command%`).
+/// (e.g. `gamescope -w 2560 -h 1440 -f -- %command%`). Resolved command-argument tokens are
+/// appended after `%command%` when `enabled_argument_ids` or `custom_command_args` are non-empty.
 #[tauri::command]
 pub fn build_steam_launch_options_command(
     enabled_option_ids: Vec<String>,
     custom_env_vars: BTreeMap<String, String>,
     gamescope: Option<GamescopeConfig>,
+    enabled_argument_ids: Vec<String>,
+    custom_command_args: Vec<String>,
 ) -> Result<String, String> {
-    build_steam_launch_options_command_core(
+    let mut command = build_steam_launch_options_command_core(
         &enabled_option_ids,
         &custom_env_vars,
         gamescope.as_ref(),
     )
-    .map_err(|error| error.to_string())
+    .map_err(|error| error.to_string())?;
+
+    if enabled_argument_ids.is_empty() && custom_command_args.is_empty() {
+        return Ok(command);
+    }
+
+    let resolved = resolve_command_arguments_for_method(
+        &enabled_argument_ids,
+        &custom_command_args,
+        METHOD_STEAM_APPLAUNCH,
+    )
+    .map_err(|error| format!("{error:?}"))?;
+
+    for token in resolved.tokens {
+        command.push(' ');
+        command.push_str(&escape_steam_token(&token));
+    }
+
+    Ok(command)
 }
 
 #[tauri::command]

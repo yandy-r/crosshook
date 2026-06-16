@@ -18,27 +18,28 @@ If you want the deeper Steam-specific workflow details, jump to the [Steam / Pro
    7. [First Launch](#first-launch)
    8. [Create a Profile](#create-a-profile)
    9. [Custom environment variables](#custom-environment-variables)
-   10. [ProtonDB guidance](#protondb-guidance)
-   11. [Launch a Game with a Trainer](#launch-a-game-with-a-trainer)
-   12. [Dry Run / Preview Mode](#dry-run--preview-mode)
-   13. [Launch Modes](#launch-modes)
+   10. [Command arguments](#command-arguments)
+   11. [ProtonDB guidance](#protondb-guidance)
+   12. [Launch a Game with a Trainer](#launch-a-game-with-a-trainer)
+   13. [Dry Run / Preview Mode](#dry-run--preview-mode)
+   14. [Launch Modes](#launch-modes)
        1. [Steam App Launch (`steam_applaunch`)](#steam-app-launch-steam_applaunch)
        2. [Proton Run (`proton_run`)](#proton-run-proton_run)
        3. [Native (`native`)](#native-native)
-   14. [External Launcher Export](#external-launcher-export)
-   15. [Community Profiles](#community-profiles)
-   16. [Pinned Profiles](#pinned-profiles)
-   17. [Health Dashboard](#health-dashboard)
-   18. [Diagnostic Export](#diagnostic-export)
-   19. [Using the CLI](#using-the-cli)
+   15. [External Launcher Export](#external-launcher-export)
+   16. [Community Profiles](#community-profiles)
+   17. [Pinned Profiles](#pinned-profiles)
+   18. [Health Dashboard](#health-dashboard)
+   19. [Diagnostic Export](#diagnostic-export)
+   20. [Using the CLI](#using-the-cli)
        1. [Check system status](#check-system-status)
        2. [Manage profiles](#manage-profiles)
        3. [Steam discovery](#steam-discovery)
        4. [Launch a game](#launch-a-game)
        5. [Generate shell completions](#generate-shell-completions)
        6. [Export diagnostics](#export-diagnostics)
-   20. [Troubleshooting](#troubleshooting)
-   21. [Related Guides](#related-guides)
+   21. [Troubleshooting](#troubleshooting)
+   22. [Related Guides](#related-guides)
 
 ## Supported Environments
 
@@ -150,7 +151,7 @@ proton_path = "/mnt/games/SteamLibrary/steamapps/common/Proton 9.0-4/proton"
 method = "steam_applaunch"
 ```
 
-When a profile uses `proton_run`, the Profile editor also shows a `Launch Optimizations` panel in the right column. The panel is limited to `proton_run` profiles, and each visible option has an info tooltip that explains what it does, when it helps, and the main caveat. Existing saved profiles autosave only the optimization section, while new unsaved profiles show `Save profile first to enable autosave` until you save them once.
+When a profile uses `proton_run` or `steam_applaunch`, the Profile editor shows **Launch Optimizations** and **Command Arguments** in the launch configuration surface. Launch optimizations are curated env/wrapper toggles; command arguments are curated or custom argv tokens for the game executable. For **`proton_run`**, both apply when CrossHook builds `proton run` commands. For **`steam_applaunch`**, CrossHook does not write into Steam — use the **Steam launch options** panel to copy a one-line string (env vars and wrappers before `%command%`, game arguments after `%command%`) into Steam’s per-game Launch Options. Each visible optimization and catalog argument has an info tooltip. Saved profiles autosave both sections after a short debounce; new unsaved profiles show a save-first warning until you save once.
 
 If the profile has a Steam App ID, the Profile editor also shows a **ProtonDB Guidance** card. It displays the exact ProtonDB tier (`platinum`, `gold`, `silver`, `bronze`, `borked`, and any future upstream labels), a freshness indicator, and normalized community suggestions. When CrossHook can safely normalize env-var tweaks, you can copy them or apply them into the profile’s custom env map; raw launch strings stay copy-only.
 
@@ -170,6 +171,28 @@ In the Profile editor and in the **Profile Setup Wizard** (New Profile / Edit in
 **Syntax rules:** Keys must be non-empty, must not contain `=`, and neither keys nor values may contain NUL bytes. Duplicate keys are avoided by the editor shape; invalid entries are surfaced in validation.
 
 **Troubleshooting:** If a variable does not appear to take effect, use dry run and check the environment list — entries sourced from the profile show as **Profile custom**. For Steam games, confirm you pasted an updated launch options line after changing custom vars. For more Steam-specific detail, see the [Steam / Proton feature guide](../features/steam-proton-trainer-launch.doc.md#custom-environment-variables).
+
+## Command arguments
+
+For **`proton_run`** and **`steam_applaunch`** profiles, **Command Arguments** lets you pass argv tokens to the **game** — not the trainer — using curated catalog toggles and ordered custom token rows.
+
+**What they are**
+
+- **Launch optimizations** set environment variables and optional wrappers (MangoHud, gamemode, and similar).
+- **Command arguments** set switches such as `-dx11` or `+fps_max 60` that the game reads from its command line.
+
+**Where tokens go**
+
+- **`proton_run`:** CrossHook appends resolved tokens immediately after the game executable in built `proton run` / `umu-run` commands.
+- **`steam_applaunch`:** The **Steam launch options** preview places tokens after `%command%`. CrossHook does not write into Steam; copy the updated line into the game’s Launch Options after you change arguments.
+
+**Persistence and scope**
+
+- Selections are stored in profile TOML under `[launch.command_arguments]` as `enabled_argument_ids` and `custom_args`.
+- Trainer launches do not inherit the profile’s game command arguments.
+- **`native`** profiles do not support command arguments today.
+
+**Troubleshooting:** Use dry run to confirm argument placement in the effective command or Steam line. For full behavior and TOML examples, see the [Steam / Proton feature guide](../features/steam-proton-trainer-launch.doc.md#command-arguments).
 
 ## ProtonDB guidance
 
@@ -193,7 +216,7 @@ The console view in CrossHook streams the runner output in real-time so you can 
 
 ## Dry Run / Preview Mode
 
-Before launching, you can preview exactly what commands CrossHook will execute. Use the dry run option to see the full command line, environment variables, and launch sequence without starting any processes. This is useful for debugging launch configurations or verifying that paths are correct. The environment list is merged the same way as a real launch (including [custom environment variables](#custom-environment-variables)), and shows which values come from **Profile custom** versus optimizations.
+Before launching, you can preview exactly what commands CrossHook will execute. Use the dry run option to see the full command line, environment variables, and launch sequence without starting any processes. This is useful for debugging launch configurations or verifying that paths are correct. The environment list is merged the same way as a real launch (including [custom environment variables](#custom-environment-variables)), and shows which values come from **Profile custom** versus optimizations. When command arguments are configured, the preview shows them after the game executable for `proton_run` and after `%command%` in the Steam launch-options string for `steam_applaunch`; trainer-only previews omit game arguments.
 
 ## Launch Modes
 
@@ -205,6 +228,7 @@ The default mode for games installed through Steam.
 
 - CrossHook launches the game using `steam -applaunch <appid>`, which lets Steam handle DRM, the overlay, and the Proton runtime.
 - The trainer is then launched separately against the same prefix using Proton directly.
+- **Launch Optimizations** and **Command Arguments** are edited in CrossHook; for Steam-owned game launches you copy the generated **Steam launch options** line into Steam (CrossHook does not modify Steam automatically).
 - The Trainer section lets you choose `Run from current directory` or `Copy into prefix`. The default source-directory mode is better for stateful trainers such as Aurora.
 - Requires: Steam App ID, compatdata path, Proton path, Steam client install path. All of these are auto-populated by CrossHook's Steam discovery.
 
@@ -217,7 +241,7 @@ For launching games and trainers directly through Proton without going through t
 - Useful for non-Steam games that use a standalone Proton/WINE prefix, or when you need full control over the prefix path.
 - Requires: a WINE/Proton prefix path and the Proton runner path.
 - The `Install Game` flow uses the same direct Proton path, then opens a review modal for the generated profile before save. Saving the modal draft opens the Profile tab with the saved profile selected.
-- The `Launch Optimizations` panel is available here and nowhere else; it stays scoped to `proton_run`, shows per-option help icons, and only autosaves after the profile already exists.
+- **Launch Optimizations** and **Command Arguments** apply directly to CrossHook-built game commands in this mode (no Steam copy/paste step).
 
 ### Native (`native`)
 

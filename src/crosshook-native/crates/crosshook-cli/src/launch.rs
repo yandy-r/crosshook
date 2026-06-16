@@ -5,7 +5,7 @@ use std::process::Stdio;
 use crate::args::{GlobalOptions, LaunchCommand};
 use crate::cli_error::CliError;
 use crate::store::profile_store;
-use crosshook_core::launch::request::LaunchOptimizationsRequest;
+use crosshook_core::launch::request::{LaunchCommandArgumentsRequest, LaunchOptimizationsRequest};
 use crosshook_core::launch::{
     self, build_launch_preview, LaunchRequest, RuntimeLaunchConfig, SteamLaunchConfig,
     ValidationSeverity, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
@@ -233,6 +233,14 @@ fn launch_request_from_profile(
         },
         optimizations: LaunchOptimizationsRequest {
             enabled_option_ids: profile.launch.optimizations.enabled_option_ids.clone(),
+        },
+        command_arguments: LaunchCommandArgumentsRequest {
+            enabled_argument_ids: profile
+                .launch
+                .command_arguments
+                .enabled_argument_ids
+                .clone(),
+            custom_args: profile.launch.command_arguments.custom_args.clone(),
         },
         launch_trainer_only: false,
         launch_game_only: true,

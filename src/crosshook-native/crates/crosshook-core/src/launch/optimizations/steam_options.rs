@@ -3,7 +3,8 @@ use std::collections::BTreeMap;
 use crate::profile::GamescopeConfig;
 
 use super::super::{
-    request::{ValidationError, METHOD_PROTON_RUN},
+    command_arguments::{resolve_command_arguments_for_method, CommandArgumentResolveError},
+    request::{ValidationError, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH},
     runtime_helpers::build_gamescope_args,
 };
 use super::directives::resolve_launch_directives_for_method;
@@ -44,7 +45,57 @@ pub fn escape_steam_token(value: &str) -> String {
     out
 }
 
-/// Builds a single-line Steam per-game "Launch Options" string: `KEY=val ... wrappers %command%`.
+fn command_argument_resolve_error(error: CommandArgumentResolveError) -> ValidationError {
+    match error {
+        CommandArgumentResolveError::Unknown(argument_id) => {
+            ValidationError::UnknownCommandArgument(argument_id)
+        }
+        CommandArgumentResolveError::Duplicate(argument_id) => {
+            ValidationError::DuplicateCommandArgument(argument_id)
+        }
+        CommandArgumentResolveError::NotSupportedForMethod {
+            argument_id,
+            method,
+        } => ValidationError::CommandArgumentNotSupportedForMethod {
+            argument_id,
+            method,
+        },
+        CommandArgumentResolveError::Incompatible { first, second } => {
+            ValidationError::IncompatibleCommandArguments { first, second }
+        }
+        CommandArgumentResolveError::UnsupportedLaunchMethod(method) => {
+            ValidationError::CommandArgumentsUnsupportedForMethod(method)
+        }
+    }
+}
+
+fn resolve_steam_command_argument_tokens(
+    enabled_argument_ids: Option<&[String]>,
+    custom_command_args: Option<&[String]>,
+    resolved_argument_tokens: Option<&[String]>,
+) -> Result<Vec<String>, ValidationError> {
+    if let Some(tokens) = resolved_argument_tokens {
+        return Ok(tokens.to_vec());
+    }
+
+    let enabled_argument_ids = enabled_argument_ids.unwrap_or(&[]);
+    let custom_command_args = custom_command_args.unwrap_or(&[]);
+
+    if enabled_argument_ids.is_empty() && custom_command_args.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let resolved = resolve_command_arguments_for_method(
+        enabled_argument_ids,
+        custom_command_args,
+        METHOD_STEAM_APPLAUNCH,
+    )
+    .map_err(command_argument_resolve_error)?;
+
+    Ok(resolved.tokens)
+}
+
+/// Builds a single-line Steam per-game "Launch Options" string: `KEY=val ... wrappers %command% [args]`.
 ///
 /// Uses the same option-ID → env/wrapper mapping as `proton_run` launches, then appends
 /// `custom_env_vars` as `KEY=value` tokens so profile custom values override optimization keys
@@ -58,6 +109,29 @@ pub fn build_steam_launch_options_command(
     enabled_option_ids: &[String],
     custom_env_vars: &BTreeMap<String, String>,
     gamescope: Option<&GamescopeConfig>,
+) -> Result<String, ValidationError> {
+    build_steam_launch_options_command_with_arguments(
+        enabled_option_ids,
+        custom_env_vars,
+        gamescope,
+        None,
+        None,
+        None,
+    )
+}
+
+/// Like [`build_steam_launch_options_command`], but appends resolved game argv tokens after `%command%`.
+///
+/// Pass `resolved_argument_tokens` when the caller has already resolved IDs/custom args; otherwise
+/// supply `enabled_argument_ids` / `custom_command_args` and this function resolves them for
+/// `steam_applaunch`.
+pub fn build_steam_launch_options_command_with_arguments(
+    enabled_option_ids: &[String],
+    custom_env_vars: &BTreeMap<String, String>,
+    gamescope: Option<&GamescopeConfig>,
+    enabled_argument_ids: Option<&[String]>,
+    custom_command_args: Option<&[String]>,
+    resolved_argument_tokens: Option<&[String]>,
 ) -> Result<String, ValidationError> {
     let directives = resolve_launch_directives_for_method(enabled_option_ids, METHOD_PROTON_RUN)?;
     let mut parts: Vec<String> = directives
@@ -111,6 +185,16 @@ pub fn build_steam_launch_options_command(
     }
 
     parts.push("%command%".to_string());
+
+    let argument_tokens = resolve_steam_command_argument_tokens(
+        enabled_argument_ids,
+        custom_command_args,
+        resolved_argument_tokens,
+    )?;
+    for token in argument_tokens {
+        parts.push(escape_steam_token(&token));
+    }
+
     Ok(parts.join(" "))
 }
 
@@ -228,5 +312,133 @@ mod tests {
         let command = build_steam_launch_options_command(&[], &BTreeMap::new(), Some(&cfg))
             .expect("steam command with extra args");
         assert_eq!(command, "gamescope \"--some flag\" -- %command%");
+    }
+
+    #[test]
+    fn steam_launch_options_with_empty_command_arguments_unchanged() {
+        let command = build_steam_launch_options_command_with_arguments(
+            &[],
+            &BTreeMap::new(),
+            None,
+            Some(&[]),
+            Some(&[]),
+            None,
+        )
+        .expect("steam command");
+        assert_eq!(command, "%command%");
+    }
+
+    #[test]
+    fn steam_launch_options_curated_command_argument_after_percent_command() {
+        let enabled_argument_ids = vec!["force_vulkan".to_string()];
+        let command = build_steam_launch_options_command_with_arguments(
+            &[],
+            &BTreeMap::new(),
+            None,
+            Some(&enabled_argument_ids),
+            Some(&[]),
+            None,
+        )
+        .expect("steam command with curated arg");
+        assert_eq!(command, "%command% -force_vulkan");
+    }
+
+    #[test]
+    fn steam_launch_options_custom_command_argument_after_percent_command() {
+        let custom_args = vec!["-windowed".to_string()];
+        let command = build_steam_launch_options_command_with_arguments(
+            &[],
+            &BTreeMap::new(),
+            None,
+            Some(&[]),
+            Some(&custom_args),
+            None,
+        )
+        .expect("steam command with custom arg");
+        assert_eq!(command, "%command% -windowed");
+    }
+
+    #[test]
+    fn steam_launch_options_curated_then_custom_argument_ordering() {
+        let enabled_argument_ids = vec!["force_dx11".to_string()];
+        let custom_args = vec![
+            "+set".to_string(),
+            "com_skipIntroVideo".to_string(),
+            "1".to_string(),
+        ];
+        let command = build_steam_launch_options_command_with_arguments(
+            &[],
+            &BTreeMap::new(),
+            None,
+            Some(&enabled_argument_ids),
+            Some(&custom_args),
+            None,
+        )
+        .expect("steam command with curated and custom args");
+        assert_eq!(command, "%command% -dx11 +set com_skipIntroVideo 1");
+    }
+
+    #[test]
+    fn steam_launch_options_command_argument_quoting_for_spaces_and_metacharacters() {
+        let custom_args = vec!["--cfg=\"C:\\My Games\\config.ini\"".to_string()];
+        let command = build_steam_launch_options_command_with_arguments(
+            &[],
+            &BTreeMap::new(),
+            None,
+            Some(&[]),
+            Some(&custom_args),
+            None,
+        )
+        .expect("steam command with quoted custom arg");
+        assert_eq!(
+            command,
+            "%command% \"--cfg=\\\"C:\\\\My Games\\\\config.ini\\\"\""
+        );
+    }
+
+    #[test]
+    fn steam_launch_options_resolved_argument_tokens_bypass_resolution() {
+        let resolved = vec!["-skip_launcher".to_string(), "extra flag".to_string()];
+        let command = build_steam_launch_options_command_with_arguments(
+            &[],
+            &BTreeMap::new(),
+            None,
+            None,
+            None,
+            Some(&resolved),
+        )
+        .expect("steam command with pre-resolved args");
+        assert_eq!(command, "%command% -skip_launcher \"extra flag\"");
+    }
+
+    #[test]
+    fn steam_launch_options_gamescope_mangohud_wrapper_ordering_with_command_arguments() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let mangohud_path = temp_dir.path().join("mangohud");
+        write_executable_file(&mangohud_path);
+        let _command_search_path =
+            crate::launch::test_support::ScopedCommandSearchPath::new(temp_dir.path());
+
+        let cfg = GamescopeConfig {
+            enabled: true,
+            fullscreen: true,
+            ..Default::default()
+        };
+        let ids = vec!["show_mangohud_overlay".to_string()];
+        let enabled_argument_ids = vec!["skip_launcher".to_string()];
+        let custom_args = vec!["-nolog".to_string()];
+        let command = build_steam_launch_options_command_with_arguments(
+            &ids,
+            &BTreeMap::new(),
+            Some(&cfg),
+            Some(&enabled_argument_ids),
+            Some(&custom_args),
+            None,
+        )
+        .expect("steam command with gamescope, mangohud, and args");
+        assert_eq!(
+            command,
+            "gamescope -f --mangoapp -- %command% -skip_launcher -nolog"
+        );
     }
 }

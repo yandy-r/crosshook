@@ -8,6 +8,9 @@ use super::path_probe::{
     path_exists_visible_or_host, path_is_file_visible_or_host, require_directory,
     require_executable_file,
 };
+use crate::launch::command_arguments::{
+    resolve_command_arguments_for_method, CommandArgumentResolveError,
+};
 use crate::launch::optimizations::{
     is_command_available, resolve_launch_directives, resolve_launch_directives_for_method,
 };
@@ -19,6 +22,9 @@ const RESERVED_CUSTOM_ENV_KEYS: &[&str] = &[
     "STEAM_COMPAT_DATA_PATH",
     "STEAM_COMPAT_CLIENT_INSTALL_PATH",
 ];
+
+const MAX_COMMAND_ARGUMENT_TOKEN_LEN: usize = 512;
+const MAX_COMMAND_ARGUMENT_TOKENS: usize = 64;
 
 /// Validates one custom env entry and returns the canonical **trimmed** key for emission paths.
 fn validate_custom_env_entry(key: &str, value: &str) -> Result<String, ValidationError> {
@@ -55,6 +61,129 @@ fn collect_custom_env_issues(request: &LaunchRequest, issues: &mut Vec<LaunchVal
         if let Err(err) = validate_custom_env_entry(key, value) {
             issues.push(err.issue());
         }
+    }
+}
+
+fn command_argument_token_has_control_character(token: &str) -> bool {
+    token.contains('\0') || token.chars().any(char::is_control)
+}
+
+fn validate_command_argument_token_length(token: &str) -> Result<(), ValidationError> {
+    if token.len() > MAX_COMMAND_ARGUMENT_TOKEN_LEN {
+        return Err(ValidationError::CommandArgumentTokenTooLong {
+            max_len: MAX_COMMAND_ARGUMENT_TOKEN_LEN,
+        });
+    }
+    Ok(())
+}
+
+fn validate_custom_command_argument_token(token: &str) -> Result<(), ValidationError> {
+    if token.trim().is_empty() {
+        return Err(ValidationError::CommandArgumentCustomTokenEmpty);
+    }
+    if command_argument_token_has_control_character(token) {
+        return Err(ValidationError::CommandArgumentCustomTokenContainsControlCharacter);
+    }
+    validate_command_argument_token_length(token)
+}
+
+fn command_argument_resolve_error(error: CommandArgumentResolveError) -> ValidationError {
+    match error {
+        CommandArgumentResolveError::Unknown(argument_id) => {
+            ValidationError::UnknownCommandArgument(argument_id)
+        }
+        CommandArgumentResolveError::Duplicate(argument_id) => {
+            ValidationError::DuplicateCommandArgument(argument_id)
+        }
+        CommandArgumentResolveError::NotSupportedForMethod {
+            argument_id,
+            method,
+        } => ValidationError::CommandArgumentNotSupportedForMethod {
+            argument_id,
+            method,
+        },
+        CommandArgumentResolveError::Incompatible { first, second } => {
+            ValidationError::IncompatibleCommandArguments { first, second }
+        }
+        CommandArgumentResolveError::UnsupportedLaunchMethod(method) => {
+            ValidationError::CommandArgumentsUnsupportedForMethod(method)
+        }
+    }
+}
+
+fn validate_resolved_command_argument_tokens(tokens: &[String]) -> Result<(), ValidationError> {
+    if tokens.len() > MAX_COMMAND_ARGUMENT_TOKENS {
+        return Err(ValidationError::CommandArgumentTokenCountExceeded {
+            max_count: MAX_COMMAND_ARGUMENT_TOKENS,
+        });
+    }
+
+    for token in tokens {
+        validate_command_argument_token_length(token)?;
+    }
+
+    Ok(())
+}
+
+fn validate_command_arguments(request: &LaunchRequest) -> Result<(), ValidationError> {
+    if request.command_arguments.is_empty() || request.launch_trainer_only {
+        return Ok(());
+    }
+
+    let method = request.resolved_method();
+    if method == METHOD_NATIVE {
+        return Err(ValidationError::CommandArgumentsUnsupportedForMethod(
+            method.to_string(),
+        ));
+    }
+
+    for custom_arg in &request.command_arguments.custom_args {
+        validate_custom_command_argument_token(custom_arg)?;
+    }
+
+    let resolved = resolve_command_arguments_for_method(
+        &request.command_arguments.enabled_argument_ids,
+        &request.command_arguments.custom_args,
+        method,
+    )
+    .map_err(command_argument_resolve_error)?;
+
+    validate_resolved_command_argument_tokens(&resolved.tokens)
+}
+
+fn collect_command_argument_issues(
+    request: &LaunchRequest,
+    issues: &mut Vec<LaunchValidationIssue>,
+) {
+    if request.command_arguments.is_empty() || request.launch_trainer_only {
+        return;
+    }
+
+    let method = request.resolved_method();
+    if method == METHOD_NATIVE {
+        issues.push(
+            ValidationError::CommandArgumentsUnsupportedForMethod(method.to_string()).issue(),
+        );
+        return;
+    }
+
+    for custom_arg in &request.command_arguments.custom_args {
+        if let Err(err) = validate_custom_command_argument_token(custom_arg) {
+            issues.push(err.issue());
+        }
+    }
+
+    match resolve_command_arguments_for_method(
+        &request.command_arguments.enabled_argument_ids,
+        &request.command_arguments.custom_args,
+        method,
+    ) {
+        Ok(resolved) => {
+            if let Err(err) = validate_resolved_command_argument_tokens(&resolved.tokens) {
+                issues.push(err.issue());
+            }
+        }
+        Err(err) => issues.push(command_argument_resolve_error(err).issue()),
     }
 }
 
@@ -118,6 +247,7 @@ pub fn validate_all(request: &LaunchRequest) -> Vec<LaunchValidationIssue> {
 
     let mut issues = Vec::new();
     collect_custom_env_issues(request, &mut issues);
+    collect_command_argument_issues(request, &mut issues);
     match request.resolved_method() {
         METHOD_STEAM_APPLAUNCH => collect_steam_issues(request, &mut issues),
         METHOD_PROTON_RUN => collect_proton_issues(request, &mut issues),
@@ -138,6 +268,7 @@ pub fn validate(request: &LaunchRequest) -> Result<(), ValidationError> {
     }
 
     validate_custom_env(request)?;
+    validate_command_arguments(request)?;
 
     match request.resolved_method() {
         METHOD_STEAM_APPLAUNCH => validate_steam_applaunch(request),

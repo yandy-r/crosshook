@@ -1,4 +1,4 @@
-use super::command::build_effective_command_string;
+use super::command::{append_preview_steam_command_arguments, build_effective_command_string};
 use super::environment::{
     collect_host_environment, collect_runtime_proton_environment, collect_steam_proton_environment,
     inject_mangohud_config_preview_env, merge_custom_preview_env_only,
@@ -6,13 +6,14 @@ use super::environment::{
 };
 use super::sections::{build_proton_setup, build_trainer_info, resolve_working_directory};
 use super::types::{LaunchPreview, PreviewValidation, ResolvedLaunchMethod, UmuDecisionPreview};
+use crate::launch::command_arguments::{resolve_command_arguments, CommandArgumentResolveError};
 use crate::launch::env::WINE_ENV_VARS_TO_CLEAR;
 use crate::launch::optimizations::{
     build_steam_launch_options_command, resolve_launch_directives,
     resolve_launch_directives_for_method,
 };
 use crate::launch::request::{
-    is_inside_gamescope_session, validate_all, LaunchRequest, METHOD_PROTON_RUN,
+    is_inside_gamescope_session, validate_all, LaunchRequest, ValidationError, METHOD_PROTON_RUN,
     METHOD_STEAM_APPLAUNCH,
 };
 use crate::launch::runtime_helpers::is_unshare_net_available;
@@ -29,6 +30,9 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
 
     let gamescope_active = gamescope_config.enabled
         && (gamescope_config.allow_nested || !is_inside_gamescope_session());
+
+    let (resolved_argument_tokens, command_arguments_error) =
+        resolve_preview_command_arguments(request);
 
     // Resolve launch directives (wrappers + optimization env).
     // `steam_applaunch` uses the same optimization catalog as `proton_run` for Steam Launch Options,
@@ -48,6 +52,12 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
             Err(e) => (None, Some(e.to_string())),
         },
     };
+
+    if let Some(error) = command_arguments_error {
+        append_preview_error(&mut directives_error, error);
+    }
+
+    let argument_tokens = resolved_argument_tokens.as_deref();
 
     // Environment and command depend on successful directive resolution.
     let (environment, wrappers, effective_command) = match &directives {
@@ -92,6 +102,7 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
                 &effective_wrappers,
                 &gamescope_config,
                 gamescope_active,
+                argument_tokens,
             ) {
                 Ok(command) => Some(command),
                 Err(error) => {
@@ -116,7 +127,9 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
             &request.optimizations.enabled_option_ids,
             &request.custom_env_vars,
             gamescope_param.as_ref(),
-        ) {
+        )
+        .map(|command| append_preview_steam_command_arguments(command, argument_tokens))
+        {
             Ok(command) => Some(command),
             Err(error) => {
                 append_preview_error(&mut directives_error, error.to_string());
@@ -219,5 +232,47 @@ fn append_preview_error(target: &mut Option<String>, message: String) {
             }
         }
         None => *target = Some(message),
+    }
+}
+
+fn resolve_preview_command_arguments(
+    request: &LaunchRequest,
+) -> (Option<Vec<String>>, Option<String>) {
+    if request.launch_trainer_only || request.command_arguments.is_empty() {
+        return (None, None);
+    }
+
+    match resolve_command_arguments(request) {
+        Ok(resolved) if resolved.is_empty() => (None, None),
+        Ok(resolved) => (Some(resolved.tokens), None),
+        Err(error) => (None, Some(command_argument_preview_error(error))),
+    }
+}
+
+fn command_argument_preview_error(error: CommandArgumentResolveError) -> String {
+    command_argument_resolve_error(error).to_string()
+}
+
+fn command_argument_resolve_error(error: CommandArgumentResolveError) -> ValidationError {
+    match error {
+        CommandArgumentResolveError::Unknown(argument_id) => {
+            ValidationError::UnknownCommandArgument(argument_id)
+        }
+        CommandArgumentResolveError::Duplicate(argument_id) => {
+            ValidationError::DuplicateCommandArgument(argument_id)
+        }
+        CommandArgumentResolveError::NotSupportedForMethod {
+            argument_id,
+            method,
+        } => ValidationError::CommandArgumentNotSupportedForMethod {
+            argument_id,
+            method,
+        },
+        CommandArgumentResolveError::Incompatible { first, second } => {
+            ValidationError::IncompatibleCommandArguments { first, second }
+        }
+        CommandArgumentResolveError::UnsupportedLaunchMethod(method) => {
+            ValidationError::CommandArgumentsUnsupportedForMethod(method)
+        }
     }
 }

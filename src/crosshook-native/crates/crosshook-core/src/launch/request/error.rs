@@ -81,6 +81,29 @@ pub enum ValidationError {
         threshold_mb: u64,
         mount_path: String,
     },
+    UnknownCommandArgument(String),
+    DuplicateCommandArgument(String),
+    CommandArgumentsUnsupportedForMethod(String),
+    CommandArgumentNotSupportedForMethod {
+        argument_id: String,
+        method: String,
+    },
+    IncompatibleCommandArguments {
+        first: String,
+        second: String,
+    },
+    /// Custom command-argument token is empty or only whitespace.
+    CommandArgumentCustomTokenEmpty,
+    /// Custom command-argument token contains a NUL byte or other control character.
+    CommandArgumentCustomTokenContainsControlCharacter,
+    /// A command-argument token exceeds the maximum allowed length.
+    CommandArgumentTokenTooLong {
+        max_len: usize,
+    },
+    /// Resolved command-argument token count exceeds the maximum allowed.
+    CommandArgumentTokenCountExceeded {
+        max_count: usize,
+    },
 }
 
 impl ValidationError {
@@ -145,6 +168,23 @@ impl ValidationError {
             Self::OfflineReadinessInsufficient { .. } => "offline_readiness_insufficient",
             Self::UnshareNetUnavailable => "unshare_net_unavailable",
             Self::LowDiskSpaceAdvisory { .. } => "low_disk_space_advisory",
+            Self::UnknownCommandArgument(_) => "unknown_command_argument",
+            Self::DuplicateCommandArgument(_) => "duplicate_command_argument",
+            Self::CommandArgumentsUnsupportedForMethod(_) => {
+                "command_arguments_unsupported_for_method"
+            }
+            Self::CommandArgumentNotSupportedForMethod { .. } => {
+                "command_argument_not_supported_for_method"
+            }
+            Self::IncompatibleCommandArguments { .. } => "incompatible_command_arguments",
+            Self::CommandArgumentCustomTokenEmpty => "command_argument_custom_token_empty",
+            Self::CommandArgumentCustomTokenContainsControlCharacter => {
+                "command_argument_custom_token_contains_control_character"
+            }
+            Self::CommandArgumentTokenTooLong { .. } => "command_argument_token_too_long",
+            Self::CommandArgumentTokenCountExceeded { .. } => {
+                "command_argument_token_count_exceeded"
+            }
         }
     }
 

@@ -1,4 +1,5 @@
 import type { GameProfile, SerializedGameProfile } from '../../types';
+import type { LaunchCommandArguments } from '../../types/launch-command-arguments';
 import type { LaunchOptimizations } from '../../types/launch-optimizations';
 import { normalizeInjectionSection, normalizeSerializedGameProfile } from '../../types/profile';
 import { resolveLaunchMethod } from '../../utils/launch';
@@ -7,6 +8,49 @@ import { normalizeLaunchOptimizationIds } from './launchOptimizationIds';
 import { deriveGameName, deriveLauncherDisplayName, stripAutomaticLauncherSuffix } from './profileDisplayNames';
 
 const UMU_RUNTIME_HINT_MAX_LENGTH = 128;
+
+function normalizeCommandArgumentIds(ids: readonly string[] | undefined): string[] {
+  const normalized: string[] = [];
+  const seenIds = new Set<string>();
+
+  for (const argumentId of ids ?? []) {
+    const trimmedId = argumentId.trim();
+    if (!trimmedId || seenIds.has(trimmedId)) {
+      continue;
+    }
+    seenIds.add(trimmedId);
+    normalized.push(trimmedId);
+  }
+
+  return normalized;
+}
+
+function normalizeCommandArgumentCustomArgsForEdit(args: readonly string[] | undefined): string[] {
+  return (args ?? []).map((arg) => arg.trim());
+}
+
+function dropBlankCommandArgumentCustomArgs(args: readonly string[]): string[] {
+  return args.filter((arg) => arg.trim().length > 0);
+}
+
+function normalizeCommandArgumentsForEdit(
+  commandArguments: LaunchCommandArguments | undefined
+): LaunchCommandArguments {
+  return {
+    enabled_argument_ids: normalizeCommandArgumentIds(commandArguments?.enabled_argument_ids),
+    custom_args: normalizeCommandArgumentCustomArgsForEdit(commandArguments?.custom_args),
+  };
+}
+
+function normalizeCommandArgumentsForSave(
+  commandArguments: LaunchCommandArguments | undefined
+): LaunchCommandArguments {
+  const forEdit = normalizeCommandArgumentsForEdit(commandArguments);
+  return {
+    enabled_argument_ids: forEdit.enabled_argument_ids,
+    custom_args: dropBlankCommandArgumentCustomArgs(forEdit.custom_args),
+  };
+}
 
 function normalizeUmuRuntimeHint(value: string | undefined, options: { lowercase: boolean }): string {
   const trimmed = (value ?? '').trim();
@@ -92,6 +136,7 @@ export function normalizeProfileForEdit(
       optimizations: {
         enabled_option_ids: enabledOptionIds,
       },
+      command_arguments: normalizeCommandArgumentsForEdit(normalizedProfile.launch.command_arguments),
       custom_env_vars: { ...(normalizedProfile.launch.custom_env_vars ?? {}) },
     },
   };
@@ -119,6 +164,10 @@ export function normalizeProfileForSave(
         ...normalized.steam.launcher,
         display_name: deriveLauncherDisplayName(normalized),
       },
+    },
+    launch: {
+      ...normalized.launch,
+      command_arguments: normalizeCommandArgumentsForSave(normalized.launch.command_arguments),
     },
   };
 }

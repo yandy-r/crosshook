@@ -10,7 +10,10 @@ pub use background_portal::{
 use crosshook_core::app_id_migration::migrate_legacy_tauri_app_id_xdg_directories;
 use crosshook_core::community::CommunityTapStore;
 use crosshook_core::flatpak_migration::{is_host_xdg_opt_in, MigrationOutcome};
-use crosshook_core::launch::{initialize_catalog, load_catalog};
+use crosshook_core::launch::{
+    initialize_catalog, initialize_command_argument_catalog, load_catalog,
+    load_command_argument_catalog,
+};
 use crosshook_core::logging;
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::offline::{initialize_trainer_type_catalog, load_trainer_type_catalog};
@@ -117,6 +120,11 @@ pub fn run() {
     // Merge order: embedded default → user override (~/.config/crosshook/optimization_catalog.toml).
     let catalog = load_catalog(Some(&settings_store.base_path), &[]);
     initialize_catalog(catalog);
+
+    // Command-argument catalog: embedded default → optional user override only (no SQLite).
+    let command_argument_catalog =
+        load_command_argument_catalog(Some(&settings_store.base_path), &[]);
+    initialize_command_argument_catalog(command_argument_catalog);
 
     let trainer_type_catalog = load_trainer_type_catalog(Some(&settings_store.base_path), &[]);
     initialize_trainer_type_catalog(trainer_type_catalog);
@@ -432,6 +440,7 @@ pub fn run() {
             commands::profile::profile_rename,
             commands::profile::profile_save,
             commands::profile::profile_save_launch_optimizations,
+            commands::profile::profile_save_command_arguments,
             commands::profile::profile_save_mangohud_config,
             commands::profile::profile_save_gamescope_config,
             commands::profile::profile_save_trainer_gamescope_config,
@@ -510,6 +519,7 @@ pub fn run() {
             commands::onboarding::dismiss_readiness_nag,
             commands::onboarding::get_trainer_guidance,
             commands::catalog::get_optimization_catalog,
+            commands::catalog::get_command_argument_catalog,
             commands::catalog::get_mangohud_presets,
             commands::offline::check_offline_readiness,
             commands::offline::batch_offline_readiness,

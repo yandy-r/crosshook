@@ -1,9 +1,12 @@
-import { type Dispatch, type SetStateAction, useCallback, useRef, useState } from 'react';
+import { type Dispatch, type SetStateAction, useCallback, useMemo, useRef, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 import type { BundledOptimizationPreset, GameProfile, LaunchAutoSaveStatus, SerializedGameProfile } from '../../types';
+import type { CommandArgumentEntry } from '../../types/launch-command-arguments';
 import type { LaunchOptimizationId } from '../../types/launch-optimizations';
+import { buildArgumentsById, buildConflictMatrix } from '../../utils/command-argument-catalog';
 import { resolveLaunchMethod } from '../../utils/launch';
 import type { OptimizationEntry } from '../../utils/optimization-catalog';
+import { useCommandArgumentCatalog } from '../useCommandArgumentCatalog';
 import { formatInvokeError } from './formatInvokeError';
 import { areLaunchOptimizationIdsEqual, normalizeLaunchOptimizationIds } from './launchOptimizationIds';
 import { buildLaunchOptimizationsStatus, type LaunchOptimizationsStatus } from './launchOptimizationStatus';
@@ -11,11 +14,44 @@ import { applyLaunchOptimizationToggle } from './launchOptimizationToggle';
 import { normalizeProfileForEdit } from './profileNormalize';
 import {
   useBundledOptimizationPresetsEffect,
+  useCommandArgumentsAutosaveEffect,
   useGamescopeAutosaveEffect,
   useLaunchOptimizationsAutosaveEffect,
   useMangoHudAutosaveEffect,
   useTrainerGamescopeAutosaveEffect,
 } from './useProfileLaunchAutosaveEffects';
+
+function normalizeCommandArgumentIds(
+  ids: readonly string[] | undefined,
+  argumentsById: Record<string, CommandArgumentEntry>,
+  catalogLoaded: boolean
+): string[] {
+  const normalized: string[] = [];
+  const seenIds = new Set<string>();
+
+  for (const argumentId of ids ?? []) {
+    if (catalogLoaded && !(argumentId in argumentsById)) {
+      continue;
+    }
+
+    if (seenIds.has(argumentId)) {
+      continue;
+    }
+
+    seenIds.add(argumentId);
+    normalized.push(argumentId);
+  }
+
+  return normalized;
+}
+
+function getConflictingCommandArgumentIds(
+  argumentId: string,
+  currentIds: readonly string[],
+  conflictMatrix: Readonly<Record<string, readonly string[]>>
+): string[] {
+  return (conflictMatrix[argumentId] ?? []).filter((id) => currentIds.includes(id));
+}
 
 interface UseProfileLaunchAutosaveOptions {
   profile: GameProfile;
@@ -58,14 +94,22 @@ export function useProfileLaunchAutosave({
     tone: 'idle',
     label: 'Ready',
   });
+  const [commandArgumentsAutoSaveStatus, setCommandArgumentsAutoSaveStatus] = useState<LaunchAutoSaveStatus>({
+    tone: 'idle',
+    label: 'Ready',
+  });
   const launchOptimizationsAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const gamescopeAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const trainerGamescopeAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mangoHudAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const commandArgumentsAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedLaunchOptimizationIdsRef = useRef<LaunchOptimizationId[]>([]);
   const lastSavedGamescopeJsonRef = useRef<string>('null');
   const lastSavedTrainerGamescopeJsonRef = useRef<string>('null');
   const lastSavedMangoHudJsonRef = useRef<string>('null');
+  const lastSavedCommandArgumentsJsonRef = useRef<string>(
+    JSON.stringify({ enabled_argument_ids: [], custom_args: [] })
+  );
   const pendingLaunchPresetRef = useRef<string | null>(null);
   const profileRef = useRef(profile);
   profileRef.current = profile;
@@ -73,6 +117,16 @@ export function useProfileLaunchAutosave({
   selectedProfileRef.current = selectedProfile;
   const hasExistingSavedProfileRef = useRef(hasExistingSavedProfile);
   hasExistingSavedProfileRef.current = hasExistingSavedProfile;
+  const { catalog: commandArgumentCatalog } = useCommandArgumentCatalog();
+  const commandArgumentCatalogLoaded = commandArgumentCatalog !== null;
+  const argumentsById = useMemo(
+    () => (commandArgumentCatalog ? buildArgumentsById(commandArgumentCatalog.entries) : {}),
+    [commandArgumentCatalog]
+  );
+  const commandArgumentConflictMatrix = useMemo(
+    () => (commandArgumentCatalog ? buildConflictMatrix(commandArgumentCatalog.entries) : {}),
+    [commandArgumentCatalog]
+  );
   /** Serializes launch-section writes so concurrent autosaves cannot clobber each other. */
   const launchProfileWriteChainRef = useRef<Promise<unknown>>(Promise.resolve());
   const enqueueLaunchProfileWrite = useCallback(<T>(fn: () => Promise<T>): Promise<T> => {
@@ -88,6 +142,7 @@ export function useProfileLaunchAutosave({
     lastSavedGamescopeJsonRef.current = JSON.stringify(nextProfile.launch.gamescope ?? null);
     lastSavedTrainerGamescopeJsonRef.current = JSON.stringify(nextProfile.launch.trainer_gamescope ?? null);
     lastSavedMangoHudJsonRef.current = JSON.stringify(nextProfile.launch.mangohud ?? null);
+    lastSavedCommandArgumentsJsonRef.current = JSON.stringify(nextProfile.launch.command_arguments);
   }, []);
   const clearAutosaveTimers = useCallback(() => {
     if (launchOptimizationsAutosaveTimerRef.current !== null) {
@@ -105,6 +160,10 @@ export function useProfileLaunchAutosave({
     if (mangoHudAutosaveTimerRef.current !== null) {
       clearTimeout(mangoHudAutosaveTimerRef.current);
       mangoHudAutosaveTimerRef.current = null;
+    }
+    if (commandArgumentsAutosaveTimerRef.current !== null) {
+      clearTimeout(commandArgumentsAutosaveTimerRef.current);
+      commandArgumentsAutosaveTimerRef.current = null;
     }
   }, []);
   /** Clears pending timer and persists launch.optimizations immediately. */
@@ -164,6 +223,60 @@ export function useProfileLaunchAutosave({
       setDirty((currentDirty: boolean) => currentDirty || !hasExistingSavedProfileRef.current);
     },
     [catalogLoaded, conflictMatrix, optionsById, setDirty, setProfile]
+  );
+  const toggleCommandArgument = useCallback(
+    (argumentId: string, nextEnabled: boolean) => {
+      const current = profileRef.current;
+      const currentIds = current.launch.command_arguments.enabled_argument_ids;
+      const conflictingIds = nextEnabled
+        ? getConflictingCommandArgumentIds(argumentId, currentIds, commandArgumentConflictMatrix)
+        : [];
+
+      if (conflictingIds.length > 0) {
+        const conflictLabels = conflictingIds.map(
+          (conflictingId) => argumentsById[conflictingId]?.label ?? conflictingId
+        );
+        setCommandArgumentsAutoSaveStatus({
+          tone: 'warning',
+          label: 'Conflicting argument blocked',
+          detail: `Disable ${conflictLabels.join(' or ')} before enabling ${argumentsById[argumentId]?.label ?? argumentId}.`,
+        });
+        return;
+      }
+
+      const nextIds = nextEnabled
+        ? normalizeCommandArgumentIds([...currentIds, argumentId], argumentsById, commandArgumentCatalogLoaded)
+        : currentIds.filter((currentArgumentId) => currentArgumentId !== argumentId);
+
+      setProfile({
+        ...current,
+        launch: {
+          ...current.launch,
+          command_arguments: {
+            ...current.launch.command_arguments,
+            enabled_argument_ids: nextIds,
+          },
+        },
+      });
+      setDirty((currentDirty: boolean) => currentDirty || !hasExistingSavedProfileRef.current);
+    },
+    [argumentsById, commandArgumentCatalogLoaded, commandArgumentConflictMatrix, setDirty, setProfile]
+  );
+  const updateCommandArgumentsCustomArgs = useCallback(
+    (customArgs: readonly string[]) => {
+      setProfile((current) => ({
+        ...current,
+        launch: {
+          ...current.launch,
+          command_arguments: {
+            ...current.launch.command_arguments,
+            custom_args: [...customArgs],
+          },
+        },
+      }));
+      setDirty((currentDirty: boolean) => currentDirty || !hasExistingSavedProfileRef.current);
+    },
+    [setDirty, setProfile]
   );
   const switchLaunchOptimizationPreset = useCallback(
     async (presetName: string): Promise<void> => {
@@ -477,14 +590,27 @@ export function useProfileLaunchAutosave({
     lastSavedMangoHudJsonRef,
     setMangoHudAutoSaveStatus,
   });
+  useCommandArgumentsAutosaveEffect({
+    enqueueLaunchProfileWrite,
+    hasExistingSavedProfile,
+    profile,
+    profileName,
+    setDirty,
+    commandArgumentsAutosaveTimerRef,
+    lastSavedCommandArgumentsJsonRef,
+    setCommandArgumentsAutoSaveStatus,
+  });
   return {
     launchOptimizationsStatus,
     gamescopeAutoSaveStatus,
     trainerGamescopeAutoSaveStatus,
     mangoHudAutoSaveStatus,
+    commandArgumentsAutoSaveStatus,
     bundledOptimizationPresets,
     optimizationPresetActionBusy,
     toggleLaunchOptimization,
+    toggleCommandArgument,
+    updateCommandArgumentsCustomArgs,
     switchLaunchOptimizationPreset,
     applyBundledOptimizationPreset,
     saveManualOptimizationPreset,

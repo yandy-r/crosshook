@@ -19,8 +19,17 @@ use crate::launch::runtime_helpers::{
     host_environment_map, merge_optimization_and_custom_into_map, merge_runtime_proton_into_map,
     resolve_effective_working_directory,
 };
-use crate::launch::{resolve_launch_directives, LaunchRequest};
+use crate::launch::{
+    resolve_command_arguments, resolve_launch_directives, CommandArgumentResolveError,
+    LaunchRequest,
+};
 use crate::platform::{self, normalize_flatpak_host_path};
+
+fn command_argument_resolve_error_to_io_error(
+    error: CommandArgumentResolveError,
+) -> std::io::Error {
+    std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("{error:?}"))
+}
 
 pub fn build_proton_game_command(
     request: &LaunchRequest,
@@ -142,6 +151,11 @@ pub fn build_proton_game_command(
             use_umu,
         )
     };
+    let resolved_command_arguments =
+        resolve_command_arguments(request).map_err(command_argument_resolve_error_to_io_error)?;
     command.arg(normalized_game_path.trim());
+    for token in &resolved_command_arguments.tokens {
+        command.arg(token);
+    }
     Ok(command)
 }

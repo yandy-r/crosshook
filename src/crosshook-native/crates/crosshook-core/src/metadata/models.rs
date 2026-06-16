@@ -395,6 +395,7 @@ impl VersionCorrelationStatus {
 pub enum ConfigRevisionSource {
     ManualSave,
     LaunchOptimizationSave,
+    LaunchCommandArgumentsSave,
     PresetApply,
     RollbackApply,
     Import,
@@ -407,6 +408,7 @@ impl ConfigRevisionSource {
         match self {
             Self::ManualSave => "manual_save",
             Self::LaunchOptimizationSave => "launch_optimization_save",
+            Self::LaunchCommandArgumentsSave => "launch_command_arguments_save",
             Self::PresetApply => "preset_apply",
             Self::RollbackApply => "rollback_apply",
             Self::Import => "import",

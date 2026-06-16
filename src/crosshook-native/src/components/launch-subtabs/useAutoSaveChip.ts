@@ -8,6 +8,7 @@ interface UseAutoSaveChipOptions {
   launchOptimizationsStatus?: LaunchOptimizationsPanelStatus;
   gamescopeAutoSaveStatus?: LaunchAutoSaveStatus;
   mangoHudAutoSaveStatus?: LaunchAutoSaveStatus;
+  commandArgumentsAutoSaveStatus?: LaunchAutoSaveStatus;
 }
 
 interface UseAutoSaveChipResult {
@@ -19,11 +20,13 @@ export function useAutoSaveChip({
   launchOptimizationsStatus,
   gamescopeAutoSaveStatus,
   mangoHudAutoSaveStatus,
+  commandArgumentsAutoSaveStatus,
 }: UseAutoSaveChipOptions): UseAutoSaveChipResult {
   const allStatuses: LaunchAutoSaveStatus[] = [
     launchOptimizationsStatus ?? { tone: 'idle', label: '' },
     gamescopeAutoSaveStatus ?? { tone: 'idle', label: '' },
     mangoHudAutoSaveStatus ?? { tone: 'idle', label: '' },
+    commandArgumentsAutoSaveStatus ?? { tone: 'idle', label: '' },
   ];
   const combinedAutoSaveStatus = allStatuses.reduce<LaunchAutoSaveStatus>(
     (best, s) => ((TONE_PRIORITY[s.tone] ?? 0) > (TONE_PRIORITY[best.tone] ?? 0) ? s : best),

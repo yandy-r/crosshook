@@ -138,6 +138,38 @@ impl ValidationError {
             } => format!(
                 "Low disk space detected: {available_mb} MiB available (recommended minimum {threshold_mb} MiB)."
             ),
+            Self::UnknownCommandArgument(argument_id) => {
+                format!("Unknown command argument '{argument_id}'.")
+            }
+            Self::DuplicateCommandArgument(argument_id) => {
+                format!("Command argument '{argument_id}' was selected more than once.")
+            }
+            Self::CommandArgumentsUnsupportedForMethod(method) => {
+                format!(
+                    "Command arguments are only supported for proton_run or steam_applaunch launches, not '{method}'."
+                )
+            }
+            Self::CommandArgumentNotSupportedForMethod { argument_id, method } => {
+                format!(
+                    "Command argument '{argument_id}' is not supported for '{method}' launches."
+                )
+            }
+            Self::IncompatibleCommandArguments { first, second } => {
+                format!("Command arguments '{first}' and '{second}' cannot be enabled together.")
+            }
+            Self::CommandArgumentCustomTokenEmpty => {
+                "A custom command-argument token cannot be empty.".to_string()
+            }
+            Self::CommandArgumentCustomTokenContainsControlCharacter => {
+                "Custom command-argument tokens cannot contain NUL bytes or other control characters."
+                    .to_string()
+            }
+            Self::CommandArgumentTokenTooLong { max_len } => {
+                format!("A command-argument token exceeds the maximum length of {max_len} characters.")
+            }
+            Self::CommandArgumentTokenCountExceeded { max_count } => {
+                format!("Command arguments exceed the maximum of {max_count} resolved tokens.")
+            }
         }
     }
 
@@ -320,6 +352,46 @@ impl ValidationError {
             Self::LowDiskSpaceAdvisory { mount_path, .. } => {
                 format!(
                     "Free up space on the filesystem backing '{mount_path}' before launching to reduce crash and staging failures. This warning is informational."
+                )
+            }
+            Self::UnknownCommandArgument(argument_id) => {
+                format!(
+                    "Remove '{argument_id}' from the profile or update CrossHook to a version that supports it."
+                )
+            }
+            Self::DuplicateCommandArgument(argument_id) => {
+                format!(
+                    "Open Command Arguments and keep '{argument_id}' selected only once."
+                )
+            }
+            Self::CommandArgumentsUnsupportedForMethod(method) => {
+                format!(
+                    "Switch the profile to 'proton_run' or 'steam_applaunch' to use command arguments, or clear command arguments for '{method}'."
+                )
+            }
+            Self::CommandArgumentNotSupportedForMethod { argument_id, method } => {
+                format!(
+                    "Disable '{argument_id}' or change the profile to a launch method that supports it instead of '{method}'."
+                )
+            }
+            Self::IncompatibleCommandArguments { first, second } => {
+                format!("Disable either '{first}' or '{second}' before launching.")
+            }
+            Self::CommandArgumentCustomTokenEmpty => {
+                "Remove the empty custom argument row or enter a valid argv token.".to_string()
+            }
+            Self::CommandArgumentCustomTokenContainsControlCharacter => {
+                "Remove NUL bytes and other control characters from the custom argument token; paste plain text only."
+                    .to_string()
+            }
+            Self::CommandArgumentTokenTooLong { max_len } => {
+                format!(
+                    "Shorten the token to {max_len} characters or fewer, or split it into separate argv tokens if appropriate."
+                )
+            }
+            Self::CommandArgumentTokenCountExceeded { max_count } => {
+                format!(
+                    "Reduce the number of curated selections and custom tokens to {max_count} or fewer resolved argv tokens."
                 )
             }
         }

@@ -5,6 +5,7 @@ import type { LaunchHistoryEntry } from '../../../types/library';
 import { getActiveFixture } from '../../fixture';
 import { emitMockEvent } from '../eventBus';
 import { getStore } from '../store';
+import { mockCommandArgumentCatalogEntries } from './system';
 import type { Handler } from './types';
 
 // ---------------------------------------------------------------------------
@@ -50,6 +51,123 @@ function neverResolving<T>(): Promise<T> {
  */
 function forcedError(commandName: string): Error {
   return new Error(`[dev-mock] forced error for ${commandName}`);
+}
+
+function escapeSteamToken(value: string): string {
+  const needsQuotes =
+    value.length === 0 ||
+    [...value].some((ch) => {
+      if (/\s/.test(ch)) return true;
+      return (
+        ch === '$' ||
+        ch === ';' ||
+        ch === '"' ||
+        ch === "'" ||
+        ch === '\\' ||
+        ch === '`' ||
+        ch === '\n' ||
+        ch === '\r' ||
+        ch === '|' ||
+        ch === '&' ||
+        ch === '<' ||
+        ch === '>'
+      );
+    });
+
+  if (!needsQuotes) {
+    return value;
+  }
+
+  let out = '"';
+  for (const ch of value) {
+    switch (ch) {
+      case '\\':
+        out += '\\\\';
+        break;
+      case '"':
+        out += '\\"';
+        break;
+      case '$':
+        out += '\\$';
+        break;
+      case '`':
+        out += '\\`';
+        break;
+      case '\n':
+        out += '\\n';
+        break;
+      case '\r':
+        out += '\\r';
+        break;
+      default:
+        out += ch;
+    }
+  }
+  out += '"';
+  return out;
+}
+
+function readStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((entry): entry is string => typeof entry === 'string');
+}
+
+function resolveMockCommandArgumentTokens(
+  enabledArgumentIds: readonly string[],
+  customArgs: readonly string[],
+  resolvedMethod: 'proton_run' | 'steam_applaunch'
+): string[] {
+  if (enabledArgumentIds.length === 0 && customArgs.length === 0) {
+    return [];
+  }
+
+  const selectedIds = new Set(enabledArgumentIds);
+  const tokens: string[] = [];
+
+  for (const entry of mockCommandArgumentCatalogEntries) {
+    if (!selectedIds.has(entry.id)) {
+      continue;
+    }
+    if (!entry.applicable_methods.includes(resolvedMethod)) {
+      continue;
+    }
+    tokens.push(...entry.tokens);
+  }
+
+  tokens.push(...customArgs);
+  return tokens;
+}
+
+function appendSteamCommandArguments(command: string, tokens: readonly string[]): string {
+  if (tokens.length === 0) {
+    return command;
+  }
+  let out = command;
+  for (const token of tokens) {
+    out += ` ${escapeSteamToken(token)}`;
+  }
+  return out;
+}
+
+function buildMockSteamLaunchOptionsPrefix(
+  enabledOptionIds: readonly string[],
+  customEnvVars: Readonly<Record<string, string>>
+): string {
+  const parts: string[] = [];
+  for (const [key, value] of Object.entries(customEnvVars)) {
+    const trimmedKey = key.trim();
+    if (trimmedKey.length === 0) {
+      continue;
+    }
+    parts.push(`${trimmedKey}=${escapeSteamToken(value)}`);
+  }
+  if (enabledOptionIds.includes('esync')) parts.push('WINEESYNC=1');
+  if (enabledOptionIds.includes('fsync')) parts.push('WINEFSYNC=1');
+  if (enabledOptionIds.includes('proton_log')) parts.push('PROTON_LOG=1');
+  parts.push('%command%');
+  return parts.join(' ');
 }
 
 // ---------------------------------------------------------------------------
@@ -383,6 +501,30 @@ export function registerLaunch(map: Map<string, Handler>): void {
     const mockUmuRun = '/usr/bin/umu-run';
     const mockUsesUmu = method === 'proton_run';
 
+    const commandArgumentTokens = request.launch_trainer_only
+      ? []
+      : resolveMockCommandArgumentTokens(
+          request.command_arguments?.enabled_argument_ids ?? [],
+          request.command_arguments?.custom_args ?? [],
+          method === 'steam_applaunch' ? 'steam_applaunch' : 'proton_run'
+        );
+
+    const protonEffectiveCommand = mockUsesUmu
+      ? `gamescope mangohud -- ${mockUmuRun} ${mockGameExe}${commandArgumentTokens.length > 0 ? ` ${commandArgumentTokens.join(' ')}` : ''}`
+      : `${mockProtonExe} run ${mockGameExe}${commandArgumentTokens.length > 0 ? ` ${commandArgumentTokens.join(' ')}` : ''}`;
+
+    const steamLaunchOptionsBase =
+      method === 'steam_applaunch'
+        ? buildMockSteamLaunchOptionsPrefix(
+            request.optimizations?.enabled_option_ids ?? [],
+            request.custom_env_vars ?? {}
+          )
+        : null;
+    const steamLaunchOptions =
+      steamLaunchOptionsBase === null
+        ? null
+        : appendSteamCommandArguments(steamLaunchOptionsBase, commandArgumentTokens);
+
     // Build populated preview (shared base for both populated and warning paths)
     const preview: LaunchPreview = {
       resolved_method: method,
@@ -390,11 +532,10 @@ export function registerLaunch(map: Map<string, Handler>): void {
       environment: makePreviewEnvVars(),
       cleared_variables: ['LD_PRELOAD'],
       wrappers: ['gamescope', 'mangohud'],
-      effective_command: mockUsesUmu
-        ? `gamescope mangohud -- ${mockUmuRun} ${mockGameExe}`
-        : `${mockProtonExe} run ${mockGameExe}`,
+      effective_command:
+        method === 'steam_applaunch' ? steamLaunchOptions : method === 'native' ? mockGameExe : protonEffectiveCommand,
       directives_error: null,
-      steam_launch_options: method === 'steam_applaunch' ? 'PROTON_LOG=1 %command%' : null,
+      steam_launch_options: steamLaunchOptions,
       proton_setup:
         method !== 'native'
           ? {
@@ -541,17 +682,20 @@ export function registerLaunch(map: Map<string, Handler>): void {
     if (fixture === 'error') throw forcedError('build_steam_launch_options_command');
     if (fixture === 'loading') return neverResolving<string>();
     if (fixture === 'empty') return '%command%';
-    const { enabled_option_ids } = args as {
-      enabled_option_ids: string[];
-      custom_env_vars: Record<string, string>;
-      gamescope: unknown;
-    };
-    const parts: string[] = [];
-    if (enabled_option_ids.includes('esync')) parts.push('WINEESYNC=1');
-    if (enabled_option_ids.includes('fsync')) parts.push('WINEFSYNC=1');
-    if (enabled_option_ids.includes('proton_log')) parts.push('PROTON_LOG=1');
-    parts.push('%command%');
-    return parts.join(' ');
+
+    const raw = args as Record<string, unknown>;
+    const enabled_option_ids = readStringArray(raw.enabled_option_ids ?? raw.enabledOptionIds);
+    const custom_env_vars = (raw.custom_env_vars ?? raw.customEnvVars ?? {}) as Record<string, string>;
+    const enabled_argument_ids = readStringArray(raw.enabled_argument_ids ?? raw.enabledArgumentIds);
+    const custom_command_args = readStringArray(raw.custom_command_args ?? raw.customCommandArgs);
+
+    const base = buildMockSteamLaunchOptionsPrefix(enabled_option_ids, custom_env_vars);
+    const argumentTokens = resolveMockCommandArgumentTokens(
+      enabled_argument_ids,
+      custom_command_args,
+      'steam_applaunch'
+    );
+    return appendSteamCommandArguments(base, argumentTokens);
   });
 
   // -------------------------------------------------------------------------

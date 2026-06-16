@@ -4,7 +4,13 @@ use std::path::{Path, PathBuf};
 use directories::BaseDirs;
 use serde::{Deserialize, Serialize};
 
+use crate::launch::command_arguments::{
+    resolve_command_arguments_for_method, CommandArgumentResolveError,
+};
 use crate::launch::is_known_launch_optimization_id;
+use crate::launch::request::{
+    ValidationError, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
+};
 use crate::profile::models::{LaunchOptimizationsSection, LocalOverrideSection};
 use crate::profile::{legacy, GameProfile};
 use crate::settings::{resolve_profiles_directory_from_config, AppSettingsData};
@@ -164,6 +170,41 @@ impl ProfileStore {
                 }
             }
         }
+
+        self.save(name, &profile)
+    }
+
+    /// Loads the profile, replaces `launch.command_arguments`, and saves. Concurrent writes for
+    /// the same profile are not synchronized; the last completed write wins.
+    pub fn save_command_arguments(
+        &self,
+        name: &str,
+        enabled_argument_ids: Vec<String>,
+        custom_args: Vec<String>,
+    ) -> Result<(), ProfileStoreError> {
+        let mut profile = self.load(name)?;
+
+        let enabled_argument_ids: Vec<String> = enabled_argument_ids
+            .into_iter()
+            .filter_map(|raw| {
+                let id = raw.trim();
+                (!id.is_empty()).then(|| id.to_string())
+            })
+            .collect();
+
+        let custom_args: Vec<String> = custom_args
+            .into_iter()
+            .map(|raw| raw.trim().to_string())
+            .collect();
+
+        validate_profile_command_arguments(
+            profile.launch.method.as_str(),
+            &enabled_argument_ids,
+            &custom_args,
+        )?;
+
+        profile.launch.command_arguments.enabled_argument_ids = enabled_argument_ids;
+        profile.launch.command_arguments.custom_args = custom_args;
 
         self.save(name, &profile)
     }
@@ -416,4 +457,116 @@ impl ProfileStore {
             Err(_) => false,
         }
     }
+}
+
+const MAX_COMMAND_ARGUMENT_TOKEN_LEN: usize = 512;
+const MAX_COMMAND_ARGUMENT_TOKENS: usize = 64;
+
+fn resolved_launch_method(method: &str) -> &str {
+    match method.trim() {
+        METHOD_STEAM_APPLAUNCH => METHOD_STEAM_APPLAUNCH,
+        METHOD_PROTON_RUN => METHOD_PROTON_RUN,
+        METHOD_NATIVE => METHOD_NATIVE,
+        other => other,
+    }
+}
+
+fn command_argument_token_has_control_character(token: &str) -> bool {
+    token.contains('\0') || token.chars().any(char::is_control)
+}
+
+fn validate_custom_command_argument_token(token: &str) -> Result<(), ValidationError> {
+    if token.is_empty() {
+        return Err(ValidationError::CommandArgumentCustomTokenEmpty);
+    }
+    if command_argument_token_has_control_character(token) {
+        return Err(ValidationError::CommandArgumentCustomTokenContainsControlCharacter);
+    }
+    if token.len() > MAX_COMMAND_ARGUMENT_TOKEN_LEN {
+        return Err(ValidationError::CommandArgumentTokenTooLong {
+            max_len: MAX_COMMAND_ARGUMENT_TOKEN_LEN,
+        });
+    }
+    Ok(())
+}
+
+fn command_argument_resolve_error(error: CommandArgumentResolveError) -> ProfileStoreError {
+    match error {
+        CommandArgumentResolveError::Unknown(argument_id) => {
+            ProfileStoreError::InvalidCommandArgumentId(argument_id)
+        }
+        CommandArgumentResolveError::Duplicate(argument_id) => {
+            ProfileStoreError::CommandArgumentValidation(ValidationError::DuplicateCommandArgument(
+                argument_id,
+            ))
+        }
+        CommandArgumentResolveError::NotSupportedForMethod {
+            argument_id,
+            method,
+        } => ProfileStoreError::CommandArgumentValidation(
+            ValidationError::CommandArgumentNotSupportedForMethod {
+                argument_id,
+                method,
+            },
+        ),
+        CommandArgumentResolveError::Incompatible { first, second } => {
+            ProfileStoreError::CommandArgumentValidation(
+                ValidationError::IncompatibleCommandArguments { first, second },
+            )
+        }
+        CommandArgumentResolveError::UnsupportedLaunchMethod(method) => {
+            ProfileStoreError::CommandArgumentValidation(
+                ValidationError::CommandArgumentsUnsupportedForMethod(method),
+            )
+        }
+    }
+}
+
+fn validate_resolved_command_argument_tokens(tokens: &[String]) -> Result<(), ValidationError> {
+    if tokens.len() > MAX_COMMAND_ARGUMENT_TOKENS {
+        return Err(ValidationError::CommandArgumentTokenCountExceeded {
+            max_count: MAX_COMMAND_ARGUMENT_TOKENS,
+        });
+    }
+
+    for token in tokens {
+        if token.len() > MAX_COMMAND_ARGUMENT_TOKEN_LEN {
+            return Err(ValidationError::CommandArgumentTokenTooLong {
+                max_len: MAX_COMMAND_ARGUMENT_TOKEN_LEN,
+            });
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_profile_command_arguments(
+    method: &str,
+    enabled_argument_ids: &[String],
+    custom_args: &[String],
+) -> Result<(), ProfileStoreError> {
+    if enabled_argument_ids.is_empty() && custom_args.is_empty() {
+        return Ok(());
+    }
+
+    let resolved_method = resolved_launch_method(method);
+    if resolved_method == METHOD_NATIVE {
+        return Err(ProfileStoreError::CommandArgumentValidation(
+            ValidationError::CommandArgumentsUnsupportedForMethod(resolved_method.to_string()),
+        ));
+    }
+
+    for custom_arg in custom_args {
+        validate_custom_command_argument_token(custom_arg)
+            .map_err(ProfileStoreError::CommandArgumentValidation)?;
+    }
+
+    let resolved =
+        resolve_command_arguments_for_method(enabled_argument_ids, custom_args, resolved_method)
+            .map_err(command_argument_resolve_error)?;
+
+    validate_resolved_command_argument_tokens(&resolved.tokens)
+        .map_err(ProfileStoreError::CommandArgumentValidation)?;
+
+    Ok(())
 }

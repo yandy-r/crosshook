@@ -6,6 +6,7 @@ export const SOURCE_LABELS: Record<ConfigRevisionSource, string> = {
   rollback_apply: 'Restore',
   import: 'Import',
   launch_optimization_save: 'Optimization save',
+  launch_command_arguments_save: 'Command arguments save',
   preset_apply: 'Preset applied',
   migration: 'Migration',
 };

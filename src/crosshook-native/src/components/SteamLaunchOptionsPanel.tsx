@@ -1,6 +1,8 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 import { useCapabilityGate } from '../hooks/useCapabilityGate';
+import type { LaunchCommandArguments } from '../types/launch-command-arguments';
+import { DEFAULT_LAUNCH_COMMAND_ARGUMENTS } from '../types/launch-command-arguments';
 import type { LaunchOptimizationId } from '../types/launch-optimizations';
 import type { GamescopeConfig } from '../types/profile';
 import { copyToClipboard } from '../utils/clipboard';
@@ -9,6 +11,8 @@ export interface SteamLaunchOptionsPanelProps {
   enabledOptionIds: readonly LaunchOptimizationId[];
   /** Profile `launch.custom_env_vars` — merged into the Steam launch options prefix after optimizations. */
   customEnvVars?: Readonly<Record<string, string>>;
+  /** Profile `launch.command_arguments` — appended after `%command%` in the generated line. */
+  commandArguments?: LaunchCommandArguments;
   /** When provided and enabled, gamescope wrapping is included in the generated command. */
   gamescopeConfig?: GamescopeConfig;
   className?: string;
@@ -17,6 +21,7 @@ export interface SteamLaunchOptionsPanelProps {
 export function SteamLaunchOptionsPanel({
   enabledOptionIds,
   customEnvVars,
+  commandArguments = DEFAULT_LAUNCH_COMMAND_ARGUMENTS,
   gamescopeConfig,
   className,
 }: SteamLaunchOptionsPanelProps) {
@@ -45,6 +50,14 @@ export function SteamLaunchOptionsPanel({
     return { ...gamescopeConfig };
   }, [gamescopeConfig]);
 
+  const _serializedCommandArguments = JSON.stringify(commandArguments);
+  const stableCommandArguments = useMemo<LaunchCommandArguments>(() => {
+    return {
+      enabled_argument_ids: [...commandArguments.enabled_argument_ids],
+      custom_args: [...commandArguments.custom_args],
+    };
+  }, [commandArguments]);
+
   useEffect(() => {
     let cancelled = false;
     const ids = [...enabledOptionIds];
@@ -58,6 +71,8 @@ export function SteamLaunchOptionsPanel({
           enabledOptionIds: ids,
           customEnvVars: { ...stableCustomEnv },
           gamescope: stableGamescope,
+          enabledArgumentIds: [...stableCommandArguments.enabled_argument_ids],
+          customCommandArgs: [...stableCommandArguments.custom_args],
         });
         if (!cancelled) {
           setCommand(line);
@@ -78,7 +93,7 @@ export function SteamLaunchOptionsPanel({
     return () => {
       cancelled = true;
     };
-  }, [enabledOptionIds, stableCustomEnv, stableGamescope]);
+  }, [enabledOptionIds, stableCustomEnv, stableGamescope, stableCommandArguments]);
 
   async function handleCopy() {
     if (!command.trim()) {
@@ -117,7 +132,7 @@ export function SteamLaunchOptionsPanel({
         <p className="crosshook-help-text crosshook-steam-launch-options__intro">
           Paste this single line into the game&apos;s <strong>Properties → General → Launch Options</strong> in Steam.
           It matches the same Proton optimization env vars and wrappers as a direct <code>proton_run</code> launch, and
-          must end with <code>%command%</code>.
+          must end with <code>%command%</code>, followed by any configured game argv tokens.
         </p>
       </div>
 

@@ -6,6 +6,7 @@
 //! - `favorites`      — favorite profile commands
 //! - `config_history` — config revision history, diff, rollback, and mark-known-good
 
+mod command_arguments;
 mod config_history;
 mod favorites;
 mod lifecycle;
@@ -15,6 +16,7 @@ mod shared;
 #[cfg(test)]
 mod tests;
 
+pub use command_arguments::profile_save_command_arguments;
 pub use config_history::{
     profile_config_diff, profile_config_history, profile_config_rollback, profile_mark_known_good,
 };
@@ -31,6 +33,8 @@ pub use optimizations::{
 pub use shared::capture_config_revision;
 
 // Re-export Tauri command macros so `generate_handler!` can resolve `commands::profile::<name>`.
+pub use command_arguments::__cmd__profile_save_command_arguments;
+pub use command_arguments::__tauri_command_name_profile_save_command_arguments;
 pub use config_history::__cmd__profile_config_diff;
 pub use config_history::__cmd__profile_config_history;
 pub use config_history::__cmd__profile_config_rollback;

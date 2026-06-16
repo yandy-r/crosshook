@@ -2,8 +2,8 @@
 
 use super::super::*;
 use super::fixtures::*;
-use crate::launch::optimizations::build_steam_launch_options_command;
-use crate::launch::request::{LaunchRequest, METHOD_PROTON_RUN};
+use crate::launch::optimizations::{build_steam_launch_options_command, escape_steam_token};
+use crate::launch::request::{LaunchCommandArgumentsRequest, LaunchRequest, METHOD_PROTON_RUN};
 use crate::settings::UmuPreference;
 
 #[test]
@@ -293,4 +293,133 @@ fn preview_proton_setup_umu_run_path_none_when_preference_is_proton() {
 
     let preview = build_launch_preview(&request).unwrap();
     assert!(preview.proton_setup.unwrap().umu_run_path.is_none());
+}
+
+#[test]
+fn preview_proton_includes_command_arguments_after_game_executable() {
+    let (_td, mut request) = proton_request();
+    request.command_arguments = LaunchCommandArgumentsRequest {
+        enabled_argument_ids: vec!["force_vulkan".to_string()],
+        custom_args: vec!["+set sv_cheats 1".to_string()],
+    };
+
+    let preview = build_launch_preview(&request).expect("preview");
+    let command = preview
+        .effective_command
+        .as_deref()
+        .expect("effective command");
+
+    let game_path = request.game_path.trim();
+    let game_idx = command
+        .find(game_path)
+        .expect("game path should appear in command");
+    let after_game = &command[game_idx + game_path.len()..];
+    assert!(
+        after_game.contains("-force_vulkan"),
+        "curated arg should follow game executable: {command}"
+    );
+    assert!(
+        after_game.contains("+set sv_cheats 1"),
+        "custom arg should follow game executable: {command}"
+    );
+}
+
+#[test]
+fn preview_umu_includes_command_arguments_after_game_executable() {
+    let dir = tempfile::tempdir().unwrap();
+    let umu_stub = dir.path().join("umu-run");
+    std::fs::write(&umu_stub, "#!/bin/sh\nexit 0\n").unwrap();
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(&umu_stub, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let _guard = crate::launch::test_support::ScopedCommandSearchPath::new(dir.path());
+
+    let mut request = LaunchRequest {
+        method: METHOD_PROTON_RUN.to_string(),
+        game_path: "/tmp/game.exe".to_string(),
+        umu_preference: UmuPreference::Umu,
+        command_arguments: LaunchCommandArgumentsRequest {
+            enabled_argument_ids: vec!["skip_launcher".to_string()],
+            custom_args: vec!["-windowed".to_string()],
+        },
+        ..Default::default()
+    };
+    request.runtime.proton_path = "/opt/proton/GE-Proton9-20/proton".to_string();
+
+    let preview = build_launch_preview(&request).unwrap();
+    let command = preview.effective_command.expect("effective command");
+    assert!(
+        command.contains("umu-run /tmp/game.exe -skip_launcher -windowed"),
+        "expected umu args after game executable, got: {command}"
+    );
+    assert!(
+        !command.contains(" run /tmp/game.exe"),
+        "umu preview should not insert proton run subcommand: {command}"
+    );
+}
+
+#[test]
+fn preview_steam_includes_command_arguments_after_percent_command() {
+    let (_td, mut request) = steam_request();
+    request.command_arguments = LaunchCommandArgumentsRequest {
+        enabled_argument_ids: vec!["force_dx11".to_string()],
+        custom_args: vec!["+set com_skipIntroVideo 1".to_string()],
+    };
+
+    let preview = build_launch_preview(&request).expect("preview");
+    let mut expected = build_steam_launch_options_command(
+        &request.optimizations.enabled_option_ids,
+        &request.custom_env_vars,
+        None,
+    )
+    .expect("steam line");
+    for token in ["-dx11", "+set com_skipIntroVideo 1"] {
+        expected.push(' ');
+        expected.push_str(&escape_steam_token(token));
+    }
+
+    assert_eq!(
+        preview.steam_launch_options.as_deref(),
+        Some(expected.as_str())
+    );
+    assert_eq!(
+        preview.effective_command.as_deref(),
+        Some(expected.as_str())
+    );
+    assert!(
+        preview
+            .steam_launch_options
+            .as_deref()
+            .is_some_and(|line| line.starts_with("%command% -dx11")),
+        "steam launch options should append args after %command%"
+    );
+}
+
+#[test]
+fn preview_trainer_only_does_not_include_command_arguments() {
+    let (_td, mut request) = proton_request();
+    request.launch_trainer_only = true;
+    request.launch_game_only = false;
+    request.command_arguments = LaunchCommandArgumentsRequest {
+        enabled_argument_ids: vec!["force_vulkan".to_string()],
+        custom_args: vec!["-windowed".to_string()],
+    };
+
+    let preview = build_launch_preview(&request).expect("preview");
+    let command = preview
+        .effective_command
+        .as_deref()
+        .expect("effective command");
+
+    assert!(
+        command.contains(request.trainer_host_path.as_str()),
+        "trainer-only preview should launch trainer: {command}"
+    );
+    assert!(
+        !command.contains("-force_vulkan"),
+        "trainer-only preview must not inherit curated game args: {command}"
+    );
+    assert!(
+        !command.contains("-windowed"),
+        "trainer-only preview must not inherit custom game args: {command}"
+    );
 }
