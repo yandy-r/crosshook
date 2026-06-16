@@ -42,7 +42,7 @@ pub fn profile_save_command_arguments(
         capture_config_revision(
             profile_name,
             &updated,
-            ConfigRevisionSource::LaunchOptimizationSave,
+            ConfigRevisionSource::LaunchCommandArgumentsSave,
             None,
             &metadata_store,
         );

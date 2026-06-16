@@ -6,6 +6,7 @@ export type ConfigRevisionSource =
   | 'rollback_apply'
   | 'import'
   | 'launch_optimization_save'
+  | 'launch_command_arguments_save'
   | 'preset_apply'
   | 'migration';
 

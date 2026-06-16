@@ -55,7 +55,7 @@ export function registerProfileMutations(map: Map<string, Handler>): void {
         },
       };
       store.profiles.set(trimmed, updated);
-      appendRevision(trimmed, 'launch_optimization_save');
+      appendRevision(trimmed, 'launch_command_arguments_save');
       emitMockEvent('profiles-changed', { name: trimmed, action: 'save-command-arguments' });
       return null;
     })
