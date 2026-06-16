@@ -4,6 +4,7 @@
 // `.github/workflows/release.yml` "Verify no mock code in production bundle"
 // sentinel.
 
+import type { LaunchCommandArguments } from '../../../types/launch-command-arguments';
 import type { DuplicateProfileResult, GameProfile, GamescopeConfig, MangoHudConfig } from '../../../types/profile';
 import { createDefaultProfile } from '../../../types/profile';
 import { emitMockEvent } from '../eventBus';
@@ -26,6 +27,36 @@ export function registerProfileMutations(map: Map<string, Handler>): void {
       store.profiles.set(trimmed, structuredClone(data));
       appendRevision(trimmed, 'manual_save');
       emitMockEvent('profiles-changed', { name: trimmed, action: 'save' });
+      return null;
+    })
+  );
+
+  map.set(
+    'profile_save_command_arguments',
+    withProfileFixtureGate('profile_save_command_arguments', async (args) => {
+      const { name, command_arguments } = args as {
+        name: string;
+        command_arguments: LaunchCommandArguments;
+      };
+      const trimmed = name.trim();
+      const store = getStore();
+      const existing = store.profiles.get(trimmed);
+      if (!existing) {
+        throw new Error(`[dev-mock] profile_save_command_arguments: profile not found: ${trimmed}`);
+      }
+      const updated: GameProfile = {
+        ...existing,
+        launch: {
+          ...existing.launch,
+          command_arguments: {
+            enabled_argument_ids: [...command_arguments.enabled_argument_ids],
+            custom_args: [...command_arguments.custom_args],
+          },
+        },
+      };
+      store.profiles.set(trimmed, updated);
+      appendRevision(trimmed, 'launch_optimization_save');
+      emitMockEvent('profiles-changed', { name: trimmed, action: 'save-command-arguments' });
       return null;
     })
   );

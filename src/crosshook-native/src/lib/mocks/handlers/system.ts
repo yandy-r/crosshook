@@ -6,6 +6,7 @@ import type {
   TrainerSearchResponse,
   VersionMatchResult,
 } from '../../../types/discovery';
+import type { CommandArgumentCatalogPayload, CommandArgumentEntry } from '../../../types/launch-command-arguments';
 import type { HashVerifyResult, OfflineReadinessReport, TrainerTypeEntry } from '../../../types/offline';
 import type { BinaryDetectionResult, PrefixDependencyStatus } from '../../../types/prefix-deps';
 import type {
@@ -16,6 +17,8 @@ import type {
 } from '../../../types/prefix-storage';
 import type { RunExecutableResult } from '../../../types/run-executable';
 import type { OptimizationCatalogPayload, OptimizationEntry } from '../../../utils/optimization-catalog';
+import { getActiveFixture } from '../../fixture';
+import { forcedError, neverResolving } from './profile-utils';
 import type { Handler } from './types';
 
 // --- Module-scope state ---
@@ -174,6 +177,84 @@ const MOCK_CATALOG: OptimizationCatalogPayload = {
   catalog_version: 1,
   entries: MOCK_CATALOG_ENTRIES,
 };
+
+// --- command argument catalog (mirrors default_command_argument_catalog.toml) ---
+
+const MOCK_COMMAND_ARGUMENT_ENTRIES: CommandArgumentEntry[] = [
+  {
+    id: 'force_vulkan',
+    tokens: ['-force_vulkan'],
+    label: 'Force Vulkan renderer',
+    description: 'Pass a Vulkan-forcing switch when the game supports it.',
+    help_text:
+      'Some Unity and native builds accept -force_vulkan. Many titles ignore it or crash — verify per game before relying on it.',
+    category: 'graphics',
+    advanced: false,
+    community: false,
+    applicable_methods: ['proton_run', 'steam_applaunch'],
+    conflicts_with: ['force_dx11', 'force_dx12', 'force_opengl'],
+  },
+  {
+    id: 'force_dx11',
+    tokens: ['-dx11'],
+    label: 'Force DirectX 11',
+    description: 'Request a DirectX 11 code path when the game reads launch switches.',
+    help_text:
+      'Common on Source and some Unreal titles, but not universal. Wrong switches can prevent startup or leave you on an unintended renderer.',
+    category: 'graphics',
+    advanced: false,
+    community: false,
+    applicable_methods: ['proton_run', 'steam_applaunch'],
+    conflicts_with: ['force_vulkan', 'force_dx12', 'force_opengl'],
+  },
+  {
+    id: 'force_dx12',
+    tokens: ['-dx12'],
+    label: 'Force DirectX 12',
+    description: 'Request a DirectX 12 code path when the game reads launch switches.',
+    help_text:
+      'Only helps when the game actually exposes a DX12 switch. On Proton/Wine paths DX12 support varies by title and driver stack.',
+    category: 'graphics',
+    advanced: false,
+    community: false,
+    applicable_methods: ['proton_run', 'steam_applaunch'],
+    conflicts_with: ['force_vulkan', 'force_dx11', 'force_opengl'],
+  },
+  {
+    id: 'skip_launcher',
+    tokens: ['-skip_launcher'],
+    label: 'Skip in-game launcher',
+    description: 'Skip a publisher launcher when the game honors the switch.',
+    help_text:
+      'Works on some Unity and older PC builds. Useless or harmful on titles without a separate launcher step.',
+    category: 'compatibility',
+    advanced: false,
+    community: false,
+    applicable_methods: ['proton_run', 'steam_applaunch'],
+    conflicts_with: [],
+  },
+  {
+    id: 'force_opengl',
+    tokens: ['-force_opengl'],
+    label: 'Force OpenGL renderer',
+    description: 'Pass an OpenGL-forcing switch when supported.',
+    help_text:
+      'Occasionally stabilizes older Unity builds on Linux/Proton. Most modern Windows-first titles ignore or mishandle it.',
+    category: 'graphics',
+    advanced: true,
+    community: false,
+    applicable_methods: ['proton_run', 'steam_applaunch'],
+    conflicts_with: ['force_vulkan', 'force_dx11', 'force_dx12'],
+  },
+];
+
+const MOCK_COMMAND_ARGUMENT_CATALOG: CommandArgumentCatalogPayload = {
+  catalog_version: 1,
+  entries: MOCK_COMMAND_ARGUMENT_ENTRIES,
+};
+
+/** Shared mock catalog entries for launch preview / Steam options handlers. */
+export const mockCommandArgumentCatalogEntries: readonly CommandArgumentEntry[] = MOCK_COMMAND_ARGUMENT_ENTRIES;
 
 // --- offline ---
 
@@ -345,6 +426,16 @@ export function registerSystem(map: Map<string, Handler>): void {
 
   map.set('get_optimization_catalog', async (): Promise<OptimizationCatalogPayload> => {
     return structuredClone(MOCK_CATALOG);
+  });
+
+  map.set('get_command_argument_catalog', async (): Promise<CommandArgumentCatalogPayload> => {
+    const fixture = getActiveFixture();
+    if (fixture === 'error') throw forcedError('get_command_argument_catalog');
+    if (fixture === 'loading') return neverResolving<CommandArgumentCatalogPayload>();
+    if (fixture === 'empty') {
+      return { catalog_version: MOCK_COMMAND_ARGUMENT_CATALOG.catalog_version, entries: [] };
+    }
+    return structuredClone(MOCK_COMMAND_ARGUMENT_CATALOG);
   });
 
   map.set('get_mangohud_presets', async () => {

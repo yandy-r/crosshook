@@ -1,4 +1,4 @@
-use super::super::optimizations::build_steam_launch_options_command;
+use super::super::optimizations::{build_steam_launch_options_command, escape_steam_token};
 use super::super::request::LaunchRequest;
 use super::super::runtime_helpers::build_gamescope_args;
 use super::super::script_runner::{force_no_umu_for_launch_request, should_use_umu};
@@ -13,6 +13,7 @@ pub(super) fn build_effective_command_string(
     effective_wrappers: &[String],
     gamescope_config: &GamescopeConfig,
     gamescope_active: bool,
+    resolved_argument_tokens: Option<&[String]>,
 ) -> Result<String, String> {
     match method {
         ResolvedLaunchMethod::ProtonRun => {
@@ -56,6 +57,9 @@ pub(super) fn build_effective_command_string(
                 parts.push(resolve_trainer_launch_path_for_preview(request));
             } else {
                 parts.push(request.game_path.trim().to_string());
+                if let Some(tokens) = resolved_argument_tokens {
+                    parts.extend(tokens.iter().cloned());
+                }
             }
             Ok(parts.join(" "))
         }
@@ -70,6 +74,9 @@ pub(super) fn build_effective_command_string(
                 &request.custom_env_vars,
                 gs,
             )
+            .map(|command| {
+                append_preview_steam_command_arguments(command, resolved_argument_tokens)
+            })
             .map_err(|error| error.to_string())
         }
         ResolvedLaunchMethod::Native => Ok(request.game_path.trim().to_string()),
@@ -84,4 +91,17 @@ pub(super) fn resolve_trainer_launch_path_for_preview(request: &LaunchRequest) -
                 .unwrap_or_else(|| request.trainer_host_path.trim().to_string())
         }
     }
+}
+
+pub(super) fn append_preview_steam_command_arguments(
+    mut command: String,
+    resolved_argument_tokens: Option<&[String]>,
+) -> String {
+    if let Some(tokens) = resolved_argument_tokens {
+        for token in tokens {
+            command.push(' ');
+            command.push_str(&escape_steam_token(token));
+        }
+    }
+    command
 }

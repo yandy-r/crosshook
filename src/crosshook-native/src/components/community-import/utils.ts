@@ -91,6 +91,10 @@ export function buildLaunchRequest(profile: GameProfile, steamClientInstallPath:
     optimizations: {
       enabled_option_ids: [...profile.launch.optimizations.enabled_option_ids],
     },
+    command_arguments: {
+      enabled_argument_ids: [...(profile.launch.command_arguments?.enabled_argument_ids ?? [])],
+      custom_args: [...(profile.launch.command_arguments?.custom_args ?? [])],
+    },
     launch_game_only: false,
     launch_trainer_only: false,
     custom_env_vars: { ...profile.launch.custom_env_vars },

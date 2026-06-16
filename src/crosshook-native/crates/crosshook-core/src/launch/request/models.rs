@@ -36,6 +36,11 @@ pub struct LaunchRequest {
     pub runtime: RuntimeLaunchConfig,
     #[serde(default)]
     pub optimizations: LaunchOptimizationsRequest,
+    #[serde(
+        default,
+        skip_serializing_if = "LaunchCommandArgumentsRequest::is_empty"
+    )]
+    pub command_arguments: LaunchCommandArgumentsRequest,
     #[serde(default)]
     pub launch_trainer_only: bool,
     #[serde(default)]
@@ -168,6 +173,24 @@ pub struct LaunchOptimizationsRequest {
         skip_serializing_if = "Vec::is_empty"
     )]
     pub enabled_option_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct LaunchCommandArgumentsRequest {
+    #[serde(
+        rename = "enabled_argument_ids",
+        default,
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub enabled_argument_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub custom_args: Vec<String>,
+}
+
+impl LaunchCommandArgumentsRequest {
+    pub fn is_empty(&self) -> bool {
+        self.enabled_argument_ids.is_empty() && self.custom_args.is_empty()
+    }
 }
 
 impl LaunchRequest {

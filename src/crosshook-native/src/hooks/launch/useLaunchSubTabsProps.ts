@@ -5,6 +5,7 @@ import { useProfileHealthContext } from '../../context/ProfileHealthContext';
 import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '../../types/profile';
 import { useLaunchEnvironmentAutosave } from '../profile/useLaunchEnvironmentAutosave';
 import { useProtonDbApply } from '../profile/useProtonDbApply';
+import { useCommandArgumentCatalog } from '../useCommandArgumentCatalog';
 import { useProtonDbSuggestions } from '../useProtonDbSuggestions';
 
 export interface UseLaunchSubTabsPropsInput {
@@ -65,6 +66,7 @@ export function useLaunchSubTabsProps({
   // ---------------------------------------------------------------------------
 
   const suggestions = useProtonDbSuggestions(resolvedSteamAppId, selectedProfile);
+  const { catalog: commandArgumentCatalog } = useCommandArgumentCatalog();
 
   const handleAcceptSuggestion = useCallback(
     async (request: Parameters<typeof suggestions.acceptSuggestion>[0]): Promise<void> => {
@@ -197,6 +199,12 @@ export function useLaunchSubTabsProps({
     optimizationPresetActionBusy: profileState.optimizationPresetActionBusy,
     onSaveManualPreset: profileState.saveManualOptimizationPreset,
     catalog: profileState.catalog,
+
+    commandArguments: profile.launch.command_arguments,
+    onToggleCommandArgument: profileState.toggleCommandArgument,
+    onUpdateCommandArgumentsCustomArgs: profileState.updateCommandArgumentsCustomArgs,
+    commandArgumentCatalog,
+    commandArgumentsAutoSaveStatus: profileState.commandArgumentsAutoSaveStatus,
 
     customEnvVars: profile.launch.custom_env_vars,
     profileName,

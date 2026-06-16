@@ -3,6 +3,7 @@
 use crate::profile::GamescopeConfig;
 
 pub mod catalog;
+pub mod command_arguments;
 pub mod diagnostics;
 pub mod env;
 pub mod hooks;
@@ -21,6 +22,13 @@ pub mod watchdog;
 
 pub use catalog::{
     global_catalog, initialize_catalog, load_catalog, OptimizationCatalog, OptimizationEntry,
+};
+pub use command_arguments::{
+    global_catalog as global_command_argument_catalog,
+    initialize_catalog as initialize_command_argument_catalog, is_known_command_argument_id,
+    load_catalog as load_command_argument_catalog, resolve_command_arguments,
+    resolve_command_arguments_for_method, CommandArgumentCatalog, CommandArgumentEntry,
+    CommandArgumentResolveError, ResolvedCommandArguments,
 };
 pub use diagnostics::{analyze, should_surface_report, DiagnosticReport};
 pub use env::{

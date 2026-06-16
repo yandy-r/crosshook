@@ -3,6 +3,7 @@ import { type CSSProperties, useEffect, useRef, useState } from 'react';
 import { useLaunchStateContext } from '../context/LaunchStateContext';
 import { useGameCoverArt } from '../hooks/useGameCoverArt';
 import { useImageDominantColor } from '../hooks/useImageDominantColor';
+import { CommandArgumentsTabContent } from './launch-subtabs/CommandArgumentsTabContent';
 import { EnvironmentTabContent } from './launch-subtabs/EnvironmentTabContent';
 import { GamescopeTabContent } from './launch-subtabs/GamescopeTabContent';
 import { MangoHudTabContent } from './launch-subtabs/MangoHudTabContent';
@@ -39,6 +40,10 @@ export function LaunchSubTabs({
   optimizationPresetActionBusy,
   onSaveManualPreset,
   catalog,
+  commandArguments,
+  onToggleCommandArgument,
+  onUpdateCommandArgumentsCustomArgs,
+  commandArgumentCatalog,
   customEnvVars,
   profileName,
   onUpdateProfile,
@@ -57,9 +62,16 @@ export function LaunchSubTabs({
   onDismissSuggestion,
   gamescopeAutoSaveStatus,
   mangoHudAutoSaveStatus,
+  commandArgumentsAutoSaveStatus,
 }: LaunchSubTabsProps) {
-  const { tabs, showsGamescopeTab, showsMangoHudTab, showsOptimizationsTab, showsSteamOptionsTab } =
-    useTabVisibility(launchMethod);
+  const {
+    tabs,
+    showsGamescopeTab,
+    showsMangoHudTab,
+    showsOptimizationsTab,
+    showsCommandArgumentsTab,
+    showsSteamOptionsTab,
+  } = useTabVisibility(launchMethod);
 
   const [activeTab, setActiveTab] = useState(tabs[0] ?? 'environment');
   const autoSwitchedRef = useRef(false);
@@ -70,6 +82,7 @@ export function LaunchSubTabs({
     launchOptimizationsStatus,
     gamescopeAutoSaveStatus,
     mangoHudAutoSaveStatus,
+    commandArgumentsAutoSaveStatus,
   });
 
   useEffect(() => {
@@ -213,11 +226,24 @@ export function LaunchSubTabs({
             />
           ) : null}
 
+          {showsCommandArgumentsTab ? (
+            <CommandArgumentsTabContent
+              activeTab={activeTab}
+              launchMethod={launchMethod}
+              commandArguments={commandArguments}
+              onToggleCommandArgument={onToggleCommandArgument}
+              onUpdateCommandArgumentsCustomArgs={onUpdateCommandArgumentsCustomArgs}
+              commandArgumentCatalog={commandArgumentCatalog}
+              chipSlot={activeTab === 'command-arguments' ? autoSaveChipSlot : null}
+            />
+          ) : null}
+
           {showsSteamOptionsTab ? (
             <SteamOptionsTabContent
               activeTab={activeTab}
               enabledOptionIds={enabledOptionIds}
               customEnvVars={customEnvVars}
+              commandArguments={commandArguments}
               gamescopeConfig={gamescopeConfig}
               chipSlot={activeTab === 'steam-options' ? autoSaveChipSlot : null}
             />

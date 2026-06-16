@@ -1,5 +1,6 @@
 mod fixtures;
 
+mod command_arguments;
 mod duplicate;
 mod import_legacy;
 mod load_save;

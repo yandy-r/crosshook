@@ -300,3 +300,60 @@ fn launch_section_default_has_network_isolation_true() {
     let launch = LaunchSection::default();
     assert!(launch.network_isolation);
 }
+
+#[test]
+fn command_arguments_empty_omitted_from_toml_and_roundtrips() {
+    let profile = sample_profile();
+    let serialized = toml::to_string_pretty(&profile).expect("serialize");
+    assert!(
+        !serialized.contains("command_arguments"),
+        "expected empty command arguments skipped: {serialized}"
+    );
+    let parsed: GameProfile = toml::from_str(&serialized).expect("deserialize");
+    assert!(parsed.launch.command_arguments.is_empty());
+    assert!(parsed
+        .launch
+        .command_arguments
+        .enabled_argument_ids
+        .is_empty());
+    assert!(parsed.launch.command_arguments.custom_args.is_empty());
+}
+
+#[test]
+fn command_arguments_nonempty_toml_roundtrip() {
+    let mut profile = sample_profile();
+    profile.launch.command_arguments.enabled_argument_ids =
+        vec!["force_vulkan".to_string(), "skip_launcher".to_string()];
+    profile.launch.command_arguments.custom_args =
+        vec!["-dx11".to_string(), "+set cl_showfps 1".to_string()];
+    let serialized = toml::to_string_pretty(&profile).expect("serialize");
+    assert!(serialized.contains("command_arguments"));
+    assert!(serialized.contains("enabled_argument_ids"));
+    assert!(serialized.contains("custom_args"));
+    let parsed: GameProfile = toml::from_str(&serialized).expect("deserialize");
+    assert_eq!(
+        parsed.launch.command_arguments,
+        profile.launch.command_arguments
+    );
+}
+
+#[test]
+fn command_arguments_absent_from_toml_deserializes_to_empty_defaults() {
+    let toml = r#"
+[game]
+executable_path = "/games/x.exe"
+[trainer]
+path = "/t/y.exe"
+type = "fling"
+[launch]
+"#;
+    let toml = toml.to_string() + &format!(r#"method = "{METHOD_PROTON_RUN}""#);
+    let parsed: GameProfile = toml::from_str(&toml).expect("deserialize");
+    assert!(parsed.launch.command_arguments.is_empty());
+    assert!(parsed
+        .launch
+        .command_arguments
+        .enabled_argument_ids
+        .is_empty());
+    assert!(parsed.launch.command_arguments.custom_args.is_empty());
+}

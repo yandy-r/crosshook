@@ -1,4 +1,6 @@
 import type { LaunchHook } from './generated/launch_hooks';
+import type { LaunchCommandArguments } from './launch-command-arguments';
+import { DEFAULT_LAUNCH_COMMAND_ARGUMENTS } from './launch-command-arguments';
 import type { LaunchOptimizations } from './launch-optimizations';
 import type { UmuPreference } from './settings';
 
@@ -173,6 +175,8 @@ export interface GameProfile {
   launch: {
     method: LaunchMethod;
     optimizations: LaunchOptimizations;
+    /** Curated command-argument IDs and custom argv tokens for supported launch methods. */
+    command_arguments: LaunchCommandArguments;
     /** Named optimization bundles (`[launch.presets.<name>]` in profile TOML). */
     presets?: Record<string, LaunchOptimizations>;
     /** When set and present in `presets`, optimizations are kept in sync with that entry. */
@@ -263,6 +267,7 @@ const DEFAULT_LAUNCH_SECTION: GameProfile['launch'] = {
   optimizations: {
     enabled_option_ids: [],
   },
+  command_arguments: { ...DEFAULT_LAUNCH_COMMAND_ARGUMENTS },
   presets: {},
   active_preset: '',
   custom_env_vars: {},
@@ -350,6 +355,10 @@ export function normalizeSerializedGameProfile(profile: SerializedGameProfile): 
       optimizations: {
         enabled_option_ids: [...(profile.launch.optimizations?.enabled_option_ids ?? [])],
       },
+      command_arguments: {
+        enabled_argument_ids: [...(profile.launch.command_arguments?.enabled_argument_ids ?? [])],
+        custom_args: [...(profile.launch.command_arguments?.custom_args ?? [])],
+      },
       presets: { ...(profile.launch.presets ?? {}) },
       custom_env_vars: { ...(profile.launch.custom_env_vars ?? {}) },
     },
@@ -397,6 +406,7 @@ export function createDefaultProfile(): GameProfile {
     launch: {
       method: 'proton_run',
       optimizations: { enabled_option_ids: [] },
+      command_arguments: { enabled_argument_ids: [], custom_args: [] },
       custom_env_vars: {},
     },
   });

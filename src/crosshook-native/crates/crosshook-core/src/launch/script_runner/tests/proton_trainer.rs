@@ -108,6 +108,78 @@ fn proton_trainer_command_ignores_game_optimization_wrappers_and_env() {
 }
 
 #[test]
+fn proton_trainer_command_does_not_inherit_game_command_arguments() {
+    let temp_dir = tempfile::tempdir().expect("temp dir");
+    let prefix_path = temp_dir.path().join("prefix");
+    let proton_path = temp_dir.path().join("proton");
+    let trainer_source_dir = temp_dir.path().join("trainer");
+    let trainer_host_path = trainer_source_dir.join("sample.exe");
+    let log_path = temp_dir.path().join("trainer.log");
+    let workspace_dir = prefix_path.join("workspace");
+    let wine_prefix_path = prefix_path.join("pfx");
+
+    fs::create_dir_all(wine_prefix_path.join("drive_c")).expect("wine prefix dir");
+    fs::create_dir_all(&trainer_source_dir).expect("trainer dir");
+    fs::create_dir_all(&workspace_dir).expect("workspace dir");
+    write_executable_file(&proton_path);
+    fs::write(&trainer_host_path, b"trainer").expect("trainer exe");
+
+    let request = LaunchRequest {
+        method: crate::launch::METHOD_PROTON_RUN.to_string(),
+        game_path: temp_dir
+            .path()
+            .join("game.exe")
+            .to_string_lossy()
+            .into_owned(),
+        trainer_path: trainer_host_path.to_string_lossy().into_owned(),
+        trainer_host_path: trainer_host_path.to_string_lossy().into_owned(),
+        trainer_loading_mode: crate::profile::TrainerLoadingMode::CopyToPrefix,
+        steam: crate::launch::SteamLaunchConfig::default(),
+        runtime: crate::launch::RuntimeLaunchConfig {
+            prefix_path: prefix_path.to_string_lossy().into_owned(),
+            proton_path: proton_path.to_string_lossy().into_owned(),
+            working_directory: workspace_dir.to_string_lossy().into_owned(),
+            steam_app_id: String::new(),
+            umu_game_id: String::new(),
+            umu_store: String::new(),
+            umu_codename: String::new(),
+        },
+        command_arguments: crate::launch::request::LaunchCommandArgumentsRequest {
+            enabled_argument_ids: vec!["force_vulkan".to_string()],
+            custom_args: vec!["-windowed".to_string()],
+        },
+        launch_trainer_only: true,
+        launch_game_only: false,
+        profile_name: None,
+        umu_preference: crate::settings::UmuPreference::Proton,
+        ..Default::default()
+    };
+
+    let command = build_proton_trainer_command(&request, &log_path).expect("trainer command");
+    let args = command
+        .as_std()
+        .get_args()
+        .map(|arg| arg.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        args,
+        vec![
+            "run".to_string(),
+            "C:\\CrossHook\\StagedTrainers\\sample\\sample.exe".to_string(),
+        ]
+    );
+    assert!(
+        !args.iter().any(|arg| arg == "-force_vulkan"),
+        "trainer launch must not inherit curated game command arguments"
+    );
+    assert!(
+        !args.iter().any(|arg| arg == "-windowed"),
+        "trainer launch must not inherit custom game command arguments"
+    );
+}
+
+#[test]
 fn proton_trainer_command_sets_proton_verb_to_runinprefix() {
     let temp_dir = tempfile::tempdir().expect("temp dir");
     let prefix_path = temp_dir.path().join("prefix");

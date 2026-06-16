@@ -11,9 +11,10 @@ import { LaunchStateProvider, useLaunchStateContext } from '@/context/LaunchStat
 import { PreferencesProvider } from '@/context/PreferencesContext';
 import { ProfileProvider, useProfileContext } from '@/context/ProfileContext';
 import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
-import { makeProfileDraft } from '@/test/fixtures';
+import { makeCommandArgumentCatalogPayload, makeProfileDraft } from '@/test/fixtures';
 import { renderWithMocks } from '@/test/render';
 import type { LaunchAutoSaveStatus, LaunchMethod } from '@/types';
+import { DEFAULT_LAUNCH_COMMAND_ARGUMENTS } from '@/types/launch-command-arguments';
 import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '@/types/profile';
 
 vi.mock('@/lib/ipc', async () => {
@@ -36,6 +37,10 @@ function makeSubTabsProps(overrides: Partial<LaunchSubTabsProps> = {}): LaunchSu
     onToggleOption: vi.fn(),
     launchOptimizationsStatus: { tone: 'idle', label: '' },
     catalog: null,
+    commandArguments: DEFAULT_LAUNCH_COMMAND_ARGUMENTS,
+    onToggleCommandArgument: vi.fn(),
+    onUpdateCommandArgumentsCustomArgs: vi.fn(),
+    commandArgumentCatalog: makeCommandArgumentCatalogPayload(),
     profileName: 'test-profile',
     onUpdateProfile: vi.fn(),
     showProtonDbLookup: false,
@@ -68,6 +73,7 @@ const baseHandlerOverrides = {
   check_game_running: async () => false,
   check_gamescope_session: async () => false,
   get_optimization_catalog: async () => null,
+  get_command_argument_catalog: async () => makeCommandArgumentCatalogPayload(),
   get_trainer_type_catalog: async () => [],
   get_cached_health_snapshots: async () => [],
   get_cached_offline_readiness_snapshots: async () => [],
@@ -197,6 +203,7 @@ describe('LaunchSubTabs', () => {
     const gamescopeStatus: LaunchAutoSaveStatus = { tone: 'success', label: 'Gamescope saved' };
     const mangohudStatus: LaunchAutoSaveStatus = { tone: 'error', label: 'MangoHud error' };
     const optimizationsStatus = { tone: 'saving' as const, label: 'Saving...' };
+    const commandArgumentsStatus: LaunchAutoSaveStatus = { tone: 'success', label: 'Arguments saved' };
 
     const { container } = renderSubTabs(
       makeSubTabsProps({
@@ -204,6 +211,7 @@ describe('LaunchSubTabs', () => {
         gamescopeAutoSaveStatus: gamescopeStatus,
         mangoHudAutoSaveStatus: mangohudStatus,
         launchOptimizationsStatus: optimizationsStatus,
+        commandArgumentsAutoSaveStatus: commandArgumentsStatus,
       }),
       { handlerOverrides: baseHandlerOverrides }
     );
@@ -213,6 +221,70 @@ describe('LaunchSubTabs', () => {
     await waitFor(() => {
       const chip = container.querySelector('.crosshook-launch-autosave-chip--error');
       expect(chip).toBeInTheDocument();
+    });
+
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
+
+  it('shows the Command Arguments tab for proton_run', async () => {
+    renderSubTabs(makeSubTabsProps({ launchMethod: 'proton_run' }), {
+      handlerOverrides: baseHandlerOverrides,
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: 'Command Arguments' })).toBeInTheDocument();
+    });
+
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
+
+  it('shows Command Arguments panel content when the Command Arguments tab is active', async () => {
+    const user = userEvent.setup();
+
+    renderSubTabs(makeSubTabsProps({ launchMethod: 'proton_run' }), {
+      handlerOverrides: baseHandlerOverrides,
+    });
+
+    await user.click(screen.getByRole('tab', { name: 'Command Arguments' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Command Arguments' })).toBeInTheDocument();
+    });
+
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
+
+  it('shows the Command Arguments tab for steam_applaunch', async () => {
+    renderSubTabs(makeSubTabsProps({ launchMethod: 'steam_applaunch' }), {
+      handlerOverrides: baseHandlerOverrides,
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: 'Command Arguments' })).toBeInTheDocument();
+    });
+
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
+
+  it('threads command arguments into the Steam launch options preview', async () => {
+    const user = userEvent.setup();
+
+    renderSubTabs(
+      makeSubTabsProps({
+        launchMethod: 'steam_applaunch',
+        commandArguments: {
+          enabled_argument_ids: ['force_vulkan'],
+          custom_args: ['--extra'],
+        },
+      }),
+      { handlerOverrides: baseHandlerOverrides }
+    );
+
+    await user.click(screen.getByRole('tab', { name: 'Steam Options' }));
+
+    await waitFor(() => {
+      const preview = document.querySelector('.crosshook-steam-launch-options__preview');
+      expect(preview).toHaveTextContent('%command% -force_vulkan --extra');
     });
 
     expect(consoleErrorSpy).not.toHaveBeenCalled();
@@ -230,10 +302,11 @@ describe('LaunchSubTabs', () => {
       expect(screen.getByRole('tab', { name: 'Offline' })).toBeInTheDocument();
     });
 
-    // native: no gamescope, mangohud, optimizations, steam-options
+    // native: no gamescope, mangohud, optimizations, command arguments, steam-options
     expect(screen.queryByRole('tab', { name: 'Gamescope' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'MangoHud' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Optimizations' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Command Arguments' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Steam Options' })).not.toBeInTheDocument();
 
     // Suppress unused warning
@@ -242,7 +315,7 @@ describe('LaunchSubTabs', () => {
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
-  it('(b) tab visibility matrix — proton_run shows gamescope, mangohud, optimizations; not steam-options', async () => {
+  it('(b) tab visibility matrix — proton_run shows gamescope, mangohud, optimizations, command arguments; not steam-options', async () => {
     renderSubTabs(makeSubTabsProps({ launchMethod: 'proton_run' }), {
       handlerOverrides: baseHandlerOverrides,
     });
@@ -251,6 +324,7 @@ describe('LaunchSubTabs', () => {
       expect(screen.getByRole('tab', { name: 'Gamescope' })).toBeInTheDocument();
       expect(screen.getByRole('tab', { name: 'MangoHud' })).toBeInTheDocument();
       expect(screen.getByRole('tab', { name: 'Optimizations' })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Command Arguments' })).toBeInTheDocument();
       expect(screen.getByRole('tab', { name: 'Environment' })).toBeInTheDocument();
       expect(screen.getByRole('tab', { name: 'Offline' })).toBeInTheDocument();
     });
@@ -260,7 +334,7 @@ describe('LaunchSubTabs', () => {
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
-  it('(b) tab visibility matrix — steam_applaunch shows steam-options, gamescope, mangohud, optimizations', async () => {
+  it('(b) tab visibility matrix — steam_applaunch shows steam-options, gamescope, mangohud, optimizations, command arguments', async () => {
     renderSubTabs(makeSubTabsProps({ launchMethod: 'steam_applaunch' }), {
       handlerOverrides: baseHandlerOverrides,
     });
@@ -270,6 +344,7 @@ describe('LaunchSubTabs', () => {
       expect(screen.getByRole('tab', { name: 'Gamescope' })).toBeInTheDocument();
       expect(screen.getByRole('tab', { name: 'MangoHud' })).toBeInTheDocument();
       expect(screen.getByRole('tab', { name: 'Optimizations' })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Command Arguments' })).toBeInTheDocument();
       expect(screen.getByRole('tab', { name: 'Environment' })).toBeInTheDocument();
       expect(screen.getByRole('tab', { name: 'Offline' })).toBeInTheDocument();
     });
@@ -292,8 +367,10 @@ describe('LaunchSubTabs', () => {
     // Switch to Gamescope tab
     await user.click(screen.getByRole('tab', { name: 'Gamescope' }));
 
-    const allPanels = screen.getAllByRole('tabpanel', { hidden: true });
-    expect(allPanels).toHaveLength(5);
+    const launchTabPanels = screen
+      .getAllByRole('tabpanel', { hidden: true })
+      .filter((panel) => panel.classList.contains('crosshook-subtab-content'));
+    expect(launchTabPanels).toHaveLength(6);
 
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
@@ -360,7 +437,7 @@ describe('LaunchSubTabs', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByRole('tablist')).toBeInTheDocument();
+        expect(screen.getByRole('tablist', { name: 'Launch configuration sections' })).toBeInTheDocument();
       });
 
       unmount();

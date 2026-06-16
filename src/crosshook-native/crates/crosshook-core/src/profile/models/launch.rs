@@ -20,6 +20,24 @@ impl LaunchOptimizationsSection {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct LaunchCommandArgumentsSection {
+    #[serde(
+        rename = "enabled_argument_ids",
+        default,
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub enabled_argument_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub custom_args: Vec<String>,
+}
+
+impl LaunchCommandArgumentsSection {
+    pub fn is_empty(&self) -> bool {
+        self.enabled_argument_ids.is_empty() && self.custom_args.is_empty()
+    }
+}
+
 fn default_network_isolation() -> bool {
     true
 }
@@ -34,6 +52,13 @@ pub struct LaunchSection {
     pub method: String,
     #[serde(default, skip_serializing_if = "LaunchOptimizationsSection::is_empty")]
     pub optimizations: LaunchOptimizationsSection,
+    /// Curated command-argument IDs and custom argv tokens for supported launch methods.
+    #[serde(
+        rename = "command_arguments",
+        default,
+        skip_serializing_if = "LaunchCommandArgumentsSection::is_empty"
+    )]
+    pub command_arguments: LaunchCommandArgumentsSection,
     /// Named optimization bundles (`[launch.presets.<name>]` in TOML).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub presets: BTreeMap<String, LaunchOptimizationsSection>,
@@ -76,6 +101,7 @@ impl Default for LaunchSection {
         Self {
             method: String::new(),
             optimizations: LaunchOptimizationsSection::default(),
+            command_arguments: LaunchCommandArgumentsSection::default(),
             presets: BTreeMap::new(),
             active_preset: String::new(),
             custom_env_vars: BTreeMap::new(),

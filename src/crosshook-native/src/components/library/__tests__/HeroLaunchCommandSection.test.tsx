@@ -135,6 +135,19 @@ describe('HeroLaunchCommandSection', () => {
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
+  it('renders effective_command with appended game argv tokens when command arguments are present', () => {
+    renderCommandSection({
+      preview: makeLaunchPreview({
+        effective_command:
+          'gamescope -- /compat/proton run /games/synthetic-quest/game.exe -force_vulkan --custom-flag',
+      }),
+    });
+    expect(screen.getByTestId('command-block')).toHaveTextContent(
+      'gamescope -- /compat/proton run /games/synthetic-quest/game.exe -force_vulkan --custom-flag'
+    );
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
+
   it('shows "no preview" message when launchRequest is null', () => {
     renderCommandSection({ launchRequest: null, preview: null });
     expect(

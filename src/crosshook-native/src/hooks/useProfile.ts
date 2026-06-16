@@ -55,6 +55,7 @@ export interface UseProfileResult {
   gamescopeAutoSaveStatus: LaunchAutoSaveStatus;
   trainerGamescopeAutoSaveStatus: LaunchAutoSaveStatus;
   mangoHudAutoSaveStatus: LaunchAutoSaveStatus;
+  commandArgumentsAutoSaveStatus: LaunchAutoSaveStatus;
   /** True while any config-history IPC call is in flight. */
   historyLoading: boolean;
   /** Error message from the most recent config-history operation; null when none. */
@@ -80,6 +81,8 @@ export interface UseProfileResult {
   updateProfile: (updater: (current: GameProfile) => GameProfile) => void;
   updateLaunchSetting: (updater: (current: GameProfile) => GameProfile) => void;
   toggleLaunchOptimization: (optionId: LaunchOptimizationId, nextEnabled: boolean) => void;
+  toggleCommandArgument: (argumentId: string, nextEnabled: boolean) => void;
+  updateCommandArgumentsCustomArgs: (customArgs: readonly string[]) => void;
   /** Persists switching the active named optimization preset (requires presets in profile TOML). */
   switchLaunchOptimizationPreset: (presetName: string) => Promise<void>;
   /** GPU vendor presets from the app catalog (metadata DB); empty when metadata is off. */
@@ -243,6 +246,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     gamescopeAutoSaveStatus: launchAutosave.gamescopeAutoSaveStatus,
     trainerGamescopeAutoSaveStatus: launchAutosave.trainerGamescopeAutoSaveStatus,
     mangoHudAutoSaveStatus: launchAutosave.mangoHudAutoSaveStatus,
+    commandArgumentsAutoSaveStatus: launchAutosave.commandArgumentsAutoSaveStatus,
     historyLoading: history.historyLoading,
     historyError: history.historyError,
     setProfileName: crud.setProfileName,
@@ -251,6 +255,8 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     updateProfile: crud.updateProfile,
     updateLaunchSetting: crud.updateLaunchSetting,
     toggleLaunchOptimization: launchAutosave.toggleLaunchOptimization,
+    toggleCommandArgument: launchAutosave.toggleCommandArgument,
+    updateCommandArgumentsCustomArgs: launchAutosave.updateCommandArgumentsCustomArgs,
     switchLaunchOptimizationPreset: launchAutosave.switchLaunchOptimizationPreset,
     bundledOptimizationPresets: launchAutosave.bundledOptimizationPresets,
     applyBundledOptimizationPreset: launchAutosave.applyBundledOptimizationPreset,

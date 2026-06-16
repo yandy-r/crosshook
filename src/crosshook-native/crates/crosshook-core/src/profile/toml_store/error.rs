@@ -1,11 +1,15 @@
 use std::fmt;
 
+use crate::launch::request::ValidationError;
+
 #[derive(Debug)]
 pub enum ProfileStoreError {
     InvalidName(String),
     NotFound(std::path::PathBuf),
     AlreadyExists(String),
     InvalidLaunchOptimizationId(String),
+    InvalidCommandArgumentId(String),
+    CommandArgumentValidation(ValidationError),
     LaunchPresetNotFound(String),
     ReservedLaunchPresetName(String),
     InvalidLaunchPresetName(String),
@@ -24,6 +28,12 @@ impl fmt::Display for ProfileStoreError {
             }
             Self::InvalidLaunchOptimizationId(id) => {
                 write!(f, "unknown launch optimization id: {id}")
+            }
+            Self::InvalidCommandArgumentId(id) => {
+                write!(f, "unknown command argument id: {id}")
+            }
+            Self::CommandArgumentValidation(error) => {
+                write!(f, "{error}")
             }
             Self::LaunchPresetNotFound(name) => {
                 write!(f, "launch optimization preset not found: {name}")

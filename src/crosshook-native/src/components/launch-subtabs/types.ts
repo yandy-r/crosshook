@@ -1,4 +1,5 @@
 import type { BundledOptimizationPreset, LaunchAutoSaveStatus, LaunchMethod } from '../../types';
+import type { CommandArgumentCatalogPayload, LaunchCommandArguments } from '../../types/launch-command-arguments';
 import type { LaunchOptimizationId } from '../../types/launch-optimizations';
 import type { GameProfile, GamescopeConfig, MangoHudConfig } from '../../types/profile';
 import type { AcceptSuggestionRequest, ProtonDbRecommendationGroup, ProtonDbSuggestionSet } from '../../types/protondb';
@@ -6,7 +7,14 @@ import type { OptimizationCatalogPayload } from '../../utils/optimization-catalo
 import type { PendingProtonDbOverwrite } from '../../utils/protondb';
 import type { LaunchOptimizationsPanelStatus } from '../LaunchOptimizationsPanel';
 
-export type LaunchSubTabId = 'offline' | 'environment' | 'gamescope' | 'mangohud' | 'optimizations' | 'steam-options';
+export type LaunchSubTabId =
+  | 'offline'
+  | 'environment'
+  | 'gamescope'
+  | 'mangohud'
+  | 'optimizations'
+  | 'command-arguments'
+  | 'steam-options';
 
 export const TAB_LABELS: Record<LaunchSubTabId, string> = {
   offline: 'Offline',
@@ -14,6 +22,7 @@ export const TAB_LABELS: Record<LaunchSubTabId, string> = {
   gamescope: 'Gamescope',
   mangohud: 'MangoHud',
   optimizations: 'Optimizations',
+  'command-arguments': 'Command Arguments',
   'steam-options': 'Steam Options',
 };
 
@@ -47,6 +56,13 @@ export interface LaunchSubTabsProps {
   optimizationPresetActionBusy?: boolean;
   onSaveManualPreset?: (presetName: string) => Promise<void>;
   catalog: OptimizationCatalogPayload | null;
+
+  // Command Arguments panel (Task 5.2 UI; state wired in Task 5.1)
+  commandArguments?: LaunchCommandArguments;
+  onToggleCommandArgument?: (argumentId: string, nextEnabled: boolean) => void;
+  onUpdateCommandArgumentsCustomArgs?: (customArgs: readonly string[]) => void;
+  commandArgumentCatalog?: CommandArgumentCatalogPayload | null;
+  commandArgumentsAutoSaveStatus?: LaunchAutoSaveStatus;
 
   // Steam Launch Options panel
   customEnvVars?: Readonly<Record<string, string>>;

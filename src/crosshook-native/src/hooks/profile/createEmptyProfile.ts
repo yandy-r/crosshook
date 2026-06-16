@@ -1,4 +1,5 @@
 import { DEFAULT_INJECTION_SECTION, type GameProfile } from '../../types';
+import { DEFAULT_LAUNCH_COMMAND_ARGUMENTS } from '../../types/launch-command-arguments';
 
 export function createEmptyProfile(): GameProfile {
   return {
@@ -41,6 +42,7 @@ export function createEmptyProfile(): GameProfile {
       optimizations: {
         enabled_option_ids: [],
       },
+      command_arguments: { ...DEFAULT_LAUNCH_COMMAND_ARGUMENTS },
       presets: {},
       active_preset: '',
       custom_env_vars: {},

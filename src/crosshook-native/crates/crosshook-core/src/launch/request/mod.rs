@@ -11,9 +11,10 @@ mod tests;
 pub use error::ValidationError;
 pub use issues::{LaunchValidationIssue, ValidationSeverity};
 pub use models::{
-    is_inside_gamescope_session, LaunchOptimizationsRequest, LaunchRequest, RuntimeLaunchConfig,
-    SteamLaunchConfig, SteamLaunchRequest, UmuGameIdLookupKey, UmuGameIdResolution,
-    UmuGameIdResolutionSource, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
+    is_inside_gamescope_session, LaunchCommandArgumentsRequest, LaunchOptimizationsRequest,
+    LaunchRequest, RuntimeLaunchConfig, SteamLaunchConfig, SteamLaunchRequest, UmuGameIdLookupKey,
+    UmuGameIdResolution, UmuGameIdResolutionSource, METHOD_NATIVE, METHOD_PROTON_RUN,
+    METHOD_STEAM_APPLAUNCH,
 };
 pub use validation::{validate, validate_all};
 

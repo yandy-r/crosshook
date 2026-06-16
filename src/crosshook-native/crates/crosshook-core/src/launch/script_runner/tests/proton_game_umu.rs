@@ -183,3 +183,47 @@ fn proton_preference_always_uses_direct_proton() {
         .into_owned();
     assert!(!program.ends_with("umu-run"));
 }
+
+#[test]
+fn proton_game_command_appends_arguments_after_game_executable_with_umu() {
+    let dir = tempfile::tempdir().unwrap();
+    write_executable_file_with_contents(
+        dir.path().join("umu-run").as_path(),
+        b"#!/bin/sh\nexit 0\n",
+    );
+    let _guard = crate::launch::test_support::ScopedCommandSearchPath::new(dir.path());
+
+    use crate::settings::UmuPreference;
+    let mut request = LaunchRequest {
+        method: crate::launch::METHOD_PROTON_RUN.to_string(),
+        game_path: "/tmp/game.exe".to_string(),
+        umu_preference: UmuPreference::Umu,
+        command_arguments: crate::launch::request::LaunchCommandArgumentsRequest {
+            enabled_argument_ids: vec!["force_dx11".to_string()],
+            custom_args: vec!["-nolauncher".to_string()],
+        },
+        ..Default::default()
+    };
+    request.runtime.proton_path = "/opt/proton/GE-Proton9-20/proton".to_string();
+
+    let log_dir = tempfile::tempdir().unwrap();
+    let log_path = log_dir.path().join("test.log");
+    let command = build_proton_game_command(&request, &log_path).unwrap();
+
+    let args: Vec<String> = command
+        .as_std()
+        .get_args()
+        .map(|a| a.to_string_lossy().into_owned())
+        .collect();
+    let game_idx = args
+        .iter()
+        .position(|arg| arg == "/tmp/game.exe")
+        .expect("game executable path in args");
+
+    assert!(
+        !args.contains(&"run".to_string()),
+        "umu-run must not receive \"run\" subcommand arg; args: {args:?}"
+    );
+    assert_eq!(args[game_idx + 1], "-dx11");
+    assert_eq!(args[game_idx + 2], "-nolauncher");
+}

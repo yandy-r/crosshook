@@ -7,6 +7,7 @@ interface UseTabVisibilityResult {
   showsGamescopeTab: boolean;
   showsMangoHudTab: boolean;
   showsOptimizationsTab: boolean;
+  showsCommandArgumentsTab: boolean;
   showsSteamOptionsTab: boolean;
 }
 
@@ -22,12 +23,14 @@ export function useTabVisibility(launchMethod: LaunchMethod): UseTabVisibilityRe
   const showsGamescopeTab = launchMethod === 'proton_run' || launchMethod === 'steam_applaunch';
   const showsMangoHudTab = launchMethodSupportsOptimizations;
   const showsOptimizationsTab = launchMethodSupportsOptimizations;
+  const showsCommandArgumentsTab = launchMethod === 'proton_run' || launchMethod === 'steam_applaunch';
   const showsSteamOptionsTab = launchMethod === 'steam_applaunch';
 
   const tabs: LaunchSubTabId[] = isNative
     ? ['environment', 'offline']
     : [
         ...(showsOptimizationsTab ? ['optimizations' as const] : []),
+        ...(showsCommandArgumentsTab ? ['command-arguments' as const] : []),
         'environment',
         ...(showsMangoHudTab ? ['mangohud' as const] : []),
         ...(showsGamescopeTab ? ['gamescope' as const] : []),
@@ -35,5 +38,12 @@ export function useTabVisibility(launchMethod: LaunchMethod): UseTabVisibilityRe
         'offline',
       ];
 
-  return { tabs, showsGamescopeTab, showsMangoHudTab, showsOptimizationsTab, showsSteamOptionsTab };
+  return {
+    tabs,
+    showsGamescopeTab,
+    showsMangoHudTab,
+    showsOptimizationsTab,
+    showsCommandArgumentsTab,
+    showsSteamOptionsTab,
+  };
 }

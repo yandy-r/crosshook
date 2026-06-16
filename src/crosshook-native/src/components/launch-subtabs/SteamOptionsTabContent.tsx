@@ -1,5 +1,7 @@
 import * as Tabs from '@radix-ui/react-tabs';
 import type { ReactNode } from 'react';
+import type { LaunchCommandArguments } from '../../types/launch-command-arguments';
+import { DEFAULT_LAUNCH_COMMAND_ARGUMENTS } from '../../types/launch-command-arguments';
 import type { LaunchOptimizationId } from '../../types/launch-optimizations';
 import type { GamescopeConfig } from '../../types/profile';
 import { DashboardPanelSection } from '../layout/DashboardPanelSection';
@@ -10,6 +12,7 @@ interface SteamOptionsTabContentProps {
   activeTab: LaunchSubTabId;
   enabledOptionIds: readonly LaunchOptimizationId[];
   customEnvVars?: Readonly<Record<string, string>>;
+  commandArguments?: LaunchCommandArguments;
   gamescopeConfig: GamescopeConfig;
   /** Autosave chip — rendered in panel header actions when this tab is active. */
   chipSlot?: ReactNode;
@@ -19,6 +22,7 @@ export function SteamOptionsTabContent({
   activeTab,
   enabledOptionIds,
   customEnvVars,
+  commandArguments = DEFAULT_LAUNCH_COMMAND_ARGUMENTS,
   gamescopeConfig,
   chipSlot,
 }: SteamOptionsTabContentProps) {
@@ -34,6 +38,7 @@ export function SteamOptionsTabContent({
           <SteamLaunchOptionsPanel
             enabledOptionIds={enabledOptionIds}
             customEnvVars={customEnvVars}
+            commandArguments={commandArguments}
             gamescopeConfig={gamescopeConfig}
           />
         </DashboardPanelSection>
