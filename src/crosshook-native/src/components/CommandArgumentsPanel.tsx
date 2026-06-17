@@ -567,7 +567,7 @@ export function CommandArgumentsPanel({
                       id={inputId}
                       className="crosshook-input"
                       value={row.value}
-                      placeholder="-nolauncher"
+                      placeholder="--nolauncher"
                       disabled={!isMethodSupported}
                       aria-invalid={Boolean(rowErr)}
                       aria-describedby={

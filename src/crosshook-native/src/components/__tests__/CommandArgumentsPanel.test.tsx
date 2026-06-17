@@ -203,7 +203,7 @@ describe('SteamLaunchOptionsPanel command arguments', () => {
     );
 
     await waitFor(() => {
-      expect(getSteamPreview()).toHaveTextContent('-skip_launcher');
+      expect(getSteamPreview()).toHaveTextContent('--skip-launcher');
     });
 
     rerender(
@@ -216,7 +216,19 @@ describe('SteamLaunchOptionsPanel command arguments', () => {
     await waitFor(() => {
       expect(getSteamPreview()).toHaveTextContent('+set gfx');
     });
-    expect(getSteamPreview()).not.toHaveTextContent('-skip_launcher');
+    expect(getSteamPreview()).not.toHaveTextContent('--skip-launcher');
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
+
+  it('appends nolauncher catalog token after %command% in the preview line', async () => {
+    renderSteamPanel({
+      enabled_argument_ids: ['nolauncher'],
+      custom_args: [],
+    });
+
+    await waitFor(() => {
+      expect(getSteamPreview()).toHaveTextContent('%command% --nolauncher');
+    });
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 });

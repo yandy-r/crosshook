@@ -348,7 +348,7 @@ fn preview_umu_includes_command_arguments_after_game_executable() {
     let preview = build_launch_preview(&request).unwrap();
     let command = preview.effective_command.expect("effective command");
     assert!(
-        command.contains("umu-run /tmp/game.exe -skip_launcher -windowed"),
+        command.contains("umu-run /tmp/game.exe --skip-launcher -windowed"),
         "expected umu args after game executable, got: {command}"
     );
     assert!(

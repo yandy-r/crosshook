@@ -398,7 +398,7 @@ mod tests {
 
     #[test]
     fn steam_launch_options_resolved_argument_tokens_bypass_resolution() {
-        let resolved = vec!["-skip_launcher".to_string(), "extra flag".to_string()];
+        let resolved = vec!["--skip-launcher".to_string(), "extra flag".to_string()];
         let command = build_steam_launch_options_command_with_arguments(
             &[],
             &BTreeMap::new(),
@@ -408,7 +408,7 @@ mod tests {
             Some(&resolved),
         )
         .expect("steam command with pre-resolved args");
-        assert_eq!(command, "%command% -skip_launcher \"extra flag\"");
+        assert_eq!(command, "%command% --skip-launcher \"extra flag\"");
     }
 
     #[test]
@@ -438,7 +438,7 @@ mod tests {
         .expect("steam command with gamescope, mangohud, and args");
         assert_eq!(
             command,
-            "gamescope -f --mangoapp -- %command% -skip_launcher -nolog"
+            "gamescope -f --mangoapp -- %command% --skip-launcher -nolog"
         );
     }
 }

@@ -587,8 +587,8 @@ fn proton_game_command_appends_arguments_after_game_executable_with_gamescope() 
         .expect("game executable path in args");
     let skip_launcher_idx = args
         .iter()
-        .position(|arg| arg == "-skip_launcher")
-        .expect("-skip_launcher arg");
+        .position(|arg| arg == "--skip-launcher")
+        .expect("--skip-launcher arg");
     let windowed_idx = args
         .iter()
         .position(|arg| arg == "-windowed")

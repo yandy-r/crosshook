@@ -222,16 +222,29 @@ const MOCK_COMMAND_ARGUMENT_ENTRIES: CommandArgumentEntry[] = [
   },
   {
     id: 'skip_launcher',
-    tokens: ['-skip_launcher'],
+    tokens: ['--skip-launcher'],
     label: 'Skip in-game launcher',
     description: 'Skip a publisher launcher when the game honors the switch.',
     help_text:
-      'Works on some Unity and older PC builds. Useless or harmful on titles without a separate launcher step.',
+      "Documented by some publishers (for example Larian's --skip-launcher). Useless or harmful on titles without a separate launcher step.",
     category: 'compatibility',
     advanced: false,
     community: false,
     applicable_methods: ['proton_run', 'steam_applaunch'],
-    conflicts_with: [],
+    conflicts_with: ['nolauncher'],
+  },
+  {
+    id: 'nolauncher',
+    tokens: ['--nolauncher'],
+    label: 'Skip launcher (nolauncher)',
+    description: 'Skip a publisher launcher on titles that honor the nolauncher switch.',
+    help_text:
+      'Used by some Stardock and similar builds. Pick this or --skip-launcher based on what your game documents — not both.',
+    category: 'compatibility',
+    advanced: false,
+    community: false,
+    applicable_methods: ['proton_run', 'steam_applaunch'],
+    conflicts_with: ['skip_launcher'],
   },
   {
     id: 'force_opengl',

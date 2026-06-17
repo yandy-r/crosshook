@@ -37,12 +37,48 @@ fn default_catalog_toml_parses_with_no_warnings() {
 }
 
 #[test]
-fn default_catalog_has_five_entries() {
+fn default_catalog_has_six_entries() {
     let (entries, _) = parse_catalog_toml(DEFAULT_CATALOG_TOML, "embedded default");
     assert_eq!(
         entries.len(),
-        5,
-        "expected exactly 5 entries in the default catalog"
+        6,
+        "expected exactly 6 entries in the default catalog"
+    );
+}
+
+#[test]
+fn skip_launcher_catalog_token_uses_double_dash_hyphenated_form() {
+    let (entries, _) = parse_catalog_toml(DEFAULT_CATALOG_TOML, "embedded default");
+    let skip_launcher = entries
+        .iter()
+        .find(|entry| entry.id == "skip_launcher")
+        .expect("skip_launcher catalog entry");
+    assert_eq!(skip_launcher.tokens, vec!["--skip-launcher".to_string()]);
+}
+
+#[test]
+fn nolauncher_catalog_token_uses_double_dash_form() {
+    let (entries, _) = parse_catalog_toml(DEFAULT_CATALOG_TOML, "embedded default");
+    let nolauncher = entries
+        .iter()
+        .find(|entry| entry.id == "nolauncher")
+        .expect("nolauncher catalog entry");
+    assert_eq!(nolauncher.tokens, vec!["--nolauncher".to_string()]);
+}
+
+#[test]
+fn skip_launcher_and_nolauncher_conflict() {
+    let catalog = make_test_catalog();
+    let ids = vec!["skip_launcher".to_string(), "nolauncher".to_string()];
+    let error = resolve_command_arguments_with_catalog(&ids, &[], METHOD_PROTON_RUN, &catalog)
+        .expect_err("conflicting launcher skip flags should fail");
+
+    assert_eq!(
+        error,
+        CommandArgumentResolveError::Incompatible {
+            first: "skip_launcher".to_string(),
+            second: "nolauncher".to_string(),
+        }
     );
 }
 
@@ -163,7 +199,7 @@ fn resolves_curated_tokens_in_catalog_order() {
     assert_eq!(
         resolved,
         ResolvedCommandArguments {
-            tokens: vec!["-force_vulkan".to_string(), "-skip_launcher".to_string()],
+            tokens: vec!["-force_vulkan".to_string(), "--skip-launcher".to_string()],
         }
     );
 }
@@ -209,7 +245,7 @@ fn steam_applaunch_method_resolves_supported_entries() {
         resolve_command_arguments_with_catalog(&ids, &[], METHOD_STEAM_APPLAUNCH, &catalog)
             .expect("steam applaunch should resolve");
 
-    assert_eq!(resolved.tokens, vec!["-skip_launcher".to_string()]);
+    assert_eq!(resolved.tokens, vec!["--skip-launcher".to_string()]);
 }
 
 #[test]
