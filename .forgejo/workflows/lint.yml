@@ -26,15 +26,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential pkg-config \
-            curl ca-certificates \
-            libgtk-3-dev libssl-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev \
-            libayatana-appindicator3-dev librsvg2-dev
+            curl ca-certificates libssl-dev
           if ! command -v rustup >/dev/null 2>&1; then
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none
           fi
           source "$HOME/.cargo/env"
-          rustup toolchain install 1.95.0 --component rustfmt clippy
-          rustup default 1.95.0
+          rustup toolchain install stable --component rustfmt clippy
+          rustup default stable
           echo "PATH=$HOME/.cargo/bin:$PATH" >> "$GITHUB_ENV"
 
       - name: Check formatting
