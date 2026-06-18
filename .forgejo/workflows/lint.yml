@@ -20,31 +20,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
+      - name: Rust fmt and clippy
         run: |
           set -euo pipefail
+          export CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
+          export PATH="$CARGO_HOME/bin:$PATH"
+
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential pkg-config \
             curl ca-certificates libssl-dev
-          if ! command -v rustup >/dev/null 2>&1; then
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none
+
+          if [[ ! -x "$CARGO_HOME/bin/cargo" ]]; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+              | sh -s -- -y --default-toolchain none --profile minimal
+            export PATH="$CARGO_HOME/bin:$PATH"
           fi
-          source "$HOME/.cargo/env"
-          rustup toolchain install stable --component rustfmt clippy
-          rustup default stable
-          echo "PATH=$HOME/.cargo/bin:$PATH" >> "$GITHUB_ENV"
 
-      - name: Check formatting
-        run: |
-          set -euo pipefail
-          source "$HOME/.cargo/env"
+          rustup toolchain install 1.95.0 --component rustfmt --component clippy --profile minimal
+          rustup default 1.95.0
+
           cargo fmt --manifest-path src/crosshook-native/Cargo.toml --all -- --check
-
-      - name: Run clippy
-        run: |
-          set -euo pipefail
-          source "$HOME/.cargo/env"
           cargo clippy --manifest-path src/crosshook-native/Cargo.toml \
             -p crosshook-core -p crosshook-cli --all-targets -- -D warnings
 
