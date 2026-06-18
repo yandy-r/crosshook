@@ -17,7 +17,7 @@ Normative guidelines for AI agents in this repository. Stack overview, directory
 - **Secrets**: **Never** commit `.env`, `.env.encrypted`, or `.env.keys`.
 - **Issues**: Use the YAML form templates under [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE/). **Do not** create title-only or template-bypass issues. If `gh issue create --template` fails (e.g. `no templates found`), create the issue via GitHub API/tooling with a body that mirrors the form fields, then apply correct labels—**not** a vague one-liner. For feature issues that introduce or change **persisted** data, the issue body must include a **Storage boundary** subsection (classify each datum as TOML settings, SQLite metadata, or runtime-only) and a short **Persistence & usability** subsection (migration/backward compatibility, offline expectations, degraded behavior when persistence is unavailable, and what users can view or edit).
 - **Pull requests**: Follow [`.github/pull_request_template.md`](.github/pull_request_template.md). **Always** link the related issue (e.g. `Closes #…`). **Label** PRs using the taxonomy below—**never** invent ad-hoc labels.
-- **Releases**: Before tagging, run `./scripts/prepare-release.sh …` (regenerates/validates `CHANGELOG.md` per repo scripts). The release workflow validates changelog sections; noisy commits should fail prep, not ship to GitHub Releases.
+- **Releases**: Before tagging, run `./scripts/prepare-release.sh …` (regenerates/validates `CHANGELOG.md` per repo scripts). Collaboration branch pushes go to Forgejo `origin`; release tags push to both Forgejo `origin` and GitHub `github` so `.forgejo/workflows/release.yml` and `.github/workflows/release.yml` each publish the Flatpak bundle. The release workflows validate changelog sections; noisy commits should fail prep, not ship to releases.
 - **Commits / changelog**: `CHANGELOG.md` is driven by **git-cliff** and release notes. Use **Conventional Commits** for user-facing work (`feat(…)`, `fix(…)`, `docs(…)`, `build(…)`, …). Avoid vague titles (`fix stuff`, `Update README.md`, …) for changes that may ship. For user-visible changes, **write the title as you want it to appear** in `CHANGELOG.md`.
 - **Internal docs commits**: Commits that change files under `./docs/plans`, `./docs/research`, or `./docs/internal` **must** use a `docs(internal): …` prefix. Other non-user-facing churn: prefer `chore(…): …` or `docs(internal): …` so it stays out of release notes.
 - **MCP**: When an MCP server fits the task (GitHub, docs, browser, etc.), **prefer it**. **Read** each tool’s schema/descriptor before calling. If MCP is missing or unsuitable, use `gh`, repo scripts, or other local tools—**do not** block on MCP.
@@ -78,7 +78,7 @@ For storage changes, plans must also:
 cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core
 ```
 
-Primary source root: `src/crosshook-native/`. CI release workflow: `.github/workflows/release.yml`.
+Primary source root: `src/crosshook-native/`. Release workflows: `.forgejo/workflows/release.yml` (Forgejo) and `.github/workflows/release.yml` (GitHub). Collaboration CI: `.forgejo/workflows/`.
 
 ### Browser Dev Mode
 

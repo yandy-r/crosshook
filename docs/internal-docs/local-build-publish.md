@@ -113,7 +113,12 @@ you only need to verify the production Tauri binary that Flatpak consumes.
 
 ## CI/CD
 
-`.github/workflows/release.yml` runs on `v*` tag push:
+Release workflows run on `v*` tag push and mirror the same build graph:
+
+- `.forgejo/workflows/release.yml` — triggered when tags land on Forgejo `origin`
+- `.github/workflows/release.yml` — triggered when tags land on GitHub `github`
+
+Each workflow:
 
 1. Sets up Node.js 20 and Rust stable
 2. Installs release-binary and Flatpak packaging prerequisites
@@ -123,6 +128,9 @@ you only need to verify the production Tauri binary that Flatpak consumes.
 6. Stages Flatpak inputs and validates desktop/AppStream metadata
 7. Builds and publishes the Flatpak release asset
 8. Publishes release notes rendered from `CHANGELOG.md`
+
+The Forgejo publish job uses the Forgejo API (`FORGEJO_TOKEN` repository secret required).
+The GitHub publish job uses `softprops/action-gh-release@v2`.
 
 Tagged releases publish a single Flatpak bundle named
 `CrossHook_<version>_amd64.flatpak`.
@@ -151,7 +159,8 @@ The script sequence is:
 3. Validate the tagged release-notes section with `./scripts/validate-release-notes.sh`
 4. Commit the release metadata update as `chore(release): prepare vX.Y.Z`
 5. Create the annotated tag `vX.Y.Z`
-6. If `--push` is used, push the branch first and the tag second
+6. If `--push` is used, push the branch to Forgejo `origin` first, then push the tag to both
+   `origin` and `github` (override with `--release-remotes` or `--release-remote`)
 
 For release publishing, `CHANGELOG.md` is the single source of truth. The
 workflow uses `scripts/render-release-notes.sh` to extract the tagged section

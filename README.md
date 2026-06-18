@@ -219,10 +219,11 @@ containing mock code -- the feature has zero production surface.
 
 ### CI
 
-Forgejo Actions workflows under `.forgejo/workflows/` run collaboration checks for PRs. The
+Forgejo Actions workflows under `.forgejo/workflows/` run collaboration checks for PRs and
+publish releases from tags pushed to `origin`. The
 [release](.github/workflows/release.yml) GitHub Actions workflow is release-only: it builds and
 uploads the Flatpak bundle to a GitHub Release on every version tag push (`v*`) to the `github`
-remote.
+remote. `./scripts/prepare-release.sh --push` pushes release tags to both remotes by default.
 
 ## Release Notes
 

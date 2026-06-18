@@ -1,0 +1,332 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FORGEJO_API_URL: https://git.home.rfamily.dev/api/v1
+  FORGEJO_REPOSITORY: yandy/crosshook
+
+jobs:
+  build-release-binary:
+    runs-on: ubuntu-latest
+    env:
+      TARGET_TRIPLE: x86_64-unknown-linux-gnu
+
+    steps:
+      - name: Track build start time
+        run: echo "BUILD_START_TS=$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Set release version
+        run: echo "RELEASE_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: src/crosshook-native/package-lock.json
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Install Linux build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            curl \
+            file \
+            imagemagick \
+            libgtk-3-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-bin \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install native frontend dependencies
+        working-directory: src/crosshook-native
+        run: npm ci
+
+      - name: Verify native version matches release tag
+        run: |
+          set -euo pipefail
+          tag_version="${GITHUB_REF_NAME#v}"
+          manifests=(
+            "src/crosshook-native/Cargo.toml"
+            "src/crosshook-native/crates/crosshook-core/Cargo.toml"
+            "src/crosshook-native/crates/crosshook-cli/Cargo.toml"
+            "src/crosshook-native/src-tauri/Cargo.toml"
+          )
+
+          read_version() {
+            local manifest="$1"
+            awk '
+              $0 == "[workspace.package]" { in_workspace=1; next }
+              $0 == "[package]" { in_package=1; next }
+              /^\[/ { in_workspace=0; in_package=0 }
+              (in_workspace || in_package) && $1 == "version" {
+                gsub(/"/, "", $3)
+                print $3
+                exit
+              }
+            ' "$manifest"
+          }
+
+          for manifest in "${manifests[@]}"; do
+            manifest_version="$(read_version "$manifest")"
+
+            [[ -n "$manifest_version" ]] || {
+              echo "Failed to read version from $manifest" >&2
+              exit 1
+            }
+
+            [[ "$manifest_version" == "$tag_version" ]] || {
+              echo "Release tag version ($tag_version) does not match $manifest version ($manifest_version)" >&2
+              exit 1
+            }
+          done
+
+      - name: Run crosshook-core tests
+        env:
+          CARGO_HOME: /tmp/cargo-home
+          CARGO_TARGET_DIR: /tmp/crosshook-native-target
+        run: cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core
+
+      - name: Build release binary for Flatpak staging
+        env:
+          DIST_DIR: ${{ github.workspace }}/dist
+          CARGO_TARGET_DIR: /tmp/crosshook-native-release-target
+        run: ./scripts/build-release-binary.sh
+
+      - name: Verify no mock code in production bundle
+        run: |
+          echo "Checking dist/assets/ for mock-mode sentinel strings..."
+          if ! compgen -G "src/crosshook-native/dist/assets/*.js" > /dev/null; then
+            echo "::error::No JS assets found under src/crosshook-native/dist/assets/ — build output missing or glob did not match" >&2
+            exit 1
+          fi
+          if grep -rl '\[dev-mock\]\|getMockRegistry\|registerMocks\|MOCK MODE\|__MOCK_VALIDATION_ERROR__\|__MOCK_VALIDATION_WARNING__' \
+              src/crosshook-native/dist/assets/*.js 2>/dev/null; then
+            echo "::error::Mock code found in production bundle — refusing to ship" >&2
+            echo "This is a CRITICAL security failure. The __WEB_DEV_MODE__ define" >&2
+            echo "or the dynamic-import dead-branch failed to eliminate mock code." >&2
+            echo "Sentinel strings checked: [dev-mock], getMockRegistry, registerMocks, MOCK MODE, __MOCK_VALIDATION_ERROR__, __MOCK_VALIDATION_WARNING__" >&2
+            exit 1
+          fi
+          echo "Bundle clean — no mock strings found"
+
+      - name: Stage Flatpak build assets
+        run: |
+          set -euo pipefail
+          stage_dir="dist/flatpak-staging"
+          rm -rf "$stage_dir"
+          mkdir -p "$stage_dir/runtime-helpers"
+
+          install -Dm755 "dist/crosshook-native" "$stage_dir/crosshook-native"
+          install -Dm755 "src/crosshook-native/runtime-helpers/steam-launch-helper.sh" "$stage_dir/runtime-helpers/steam-launch-helper.sh"
+          install -Dm755 "src/crosshook-native/runtime-helpers/steam-launch-trainer.sh" "$stage_dir/runtime-helpers/steam-launch-trainer.sh"
+          install -Dm755 "src/crosshook-native/runtime-helpers/steam-host-trainer-runner.sh" "$stage_dir/runtime-helpers/steam-host-trainer-runner.sh"
+
+          install -Dm644 "assets/icon-128.png" "$stage_dir/icon-128.png"
+          install -Dm644 "assets/icon-256.png" "$stage_dir/icon-256.png"
+          install -Dm644 "assets/icon-512.png" "$stage_dir/icon-512.png"
+          install -Dm644 "packaging/flatpak/dev.crosshook.CrossHook.yml" "$stage_dir/dev.crosshook.CrossHook.yml"
+          install -Dm644 "packaging/flatpak/dev.crosshook.CrossHook.desktop" "$stage_dir/dev.crosshook.CrossHook.desktop"
+          install -Dm644 "packaging/flatpak/dev.crosshook.CrossHook.metainfo.xml" "$stage_dir/dev.crosshook.CrossHook.metainfo.xml"
+
+      - name: Upload Flatpak staging assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-staging-assets
+          path: dist/flatpak-staging
+          if-no-files-found: error
+
+      - name: Summarize release binary build duration
+        run: |
+          set -euo pipefail
+          elapsed="$(( $(date +%s) - BUILD_START_TS ))"
+          printf "## Release Binary Build Timing\n\n- Elapsed: %ss\n" "$elapsed" >> "$GITHUB_STEP_SUMMARY"
+
+  build-flatpak:
+    runs-on: ubuntu-latest
+    needs:
+      - build-release-binary
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
+      options: --privileged
+
+    steps:
+      - name: Track build start time
+        run: echo "BUILD_START_TS=$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Set release version and flatpak bundle name
+        run: |
+          echo "RELEASE_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          echo "FLATPAK_BUNDLE_NAME=CrossHook_${GITHUB_REF_NAME#v}_amd64.flatpak" >> "$GITHUB_ENV"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Flatpak staging assets
+        uses: actions/download-artifact@v4
+        with:
+          name: flatpak-staging-assets
+          path: flatpak-staging
+
+      - name: Validate staged desktop entry
+        run: desktop-file-validate flatpak-staging/dev.crosshook.CrossHook.desktop
+
+      - name: Validate staged AppStream metadata
+        run: appstreamcli validate flatpak-staging/dev.crosshook.CrossHook.metainfo.xml
+
+      - name: Build Flatpak bundle
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: ${{ env.FLATPAK_BUNDLE_NAME }}
+          manifest-path: flatpak-staging/dev.crosshook.CrossHook.yml
+          upload-artifact: false
+
+      - name: Upload Flatpak artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-release-asset
+          path: ${{ env.FLATPAK_BUNDLE_NAME }}
+          if-no-files-found: error
+
+      - name: Summarize flatpak build duration
+        run: |
+          set -euo pipefail
+          elapsed="$(( $(date +%s) - BUILD_START_TS ))"
+          printf "## Flatpak Build Timing\n\n- Elapsed: %ss\n" "$elapsed" >> "$GITHUB_STEP_SUMMARY"
+
+  publish-release:
+    runs-on: ubuntu-latest
+    needs:
+      - build-flatpak
+    env:
+      FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+    steps:
+      - name: Track publish start time
+        run: echo "PUBLISH_START_TS=$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Set release version
+        run: echo "RELEASE_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download flatpak release asset
+        uses: actions/download-artifact@v4
+        with:
+          name: flatpak-release-asset
+          path: dist
+
+      - name: Generate release body from changelog
+        run: ./scripts/render-release-notes.sh "${GITHUB_REF_NAME}" > release-body.md
+
+      - name: Validate release body
+        run: ./scripts/validate-release-notes.sh "${GITHUB_REF_NAME}"
+
+      - name: Publish release to Forgejo
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${FORGEJO_TOKEN:-}" ]]; then
+            echo "::error::FORGEJO_TOKEN repository secret is missing. Configure it in Forgejo repository settings with release write access." >&2
+            exit 1
+          fi
+
+          tag_name="${GITHUB_REF_NAME}"
+          flatpak_asset="dist/CrossHook_${RELEASE_VERSION}_amd64.flatpak"
+          asset_name="$(basename "$flatpak_asset")"
+          api_base="${FORGEJO_API_URL}/repos/${FORGEJO_REPOSITORY}"
+
+          [[ -f "$flatpak_asset" ]] || {
+            echo "::error::Flatpak asset not found: $flatpak_asset" >&2
+            exit 1
+          }
+
+          release_body="$(cat release-body.md)"
+
+          existing_release="$(curl -fsSL \
+            -H "Authorization: token ${FORGEJO_TOKEN}" \
+            "${api_base}/releases/tags/${tag_name}" 2>/dev/null || true)"
+
+          if [[ -n "$existing_release" ]] && echo "$existing_release" | jq -e '.id' >/dev/null 2>&1; then
+            release_id="$(echo "$existing_release" | jq -r '.id')"
+            echo "Found existing Forgejo release ${release_id} for ${tag_name}"
+          else
+            payload="$(jq -n \
+              --arg tag "$tag_name" \
+              --arg name "$tag_name" \
+              --arg body "$release_body" \
+              '{tag_name: $tag, name: $name, body: $body, draft: false, prerelease: false}')"
+
+            created_release="$(curl -fsSL \
+              -X POST \
+              -H "Authorization: token ${FORGEJO_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "$payload" \
+              "${api_base}/releases")"
+
+            release_id="$(echo "$created_release" | jq -r '.id // empty')"
+
+            if [[ -z "$release_id" || "$release_id" == "null" ]]; then
+              echo "::error::Failed to create Forgejo release for ${tag_name}" >&2
+              echo "$created_release" >&2
+              exit 1
+            fi
+
+            echo "Created Forgejo release ${release_id} for ${tag_name}"
+          fi
+
+          existing_assets="$(curl -fsSL \
+            -H "Authorization: token ${FORGEJO_TOKEN}" \
+            "${api_base}/releases/${release_id}/assets" 2>/dev/null || echo '[]')"
+
+          if echo "$existing_assets" | jq -e --arg name "$asset_name" '.[] | select(.name == $name)' >/dev/null 2>&1; then
+            echo "::error::Forgejo release ${tag_name} already has asset ${asset_name}. Delete the duplicate asset manually before re-running." >&2
+            exit 1
+          fi
+
+          upload_response="$(curl -fsSL \
+            -X POST \
+            -H "Authorization: token ${FORGEJO_TOKEN}" \
+            -F "attachment=@${flatpak_asset}" \
+            "${api_base}/releases/${release_id}/assets?name=${asset_name}")"
+
+          uploaded_name="$(echo "$upload_response" | jq -r '.name // empty')"
+          if [[ "$uploaded_name" != "$asset_name" ]]; then
+            echo "::error::Failed to upload Flatpak asset to Forgejo release ${tag_name}" >&2
+            echo "$upload_response" >&2
+            exit 1
+          fi
+
+          echo "Uploaded ${asset_name} to Forgejo release ${tag_name}"
+
+      - name: Summarize publish duration
+        run: |
+          set -euo pipefail
+          elapsed="$(( $(date +%s) - PUBLISH_START_TS ))"
+          printf "## Release Publish Timing\n\n- Elapsed: %ss\n" "$elapsed" >> "$GITHUB_STEP_SUMMARY"

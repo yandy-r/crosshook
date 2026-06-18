@@ -37,14 +37,18 @@ flatpak run dev.crosshook.CrossHook
 
 ## CI Build Flow (Phase 2)
 
-Release automation is defined in `.github/workflows/release.yml` and runs only from tags pushed to
-the GitHub `github` remote:
+Release automation is defined in `.forgejo/workflows/release.yml` and
+`.github/workflows/release.yml`. Tags pushed to Forgejo `origin` trigger the Forgejo workflow;
+tags pushed to GitHub `github` trigger the GitHub workflow. `./scripts/prepare-release.sh --push`
+pushes release tags to both remotes by default.
 
 - `build-flatpak` builds the bundle with `flatpak/flatpak-github-actions/flatpak-builder@v6`
 - CI validates metadata before building:
   - `desktop-file-validate packaging/flatpak/dev.crosshook.CrossHook.desktop`
   - `appstreamcli validate packaging/flatpak/dev.crosshook.CrossHook.metainfo.xml`
-- The publish job attaches the Flatpak bundle to the GitHub Release
+- The publish job attaches the Flatpak bundle to the Forgejo or GitHub Release (per remote)
+
+Forgejo release publishing requires a `FORGEJO_TOKEN` repository secret with release write access.
 
 ## GNOME Runtime Upgrade Path
 
@@ -78,7 +82,7 @@ After a successful `./scripts/build-flatpak.sh --strict`, install and run the bu
 1. **Manifest runtime**  
    Update `runtime-version` in `packaging/flatpak/dev.crosshook.CrossHook.yml`.
 2. **CI container image**  
-   Update the release workflow container image tag (`ghcr.io/flathub-infra/flatpak-github-actions:gnome-<major>`) in `.github/workflows/release.yml`.
+   Update the release workflow container image tag (`ghcr.io/flathub-infra/flatpak-github-actions:gnome-<major>`) in `.forgejo/workflows/release.yml` and `.github/workflows/release.yml`.
 3. **Local build script default**  
    Keep `CROSSHOOK_FLATPAK_RUNTIME_VERSION` default in `scripts/build-flatpak.sh` aligned with the manifest.
 4. **Revalidate packaging metadata**  

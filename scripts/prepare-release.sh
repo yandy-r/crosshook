@@ -12,15 +12,15 @@ NATIVE_CARGO_MANIFESTS=(
   "$ROOT_DIR/src/crosshook-native/src-tauri/Cargo.toml"
 )
 SOURCE_REMOTE="${SOURCE_REMOTE:-origin}"
-RELEASE_REMOTE="${RELEASE_REMOTE:-github}"
+RELEASE_REMOTES=(origin github)
 PUSH=false
 VERSION_INPUT=""
 
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/prepare-release.sh --version 5.1.0 [--push] [--source-remote origin] [--release-remote github]
-  ./scripts/prepare-release.sh --tag v5.1.0 [--push] [--source-remote origin] [--release-remote github]
+  ./scripts/prepare-release.sh --version 5.1.0 [--push] [--source-remote origin] [--release-remotes "origin github"]
+  ./scripts/prepare-release.sh --tag v5.1.0 [--push] [--source-remote origin] [--release-remotes "origin github"]
 
 This script:
   1. Syncs the native workspace version
@@ -28,21 +28,30 @@ This script:
   3. Validates the tagged release-notes section
   4. Commits the release metadata update
   5. Creates an annotated release tag
-  6. Optionally pushes the branch to Forgejo first and the tag to GitHub second
+  6. Optionally pushes the branch to Forgejo and the tag to both release remotes
 
 Examples:
   ./scripts/prepare-release.sh --version 5.1.0
   ./scripts/prepare-release.sh --tag v5.1.0 --push
 
 By default, source collaboration is pushed to the Forgejo `origin` remote and
-release tags are pushed to the GitHub `github` remote so GitHub Releases still
-publish the Flatpak bundle.
+release tags are pushed to both `origin` and `github` so Forgejo and GitHub
+release workflows each publish the Flatpak bundle.
 EOF
 }
 
 die() {
   echo "Error: $*" >&2
   exit 1
+}
+
+set_release_remotes() {
+  local raw="$1"
+  local -a parsed=()
+
+  read -r -a parsed <<< "$raw"
+  ((${#parsed[@]} > 0)) || die "release remotes list cannot be empty"
+  RELEASE_REMOTES=("${parsed[@]}")
 }
 
 set_native_workspace_version() {
@@ -97,14 +106,19 @@ while (($# > 0)); do
       SOURCE_REMOTE="$2"
       shift 2
       ;;
+    --release-remotes)
+      (($# >= 2)) || die "--release-remotes requires a value"
+      set_release_remotes "$2"
+      shift 2
+      ;;
     --release-remote)
       (($# >= 2)) || die "--release-remote requires a value"
-      RELEASE_REMOTE="$2"
+      set_release_remotes "$2"
       shift 2
       ;;
     --remote)
       (($# >= 2)) || die "--remote requires a value"
-      RELEASE_REMOTE="$2"
+      set_release_remotes "$2"
       shift 2
       ;;
     -h|--help)
@@ -135,7 +149,10 @@ BRANCH="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
 
 git rev-parse --verify "refs/tags/$TAG" >/dev/null 2>&1 && die "tag already exists: $TAG"
 git config --get "remote.$SOURCE_REMOTE.url" >/dev/null 2>&1 || die "source remote not found: $SOURCE_REMOTE"
-git config --get "remote.$RELEASE_REMOTE.url" >/dev/null 2>&1 || die "release remote not found: $RELEASE_REMOTE"
+
+for release_remote in "${RELEASE_REMOTES[@]}"; do
+  git config --get "remote.$release_remote.url" >/dev/null 2>&1 || die "release remote not found: $release_remote"
+done
 
 set_native_workspace_version "$VERSION"
 
@@ -166,16 +183,23 @@ if [[ "$PUSH" == true ]]; then
   [[ -n "$BRANCH" ]] || die "cannot push from detached HEAD"
 
   git push "$SOURCE_REMOTE" "$BRANCH"
-  git push "$RELEASE_REMOTE" "refs/tags/$TAG"
+  for release_remote in "${RELEASE_REMOTES[@]}"; do
+    git push "$release_remote" "refs/tags/$TAG"
+  done
 
-  echo "Pushed branch $BRANCH to $SOURCE_REMOTE and tag $TAG to $RELEASE_REMOTE"
+  release_remote_list="${RELEASE_REMOTES[*]}"
+  echo "Pushed branch $BRANCH to $SOURCE_REMOTE and tag $TAG to $release_remote_list"
 else
   if [[ -n "$BRANCH" ]]; then
     echo "Next steps:"
     echo "  git push $SOURCE_REMOTE $BRANCH"
-    echo "  git push $RELEASE_REMOTE refs/tags/$TAG"
+    for release_remote in "${RELEASE_REMOTES[@]}"; do
+      echo "  git push $release_remote refs/tags/$TAG"
+    done
   else
-    echo "Next step:"
-    echo "  git push $RELEASE_REMOTE refs/tags/$TAG"
+    echo "Next steps:"
+    for release_remote in "${RELEASE_REMOTES[@]}"; do
+      echo "  git push $release_remote refs/tags/$TAG"
+    done
   fi
 fi
