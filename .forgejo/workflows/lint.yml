@@ -47,7 +47,8 @@ jobs:
         run: |
           set -euo pipefail
           source "$HOME/.cargo/env"
-          cargo clippy --manifest-path src/crosshook-native/Cargo.toml --all-targets -- -D warnings
+          cargo clippy --manifest-path src/crosshook-native/Cargo.toml \
+            -p crosshook-core -p crosshook-cli --all-targets -- -D warnings
 
   typescript:
     name: TypeScript (biome + tsc)
