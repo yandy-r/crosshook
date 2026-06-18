@@ -488,14 +488,14 @@ fn proton_game_command_appends_curated_and_custom_arguments_after_game_executabl
         vec![
             "run".to_string(),
             game_path_str.clone(),
-            "-force_vulkan".to_string(),
+            "-force-vulkan".to_string(),
             "+set sv_cheats 1".to_string(),
         ]
     );
     assert!(
         args[game_idx + 1..]
             .iter()
-            .any(|arg| arg == "-force_vulkan"),
+            .any(|arg| arg == "-force-vulkan"),
         "curated args must follow game executable"
     );
     assert!(

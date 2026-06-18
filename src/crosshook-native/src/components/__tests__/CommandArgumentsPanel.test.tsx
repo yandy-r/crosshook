@@ -68,7 +68,7 @@ describe('CommandArgumentsPanel', () => {
   it('renders curated argument toggles for supported methods', () => {
     renderCommandArgumentsPanel();
     expect(screen.getByRole('heading', { name: 'Command Arguments' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Force Vulkan renderer')).toBeInTheDocument();
+    expect(screen.getByLabelText('Force Vulkan renderer (Unity)')).toBeInTheDocument();
     expect(screen.getByLabelText('Skip in-game launcher')).toBeInTheDocument();
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
@@ -76,7 +76,7 @@ describe('CommandArgumentsPanel', () => {
   it('shows method warning for native launch method', () => {
     renderCommandArgumentsPanel({ method: 'native' });
     expect(screen.getByText(/Command arguments are only editable when the profile method is/)).toBeInTheDocument();
-    expect(screen.getByLabelText('Force Vulkan renderer')).toBeDisabled();
+    expect(screen.getByLabelText('Force Vulkan renderer (Unity)')).toBeDisabled();
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
@@ -84,7 +84,7 @@ describe('CommandArgumentsPanel', () => {
     const user = userEvent.setup();
     const { onToggleArgument } = renderCommandArgumentsPanel();
 
-    await user.click(screen.getByLabelText('Force Vulkan renderer'));
+    await user.click(screen.getByLabelText('Force Vulkan renderer (Unity)'));
     expect(onToggleArgument).toHaveBeenCalledWith('force_vulkan', true);
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
@@ -179,7 +179,7 @@ describe('SteamLaunchOptionsPanel command arguments', () => {
     });
 
     await waitFor(() => {
-      expect(getSteamPreview()).toHaveTextContent('%command% -force_vulkan --custom-flag');
+      expect(getSteamPreview()).toHaveTextContent('%command% -force-vulkan --custom-flag');
     });
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });

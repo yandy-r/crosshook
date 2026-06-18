@@ -42,7 +42,8 @@ function normalizeCommandArgumentsForEdit(
   };
 }
 
-function normalizeCommandArgumentsForSave(
+/** Normalizes command arguments before IPC persistence (autosave or full profile save). */
+export function normalizeCommandArgumentsForSave(
   commandArguments: LaunchCommandArguments | undefined
 ): LaunchCommandArguments {
   const forEdit = normalizeCommandArgumentsForEdit(commandArguments);

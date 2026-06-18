@@ -25,6 +25,7 @@ pub struct CommandArgumentsPayload {
 pub fn profile_save_command_arguments(
     name: String,
     command_arguments: CommandArgumentsPayload,
+    resolved_launch_method: Option<String>,
     store: State<'_, ProfileStore>,
     metadata_store: State<'_, MetadataStore>,
     settings_store: State<'_, SettingsStore>,
@@ -39,8 +40,17 @@ pub fn profile_save_command_arguments(
             profile_name,
             command_arguments.enabled_argument_ids,
             command_arguments.custom_args,
+            resolved_launch_method.as_deref(),
         )
-        .map_err(map_error)?;
+        .map_err(|err| {
+            tracing::warn!(
+                profile = profile_name,
+                resolved_launch_method = resolved_launch_method.as_deref().unwrap_or("<none>"),
+                error = %err,
+                "profile_save_command_arguments rejected by store"
+            );
+            map_error(err)
+        })?;
 
     if let Ok(updated) = store.load(profile_name) {
         observe_profile_write_launch_change(profile_name, &store, &metadata_store, &updated);

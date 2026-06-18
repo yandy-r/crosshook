@@ -122,7 +122,7 @@ The **Command Arguments** panel sits in the same launch configuration surface as
 
 ```toml
 [launch.command_arguments]
-enabled_argument_ids = ["force_vulkan", "skip_launcher"]
+enabled_argument_ids = ["force_vulkan", "skip_launcher", "launcher_skip"]
 custom_args = ["-nologos"]
 ```
 

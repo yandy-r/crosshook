@@ -67,7 +67,15 @@ export function useHeroLaunchHooksAutosave({
           return;
         }
 
-        const profileForSave = lastScheduledProfileRef.current ?? latestProfileRef.current;
+        const scheduled = lastScheduledProfileRef.current;
+        const latest = latestProfileRef.current;
+        const profileForSave = scheduled
+          ? {
+              ...latest,
+              pre_launch_hooks: scheduled.pre_launch_hooks ?? [],
+              post_exit_hooks: scheduled.post_exit_hooks ?? [],
+            }
+          : latest;
         if (hooksSignature(profileForSave) !== scheduledSignature) {
           return;
         }

@@ -284,7 +284,7 @@ describe('LaunchSubTabs', () => {
 
     await waitFor(() => {
       const preview = document.querySelector('.crosshook-steam-launch-options__preview');
-      expect(preview).toHaveTextContent('%command% -force_vulkan --extra');
+      expect(preview).toHaveTextContent('%command% -force-vulkan --extra');
     });
 
     expect(consoleErrorSpy).not.toHaveBeenCalled();

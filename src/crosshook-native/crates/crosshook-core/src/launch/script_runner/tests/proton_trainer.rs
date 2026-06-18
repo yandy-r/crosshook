@@ -170,7 +170,7 @@ fn proton_trainer_command_does_not_inherit_game_command_arguments() {
         ]
     );
     assert!(
-        !args.iter().any(|arg| arg == "-force_vulkan"),
+        !args.iter().any(|arg| arg == "-force-vulkan"),
         "trainer launch must not inherit curated game command arguments"
     );
     assert!(

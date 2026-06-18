@@ -149,6 +149,10 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
 
   const setLastSavedProfileSnapshotRef = useRef<(profile: GameProfile) => void>(() => {});
   const clearAutosaveTimersRef = useRef<() => void>(() => {});
+  const enqueueProfileWriteRef = useRef<import('./profile/useProfileCrud').EnqueueProfileWrite | undefined>(undefined);
+  const flushPendingLaunchSectionSavesRef = useRef<
+    import('./profile/useProfileCrud').FlushPendingLaunchSectionSaves | undefined
+  >(undefined);
 
   // Stable wrappers that call through refs. useCallback with [] ensures these never
   // change identity across renders — inline arrows would cause loadProfile to recreate
@@ -158,6 +162,13 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     []
   );
   const clearAutosaveTimers = useCallback(() => clearAutosaveTimersRef.current(), []);
+  const enqueueProfileWrite = useCallback(<T>(fn: () => Promise<T>): Promise<T> => {
+    const enqueue = enqueueProfileWriteRef.current;
+    return enqueue ? enqueue(fn) : fn();
+  }, []);
+  const flushPendingLaunchSectionSaves = useCallback(async (nameForSave: string): Promise<void> => {
+    await flushPendingLaunchSectionSavesRef.current?.(nameForSave);
+  }, []);
 
   const crud = useProfileCrud({
     optionsById,
@@ -165,6 +176,8 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     autoSelectFirstProfile: options.autoSelectFirstProfile ?? true,
     setLastSavedProfileSnapshot,
     clearAutosaveTimers,
+    enqueueProfileWrite,
+    flushPendingLaunchSectionSaves,
   });
 
   const launchAutosave = useProfileLaunchAutosave({
@@ -182,6 +195,8 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
 
   setLastSavedProfileSnapshotRef.current = launchAutosave.setLastSavedProfileSnapshot;
   clearAutosaveTimersRef.current = launchAutosave.clearAutosaveTimers;
+  enqueueProfileWriteRef.current = launchAutosave.enqueueLaunchProfileWrite;
+  flushPendingLaunchSectionSavesRef.current = launchAutosave.flushPendingLaunchSectionSaves;
 
   const history = useProfileHistory({
     loadProfile: crud.loadProfile,

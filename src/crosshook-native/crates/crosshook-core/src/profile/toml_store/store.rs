@@ -12,7 +12,7 @@ use crate::launch::request::{
     ValidationError, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };
 use crate::profile::models::{LaunchOptimizationsSection, LocalOverrideSection};
-use crate::profile::{legacy, GameProfile};
+use crate::profile::{legacy, resolve_launch_method, GameProfile};
 use crate::settings::{resolve_profiles_directory_from_config, AppSettingsData};
 
 use super::error::ProfileStoreError;
@@ -98,6 +98,18 @@ impl ProfileStore {
         let path = self.profile_path(name)?;
         fs::create_dir_all(&self.base_path)?;
         let storage_profile = profile.storage_profile();
+        let command_argument_count = storage_profile
+            .launch
+            .command_arguments
+            .enabled_argument_ids
+            .len()
+            + storage_profile.launch.command_arguments.custom_args.len();
+        tracing::debug!(
+            profile = name,
+            command_argument_count,
+            path = %path.display(),
+            "profile_store: full save"
+        );
         fs::write(path, toml::to_string_pretty(&storage_profile)?)?;
 
         if let Err(err) =
@@ -181,6 +193,7 @@ impl ProfileStore {
         name: &str,
         enabled_argument_ids: Vec<String>,
         custom_args: Vec<String>,
+        resolved_launch_method: Option<&str>,
     ) -> Result<(), ProfileStoreError> {
         let mut profile = self.load(name)?;
 
@@ -195,16 +208,25 @@ impl ProfileStore {
         let custom_args: Vec<String> = custom_args
             .into_iter()
             .map(|raw| raw.trim().to_string())
+            .filter(|token| !token.is_empty())
             .collect();
 
         validate_profile_command_arguments(
-            profile.launch.method.as_str(),
+            &profile,
             &enabled_argument_ids,
             &custom_args,
+            resolved_launch_method,
         )?;
 
-        profile.launch.command_arguments.enabled_argument_ids = enabled_argument_ids;
-        profile.launch.command_arguments.custom_args = custom_args;
+        profile.launch.command_arguments.enabled_argument_ids = enabled_argument_ids.clone();
+        profile.launch.command_arguments.custom_args = custom_args.clone();
+
+        tracing::debug!(
+            profile = name,
+            enabled_argument_ids = ?enabled_argument_ids,
+            custom_arg_count = custom_args.len(),
+            "profile_store: save_command_arguments"
+        );
 
         self.save(name, &profile)
     }
@@ -462,15 +484,6 @@ impl ProfileStore {
 const MAX_COMMAND_ARGUMENT_TOKEN_LEN: usize = 512;
 const MAX_COMMAND_ARGUMENT_TOKENS: usize = 64;
 
-fn resolved_launch_method(method: &str) -> &str {
-    match method.trim() {
-        METHOD_STEAM_APPLAUNCH => METHOD_STEAM_APPLAUNCH,
-        METHOD_PROTON_RUN => METHOD_PROTON_RUN,
-        METHOD_NATIVE => METHOD_NATIVE,
-        other => other,
-    }
-}
-
 fn command_argument_token_has_control_character(token: &str) -> bool {
     token.contains('\0') || token.chars().any(char::is_control)
 }
@@ -540,16 +553,35 @@ fn validate_resolved_command_argument_tokens(tokens: &[String]) -> Result<(), Va
     Ok(())
 }
 
+fn resolved_launch_method_for_command_argument_validation(
+    profile: &GameProfile,
+    resolved_launch_method: Option<&str>,
+) -> String {
+    if let Some(raw) = resolved_launch_method {
+        let trimmed = raw.trim();
+        if matches!(
+            trimmed,
+            METHOD_NATIVE | METHOD_PROTON_RUN | METHOD_STEAM_APPLAUNCH
+        ) {
+            return trimmed.to_string();
+        }
+    }
+
+    resolve_launch_method(profile).to_string()
+}
+
 fn validate_profile_command_arguments(
-    method: &str,
+    profile: &GameProfile,
     enabled_argument_ids: &[String],
     custom_args: &[String],
+    resolved_launch_method: Option<&str>,
 ) -> Result<(), ProfileStoreError> {
     if enabled_argument_ids.is_empty() && custom_args.is_empty() {
         return Ok(());
     }
 
-    let resolved_method = resolved_launch_method(method);
+    let resolved_method =
+        resolved_launch_method_for_command_argument_validation(profile, resolved_launch_method);
     if resolved_method == METHOD_NATIVE {
         return Err(ProfileStoreError::CommandArgumentValidation(
             ValidationError::CommandArgumentsUnsupportedForMethod(resolved_method.to_string()),
@@ -562,7 +594,7 @@ fn validate_profile_command_arguments(
     }
 
     let resolved =
-        resolve_command_arguments_for_method(enabled_argument_ids, custom_args, resolved_method)
+        resolve_command_arguments_for_method(enabled_argument_ids, custom_args, &resolved_method)
             .map_err(command_argument_resolve_error)?;
 
     validate_resolved_command_argument_tokens(&resolved.tokens)

@@ -2366,6 +2366,23 @@ textarea {
   border-color: var(--crosshook-autosave-error-border);
 }
 
+/* Error detail can be long; let the chip wrap and show the backend reason
+   instead of discarding it (keeps autosave failures self-diagnosing). */
+.crosshook-launch-autosave-chip--error {
+  white-space: normal;
+  max-width: 28rem;
+  gap: 6px;
+}
+
+.crosshook-launch-autosave-chip__detail {
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.crosshook-launch-autosave-chip__detail::before {
+  content: '— ';
+}
+
 .crosshook-launch-optimizations__preset-toolbar {
   display: flex;
   flex-direction: column;

@@ -34,9 +34,11 @@ export function registerProfileMutations(map: Map<string, Handler>): void {
   map.set(
     'profile_save_command_arguments',
     withProfileFixtureGate('profile_save_command_arguments', async (args) => {
-      const { name, command_arguments } = args as {
+      // Invoke key is camelCase (`commandArguments`) — Tauri maps it to the
+      // snake_case Rust param `command_arguments`. Mirror the real boundary.
+      const { name, commandArguments } = args as {
         name: string;
-        command_arguments: LaunchCommandArguments;
+        commandArguments: LaunchCommandArguments;
       };
       const trimmed = name.trim();
       const store = getStore();
@@ -49,8 +51,8 @@ export function registerProfileMutations(map: Map<string, Handler>): void {
         launch: {
           ...existing.launch,
           command_arguments: {
-            enabled_argument_ids: [...command_arguments.enabled_argument_ids],
-            custom_args: [...command_arguments.custom_args],
+            enabled_argument_ids: [...commandArguments.enabled_argument_ids],
+            custom_args: [...commandArguments.custom_args],
           },
         },
       };

@@ -340,7 +340,7 @@ mod tests {
             None,
         )
         .expect("steam command with curated arg");
-        assert_eq!(command, "%command% -force_vulkan");
+        assert_eq!(command, "%command% -force-vulkan");
     }
 
     #[test]

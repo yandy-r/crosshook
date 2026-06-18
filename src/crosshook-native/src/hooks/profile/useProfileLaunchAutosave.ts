@@ -1,7 +1,7 @@
 import { type Dispatch, type SetStateAction, useCallback, useMemo, useRef, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 import type { BundledOptimizationPreset, GameProfile, LaunchAutoSaveStatus, SerializedGameProfile } from '../../types';
-import type { CommandArgumentEntry } from '../../types/launch-command-arguments';
+import { type CommandArgumentEntry, DEFAULT_LAUNCH_COMMAND_ARGUMENTS } from '../../types/launch-command-arguments';
 import type { LaunchOptimizationId } from '../../types/launch-optimizations';
 import { buildArgumentsById, buildConflictMatrix } from '../../utils/command-argument-catalog';
 import { resolveLaunchMethod } from '../../utils/launch';
@@ -11,7 +11,7 @@ import { formatInvokeError } from './formatInvokeError';
 import { areLaunchOptimizationIdsEqual, normalizeLaunchOptimizationIds } from './launchOptimizationIds';
 import { buildLaunchOptimizationsStatus, type LaunchOptimizationsStatus } from './launchOptimizationStatus';
 import { applyLaunchOptimizationToggle } from './launchOptimizationToggle';
-import { normalizeProfileForEdit } from './profileNormalize';
+import { normalizeCommandArgumentsForSave, normalizeProfileForEdit } from './profileNormalize';
 import {
   useBundledOptimizationPresetsEffect,
   useCommandArgumentsAutosaveEffect,
@@ -107,9 +107,7 @@ export function useProfileLaunchAutosave({
   const lastSavedGamescopeJsonRef = useRef<string>('null');
   const lastSavedTrainerGamescopeJsonRef = useRef<string>('null');
   const lastSavedMangoHudJsonRef = useRef<string>('null');
-  const lastSavedCommandArgumentsJsonRef = useRef<string>(
-    JSON.stringify({ enabled_argument_ids: [], custom_args: [] })
-  );
+  const lastSavedCommandArgumentsJsonRef = useRef<string>(JSON.stringify(DEFAULT_LAUNCH_COMMAND_ARGUMENTS));
   const pendingLaunchPresetRef = useRef<string | null>(null);
   const profileRef = useRef(profile);
   profileRef.current = profile;
@@ -142,7 +140,9 @@ export function useProfileLaunchAutosave({
     lastSavedGamescopeJsonRef.current = JSON.stringify(nextProfile.launch.gamescope ?? null);
     lastSavedTrainerGamescopeJsonRef.current = JSON.stringify(nextProfile.launch.trainer_gamescope ?? null);
     lastSavedMangoHudJsonRef.current = JSON.stringify(nextProfile.launch.mangohud ?? null);
-    lastSavedCommandArgumentsJsonRef.current = JSON.stringify(nextProfile.launch.command_arguments);
+    lastSavedCommandArgumentsJsonRef.current = JSON.stringify(
+      normalizeCommandArgumentsForSave(nextProfile.launch.command_arguments ?? DEFAULT_LAUNCH_COMMAND_ARGUMENTS)
+    );
   }, []);
   const clearAutosaveTimers = useCallback(() => {
     if (launchOptimizationsAutosaveTimerRef.current !== null) {
@@ -201,6 +201,57 @@ export function useProfileLaunchAutosave({
     },
     [enqueueLaunchProfileWrite]
   );
+
+  /** Clears pending timer and persists launch.command_arguments immediately. */
+  const flushPendingCommandArgumentsSave = useCallback(
+    async (nameForSave: string): Promise<void> => {
+      if (commandArgumentsAutosaveTimerRef.current !== null) {
+        clearTimeout(commandArgumentsAutosaveTimerRef.current);
+        commandArgumentsAutosaveTimerRef.current = null;
+      }
+      if (!hasExistingSavedProfileRef.current) {
+        return;
+      }
+      const current = profileRef.current;
+      const method = resolveLaunchMethod(current);
+      if (method !== 'proton_run' && method !== 'steam_applaunch') {
+        return;
+      }
+      const trimmed = nameForSave.trim();
+      if (!trimmed) {
+        return;
+      }
+      const commandArguments = current.launch.command_arguments ?? DEFAULT_LAUNCH_COMMAND_ARGUMENTS;
+      const normalizedCommandArguments = normalizeCommandArgumentsForSave(commandArguments);
+      const currentJson = JSON.stringify(normalizedCommandArguments);
+      if (currentJson === lastSavedCommandArgumentsJsonRef.current) {
+        return;
+      }
+      await enqueueLaunchProfileWrite(async () => {
+        await callCommand('profile_save_command_arguments', {
+          name: trimmed,
+          // Tauri maps these camelCase invoke keys to the snake_case Rust
+          // params (`resolved_launch_method`, `command_arguments`).
+          resolvedLaunchMethod: method,
+          commandArguments: {
+            enabled_argument_ids: [...normalizedCommandArguments.enabled_argument_ids],
+            custom_args: [...normalizedCommandArguments.custom_args],
+          },
+        });
+        lastSavedCommandArgumentsJsonRef.current = currentJson;
+      });
+    },
+    [enqueueLaunchProfileWrite]
+  );
+
+  const flushPendingLaunchSectionSaves = useCallback(
+    async (nameForSave: string): Promise<void> => {
+      await flushPendingLaunchOptimizationsSave(nameForSave);
+      await flushPendingCommandArgumentsSave(nameForSave);
+    },
+    [flushPendingCommandArgumentsSave, flushPendingLaunchOptimizationsSave]
+  );
+
   const toggleLaunchOptimization = useCallback(
     (optionId: LaunchOptimizationId, nextEnabled: boolean) => {
       const result = applyLaunchOptimizationToggle(
@@ -616,5 +667,7 @@ export function useProfileLaunchAutosave({
     saveManualOptimizationPreset,
     clearAutosaveTimers,
     setLastSavedProfileSnapshot,
+    enqueueLaunchProfileWrite,
+    flushPendingLaunchSectionSaves,
   };
 }
