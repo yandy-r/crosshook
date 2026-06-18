@@ -8,18 +8,18 @@ name: Fixture Content Lint
 # Scope is intentionally narrow: only `.ts` / `.tsx` files under `lib/mocks/` are scanned.
 # Production code that legitimately handles Steam IDs and file paths is excluded.
 #
-# Security note: this workflow does not interpolate any `github.event.*` inputs into
+# Security note: this workflow does not interpolate any event inputs into
 # shell commands. The `run:` block operates exclusively on repo-controlled files.
 
 on:
   push:
     paths:
       - 'src/crosshook-native/src/lib/mocks/**'
-      - '.github/workflows/fixture-lint.yml'
+      - '.forgejo/workflows/fixture-lint.yml'
   pull_request:
     paths:
       - 'src/crosshook-native/src/lib/mocks/**'
-      - '.github/workflows/fixture-lint.yml'
+      - '.forgejo/workflows/fixture-lint.yml'
 
 permissions:
   contents: read

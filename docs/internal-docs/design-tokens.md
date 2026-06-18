@@ -107,7 +107,7 @@ If you find yourself adding a suppression, consider refactoring the literal into
 - `--all` (and bare `./scripts/lint.sh`) — includes the sentinel alongside Rust, TypeScript, shell, and host-gateway checks.
 - Scope flags (`--staged`, `--unstaged`, `--modified`) do not narrow the palette check; it always scans the full tree, because a literal introduced in an unmodified file would otherwise escape detection on a focused run.
 
-`.github/workflows/lint.yml` runs `./scripts/lint.sh` on every PR, so regressions fail CI.
+`.forgejo/workflows/lint.yml` runs `./scripts/lint.sh` on every Forgejo PR, so regressions fail CI.
 
 ---
 

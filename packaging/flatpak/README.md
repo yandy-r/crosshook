@@ -37,7 +37,8 @@ flatpak run dev.crosshook.CrossHook
 
 ## CI Build Flow (Phase 2)
 
-Release automation is defined in `.github/workflows/release.yml`:
+Release automation is defined in `.github/workflows/release.yml` and runs only from tags pushed to
+the GitHub `github` remote:
 
 - `build-flatpak` builds the bundle with `flatpak/flatpak-github-actions/flatpak-builder@v6`
 - CI validates metadata before building:

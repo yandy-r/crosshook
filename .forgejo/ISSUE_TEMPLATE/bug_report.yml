@@ -12,7 +12,7 @@ body:
     id: duplicate-check
     attributes:
       label: Duplicate Check
-      description: Please search existing issues before filing a new one.
+      description: Please search existing Forgejo issues before filing a new one.
       options:
         - label: I have searched existing issues and this bug has not been reported.
           required: true

@@ -1,0 +1,9 @@
+name: PR title
+
+'on': {pull_request: {types: [opened, edited, reopened, synchronize]}}
+
+permissions: {contents: read}
+
+concurrency: {group: 'forgejo-pr-title-${{ github.event.pull_request.number }}', cancel-in-progress: true}
+
+jobs: {lint: {name: Validate Conventional Commit PR title, runs-on: ubuntu-latest, steps: [{name: Validate title, run: "set -euo pipefail\n\ntitle=\"$(jq -r '.pull_request.title // empty' \"$GITHUB_EVENT_PATH\")\"\nif [[ -z \"$title\" ]]; then\n  echo \"Could not read pull request title from event payload\" >&2\n  exit 1\nfi\n\nif [[ \"$title\" =~ ^(\\[WIP\\]|\\[Draft\\]|Initial\\ plan|WIP:|Draft:) ]]; then\n  echo \"PR title uses a placeholder prefix. Use Forgejo draft PR state instead.\" >&2\n  exit 1\nfi\n\nif [[ ! \"$title\" =~ ^(feat|fix|docs|refactor|perf|test|build|ci|chore|style)(\\([^)]+\\))?!?:[[:space:]].+ ]]; then\n  echo \"PR title must be a Conventional Commit, for example: feat(scope): description\" >&2\n  exit 1\nfi\n"}]}}

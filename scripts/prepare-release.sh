@@ -11,15 +11,16 @@ NATIVE_CARGO_MANIFESTS=(
   "$ROOT_DIR/src/crosshook-native/crates/crosshook-cli/Cargo.toml"
   "$ROOT_DIR/src/crosshook-native/src-tauri/Cargo.toml"
 )
-REMOTE="${REMOTE:-origin}"
+SOURCE_REMOTE="${SOURCE_REMOTE:-origin}"
+RELEASE_REMOTE="${RELEASE_REMOTE:-github}"
 PUSH=false
 VERSION_INPUT=""
 
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/prepare-release.sh --version 5.1.0 [--push] [--remote origin]
-  ./scripts/prepare-release.sh --tag v5.1.0 [--push] [--remote origin]
+  ./scripts/prepare-release.sh --version 5.1.0 [--push] [--source-remote origin] [--release-remote github]
+  ./scripts/prepare-release.sh --tag v5.1.0 [--push] [--source-remote origin] [--release-remote github]
 
 This script:
   1. Syncs the native workspace version
@@ -27,11 +28,15 @@ This script:
   3. Validates the tagged release-notes section
   4. Commits the release metadata update
   5. Creates an annotated release tag
-  6. Optionally pushes the branch first and the tag second
+  6. Optionally pushes the branch to Forgejo first and the tag to GitHub second
 
 Examples:
   ./scripts/prepare-release.sh --version 5.1.0
   ./scripts/prepare-release.sh --tag v5.1.0 --push
+
+By default, source collaboration is pushed to the Forgejo `origin` remote and
+release tags are pushed to the GitHub `github` remote so GitHub Releases still
+publish the Flatpak bundle.
 EOF
 }
 
@@ -87,9 +92,19 @@ while (($# > 0)); do
       PUSH=true
       shift
       ;;
+    --source-remote)
+      (($# >= 2)) || die "--source-remote requires a value"
+      SOURCE_REMOTE="$2"
+      shift 2
+      ;;
+    --release-remote)
+      (($# >= 2)) || die "--release-remote requires a value"
+      RELEASE_REMOTE="$2"
+      shift 2
+      ;;
     --remote)
       (($# >= 2)) || die "--remote requires a value"
-      REMOTE="$2"
+      RELEASE_REMOTE="$2"
       shift 2
       ;;
     -h|--help)
@@ -119,7 +134,8 @@ VERSION="${TAG#v}"
 BRANCH="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
 
 git rev-parse --verify "refs/tags/$TAG" >/dev/null 2>&1 && die "tag already exists: $TAG"
-git config --get "remote.$REMOTE.url" >/dev/null 2>&1 || die "remote not found: $REMOTE"
+git config --get "remote.$SOURCE_REMOTE.url" >/dev/null 2>&1 || die "source remote not found: $SOURCE_REMOTE"
+git config --get "remote.$RELEASE_REMOTE.url" >/dev/null 2>&1 || die "release remote not found: $RELEASE_REMOTE"
 
 set_native_workspace_version "$VERSION"
 
@@ -149,17 +165,17 @@ echo "  tag:    $TAG"
 if [[ "$PUSH" == true ]]; then
   [[ -n "$BRANCH" ]] || die "cannot push from detached HEAD"
 
-  git push "$REMOTE" "$BRANCH"
-  git push "$REMOTE" "refs/tags/$TAG"
+  git push "$SOURCE_REMOTE" "$BRANCH"
+  git push "$RELEASE_REMOTE" "refs/tags/$TAG"
 
-  echo "Pushed branch $BRANCH and tag $TAG to $REMOTE"
+  echo "Pushed branch $BRANCH to $SOURCE_REMOTE and tag $TAG to $RELEASE_REMOTE"
 else
   if [[ -n "$BRANCH" ]]; then
     echo "Next steps:"
-    echo "  git push $REMOTE $BRANCH"
-    echo "  git push $REMOTE refs/tags/$TAG"
+    echo "  git push $SOURCE_REMOTE $BRANCH"
+    echo "  git push $RELEASE_REMOTE refs/tags/$TAG"
   else
     echo "Next step:"
-    echo "  git push $REMOTE refs/tags/$TAG"
+    echo "  git push $RELEASE_REMOTE refs/tags/$TAG"
   fi
 fi

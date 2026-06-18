@@ -1,8 +1,5 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Security Vulnerability
-    url: https://github.com/yandy-r/crosshook/security/advisories/new
-    about: Report security vulnerabilities privately via GitHub Security Advisories.
-  - name: Questions & Discussion
-    url: https://github.com/yandy-r/crosshook/discussions
-    about: Ask questions or start a discussion — don't open an issue for general help.
+  - name: CrossHook issues moved to Forgejo
+    url: https://git.home.rfamily.dev/yandy/crosshook/issues
+    about: Open all CrossHook issues on Forgejo. GitHub is retained for releases only.

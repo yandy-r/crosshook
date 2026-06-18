@@ -35,9 +35,9 @@
 
   <launchable type="desktop-id">dev.crosshook.CrossHook.desktop</launchable>
 
-  <url type="homepage">https://github.com/yandy-r/crosshook</url>
-  <url type="bugtracker">https://github.com/yandy-r/crosshook/issues</url>
-  <url type="vcs-browser">https://github.com/yandy-r/crosshook</url>
+  <url type="homepage">https://git.home.rfamily.dev/yandy/crosshook</url>
+  <url type="bugtracker">https://git.home.rfamily.dev/yandy/crosshook/issues</url>
+  <url type="vcs-browser">https://git.home.rfamily.dev/yandy/crosshook</url>
   <url type="donation">https://github.com/sponsors/yandy-r</url>
 
   <screenshots>
