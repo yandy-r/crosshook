@@ -165,12 +165,12 @@ Target: no regression in rollback integrity checks (SHA-256 verify on restore).
 
 ## Success Criteria
 
-- [ ] Slice 1 merged: custom LCS removed; `similar` powers unified diff
-- [ ] Slice 2 merged: semantic TOML diff available in UI
-- [ ] Slice 3 merged: retention cap user-configurable via Settings
-- [ ] Slice 4 merged: collapse-unchanged toggle shipped
-- [ ] All slices: mocks updated; `cargo test -p crosshook-core`; `npm test` for touched TS
-- [ ] ROADMAP / #3 tracker updated when #4 closes
+- [x] Slice 1 merged: custom LCS removed; `similar` powers unified diff
+- [x] Slice 2 merged: semantic TOML diff available in UI
+- [x] Slice 3 merged: retention cap user-configurable via Settings
+- [x] Slice 4 merged: collapse-unchanged toggle shipped
+- [x] All slices: mocks updated; `cargo test -p crosshook-core`; `npm test` for touched TS
+- [x] ROADMAP / #3 tracker updated when #4 closes (2026-06-18; PR [#17](https://git.home.rfamily.dev/yandy/crosshook/pull/17))
 
 ---
 

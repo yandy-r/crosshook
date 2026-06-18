@@ -62,5 +62,6 @@ None — all four slices implemented as specified. Semantic parse failures fall 
 
 ## Next Steps
 
-- [ ] Code review via `/code-review`
-- [ ] Create PR via `/prp-pr` (`Part of #4`)
+- [x] Code review via `/code-review`
+- [x] PR [#17](https://git.home.rfamily.dev/yandy/crosshook/pull/17) merged (`Part of #4`)
+- [x] Close-out: ROADMAP + Forgejo #3 tracker reconciled; Forgejo #4 closed; HMAC deferred to follow-up issue
