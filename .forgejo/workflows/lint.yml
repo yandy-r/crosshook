@@ -25,10 +25,11 @@ jobs:
           set -euo pipefail
           if ! command -v rustup >/dev/null 2>&1; then
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none
-            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
           fi
+          source "$HOME/.cargo/env"
           rustup toolchain install 1.95.0 --component rustfmt clippy
           rustup default 1.95.0
+          echo "PATH=$HOME/.cargo/bin:$PATH" >> "$GITHUB_ENV"
 
       - name: Cache Cargo registry and build artifacts
         uses: actions/cache@v4
@@ -48,10 +49,16 @@ jobs:
             libayatana-appindicator3-dev librsvg2-dev
 
       - name: Check formatting
-        run: cargo fmt --manifest-path src/crosshook-native/Cargo.toml --all -- --check
+        run: |
+          set -euo pipefail
+          source "$HOME/.cargo/env"
+          cargo fmt --manifest-path src/crosshook-native/Cargo.toml --all -- --check
 
       - name: Run clippy
-        run: cargo clippy --manifest-path src/crosshook-native/Cargo.toml --all-targets -- -D warnings
+        run: |
+          set -euo pipefail
+          source "$HOME/.cargo/env"
+          cargo clippy --manifest-path src/crosshook-native/Cargo.toml --all-targets -- -D warnings
 
   typescript:
     name: TypeScript (biome + tsc)
