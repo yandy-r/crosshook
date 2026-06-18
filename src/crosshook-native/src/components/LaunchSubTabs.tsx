@@ -131,8 +131,12 @@ export function LaunchSubTabs({
         className={`crosshook-launch-autosave-chip crosshook-launch-autosave-chip--${combinedAutoSaveStatus.tone}`}
         aria-live="polite"
         aria-atomic="true"
+        title={combinedAutoSaveStatus.detail ?? undefined}
       >
-        {combinedAutoSaveStatus.label}
+        <span className="crosshook-launch-autosave-chip__label">{combinedAutoSaveStatus.label}</span>
+        {combinedAutoSaveStatus.tone === 'error' && combinedAutoSaveStatus.detail ? (
+          <span className="crosshook-launch-autosave-chip__detail">{combinedAutoSaveStatus.detail}</span>
+        ) : null}
       </span>
     ) : null;
 

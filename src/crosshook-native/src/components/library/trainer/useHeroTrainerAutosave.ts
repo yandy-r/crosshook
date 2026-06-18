@@ -107,7 +107,14 @@ export function useHeroTrainerAutosave({
           return;
         }
 
-        const profileForSave = lastScheduledProfileRef.current ?? latestProfileRef.current;
+        const scheduled = lastScheduledProfileRef.current;
+        const latest = latestProfileRef.current;
+        const profileForSave = scheduled
+          ? {
+              ...latest,
+              injection: scheduled.injection,
+            }
+          : latest;
         if (trainerInjectionSignature(profileForSave) !== scheduledSignature) {
           return;
         }

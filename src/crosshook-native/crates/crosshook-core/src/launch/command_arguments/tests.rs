@@ -37,12 +37,12 @@ fn default_catalog_toml_parses_with_no_warnings() {
 }
 
 #[test]
-fn default_catalog_has_six_entries() {
+fn default_catalog_has_seven_entries() {
     let (entries, _) = parse_catalog_toml(DEFAULT_CATALOG_TOML, "embedded default");
     assert_eq!(
         entries.len(),
-        6,
-        "expected exactly 6 entries in the default catalog"
+        7,
+        "expected exactly 7 entries in the default catalog"
     );
 }
 
@@ -64,6 +64,32 @@ fn nolauncher_catalog_token_uses_double_dash_form() {
         .find(|entry| entry.id == "nolauncher")
         .expect("nolauncher catalog entry");
     assert_eq!(nolauncher.tokens, vec!["--nolauncher".to_string()]);
+}
+
+#[test]
+fn launcher_skip_catalog_token_uses_double_dash_hyphenated_form() {
+    let (entries, _) = parse_catalog_toml(DEFAULT_CATALOG_TOML, "embedded default");
+    let launcher_skip = entries
+        .iter()
+        .find(|entry| entry.id == "launcher_skip")
+        .expect("launcher_skip catalog entry");
+    assert_eq!(launcher_skip.tokens, vec!["--launcher-skip".to_string()]);
+}
+
+#[test]
+fn skip_launcher_and_launcher_skip_conflict() {
+    let catalog = make_test_catalog();
+    let ids = vec!["skip_launcher".to_string(), "launcher_skip".to_string()];
+    let error = resolve_command_arguments_with_catalog(&ids, &[], METHOD_PROTON_RUN, &catalog)
+        .expect_err("conflicting launcher skip flags should fail");
+
+    assert_eq!(
+        error,
+        CommandArgumentResolveError::Incompatible {
+            first: "skip_launcher".to_string(),
+            second: "launcher_skip".to_string(),
+        }
+    );
 }
 
 #[test]
@@ -199,7 +225,7 @@ fn resolves_curated_tokens_in_catalog_order() {
     assert_eq!(
         resolved,
         ResolvedCommandArguments {
-            tokens: vec!["-force_vulkan".to_string(), "--skip-launcher".to_string()],
+            tokens: vec!["-force-vulkan".to_string(), "--skip-launcher".to_string()],
         }
     );
 }
@@ -216,7 +242,7 @@ fn appends_custom_args_after_curated_tokens_in_user_order() {
     assert_eq!(
         resolved.tokens,
         vec![
-            "-force_vulkan".to_string(),
+            "-force-vulkan".to_string(),
             "-dx11".to_string(),
             "+set cl_showfps 1".to_string(),
         ]

@@ -23,6 +23,9 @@ export interface PendingDelete {
 export type PersistProfileDraftResult = { ok: true } | { ok: false; error: string };
 export type PersistProfileDraft = (name: string, profile: GameProfile) => Promise<PersistProfileDraftResult>;
 
+export type EnqueueProfileWrite = <T>(fn: () => Promise<T>) => Promise<T>;
+export type FlushPendingLaunchSectionSaves = (nameForSave: string) => Promise<void>;
+
 export interface RenameProfileResult {
   ok: boolean;
   hadLauncher: boolean;
@@ -41,6 +44,23 @@ interface UseProfileCrudOptions {
   autoSelectFirstProfile: boolean;
   setLastSavedProfileSnapshot: (profile: GameProfile) => void;
   clearAutosaveTimers: () => void;
+  enqueueProfileWrite?: EnqueueProfileWrite;
+  flushPendingLaunchSectionSaves?: FlushPendingLaunchSectionSaves;
+}
+
+/** Merges launch subsection fields that have dedicated autosave writers from live editor state. */
+export function mergeLiveLaunchSections(draftProfile: GameProfile, liveProfile: GameProfile): GameProfile {
+  return {
+    ...draftProfile,
+    launch: {
+      ...draftProfile.launch,
+      command_arguments: liveProfile.launch.command_arguments,
+      optimizations: liveProfile.launch.optimizations,
+      gamescope: liveProfile.launch.gamescope,
+      trainer_gamescope: liveProfile.launch.trainer_gamescope,
+      mangohud: liveProfile.launch.mangohud,
+    },
+  };
 }
 
 export function useProfileCrud({
@@ -49,6 +69,8 @@ export function useProfileCrud({
   autoSelectFirstProfile,
   setLastSavedProfileSnapshot,
   clearAutosaveTimers,
+  enqueueProfileWrite,
+  flushPendingLaunchSectionSaves,
 }: UseProfileCrudOptions) {
   const [profiles, setProfiles] = useState<string[]>([]);
   const [favoriteProfiles, setFavoriteProfiles] = useState<string[]>([]);
@@ -63,6 +85,9 @@ export function useProfileCrud({
   const [renaming, setRenaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
+
+  const profileRef = useRef(profile);
+  profileRef.current = profile;
 
   const hasExistingSavedProfile = useMemo(() => {
     const trimmedName = profileName.trim();
@@ -290,8 +315,23 @@ export function useProfileCrud({
       setError(null);
 
       try {
-        const normalizedProfile = normalizeProfileForSave(draftProfile, optionsById, catalogLoaded);
-        await callCommand('profile_save', { name: trimmedName, data: normalizedProfile });
+        if (flushPendingLaunchSectionSaves) {
+          await flushPendingLaunchSectionSaves(trimmedName);
+        }
+
+        const draftWithLiveLaunchSections = mergeLiveLaunchSections(draftProfile, profileRef.current);
+        const normalizedProfile = normalizeProfileForSave(draftWithLiveLaunchSections, optionsById, catalogLoaded);
+
+        const saveProfile = async () => {
+          await callCommand('profile_save', { name: trimmedName, data: normalizedProfile });
+        };
+
+        if (enqueueProfileWrite) {
+          await enqueueProfileWrite(saveProfile);
+        } else {
+          await saveProfile();
+        }
+
         setLastSavedProfileSnapshot(normalizedProfile);
         await syncProfileMetadata(trimmedName, normalizedProfile);
         await refreshProfiles();
@@ -305,7 +345,16 @@ export function useProfileCrud({
         setSaving(false);
       }
     },
-    [catalogLoaded, loadProfile, optionsById, refreshProfiles, setLastSavedProfileSnapshot, syncProfileMetadata]
+    [
+      catalogLoaded,
+      enqueueProfileWrite,
+      flushPendingLaunchSectionSaves,
+      loadProfile,
+      optionsById,
+      refreshProfiles,
+      setLastSavedProfileSnapshot,
+      syncProfileMetadata,
+    ]
   );
 
   const saveProfile = useCallback(async () => {

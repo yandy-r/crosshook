@@ -315,7 +315,7 @@ fn preview_proton_includes_command_arguments_after_game_executable() {
         .expect("game path should appear in command");
     let after_game = &command[game_idx + game_path.len()..];
     assert!(
-        after_game.contains("-force_vulkan"),
+        after_game.contains("-force-vulkan"),
         "curated arg should follow game executable: {command}"
     );
     assert!(
@@ -415,7 +415,7 @@ fn preview_trainer_only_does_not_include_command_arguments() {
         "trainer-only preview should launch trainer: {command}"
     );
     assert!(
-        !command.contains("-force_vulkan"),
+        !command.contains("-force-vulkan"),
         "trainer-only preview must not inherit curated game args: {command}"
     );
     assert!(

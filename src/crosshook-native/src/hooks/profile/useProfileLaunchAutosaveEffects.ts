@@ -8,6 +8,7 @@ import { launchOptimizationsAutosaveDelayMs } from './constants';
 import { formatInvokeError } from './formatInvokeError';
 import { areLaunchOptimizationIdsEqual } from './launchOptimizationIds';
 import { buildLaunchOptimizationsStatus, type LaunchOptimizationsStatus } from './launchOptimizationStatus';
+import { normalizeCommandArgumentsForSave } from './profileNormalize';
 
 export function buildCommandArgumentsStatus(
   method: ResolvedLaunchMethod,
@@ -422,7 +423,8 @@ export function useCommandArgumentsAutosaveEffect({
   useEffect(() => {
     const method = resolveLaunchMethod(profile);
     const commandArguments = profile.launch.command_arguments ?? DEFAULT_LAUNCH_COMMAND_ARGUMENTS;
-    const currentJson = JSON.stringify(commandArguments);
+    const normalizedCommandArguments = normalizeCommandArgumentsForSave(commandArguments);
+    const currentJson = JSON.stringify(normalizedCommandArguments);
 
     if (commandArgumentsAutosaveTimerRef.current !== null) {
       clearTimeout(commandArgumentsAutosaveTimerRef.current);
@@ -451,8 +453,8 @@ export function useCommandArgumentsAutosaveEffect({
     setCommandArgumentsAutoSaveStatus({ tone: 'saving', label: 'Saving...' });
     const trimmedName = profileName.trim();
     const payload = {
-      enabled_argument_ids: [...commandArguments.enabled_argument_ids],
-      custom_args: [...commandArguments.custom_args],
+      enabled_argument_ids: [...normalizedCommandArguments.enabled_argument_ids],
+      custom_args: [...normalizedCommandArguments.custom_args],
     };
     let cancelled = false;
 
@@ -462,7 +464,10 @@ export function useCommandArgumentsAutosaveEffect({
           await enqueueLaunchProfileWrite(async () => {
             await callCommand('profile_save_command_arguments', {
               name: trimmedName,
-              command_arguments: payload,
+              // Tauri maps these camelCase invoke keys to the snake_case Rust
+              // params (`resolved_launch_method`, `command_arguments`).
+              resolvedLaunchMethod: method,
+              commandArguments: payload,
             });
           });
           if (cancelled) {

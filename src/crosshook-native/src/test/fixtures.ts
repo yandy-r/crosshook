@@ -104,11 +104,11 @@ export function makeProfileHealthReport(overrides: Partial<ProfileHealthReport> 
 export function makeCommandArgumentEntry(overrides: Partial<CommandArgumentEntry> = {}): CommandArgumentEntry {
   return {
     id: 'force_vulkan',
-    tokens: ['-force_vulkan'],
-    label: 'Force Vulkan renderer',
+    tokens: ['-force-vulkan'],
+    label: 'Force Vulkan renderer (Unity)',
     description: 'Pass a Vulkan-forcing switch when the game supports it.',
     help_text:
-      'Some Unity and native builds accept -force_vulkan. Many titles ignore it or crash — verify per game before relying on it.',
+      'Unity standalone flag (-force-vulkan); ignored by non-Unity engines. Many titles ignore it or crash — verify per game before relying on it.',
     category: 'graphics',
     advanced: false,
     community: false,
@@ -129,10 +129,10 @@ export function makeCommandArgumentCatalogPayload(
       makeCommandArgumentEntry({
         id: 'force_dx11',
         tokens: ['-dx11'],
-        label: 'Force DirectX 11',
+        label: 'Force DirectX 11 (Source/Unreal)',
         description: 'Request a DirectX 11 code path when the game reads launch switches.',
         help_text:
-          'Common on Source and some Unreal titles, but not universal. Wrong switches can prevent startup or leave you on an unintended renderer.',
+          'Common on Source and Unreal titles (-dx11). Unity titles instead use -force-d3d11. Wrong switches can prevent startup or leave you on an unintended renderer.',
         conflicts_with: ['force_vulkan', 'force_dx12'],
       }),
       makeCommandArgumentEntry({
@@ -141,9 +141,9 @@ export function makeCommandArgumentCatalogPayload(
         label: 'Skip in-game launcher',
         description: 'Skip a publisher launcher when the game honors the switch.',
         help_text:
-          "Documented by some publishers (for example Larian's --skip-launcher). Useless or harmful on titles without a separate launcher step.",
+          "Documented by some publishers (for example Larian's --skip-launcher for Baldur's Gate 3). Useless or harmful on titles without a separate launcher step.",
         category: 'compatibility',
-        conflicts_with: ['nolauncher'],
+        conflicts_with: ['nolauncher', 'launcher_skip'],
       }),
       makeCommandArgumentEntry({
         id: 'nolauncher',
@@ -151,9 +151,19 @@ export function makeCommandArgumentCatalogPayload(
         label: 'Skip launcher (nolauncher)',
         description: 'Skip a publisher launcher on titles that honor the nolauncher switch.',
         help_text:
-          'Used by some Stardock and similar builds. Pick this or --skip-launcher based on what your game documents — not both.',
+          'Weakly sourced publisher-specific switch. Pick this, --skip-launcher, or --launcher-skip based on what your game documents — not more than one.',
         category: 'compatibility',
-        conflicts_with: ['skip_launcher'],
+        conflicts_with: ['skip_launcher', 'launcher_skip'],
+      }),
+      makeCommandArgumentEntry({
+        id: 'launcher_skip',
+        tokens: ['--launcher-skip'],
+        label: 'Skip CD Projekt RED launcher (Witcher 3)',
+        description: 'Skip the CD Projekt RED launcher on titles that honor the switch.',
+        help_text:
+          "Documented for The Witcher 3 next-gen (--launcher-skip). Do not confuse with Larian's --skip-launcher or other publisher switches.",
+        category: 'compatibility',
+        conflicts_with: ['skip_launcher', 'nolauncher'],
       }),
     ],
     ...overrides,

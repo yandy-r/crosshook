@@ -139,11 +139,11 @@ describe('HeroLaunchCommandSection', () => {
     renderCommandSection({
       preview: makeLaunchPreview({
         effective_command:
-          'gamescope -- /compat/proton run /games/synthetic-quest/game.exe -force_vulkan --custom-flag',
+          'gamescope -- /compat/proton run /games/synthetic-quest/game.exe -force-vulkan --custom-flag',
       }),
     });
     expect(screen.getByTestId('command-block')).toHaveTextContent(
-      'gamescope -- /compat/proton run /games/synthetic-quest/game.exe -force_vulkan --custom-flag'
+      'gamescope -- /compat/proton run /games/synthetic-quest/game.exe -force-vulkan --custom-flag'
     );
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
