@@ -3,7 +3,8 @@ use crate::metadata::config_history_store::{
     get_config_revision, insert_config_revision, set_known_good_revision,
 };
 use crate::metadata::{
-    ConfigRevisionSource, MetadataStore, MetadataStoreError, MAX_SNAPSHOT_TOML_BYTES,
+    ConfigRevisionSource, MetadataStore, MetadataStoreError, MAX_CONFIG_REVISIONS_PER_PROFILE,
+    MAX_SNAPSHOT_TOML_BYTES,
 };
 
 #[test]
@@ -32,6 +33,7 @@ fn oversized_snapshot_toml_is_rejected() {
         "hash1",
         &oversized,
         None,
+        MAX_CONFIG_REVISIONS_PER_PROFILE,
     );
     assert!(
         matches!(result, Err(MetadataStoreError::Validation(_))),
@@ -61,6 +63,7 @@ fn disabled_store_returns_ok_with_defaults() {
             "hash1",
             "some toml",
             None,
+            MAX_CONFIG_REVISIONS_PER_PROFILE,
         )
         .unwrap();
     assert!(
@@ -101,6 +104,7 @@ fn cross_profile_lineage_is_rejected() {
         "hash-b",
         "some toml",
         Some(rev_a), // points to profile-a's revision
+        MAX_CONFIG_REVISIONS_PER_PROFILE,
     );
 
     assert!(

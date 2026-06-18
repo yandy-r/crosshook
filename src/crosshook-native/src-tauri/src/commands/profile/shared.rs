@@ -1,7 +1,9 @@
 use crosshook_core::metadata::{
     sha256_hex, ConfigRevisionSource, MetadataStore, MetadataStoreError, SyncSource,
+    MAX_CONFIG_REVISIONS_PER_PROFILE,
 };
 use crosshook_core::profile::{GameProfile, ProfileStoreError};
+use crosshook_core::settings::{config_history_max_revisions_from_settings, SettingsStore};
 use tauri::{AppHandle, Emitter};
 
 pub(super) const STEAM_COMPATDATA_MARKER: &str = "/steamapps/compatdata/";
@@ -91,6 +93,14 @@ pub(super) fn observe_profile_write_launch_change(
     }
 }
 
+/// Resolve the configured per-profile revision retention cap.
+pub fn resolve_config_history_max_revisions(settings_store: &SettingsStore) -> usize {
+    settings_store
+        .load()
+        .map(|s| config_history_max_revisions_from_settings(&s))
+        .unwrap_or(MAX_CONFIG_REVISIONS_PER_PROFILE)
+}
+
 /// Captures a deduped config revision snapshot after a successful profile write.
 ///
 /// Serializes the profile to canonical TOML, computes a SHA-256 content hash, looks
@@ -105,6 +115,7 @@ pub fn capture_config_revision(
     source: ConfigRevisionSource,
     source_revision_id: Option<i64>,
     metadata_store: &MetadataStore,
+    max_revisions: usize,
 ) -> Option<i64> {
     if !metadata_store.is_available() {
         return None;
@@ -150,6 +161,7 @@ pub fn capture_config_revision(
         &content_hash,
         &snapshot_toml,
         source_revision_id,
+        max_revisions,
     ) {
         Ok(id) => id,
         Err(e) => {
@@ -231,6 +243,7 @@ pub(super) fn save_profile_section<F>(
     name: &str,
     store: &crosshook_core::profile::ProfileStore,
     metadata_store: &MetadataStore,
+    settings_store: &SettingsStore,
     source: ConfigRevisionSource,
     mutate_fn: F,
 ) -> Result<(), String>
@@ -255,6 +268,7 @@ where
             "metadata sync after profile section save failed"
         );
     }
-    capture_config_revision(name, &profile, source, None, metadata_store);
+    let max_revisions = resolve_config_history_max_revisions(settings_store);
+    capture_config_revision(name, &profile, source, None, metadata_store, max_revisions);
     Ok(())
 }

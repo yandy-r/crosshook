@@ -4,12 +4,13 @@ use crosshook_core::metadata::{
 use crosshook_core::profile::{
     bundled_optimization_preset_toml_key, GamescopeConfig, MangoHudConfig, ProfileStore,
 };
+use crosshook_core::settings::SettingsStore;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 
 use super::shared::{
     capture_config_revision, emit_profiles_changed, map_error, observe_profile_write_launch_change,
-    save_profile_section,
+    resolve_config_history_max_revisions, save_profile_section,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -70,6 +71,7 @@ pub fn profile_save_launch_optimizations(
     optimizations: LaunchOptimizationsPayload,
     store: State<'_, ProfileStore>,
     metadata_store: State<'_, MetadataStore>,
+    settings_store: State<'_, SettingsStore>,
 ) -> Result<(), String> {
     let profile_name = name.trim();
     if profile_name.is_empty() {
@@ -92,12 +94,14 @@ pub fn profile_save_launch_optimizations(
                 "metadata sync after save_launch_optimizations failed"
             );
         }
+        let max_revisions = resolve_config_history_max_revisions(&settings_store);
         capture_config_revision(
             profile_name,
             &updated,
             ConfigRevisionSource::LaunchOptimizationSave,
             None,
             &metadata_store,
+            max_revisions,
         );
     }
 
@@ -110,11 +114,13 @@ pub fn profile_save_mangohud_config(
     config: MangoHudConfig,
     store: State<'_, ProfileStore>,
     metadata_store: State<'_, MetadataStore>,
+    settings_store: State<'_, SettingsStore>,
 ) -> Result<(), String> {
     save_profile_section(
         &name,
         &store,
         &metadata_store,
+        &settings_store,
         ConfigRevisionSource::ManualSave,
         |profile| {
             profile.launch.mangohud = config;
@@ -128,11 +134,13 @@ pub fn profile_save_gamescope_config(
     config: GamescopeConfig,
     store: State<'_, ProfileStore>,
     metadata_store: State<'_, MetadataStore>,
+    settings_store: State<'_, SettingsStore>,
 ) -> Result<(), String> {
     save_profile_section(
         &name,
         &store,
         &metadata_store,
+        &settings_store,
         ConfigRevisionSource::ManualSave,
         |profile| {
             profile.launch.gamescope = config;
@@ -146,11 +154,13 @@ pub fn profile_save_trainer_gamescope_config(
     config: GamescopeConfig,
     store: State<'_, ProfileStore>,
     metadata_store: State<'_, MetadataStore>,
+    settings_store: State<'_, SettingsStore>,
 ) -> Result<(), String> {
     save_profile_section(
         &name,
         &store,
         &metadata_store,
+        &settings_store,
         ConfigRevisionSource::ManualSave,
         |profile| {
             profile.launch.trainer_gamescope = config;
@@ -182,6 +192,7 @@ pub fn profile_apply_bundled_optimization_preset(
     app: AppHandle,
     store: State<'_, ProfileStore>,
     metadata_store: State<'_, MetadataStore>,
+    settings_store: State<'_, SettingsStore>,
 ) -> Result<crosshook_core::profile::GameProfile, String> {
     if !metadata_store.is_available() {
         return Err("metadata store is unavailable — cannot apply bundled presets".to_string());
@@ -212,12 +223,14 @@ pub fn profile_apply_bundled_optimization_preset(
 
     let updated = store.load(profile_name).map_err(map_error)?;
     observe_profile_write_launch_change(profile_name, &store, &metadata_store, &updated);
+    let max_revisions = resolve_config_history_max_revisions(&settings_store);
     capture_config_revision(
         profile_name,
         &updated,
         ConfigRevisionSource::PresetApply,
         None,
         &metadata_store,
+        max_revisions,
     );
 
     match metadata_store.lookup_profile_id(profile_name) {
@@ -262,6 +275,7 @@ pub fn profile_save_manual_optimization_preset(
     app: AppHandle,
     store: State<'_, ProfileStore>,
     metadata_store: State<'_, MetadataStore>,
+    settings_store: State<'_, SettingsStore>,
 ) -> Result<crosshook_core::profile::GameProfile, String> {
     let profile_name = name.trim();
     if profile_name.is_empty() {
@@ -279,12 +293,14 @@ pub fn profile_save_manual_optimization_preset(
 
     let updated = store.load(profile_name).map_err(map_error)?;
     observe_profile_write_launch_change(profile_name, &store, &metadata_store, &updated);
+    let max_revisions = resolve_config_history_max_revisions(&settings_store);
     capture_config_revision(
         profile_name,
         &updated,
         ConfigRevisionSource::PresetApply,
         None,
         &metadata_store,
+        max_revisions,
     );
 
     if metadata_store.is_available() {

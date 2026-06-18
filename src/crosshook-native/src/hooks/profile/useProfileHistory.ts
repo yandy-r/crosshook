@@ -53,7 +53,12 @@ export function useProfileHistory({ loadProfile, onAfterRollback }: UseProfileHi
   );
 
   const fetchConfigDiff = useCallback(
-    async (name: string, revisionId: number, rightRevisionId?: number): Promise<ConfigDiffResult> => {
+    async (
+      name: string,
+      revisionId: number,
+      rightRevisionId?: number,
+      mode: 'unified' | 'semantic' = 'unified'
+    ): Promise<ConfigDiffResult> => {
       beginHistoryRequest();
       setHistoryError(null);
       try {
@@ -61,6 +66,7 @@ export function useProfileHistory({ loadProfile, onAfterRollback }: UseProfileHi
           name,
           revisionId,
           ...(rightRevisionId !== undefined ? { rightRevisionId } : {}),
+          mode,
         });
       } catch (err) {
         const message = formatInvokeError(err);

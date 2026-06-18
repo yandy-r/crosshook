@@ -2,7 +2,11 @@ use crosshook_core::metadata::sha256_hex;
 use crosshook_core::metadata::{
     ConfigRevisionSource, MetadataStore, MetadataStoreError, SyncSource, MAX_HISTORY_LIST_LIMIT,
 };
-use crosshook_core::profile::{GameProfile, ProfileStore};
+use crosshook_core::profile::{
+    cap_diff_output_bytes, compute_semantic_diff, compute_unified_diff, GameProfile, ProfileStore,
+    SemanticChange, SemanticChangeKind,
+};
+use crosshook_core::settings::{config_history_max_revisions_from_settings, SettingsStore};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 
@@ -23,6 +27,45 @@ pub struct ConfigRevisionSummary {
     pub created_at: String,
 }
 
+/// Diff mode requested by the frontend.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConfigDiffMode {
+    Unified,
+    Semantic,
+}
+
+impl ConfigDiffMode {
+    fn parse(raw: Option<&str>) -> Self {
+        match raw.map(str::trim).filter(|s| !s.is_empty()) {
+            Some("semantic") => Self::Semantic,
+            _ => Self::Unified,
+        }
+    }
+}
+
+/// A single semantic field change in a TOML snapshot diff.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigSemanticChange {
+    pub path: String,
+    pub change_type: SemanticChangeKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub old_value: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub new_value: Option<String>,
+}
+
+impl From<SemanticChange> for ConfigSemanticChange {
+    fn from(value: SemanticChange) -> Self {
+        Self {
+            path: value.path,
+            change_type: value.change_type,
+            old_value: value.old_value,
+            new_value: value.new_value,
+        }
+    }
+}
+
 /// Result from a profile config diff operation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfigDiffResult {
@@ -36,6 +79,14 @@ pub struct ConfigDiffResult {
     pub removed_lines: usize,
     /// True when either input exceeded the line limit and the diff may be incomplete.
     pub truncated: bool,
+    /// Mode used to produce this response.
+    pub mode: ConfigDiffMode,
+    /// Semantic field changes when `mode` is semantic; `None` for unified-only responses.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub semantic_changes: Option<Vec<ConfigSemanticChange>>,
+    /// True when semantic parsing failed and the response fell back to unified diff.
+    #[serde(default)]
+    pub semantic_parse_failed: bool,
 }
 
 /// Result from a profile config rollback operation.
@@ -46,168 +97,6 @@ pub struct ConfigRollbackResult {
     /// The new revision id appended for the rollback event (None when capture was deduped or failed).
     pub new_revision_id: Option<i64>,
     pub profile: GameProfile,
-}
-
-// ── Unified diff helper ───────────────────────────────────────────────────────
-
-const DIFF_CONTEXT_LINES: usize = 3;
-/// Maximum lines per side considered for the diff. Profiles are small in practice
-/// but this caps the O(m*n) LCS table at a safe memory bound.
-const DIFF_MAX_LINES: usize = 2000;
-/// Maximum byte length of a computed diff output returned to the frontend.
-/// Prevents large IPC payloads when both sides have many long changed lines.
-const MAX_DIFF_OUTPUT_BYTES: usize = 512 * 1024;
-
-/// Compute a unified diff between two text strings using an LCS-based algorithm.
-/// Returns `(diff_text, added_lines, removed_lines, truncated)`. `diff_text` is
-/// empty when the two inputs are identical. `truncated` is true when either input
-/// exceeds `DIFF_MAX_LINES` and the diff may be incomplete.
-fn compute_unified_diff(
-    old_label: &str,
-    new_label: &str,
-    old_text: &str,
-    new_text: &str,
-) -> (String, usize, usize, bool) {
-    if old_text == new_text {
-        return (String::new(), 0, 0, false);
-    }
-
-    let old_total = old_text.lines().count();
-    let new_total = new_text.lines().count();
-    let truncated = old_total > DIFF_MAX_LINES || new_total > DIFF_MAX_LINES;
-
-    let old_lines: Vec<&str> = old_text.lines().take(DIFF_MAX_LINES).collect();
-    let new_lines: Vec<&str> = new_text.lines().take(DIFF_MAX_LINES).collect();
-
-    let m = old_lines.len();
-    let n = new_lines.len();
-
-    // Build LCS table (O(m*n) time and space, bounded by DIFF_MAX_LINES^2)
-    let mut dp = vec![vec![0u32; n + 1]; m + 1];
-    for i in 1..=m {
-        for j in 1..=n {
-            dp[i][j] = if old_lines[i - 1] == new_lines[j - 1] {
-                dp[i - 1][j - 1] + 1
-            } else {
-                dp[i - 1][j].max(dp[i][j - 1])
-            };
-        }
-    }
-
-    // Backtrack to produce ordered edit ops
-    #[derive(Clone, Copy)]
-    enum Op {
-        Equal(usize, usize),
-        Delete(usize),
-        Insert(usize),
-    }
-
-    let mut ops: Vec<Op> = Vec::new();
-    let (mut i, mut j) = (m, n);
-    while i > 0 || j > 0 {
-        if i > 0 && j > 0 && old_lines[i - 1] == new_lines[j - 1] {
-            ops.push(Op::Equal(i - 1, j - 1));
-            i -= 1;
-            j -= 1;
-        } else if j > 0 && (i == 0 || dp[i][j - 1] >= dp[i - 1][j]) {
-            ops.push(Op::Insert(j - 1));
-            j -= 1;
-        } else {
-            ops.push(Op::Delete(i - 1));
-            i -= 1;
-        }
-    }
-    ops.reverse();
-
-    // Collect indices of changed ops
-    let change_positions: Vec<usize> = ops
-        .iter()
-        .enumerate()
-        .filter(|(_, op)| !matches!(op, Op::Equal(_, _)))
-        .map(|(idx, _)| idx)
-        .collect();
-
-    if change_positions.is_empty() {
-        return (String::new(), 0, 0, truncated);
-    }
-
-    // Group changes into hunks with context lines
-    let mut hunk_ranges: Vec<(usize, usize)> = Vec::new();
-    let last_op = ops.len() - 1;
-    let mut hstart = change_positions[0].saturating_sub(DIFF_CONTEXT_LINES);
-    let mut hend = (change_positions[0] + DIFF_CONTEXT_LINES).min(last_op);
-
-    for &pos in change_positions.iter().skip(1) {
-        if pos <= hend + DIFF_CONTEXT_LINES {
-            hend = (pos + DIFF_CONTEXT_LINES).min(last_op);
-        } else {
-            hunk_ranges.push((hstart, hend));
-            hstart = pos.saturating_sub(DIFF_CONTEXT_LINES);
-            hend = (pos + DIFF_CONTEXT_LINES).min(last_op);
-        }
-    }
-    hunk_ranges.push((hstart, hend));
-
-    let mut output = format!("--- {old_label}\n+++ {new_label}\n");
-    let mut added = 0usize;
-    let mut removed = 0usize;
-
-    for (hstart, hend) in hunk_ranges {
-        let hunk = &ops[hstart..=hend];
-
-        let old_start = hunk
-            .iter()
-            .find_map(|op| match op {
-                Op::Equal(oi, _) | Op::Delete(oi) => Some(oi + 1),
-                Op::Insert(_) => None,
-            })
-            .unwrap_or(0);
-
-        let new_start = hunk
-            .iter()
-            .find_map(|op| match op {
-                Op::Equal(_, ni) | Op::Insert(ni) => Some(ni + 1),
-                Op::Delete(_) => None,
-            })
-            .unwrap_or(0);
-
-        let old_count = hunk
-            .iter()
-            .filter(|op| !matches!(op, Op::Insert(_)))
-            .count();
-        let new_count = hunk
-            .iter()
-            .filter(|op| !matches!(op, Op::Delete(_)))
-            .count();
-
-        output.push_str(&format!(
-            "@@ -{old_start},{old_count} +{new_start},{new_count} @@\n"
-        ));
-
-        for op in hunk {
-            match op {
-                Op::Equal(oi, _) => {
-                    output.push(' ');
-                    output.push_str(old_lines[*oi]);
-                    output.push('\n');
-                }
-                Op::Delete(oi) => {
-                    output.push('-');
-                    output.push_str(old_lines[*oi]);
-                    output.push('\n');
-                    removed += 1;
-                }
-                Op::Insert(ni) => {
-                    output.push('+');
-                    output.push_str(new_lines[*ni]);
-                    output.push('\n');
-                    added += 1;
-                }
-            }
-        }
-    }
-
-    (output, added, removed, truncated)
 }
 
 // ── Config history Tauri commands ─────────────────────────────────────────────
@@ -265,6 +154,7 @@ pub fn profile_config_diff(
     name: String,
     revision_id: i64,
     right_revision_id: Option<i64>,
+    mode: Option<String>,
     store: State<'_, ProfileStore>,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<ConfigDiffResult, String> {
@@ -313,31 +203,53 @@ pub fn profile_config_diff(
     };
 
     let left_label = format!("revision/{revision_id}");
-    let (mut diff_text, added_lines, removed_lines, mut truncated) = compute_unified_diff(
+    let diff_mode = ConfigDiffMode::parse(mode.as_deref());
+
+    let unified = compute_unified_diff(
         &left_label,
         &right_label,
         &left_row.snapshot_toml,
         &right_text,
     );
+    let (diff_text, truncated) = cap_diff_output_bytes(unified.diff_text, unified.truncated);
 
-    if diff_text.len() > MAX_DIFF_OUTPUT_BYTES {
-        // Find the largest valid UTF-8 char boundary <= MAX_DIFF_OUTPUT_BYTES
-        let mut truncate_at = MAX_DIFF_OUTPUT_BYTES;
-        while truncate_at > 0 && !diff_text.is_char_boundary(truncate_at) {
-            truncate_at -= 1;
-        }
-        diff_text.truncate(truncate_at);
-        truncated = true;
-    }
+    let (semantic_changes, semantic_parse_failed, semantic_truncated) =
+        if diff_mode == ConfigDiffMode::Semantic {
+            let semantic = compute_semantic_diff(&left_row.snapshot_toml, &right_text);
+            if semantic.parse_failed {
+                (None, true, false)
+            } else {
+                (
+                    Some(
+                        semantic
+                            .changes
+                            .into_iter()
+                            .map(ConfigSemanticChange::from)
+                            .collect(),
+                    ),
+                    false,
+                    semantic.truncated,
+                )
+            }
+        } else {
+            (None, false, false)
+        };
 
     Ok(ConfigDiffResult {
         revision_id,
         revision_source: left_row.source,
         revision_created_at: left_row.created_at,
         diff_text,
-        added_lines,
-        removed_lines,
-        truncated,
+        added_lines: unified.added_lines,
+        removed_lines: unified.removed_lines,
+        truncated: truncated || semantic_truncated,
+        mode: if semantic_parse_failed {
+            ConfigDiffMode::Unified
+        } else {
+            diff_mode
+        },
+        semantic_changes,
+        semantic_parse_failed,
     })
 }
 
@@ -352,6 +264,7 @@ pub fn profile_config_rollback(
     app: AppHandle,
     store: State<'_, ProfileStore>,
     metadata_store: State<'_, MetadataStore>,
+    settings_store: State<'_, SettingsStore>,
 ) -> Result<ConfigRollbackResult, String> {
     if !metadata_store.is_available() {
         return Err("rollback is unavailable — metadata store is not accessible".to_string());
@@ -407,12 +320,18 @@ pub fn profile_config_rollback(
         );
     }
 
+    let max_revisions = settings_store
+        .load()
+        .map(|s| config_history_max_revisions_from_settings(&s))
+        .unwrap_or(crosshook_core::metadata::MAX_CONFIG_REVISIONS_PER_PROFILE);
+
     let new_revision_id = capture_config_revision(
         &name,
         &restored_profile,
         ConfigRevisionSource::RollbackApply,
         Some(revision_id),
         &metadata_store,
+        max_revisions,
     );
 
     emit_profiles_changed(&app, "rollback");

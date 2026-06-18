@@ -5,9 +5,10 @@ use crosshook_core::protondb::{
     derive_suggestions, lookup_protondb, validate_env_suggestion, AcceptSuggestionRequest,
     AcceptSuggestionResult, ProtonDbLookupResult, ProtonDbSuggestionSet,
 };
+use crosshook_core::settings::SettingsStore;
 use tauri::State;
 
-use super::profile::capture_config_revision;
+use super::profile::{capture_config_revision, resolve_config_history_max_revisions};
 
 /// Number of days a dismissed suggestion is retained before automatic eviction.
 const SUGGESTION_DISMISSAL_RETENTION_DAYS: u32 = 30;
@@ -19,6 +20,7 @@ fn observe_suggestion_apply(
     profile: &crosshook_core::profile::GameProfile,
     profile_store: &ProfileStore,
     metadata_store: &MetadataStore,
+    settings_store: &SettingsStore,
 ) {
     let profile_path = profile_store.base_path.join(format!("{profile_name}.toml"));
     if let Err(e) = metadata_store.observe_profile_write(
@@ -35,12 +37,14 @@ fn observe_suggestion_apply(
         );
     }
 
+    let max_revisions = resolve_config_history_max_revisions(settings_store);
     capture_config_revision(
         profile_name,
         profile,
         ConfigRevisionSource::ProtonDbSuggestionApply,
         None,
         metadata_store,
+        max_revisions,
     );
 }
 
@@ -105,6 +109,7 @@ pub fn protondb_accept_suggestion(
     request: AcceptSuggestionRequest,
     profile_store: State<'_, ProfileStore>,
     metadata_store: State<'_, MetadataStore>,
+    settings_store: State<'_, SettingsStore>,
 ) -> Result<AcceptSuggestionResult, String> {
     match request {
         AcceptSuggestionRequest::Catalog {
@@ -159,7 +164,13 @@ pub fn protondb_accept_suggestion(
                 .save(&profile_name, &profile)
                 .map_err(|e| e.to_string())?;
 
-            observe_suggestion_apply(&profile_name, &profile, &profile_store, &metadata_store);
+            observe_suggestion_apply(
+                &profile_name,
+                &profile,
+                &profile_store,
+                &metadata_store,
+                &settings_store,
+            );
 
             let applied_keys: Vec<String> = entry.env.iter().map(|p| p[0].clone()).collect();
             let toggled_option_ids = if already_present {
@@ -205,7 +216,13 @@ pub fn protondb_accept_suggestion(
                 .save(&profile_name, &profile)
                 .map_err(|e| e.to_string())?;
 
-            observe_suggestion_apply(&profile_name, &profile, &profile_store, &metadata_store);
+            observe_suggestion_apply(
+                &profile_name,
+                &profile,
+                &profile_store,
+                &metadata_store,
+                &settings_store,
+            );
 
             Ok(AcceptSuggestionResult {
                 updated_profile: profile,

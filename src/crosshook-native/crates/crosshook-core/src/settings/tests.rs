@@ -420,3 +420,26 @@ fn umu_database_lookup_from_str_rejects_unknown() {
         UmuDatabaseLookupPreference::Enabled
     );
 }
+
+#[test]
+fn config_history_settings_default_and_clamp() {
+    use super::{
+        clamp_config_history_max_revisions, AppSettingsData, CONFIG_HISTORY_MAX_REVISIONS_MAX,
+        CONFIG_HISTORY_MAX_REVISIONS_MIN,
+    };
+
+    let defaults = AppSettingsData::default();
+    assert_eq!(defaults.config_history.max_revisions, 20);
+
+    let parsed: AppSettingsData = AppSettingsData::default();
+    assert_eq!(parsed.config_history.max_revisions, 20);
+
+    assert_eq!(
+        clamp_config_history_max_revisions(1),
+        CONFIG_HISTORY_MAX_REVISIONS_MIN
+    );
+    assert_eq!(
+        clamp_config_history_max_revisions(999),
+        CONFIG_HISTORY_MAX_REVISIONS_MAX
+    );
+}

@@ -36,6 +36,44 @@ pub fn clamp_recent_files_limit(n: u32) -> u32 {
     n.clamp(RECENT_FILES_LIMIT_MIN, RECENT_FILES_LIMIT_MAX)
 }
 
+/// Minimum allowed config-history retention cap (inclusive).
+pub const CONFIG_HISTORY_MAX_REVISIONS_MIN: u32 = 5;
+/// Maximum allowed config-history retention cap (inclusive).
+pub const CONFIG_HISTORY_MAX_REVISIONS_MAX: u32 = 100;
+
+fn default_config_history_max_revisions() -> u32 {
+    crate::metadata::MAX_CONFIG_REVISIONS_PER_PROFILE as u32
+}
+
+/// User preferences for profile config revision history.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct ConfigHistorySettings {
+    #[serde(default = "default_config_history_max_revisions")]
+    pub max_revisions: u32,
+}
+
+impl Default for ConfigHistorySettings {
+    fn default() -> Self {
+        Self {
+            max_revisions: default_config_history_max_revisions(),
+        }
+    }
+}
+
+/// Clamp config-history retention to a safe range for persistence and pruning.
+pub fn clamp_config_history_max_revisions(n: u32) -> u32 {
+    n.clamp(
+        CONFIG_HISTORY_MAX_REVISIONS_MIN,
+        CONFIG_HISTORY_MAX_REVISIONS_MAX,
+    )
+}
+
+/// Resolve the effective per-profile revision retention cap from settings.
+pub fn config_history_max_revisions_from_settings(settings: &AppSettingsData) -> usize {
+    clamp_config_history_max_revisions(settings.config_history.max_revisions) as usize
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum UmuPreference {
@@ -183,6 +221,9 @@ pub struct AppSettingsData {
     /// TODO(#269): Canonical dismissals live in SQLite `readiness_nag_dismissals`; this field remains
     /// for settings.toml backward compatibility and startup migration into the DB.
     pub steam_deck_caveats_dismissed_at: Option<String>,
+    /// Config revision history preferences (retention cap, etc.).
+    #[serde(default)]
+    pub config_history: ConfigHistorySettings,
 }
 
 impl Default for AppSettingsData {
@@ -218,6 +259,7 @@ impl Default for AppSettingsData {
             host_tool_dashboard_default_category_filter: None,
             install_nag_dismissed_at: None,
             steam_deck_caveats_dismissed_at: None,
+            config_history: ConfigHistorySettings::default(),
         }
     }
 }

@@ -86,6 +86,37 @@ export function ProfilesSection({
           </button>
         </div>
       ) : null}
+
+      <div className="crosshook-settings-field-row" style={{ marginTop: 16 }}>
+        <label className="crosshook-label" htmlFor="config-history-max-revisions">
+          Config history retention (per profile)
+        </label>
+        <input
+          id="config-history-max-revisions"
+          type="number"
+          min={5}
+          max={100}
+          className="crosshook-input"
+          style={{ maxWidth: 120 }}
+          defaultValue={settings.config_history?.max_revisions ?? 20}
+          key={`chr-${settings.config_history?.max_revisions ?? 20}`}
+          onBlur={(event) => {
+            const raw = parseInt(event.target.value, 10);
+            if (!Number.isFinite(raw)) return;
+            const v = Math.min(100, Math.max(5, raw));
+            const current = settings.config_history?.max_revisions ?? 20;
+            if (v !== current) {
+              void onPersistSettings({
+                config_history: { max_revisions: v },
+              });
+            }
+          }}
+        />
+      </div>
+      <p className="crosshook-muted crosshook-settings-help">
+        Older snapshots are pruned on the next profile save after exceeding this limit. Lower values reduce metadata
+        storage use; existing snapshots above the new cap stay until the next write.
+      </p>
     </CollapsibleSection>
   );
 }

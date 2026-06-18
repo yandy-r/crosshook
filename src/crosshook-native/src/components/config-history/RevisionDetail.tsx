@@ -1,4 +1,5 @@
-import type { ConfigDiffResult, ConfigRevisionSummary } from '../../types/profile-history';
+import { useId, useState } from 'react';
+import type { ConfigDiffMode, ConfigDiffResult, ConfigRevisionSummary } from '../../types/profile-history';
 import { DiffView } from './DiffView';
 import { formatExactDate, SOURCE_LABELS } from './helpers';
 
@@ -7,6 +8,8 @@ interface RevisionDetailProps {
   diff: ConfigDiffResult | null;
   diffLoading: boolean;
   diffError: string | null;
+  diffMode: ConfigDiffMode;
+  onDiffModeChange: (mode: ConfigDiffMode) => void;
   markingKnownGood: boolean;
   markKnownGoodError: string | null;
   onRestore: () => void;
@@ -15,18 +18,23 @@ interface RevisionDetailProps {
 
 /**
  * Detail panel showing the selected revision's metadata, diff, and action buttons.
- * Displays the diff view when loaded, or loading/error states.
  */
 export function RevisionDetail({
   revision,
   diff,
   diffLoading,
   diffError,
+  diffMode,
+  onDiffModeChange,
   markingKnownGood,
   markKnownGoodError,
   onRestore,
   onMarkKnownGood,
 }: RevisionDetailProps) {
+  const [showUnchangedSections, setShowUnchangedSections] = useState(false);
+  const diffModeGroupId = useId();
+  const collapseToggleId = useId();
+
   return (
     <>
       <div className="crosshook-history-detail-header">
@@ -44,6 +52,54 @@ export function RevisionDetail({
         </div>
       </div>
 
+      <div
+        className="crosshook-history-diff-controls"
+        style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}
+      >
+        <fieldset
+          className="crosshook-history-diff-mode"
+          aria-labelledby={`${diffModeGroupId}-label`}
+          style={{ border: 'none', padding: 0, margin: 0 }}
+        >
+          <legend id={`${diffModeGroupId}-label`} className="crosshook-label" style={{ marginBottom: 4 }}>
+            Diff view
+          </legend>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <label className="crosshook-help-text">
+              <input
+                type="radio"
+                name={`${diffModeGroupId}-mode`}
+                checked={diffMode === 'unified'}
+                onChange={() => onDiffModeChange('unified')}
+              />{' '}
+              Unified
+            </label>
+            <label className="crosshook-help-text">
+              <input
+                type="radio"
+                name={`${diffModeGroupId}-mode`}
+                checked={diffMode === 'semantic'}
+                onChange={() => onDiffModeChange('semantic')}
+              />{' '}
+              Semantic
+            </label>
+          </div>
+        </fieldset>
+
+        {diffMode === 'unified' ? (
+          <label className="crosshook-help-text" htmlFor={collapseToggleId}>
+            <input
+              id={collapseToggleId}
+              type="checkbox"
+              checked={showUnchangedSections}
+              onChange={(event) => setShowUnchangedSections(event.target.checked)}
+              aria-label="Show unchanged sections in unified diff"
+            />{' '}
+            Show unchanged sections
+          </label>
+        ) : null}
+      </div>
+
       <div className="crosshook-history-diff-area">
         {diffLoading ? (
           <span className="crosshook-muted">Loading diff…</span>
@@ -52,7 +108,7 @@ export function RevisionDetail({
             {diffError}
           </p>
         ) : diff ? (
-          <DiffView diff={diff} />
+          <DiffView diff={diff} mode={diffMode} showUnchangedSections={showUnchangedSections} />
         ) : null}
       </div>
 

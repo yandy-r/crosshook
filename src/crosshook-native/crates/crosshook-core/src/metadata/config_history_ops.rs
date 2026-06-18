@@ -12,6 +12,7 @@ impl MetadataStore {
         content_hash: &str,
         snapshot_toml: &str,
         source_revision_id: Option<i64>,
+        max_revisions: usize,
     ) -> Result<Option<i64>, MetadataStoreError> {
         self.with_conn_mut("insert a config revision", |conn| {
             config_history_store::insert_config_revision(
@@ -22,6 +23,7 @@ impl MetadataStore {
                 content_hash,
                 snapshot_toml,
                 source_revision_id,
+                max_revisions,
             )
         })
     }

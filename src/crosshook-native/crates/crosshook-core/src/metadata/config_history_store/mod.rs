@@ -18,6 +18,7 @@ pub fn insert_config_revision(
     content_hash: &str,
     snapshot_toml: &str,
     source_revision_id: Option<i64>,
+    max_revisions: usize,
 ) -> Result<Option<i64>, MetadataStoreError> {
     if snapshot_toml.len() > MAX_SNAPSHOT_TOML_BYTES {
         return Err(MetadataStoreError::Validation(format!(
@@ -118,7 +119,7 @@ pub fn insert_config_revision(
                WHERE profile_id = ?1
                  AND source_revision_id IS NOT NULL
            )",
-        params![profile_id, MAX_CONFIG_REVISIONS_PER_PROFILE as i64],
+        params![profile_id, max_revisions as i64],
     )
     .map_err(|source| MetadataStoreError::Database {
         action: "prune old config revision rows",

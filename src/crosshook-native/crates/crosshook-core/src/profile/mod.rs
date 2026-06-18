@@ -3,6 +3,8 @@
 mod collection_exchange;
 pub mod collection_schema;
 pub mod community_schema;
+pub mod config_diff;
+pub mod config_semantic_diff;
 mod creation_defaults;
 mod exchange;
 mod legacy;
@@ -20,6 +22,14 @@ pub use collection_schema::{
 pub use community_schema::{
     CommunityProfileManifest, CommunityProfileMetadata, CompatibilityRating,
     COMMUNITY_PROFILE_SCHEMA_VERSION,
+};
+pub use config_diff::{
+    cap_diff_output_bytes, compute_unified_diff, UnifiedDiffResult, DIFF_CONTEXT_LINES,
+    DIFF_MAX_LINES, MAX_DIFF_OUTPUT_BYTES,
+};
+pub use config_semantic_diff::{
+    compute_semantic_diff, SemanticChange, SemanticChangeKind, SemanticDiffResult,
+    MAX_SEMANTIC_CHANGES,
 };
 pub use creation_defaults::apply_profile_creation_defaults_from_settings;
 pub use exchange::{
