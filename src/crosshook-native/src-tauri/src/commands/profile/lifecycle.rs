@@ -14,7 +14,7 @@ use tauri::{AppHandle, State};
 
 use super::shared::{
     apply_collection_defaults, capture_config_revision, cleanup_launchers_for_profile_delete,
-    emit_profiles_changed, map_error,
+    emit_profiles_changed, map_error, resolve_config_history_max_revisions,
 };
 
 #[tauri::command]
@@ -199,12 +199,14 @@ pub fn profile_save(
         tracing::warn!(%e, profile_name = %name, "metadata sync after profile_save failed");
     }
 
+    let max_revisions = resolve_config_history_max_revisions(&settings_store);
     capture_config_revision(
         &name,
         &data,
         ConfigRevisionSource::ManualSave,
         None,
         &metadata_store,
+        max_revisions,
     );
 
     emit_profiles_changed(&app, "saved");
@@ -336,6 +338,7 @@ pub fn profile_import_legacy(
     path: String,
     app: AppHandle,
     store: State<'_, ProfileStore>,
+    settings_store: State<'_, SettingsStore>,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<GameProfile, String> {
     let profile = store.import_legacy(Path::new(&path)).map_err(map_error)?;
@@ -351,12 +354,14 @@ pub fn profile_import_legacy(
         tracing::warn!(%e, profile_name = %stem, "metadata sync after import_legacy failed");
     }
 
+    let max_revisions = resolve_config_history_max_revisions(&settings_store);
     capture_config_revision(
         stem,
         &profile,
         ConfigRevisionSource::Import,
         None,
         &metadata_store,
+        max_revisions,
     );
 
     emit_profiles_changed(&app, "imported-legacy");

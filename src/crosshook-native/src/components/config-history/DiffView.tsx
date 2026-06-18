@@ -1,15 +1,28 @@
-import type { ConfigDiffResult } from '../../types/profile-history';
+import type { ConfigDiffMode, ConfigDiffResult } from '../../types/profile-history';
+import { collapseUnifiedDiffLines } from './helpers';
+import { SemanticDiffView, semanticDiffFromResult } from './SemanticDiffView';
 
 interface DiffViewProps {
   diff: ConfigDiffResult;
+  mode: ConfigDiffMode;
+  showUnchangedSections: boolean;
 }
 
 /**
- * Renders a unified diff view with add/remove line statistics.
- * Shows a truncation notice when profiles exceed the 2,000 line limit.
+ * Renders unified or semantic diff views with add/remove line statistics.
  */
-export function DiffView({ diff }: DiffViewProps) {
-  if (diff.diff_text.trim() === '') {
+export function DiffView({ diff, mode, showUnchangedSections }: DiffViewProps) {
+  if (mode === 'semantic') {
+    return (
+      <section aria-label="Semantic diff">
+        <SemanticDiffView {...semanticDiffFromResult(diff)} />
+      </section>
+    );
+  }
+
+  const displayText = collapseUnifiedDiffLines(diff.diff_text, showUnchangedSections);
+
+  if (displayText.trim() === '') {
     return (
       <p className="crosshook-help-text" style={{ marginTop: 8 }}>
         No differences found.
@@ -17,7 +30,7 @@ export function DiffView({ diff }: DiffViewProps) {
     );
   }
 
-  const lines = diff.diff_text.split('\n');
+  const lines = displayText.split('\n');
 
   return (
     <div>

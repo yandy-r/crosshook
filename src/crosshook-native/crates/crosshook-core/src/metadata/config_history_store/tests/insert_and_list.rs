@@ -2,7 +2,7 @@ use super::common::{ensure_profile, insert_revision, open_test_db};
 use crate::metadata::config_history_store::{
     get_config_revision, insert_config_revision, list_config_revisions,
 };
-use crate::metadata::ConfigRevisionSource;
+use crate::metadata::{ConfigRevisionSource, MAX_CONFIG_REVISIONS_PER_PROFILE};
 
 #[test]
 fn insert_returns_id_and_list_is_newest_first() {
@@ -56,6 +56,7 @@ fn insert_dedup_skips_when_latest_hash_matches() {
         "hash1",
         "some toml content",
         None,
+        MAX_CONFIG_REVISIONS_PER_PROFILE,
     )
     .unwrap();
     assert!(deduped.is_none(), "identical hash must be skipped");
@@ -82,6 +83,7 @@ fn insert_dedup_does_not_apply_to_non_latest_hash() {
         "hash1",
         "some toml content",
         None,
+        MAX_CONFIG_REVISIONS_PER_PROFILE,
     )
     .unwrap();
     assert!(
@@ -108,6 +110,7 @@ fn insert_dedup_is_scoped_to_profile() {
         "hash1",
         "some toml content",
         None,
+        MAX_CONFIG_REVISIONS_PER_PROFILE,
     )
     .unwrap();
     assert!(
@@ -129,6 +132,7 @@ fn lineage_source_revision_id_stored_and_retrieved() {
         "hash2",
         "rollback toml content",
         Some(parent_id),
+        MAX_CONFIG_REVISIONS_PER_PROFILE,
     )
     .unwrap()
     .expect("child insert should succeed");

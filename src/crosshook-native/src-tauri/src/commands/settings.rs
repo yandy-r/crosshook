@@ -1,7 +1,8 @@
 use crosshook_core::community::CommunityTapSubscription;
 use crosshook_core::discovery::ExternalTrainerSourceSubscription;
 use crosshook_core::settings::{
-    clamp_recent_files_limit, resolve_profiles_directory_from_config, AppSettingsData,
+    clamp_config_history_max_revisions, clamp_recent_files_limit,
+    resolve_profiles_directory_from_config, AppSettingsData, ConfigHistorySettings,
     RecentFilesData, RecentFilesStore, RecentFilesStoreError, SettingsStore, SettingsStoreError,
     UmuDatabaseLookupPreference, UmuPreference,
 };
@@ -65,6 +66,7 @@ pub struct AppSettingsIpcData {
     pub host_tool_dashboard_dismissed_hints: Vec<String>,
     /// Default category filter for the Host Tools dashboard (`None` = all).
     pub host_tool_dashboard_default_category_filter: Option<String>,
+    pub config_history: ConfigHistorySettings,
 }
 
 impl AppSettingsIpcData {
@@ -112,6 +114,7 @@ impl AppSettingsIpcData {
             host_tool_dashboard_dismissed_hints: data.host_tool_dashboard_dismissed_hints,
             host_tool_dashboard_default_category_filter: data
                 .host_tool_dashboard_default_category_filter,
+            config_history: data.config_history,
         }
     }
 }
@@ -172,6 +175,8 @@ pub struct SettingsSaveRequest {
     pub protonup_default_install_root: Option<String>,
     #[serde(default)]
     pub protonup_include_prereleases: Option<bool>,
+    #[serde(default)]
+    pub config_history: Option<ConfigHistorySettings>,
 }
 
 fn merge_settings_from_request(
@@ -241,6 +246,13 @@ fn merge_settings_from_request(
         protonup_include_prereleases: data
             .protonup_include_prereleases
             .unwrap_or(current.protonup_include_prereleases),
+        config_history: data
+            .config_history
+            .map(|mut history| {
+                history.max_revisions = clamp_config_history_max_revisions(history.max_revisions);
+                history
+            })
+            .unwrap_or(current.config_history),
     }
 }
 
@@ -377,6 +389,7 @@ mod tests {
             protonup_default_install_root: None,
             protonup_include_prereleases: None,
             high_contrast: None,
+            config_history: None,
         }
     }
 

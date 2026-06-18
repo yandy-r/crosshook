@@ -18,6 +18,7 @@ fn pruning_respects_max_revisions_per_profile() {
             &format!("hash-{i}"),
             "some toml content",
             None,
+            MAX_CONFIG_REVISIONS_PER_PROFILE,
         )
         .expect("insert must not fail")
         .expect("each unique-hash insert should succeed");
@@ -56,6 +57,7 @@ fn pruning_does_not_affect_other_profiles() {
             &format!("p1-hash-{i}"),
             "toml",
             None,
+            MAX_CONFIG_REVISIONS_PER_PROFILE,
         )
         .unwrap();
     }
@@ -83,6 +85,7 @@ fn pruning_retains_revisions_referenced_by_source_revision_id() {
             &format!("chain-hash-{i}"),
             "toml",
             None,
+            MAX_CONFIG_REVISIONS_PER_PROFILE,
         )
         .expect("insert must not fail")
         .expect("each insert must create a row");
@@ -102,6 +105,7 @@ fn pruning_retains_revisions_referenced_by_source_revision_id() {
         "rollback-child-hash",
         "rollback toml",
         Some(oldest_id),
+        MAX_CONFIG_REVISIONS_PER_PROFILE,
     )
     .expect("insert with parent reference must succeed after FK-safe pruning");
 
@@ -109,4 +113,28 @@ fn pruning_retains_revisions_referenced_by_source_revision_id() {
         .unwrap()
         .expect("referenced parent revision must still exist");
     assert_eq!(parent.id, oldest_id);
+}
+
+#[test]
+fn pruning_respects_custom_max_revisions_limit() {
+    let conn = open_test_db();
+    ensure_profile(&conn, "profile-1");
+    let custom_limit = 7usize;
+    for i in 0..custom_limit + 3 {
+        insert_config_revision(
+            &conn,
+            "profile-1",
+            "Test Profile",
+            ConfigRevisionSource::ManualSave,
+            &format!("custom-hash-{i}"),
+            "toml",
+            None,
+            custom_limit,
+        )
+        .expect("insert must not fail")
+        .expect("each unique-hash insert should succeed");
+    }
+
+    let revisions = list_config_revisions(&conn, "profile-1", None).unwrap();
+    assert_eq!(revisions.len(), custom_limit);
 }

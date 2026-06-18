@@ -28,6 +28,19 @@ export interface ConfigRevisionSummary {
   created_at: string;
 }
 
+/** Diff rendering mode for config history comparisons. */
+export type ConfigDiffMode = 'unified' | 'semantic';
+
+/** Kind of semantic TOML field change. */
+export type SemanticChangeKind = 'added' | 'removed' | 'changed';
+
+export interface ConfigSemanticChange {
+  path: string;
+  change_type: SemanticChangeKind;
+  old_value?: string | null;
+  new_value?: string | null;
+}
+
 /**
  * IPC DTO from `profile_config_diff`.
  *
@@ -45,6 +58,9 @@ export interface ConfigDiffResult {
   removed_lines: number;
   /** True when either input exceeded the line limit and the diff may be incomplete. */
   truncated: boolean;
+  mode: ConfigDiffMode;
+  semantic_changes?: ConfigSemanticChange[] | null;
+  semantic_parse_failed?: boolean;
 }
 
 /**

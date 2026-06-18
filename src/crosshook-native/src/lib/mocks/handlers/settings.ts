@@ -14,6 +14,13 @@ export function registerSettings(map: Map<string, Handler>): void {
     const raw = (args as { data: SettingsSaveRequest }).data as unknown as Record<string, unknown>;
     const next = omitUndefinedKeys(raw);
     const merged = { ...getStore().settings, ...next };
+    if (next.config_history && typeof next.config_history === 'object') {
+      const currentHistory = getStore().settings.config_history ?? { max_revisions: 20 };
+      merged.config_history = {
+        max_revisions: currentHistory.max_revisions,
+        ...(next.config_history as { max_revisions?: number }),
+      };
+    }
     getStore().settings = structuredClone(merged);
     return structuredClone(getStore().settings);
   });

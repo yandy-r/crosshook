@@ -30,7 +30,7 @@ pub use optimizations::{
     profile_save_gamescope_config, profile_save_launch_optimizations, profile_save_mangohud_config,
     profile_save_manual_optimization_preset, profile_save_trainer_gamescope_config,
 };
-pub use shared::capture_config_revision;
+pub use shared::{capture_config_revision, resolve_config_history_max_revisions};
 
 // Re-export Tauri command macros so `generate_handler!` can resolve `commands::profile::<name>`.
 pub use command_arguments::__cmd__profile_save_command_arguments;

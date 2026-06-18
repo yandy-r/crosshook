@@ -45,10 +45,11 @@ export function registerProfileHistory(map: Map<string, Handler>): void {
   map.set(
     'profile_config_diff',
     withProfileFixtureGate('profile_config_diff', async (args): Promise<ConfigDiffResult> => {
-      const { name, revisionId, rightRevisionId } = args as {
+      const { name, revisionId, rightRevisionId, mode } = args as {
         name: string;
         revisionId: number;
         rightRevisionId?: number;
+        mode?: 'unified' | 'semantic';
       };
       const trimmed = name.trim();
       const rows = profileConfigHistory.get(trimmed) ?? [];
@@ -56,16 +57,25 @@ export function registerProfileHistory(map: Map<string, Handler>): void {
       if (!left) {
         throw new Error(`[dev-mock] profile_config_diff: revision ${revisionId} not found for profile "${trimmed}"`);
       }
-      // In the mock, diff is always empty (no real TOML serialization)
       const rightLabel = rightRevisionId !== undefined ? `revision/${rightRevisionId}` : 'current';
+      const diffMode = mode ?? 'unified';
       return {
         revision_id: revisionId,
         revision_source: left.source,
         revision_created_at: left.created_at,
-        diff_text: `--- revision/${revisionId}\n+++ ${rightLabel}\n@@ -1,1 +1,1 @@\n [mock: no diff available in browser-dev mode]\n`,
+        diff_text:
+          diffMode === 'semantic'
+            ? ''
+            : `--- revision/${revisionId}\n+++ ${rightLabel}\n@@ -1,1 +1,1 @@\n [mock: no diff available in browser-dev mode]\n`,
         added_lines: 0,
         removed_lines: 0,
         truncated: false,
+        mode: diffMode,
+        semantic_changes:
+          diffMode === 'semantic'
+            ? [{ path: 'game.name', change_type: 'changed', old_value: 'Before', new_value: 'After' }]
+            : null,
+        semantic_parse_failed: false,
       };
     })
   );

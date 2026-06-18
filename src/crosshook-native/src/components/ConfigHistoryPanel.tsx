@@ -1,7 +1,7 @@
 import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useFocusTrap } from '../hooks/useFocusTrap';
-import type { ConfigDiffResult, ConfigRevisionSummary } from '../types/profile-history';
+import type { ConfigDiffMode, ConfigDiffResult, ConfigRevisionSummary } from '../types/profile-history';
 import { formatExactDate } from './config-history/helpers';
 import { RestoreConfirmation } from './config-history/RestoreConfirmation';
 import { RevisionDetail } from './config-history/RevisionDetail';
@@ -33,6 +33,7 @@ export function ConfigHistoryPanel({
   // Selected revision + diff
   const [selectedRevision, setSelectedRevision] = useState<ConfigRevisionSummary | null>(null);
   const [diff, setDiff] = useState<ConfigDiffResult | null>(null);
+  const [diffMode, setDiffMode] = useState<ConfigDiffMode>('unified');
   const [diffLoading, setDiffLoading] = useState(false);
   const [diffError, setDiffError] = useState<string | null>(null);
 
@@ -130,7 +131,7 @@ export function ConfigHistoryPanel({
     const previousRevision = isLatest && revisions.length > 1 ? revisions[1] : undefined;
     const rightRevisionId = isLatest ? previousRevision?.id : undefined;
 
-    fetchConfigDiff(profileName, selectedRevision.id, rightRevisionId)
+    fetchConfigDiff(profileName, selectedRevision.id, rightRevisionId, diffMode)
       .then((result) => {
         if (!active) return;
         setDiff(result);
@@ -145,7 +146,7 @@ export function ConfigHistoryPanel({
     return () => {
       active = false;
     };
-  }, [selectedRevision, revisions, profileName, fetchConfigDiff]);
+  }, [selectedRevision, revisions, profileName, fetchConfigDiff, diffMode]);
 
   /* ── Restore ── */
 
@@ -327,6 +328,8 @@ export function ConfigHistoryPanel({
                 diff={diff}
                 diffLoading={diffLoading}
                 diffError={diffError}
+                diffMode={diffMode}
+                onDiffModeChange={setDiffMode}
                 markingKnownGood={markingKnownGoodId === selectedRevision.id}
                 markKnownGoodError={markKnownGoodError}
                 onRestore={() => {

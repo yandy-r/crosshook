@@ -4,7 +4,9 @@
 //! revision capture, diff validation, rollback lineage, rename continuity, and
 //! graceful degradation when the metadata store is unavailable.
 
-use crosshook_core::metadata::{sha256_hex, ConfigRevisionSource, MetadataStore, SyncSource};
+use crosshook_core::metadata::{
+    sha256_hex, ConfigRevisionSource, MetadataStore, SyncSource, MAX_CONFIG_REVISIONS_PER_PROFILE,
+};
 use crosshook_core::profile::GameProfile;
 use std::path::Path;
 
@@ -63,6 +65,7 @@ fn end_to_end_save_revision_rollback_lineage() {
             &hash_v1,
             &toml_v1,
             None,
+            MAX_CONFIG_REVISIONS_PER_PROFILE,
         )
         .expect("insert revision 1 must succeed")
         .expect("revision 1 must not be deduped on first insert");
@@ -81,6 +84,7 @@ fn end_to_end_save_revision_rollback_lineage() {
             &hash_v2,
             &toml_v2,
             None,
+            MAX_CONFIG_REVISIONS_PER_PROFILE,
         )
         .expect("insert revision 2 must succeed")
         .expect("revision 2 must not be deduped (different hash)");
@@ -135,6 +139,7 @@ fn end_to_end_save_revision_rollback_lineage() {
             &hash_v1, // same content as rev1 (intentional restore)
             &toml_v1,
             Some(rev1_id), // lineage pointer back to the revision being restored
+            MAX_CONFIG_REVISIONS_PER_PROFILE,
         )
         .expect("insert rollback revision must succeed")
         .expect("rollback revision must be inserted (latest hash is v2, not v1)");
@@ -192,6 +197,7 @@ fn rename_continuity_via_profile_id() {
             "hash-before-rename-a",
             &toml_a,
             None,
+            MAX_CONFIG_REVISIONS_PER_PROFILE,
         )
         .expect("insert rev_a must succeed")
         .expect("rev_a must be inserted");
@@ -207,6 +213,7 @@ fn rename_continuity_via_profile_id() {
             "hash-before-rename-b",
             &toml_b,
             None,
+            MAX_CONFIG_REVISIONS_PER_PROFILE,
         )
         .expect("insert rev_b must succeed")
         .expect("rev_b must be inserted");
@@ -240,6 +247,7 @@ fn rename_continuity_via_profile_id() {
             "hash-after-rename-c",
             &toml_c,
             None,
+            MAX_CONFIG_REVISIONS_PER_PROFILE,
         )
         .expect("insert rev_c must succeed")
         .expect("rev_c must be inserted");
@@ -293,6 +301,7 @@ fn disabled_store_history_operations_return_safe_defaults() {
             "any-hash",
             "[game]\nname = \"test\"\n",
             None,
+            MAX_CONFIG_REVISIONS_PER_PROFILE,
         )
         .expect("disabled store insert_config_revision must not return Err");
     assert!(

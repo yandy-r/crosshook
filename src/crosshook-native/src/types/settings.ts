@@ -12,6 +12,10 @@ export interface CommunityTapSubscription {
   pinned_commit?: string;
 }
 
+export interface ConfigHistorySettings {
+  max_revisions: number;
+}
+
 /** Payload for `settings_save` (matches Rust `SettingsSaveRequest`). */
 export interface SettingsSaveRequest {
   auto_load_last_profile: boolean;
@@ -55,6 +59,7 @@ export interface SettingsSaveRequest {
   install_nag_dismissed_at?: string | null;
   /** RFC 3339 timestamp of when the user dismissed the Steam Deck caveats nag; `null` = not yet dismissed. */
   steam_deck_caveats_dismissed_at?: string | null;
+  config_history?: ConfigHistorySettings;
 }
 
 export interface AppSettingsData extends SettingsSaveRequest {
@@ -97,6 +102,7 @@ export function toSettingsSaveRequest(s: AppSettingsData): SettingsSaveRequest {
     umu_database_lookup: s.umu_database_lookup,
     host_tool_dashboard_dismissed_hints: s.host_tool_dashboard_dismissed_hints,
     host_tool_dashboard_default_category_filter: s.host_tool_dashboard_default_category_filter,
+    config_history: s.config_history,
   };
   // Do not set `install_nag_dismissed_at` when null/undefined so the key is absent
   // (not present on the object). Shallow merge in browser mocks and backend merge both
@@ -145,6 +151,7 @@ export const DEFAULT_APP_SETTINGS: AppSettingsData = {
   host_tool_dashboard_default_category_filter: null,
   install_nag_dismissed_at: null,
   steam_deck_caveats_dismissed_at: null,
+  config_history: { max_revisions: 20 },
 };
 
 export interface RecentFilesData {
