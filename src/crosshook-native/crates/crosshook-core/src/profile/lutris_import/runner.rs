@@ -21,6 +21,9 @@ pub enum RunnerResolution {
 }
 
 pub fn resolve_runner_path(lutris_root: &Path, version: &str) -> RunnerResolution {
+    if version.contains('/') || version.contains('\\') || version.contains("..") {
+        return RunnerResolution::Missing(version.to_string());
+    }
     let runner_dir = lutris_root.join("runners").join("wine").join(version);
     if runner_dir.is_dir() {
         RunnerResolution::Installed(runner_dir)

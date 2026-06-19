@@ -4,13 +4,15 @@ use std::path::{Path, PathBuf};
 
 use super::LutrisImportError;
 
+const MAX_LUTRIS_LIBRARY_ENTRIES: usize = 10_000;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PgaGame {
     pub name: String,
     pub slug: String,
     pub runner: String,
-    pub directory: String,
-    pub configpath: String,
+    pub directory: Option<String>,
+    pub configpath: Option<String>,
 }
 
 /// Returns the first existing Lutris library root, in precedence order.
@@ -40,7 +42,16 @@ pub fn list_game_configs(root: &Path) -> Vec<PathBuf> {
     };
 
     let mut configs = Vec::new();
-    for entry in entries.flatten() {
+    'scan: for entry in entries.flatten() {
+        if configs.len() >= MAX_LUTRIS_LIBRARY_ENTRIES {
+            tracing::warn!(
+                limit = MAX_LUTRIS_LIBRARY_ENTRIES,
+                root = %root.display(),
+                "Lutris game config scan hit library entry cap; remaining configs ignored"
+            );
+            break 'scan;
+        }
+
         let path = entry.path();
         if path.is_file() && is_lutris_yaml(&path) {
             configs.push(path);
@@ -55,6 +66,15 @@ pub fn list_game_configs(root: &Path) -> Vec<PathBuf> {
             continue;
         };
         for sub_entry in sub_entries.flatten() {
+            if configs.len() >= MAX_LUTRIS_LIBRARY_ENTRIES {
+                tracing::warn!(
+                    limit = MAX_LUTRIS_LIBRARY_ENTRIES,
+                    root = %root.display(),
+                    "Lutris game config scan hit library entry cap; remaining configs ignored"
+                );
+                break 'scan;
+            }
+
             let sub_path = sub_entry.path();
             if sub_path.is_file() && is_lutris_yaml(&sub_path) {
                 configs.push(sub_path);
@@ -76,19 +96,21 @@ pub fn read_pga_games(root: &Path) -> Result<Vec<PgaGame>, LutrisImportError> {
     )?;
 
     let mut stmt = conn
-        .prepare("SELECT name, slug, runner, directory, configpath FROM games")
+        .prepare("SELECT name, slug, runner, directory, configpath FROM games LIMIT ?1")
         .map_err(|error| LutrisImportError::Pga {
             message: error.to_string(),
         })?;
 
+    let limit =
+        i64::try_from(MAX_LUTRIS_LIBRARY_ENTRIES).expect("MAX_LUTRIS_LIBRARY_ENTRIES fits in i64");
     let rows = stmt
-        .query_map([], |row| {
+        .query_map([limit + 1], |row| {
             Ok(PgaGame {
                 name: row.get(0)?,
                 slug: row.get(1)?,
                 runner: row.get(2)?,
-                directory: row.get(3)?,
-                configpath: row.get(4)?,
+                directory: row.get::<_, Option<String>>(3)?,
+                configpath: row.get::<_, Option<String>>(4)?,
             })
         })
         .map_err(|error| LutrisImportError::Pga {
@@ -97,9 +119,19 @@ pub fn read_pga_games(root: &Path) -> Result<Vec<PgaGame>, LutrisImportError> {
 
     let mut games = Vec::new();
     for row in rows {
-        games.push(row.map_err(|error| LutrisImportError::Pga {
-            message: error.to_string(),
-        })?);
+        match row {
+            Ok(game) => games.push(game),
+            Err(_) => continue,
+        }
+    }
+
+    if games.len() > MAX_LUTRIS_LIBRARY_ENTRIES {
+        tracing::warn!(
+            limit = MAX_LUTRIS_LIBRARY_ENTRIES,
+            root = %root.display(),
+            "Lutris pga.db query hit library entry cap; remaining games ignored"
+        );
+        games.truncate(MAX_LUTRIS_LIBRARY_ENTRIES);
     }
 
     Ok(games)

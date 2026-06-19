@@ -1,11 +1,11 @@
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::profile::ProfileStore;
 
 use super::error::LutrisImportError;
 use super::map::{is_wine_or_proton_runner, map_lutris_to_profile, MappedLutrisInput};
-use super::parse::parse_lutris_yaml;
+use super::parse::{parse_lutris_yaml, LutrisGameConfig};
 use super::paths::{discover_lutris_root, list_game_configs, read_pga_games, PgaGame};
 use super::types::{
     LutrisImportEntry, LutrisImportEntryResult, LutrisImportOutcome, LutrisImportPreview,
@@ -41,7 +41,7 @@ pub fn preview_lutris_import(
 
     let pga_by_configpath: HashMap<String, PgaGame> = pga_games
         .into_iter()
-        .map(|game| (game.configpath.clone(), game))
+        .filter_map(|game| game.configpath.clone().map(|configpath| (configpath, game)))
         .collect();
 
     let existing_names = profile_store
@@ -57,11 +57,6 @@ pub fn preview_lutris_import(
             .to_string();
 
         let pga = pga_by_configpath.get(&config_stem).cloned();
-        if let Some(pga_row) = &pga {
-            if !is_wine_or_proton_runner(&pga_row.runner) {
-                continue;
-            }
-        }
 
         let config = match parse_lutris_yaml(&config_path) {
             Ok(parsed) => parsed,
@@ -70,6 +65,14 @@ pub fn preview_lutris_import(
                 continue;
             }
         };
+
+        if let Some(pga_row) = &pga {
+            if !is_wine_or_proton_runner(&pga_row.runner) {
+                continue;
+            }
+        } else if !yaml_indicates_wine_or_proton(&config) {
+            continue;
+        }
 
         let mapped = map_lutris_to_profile(MappedLutrisInput {
             config,
@@ -100,10 +103,9 @@ pub fn preview_lutris_import(
 }
 
 pub fn apply_lutris_import(
-    profiles_dir: &Path,
+    store: &ProfileStore,
     entries: Vec<LutrisImportEntry>,
 ) -> LutrisImportResult {
-    let store = ProfileStore::with_base_path(profiles_dir.to_path_buf());
     let mut results = Vec::new();
     let mut imported_count = 0usize;
     let mut skipped_count = 0usize;
@@ -162,13 +164,25 @@ pub fn apply_lutris_import(
     }
 }
 
+fn yaml_indicates_wine_or_proton(config: &LutrisGameConfig) -> bool {
+    config.wine.is_some()
+        || config
+            .runner
+            .as_deref()
+            .is_some_and(is_wine_or_proton_runner)
+}
+
+const MAX_UNIQUE_NAME_ATTEMPTS: u32 = 1000;
+
 fn sanitize_profile_name(name: &str) -> String {
     let mut slug = String::with_capacity(name.len());
     let mut last_was_separator = false;
 
     for ch in name.trim().chars() {
         if ch.is_alphanumeric() {
-            slug.push(ch.to_ascii_lowercase());
+            for lower in ch.to_lowercase() {
+                slug.push(lower);
+            }
             last_was_separator = false;
         } else if !last_was_separator {
             slug.push('-');
@@ -196,20 +210,33 @@ fn derive_unique_profile_name(
         return base.to_string();
     }
 
-    for index in 2..=1000 {
+    for index in 2..=MAX_UNIQUE_NAME_ATTEMPTS {
         let candidate = format!("{base}-{index}");
         if !taken.iter().any(|name| name == &candidate) {
             return candidate;
         }
     }
 
-    format!("{base}-copy")
+    let fallback = format!("{base}-copy");
+    if !taken.iter().any(|name| name == &fallback) {
+        return fallback;
+    }
+
+    for index in 2..=MAX_UNIQUE_NAME_ATTEMPTS {
+        let candidate = format!("{base}-copy-{index}");
+        if !taken.iter().any(|name| name == &candidate) {
+            return candidate;
+        }
+    }
+
+    format!("{base}-copy-{}", MAX_UNIQUE_NAME_ATTEMPTS + 1)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs;
+    use std::path::Path;
     use tempfile::tempdir;
 
     fn write_sample_lutris_tree(root: &Path) {
@@ -277,7 +304,8 @@ system:
         fs::create_dir_all(&profiles_dir).unwrap();
 
         let preview = preview_lutris_import(Some(temp.path().to_path_buf()), None).unwrap();
-        let result = apply_lutris_import(&profiles_dir, preview.entries);
+        let store = ProfileStore::with_base_path(profiles_dir.clone());
+        let result = apply_lutris_import(&store, preview.entries);
         assert_eq!(result.imported_count, 1);
         assert!(profiles_dir.join("sample-game.toml").exists());
     }

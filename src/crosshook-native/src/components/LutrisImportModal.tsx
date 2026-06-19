@@ -4,6 +4,12 @@ import type { LutrisImportEntry, LutrisImportPreview, LutrisImportResult } from 
 import { useMigrationReviewFocusTrap } from './migration-review/useMigrationReviewFocusTrap';
 import '../styles/preview.css';
 
+/** `.crosshook-modal__surface` grid rows: 1 header, 2 summary, 3 body, 4 footer. */
+const MODAL_SURFACE_GRID_ROW = {
+  body: 3,
+  footer: 4,
+} as const;
+
 function entryKey(entry: LutrisImportEntry): string {
   return entry.source_path;
 }
@@ -133,7 +139,8 @@ export function LutrisImportModal({
           </div>
         </header>
 
-        <div className="crosshook-modal__body" style={{ gridRow: 3 }}>
+        {/* Body — see MODAL_SURFACE_GRID_ROW */}
+        <div className="crosshook-modal__body" style={{ gridRow: MODAL_SURFACE_GRID_ROW.body }}>
           {isImporting && (
             <div aria-live="polite" style={{ padding: '16px 0' }}>
               <p>
@@ -341,7 +348,8 @@ export function LutrisImportModal({
           )}
         </div>
 
-        <footer className="crosshook-modal__footer" style={{ gridRow: 4 }}>
+        {/* Footer — see MODAL_SURFACE_GRID_ROW */}
+        <footer className="crosshook-modal__footer" style={{ gridRow: MODAL_SURFACE_GRID_ROW.footer }}>
           <span />
           <div className="crosshook-modal__footer-actions">
             {importResult ? (

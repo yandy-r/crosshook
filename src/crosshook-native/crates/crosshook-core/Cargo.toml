@@ -18,7 +18,13 @@ flate2 = "1"
 xz2 = "0.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Lutris profile import reads per-game `.yml` configs. Upstream `serde_yaml` is
+# archived; `serde_yaml_ng` is the actively maintained drop-in fork. No other
+# workspace parser handles YAML (`serde_json`, `toml`, `quick-xml`, `csv` are
+# unsuitable). Transitive `unsafe-libyaml` is accepted for libyaml dialect parity
+# with real Lutris installs; pure-Rust alternatives lack equivalent coverage.
 serde_yaml_ng = "0.10"
+shell-words = "1.1"
 toml = "1.1.0"
 tar = "0.4"
 tokio = { version = "1", features = ["fs", "macros", "process", "rt", "sync", "time"] }

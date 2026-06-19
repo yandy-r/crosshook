@@ -1,13 +1,16 @@
 use std::path::PathBuf;
 
-use crosshook_core::metadata::{MetadataStore, SyncSource};
+use crosshook_core::metadata::{ConfigRevisionSource, MetadataStore, SyncSource};
 use crosshook_core::profile::lutris_import::{apply_lutris_import, preview_lutris_import};
 use crosshook_core::profile::{
     LutrisImportEntry, LutrisImportOutcome, LutrisImportPreview, LutrisImportResult, ProfileStore,
 };
+use crosshook_core::settings::SettingsStore;
 use tauri::{AppHandle, State};
 
-use super::profile::emit_profiles_changed;
+use super::profile::{
+    capture_config_revision, emit_profiles_changed, resolve_config_history_max_revisions,
+};
 
 fn map_error(error: impl ToString) -> String {
     error.to_string()
@@ -26,10 +29,11 @@ pub fn lutris_prepare_import(
 pub fn lutris_import_profiles(
     entries: Vec<LutrisImportEntry>,
     profile_store: State<'_, ProfileStore>,
+    settings_store: State<'_, SettingsStore>,
     metadata_store: State<'_, MetadataStore>,
     app: AppHandle,
 ) -> Result<LutrisImportResult, String> {
-    let result = apply_lutris_import(&profile_store.base_path, entries);
+    let result = apply_lutris_import(&profile_store, entries);
 
     for entry_result in &result.results {
         if entry_result.outcome != LutrisImportOutcome::Imported {
@@ -54,6 +58,16 @@ pub fn lutris_import_profiles(
                 %error,
                 profile_name,
                 "metadata sync after lutris_import_profiles failed"
+            );
+        } else {
+            let max_revisions = resolve_config_history_max_revisions(&settings_store);
+            capture_config_revision(
+                profile_name,
+                &entry_result.entry.mapped,
+                ConfigRevisionSource::Import,
+                None,
+                &metadata_store,
+                max_revisions,
             );
         }
     }

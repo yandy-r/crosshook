@@ -42,13 +42,8 @@ export interface LutrisImportResult {
 export function useLutrisImport() {
   const [isPreparing, setIsPreparing] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<LutrisImportResult | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
-
-  const clearLutrisError = useCallback(() => {
-    setError(null);
-  }, []);
 
   const clearImportState = useCallback(() => {
     setImportResult(null);
@@ -57,7 +52,6 @@ export function useLutrisImport() {
 
   const prepare = useCallback(async (directory?: string): Promise<LutrisImportPreview> => {
     setIsPreparing(true);
-    setError(null);
     try {
       const result = await callCommand<LutrisImportPreview>('lutris_prepare_import', {
         directory: directory ?? null,
@@ -65,7 +59,6 @@ export function useLutrisImport() {
       return result;
     } catch (err) {
       const message = normalizeError(err);
-      setError(message);
       throw new Error(message);
     } finally {
       setIsPreparing(false);
@@ -91,10 +84,8 @@ export function useLutrisImport() {
   return {
     isPreparing,
     isImporting,
-    error,
     importResult,
     importError,
-    clearLutrisError,
     clearImportState,
     prepare,
     importProfiles,

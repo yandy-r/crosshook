@@ -33,10 +33,37 @@ fn write_pga_db(root: &Path, games: &[(&str, &str, &str, &str, &str)]) {
     }
 }
 
-fn set_home_env(tmp: &TempDir) {
+struct HomeEnvGuard {
+    home: Option<String>,
+    xdg_config_home: Option<String>,
+    xdg_data_home: Option<String>,
+}
+
+impl Drop for HomeEnvGuard {
+    fn drop(&mut self) {
+        restore_env_var("HOME", self.home.as_deref());
+        restore_env_var("XDG_CONFIG_HOME", self.xdg_config_home.as_deref());
+        restore_env_var("XDG_DATA_HOME", self.xdg_data_home.as_deref());
+    }
+}
+
+fn restore_env_var(key: &str, value: Option<&str>) {
+    match value {
+        Some(value) => std::env::set_var(key, value),
+        None => std::env::remove_var(key),
+    }
+}
+
+fn set_home_env(tmp: &TempDir) -> HomeEnvGuard {
+    let guard = HomeEnvGuard {
+        home: std::env::var("HOME").ok(),
+        xdg_config_home: std::env::var("XDG_CONFIG_HOME").ok(),
+        xdg_data_home: std::env::var("XDG_DATA_HOME").ok(),
+    };
     std::env::set_var("HOME", tmp.path());
     std::env::set_var("XDG_CONFIG_HOME", tmp.path().join(".config"));
     std::env::set_var("XDG_DATA_HOME", tmp.path().join(".local/share"));
+    guard
 }
 
 #[test]
@@ -47,7 +74,7 @@ fn discover_lutris_root_prefers_config_dir() {
     let data_root = tmp.path().join(".local/share/lutris");
     std::fs::create_dir_all(&config_root).expect("config lutris dir");
     std::fs::create_dir_all(&data_root).expect("data lutris dir");
-    set_home_env(&tmp);
+    let _home_env = set_home_env(&tmp);
 
     assert_eq!(discover_lutris_root(), Some(config_root));
 }
@@ -58,7 +85,7 @@ fn discover_lutris_root_falls_back_to_data_local_dir() {
     let tmp = TempDir::new().expect("tempdir");
     let data_root = tmp.path().join(".local/share/lutris");
     std::fs::create_dir_all(&data_root).expect("data lutris dir");
-    set_home_env(&tmp);
+    let _home_env = set_home_env(&tmp);
 
     assert_eq!(discover_lutris_root(), Some(data_root));
 }
@@ -69,7 +96,7 @@ fn discover_lutris_root_falls_back_to_flatpak_config_dir() {
     let tmp = TempDir::new().expect("tempdir");
     let flatpak_root = tmp.path().join(".var/app/net.lutris.Lutris/config/lutris");
     std::fs::create_dir_all(&flatpak_root).expect("flatpak lutris dir");
-    set_home_env(&tmp);
+    let _home_env = set_home_env(&tmp);
 
     assert_eq!(discover_lutris_root(), Some(flatpak_root));
 }
@@ -121,8 +148,8 @@ fn read_pga_games_returns_rows_from_fixture_db() {
             name: "Test Game".to_string(),
             slug: "test-game".to_string(),
             runner: "wine".to_string(),
-            directory: "/home/user/Games/test".to_string(),
-            configpath: "test-game".to_string(),
+            directory: Some("/home/user/Games/test".to_string()),
+            configpath: Some("test-game".to_string()),
         }]
     );
 }

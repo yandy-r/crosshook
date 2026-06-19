@@ -533,6 +533,7 @@ mod tests {
             as fn(
                 Vec<crosshook_core::profile::LutrisImportEntry>,
                 State<'_, crosshook_core::profile::ProfileStore>,
+                State<'_, crosshook_core::settings::SettingsStore>,
                 State<'_, crosshook_core::metadata::MetadataStore>,
                 tauri::AppHandle,
             ) -> Result<crosshook_core::profile::LutrisImportResult, String>;

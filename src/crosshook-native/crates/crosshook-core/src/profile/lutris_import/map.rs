@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+use crate::launch::request::METHOD_PROTON_RUN;
 use crate::profile::{
     GameProfile, GameSection, GamescopeConfig, GamescopeFilter, InjectionSection,
     LaunchOptimizationsSection, LaunchSection, LocalOverrideSection, RuntimeSection, SteamSection,
@@ -69,27 +70,18 @@ pub fn map_lutris_to_profile(input: MappedLutrisInput) -> LutrisMapResult {
                 ));
             }
         }
-
-        match resolve_runner_path(&input.lutris_root, runner_version) {
-            RunnerResolution::Installed(path) => {
-                if classify_runner(runner_version) == RunnerKind::Proton {
-                    // proton_path set below
-                    let _ = path;
-                }
-            }
-            RunnerResolution::Missing(version) => {
-                warnings.push(format!(
-                    "Referenced runner '{version}' is not installed under Lutris runners/wine/."
-                ));
-            }
-        }
     }
 
     let proton_path = match wine.and_then(|w| w.version.as_deref()) {
         Some(version) if !version.trim().is_empty() => {
             match resolve_runner_path(&input.lutris_root, version) {
                 RunnerResolution::Installed(path) => path.display().to_string(),
-                RunnerResolution::Missing(_) => String::new(),
+                RunnerResolution::Missing(version) => {
+                    warnings.push(format!(
+                        "Referenced runner '{version}' is not installed under Lutris runners/wine/."
+                    ));
+                    String::new()
+                }
             }
         }
         _ => String::new(),
@@ -112,7 +104,7 @@ pub fn map_lutris_to_profile(input: MappedLutrisInput) -> LutrisMapResult {
     let gamescope = map_gamescope_config(system);
 
     let mut launch = LaunchSection {
-        method: "proton_run".to_string(),
+        method: METHOD_PROTON_RUN.to_string(),
         optimizations: LaunchOptimizationsSection { enabled_option_ids },
         custom_env_vars,
         gamescope,
@@ -196,9 +188,11 @@ fn resolve_prefix_path(
         }
     }
     if let Some(pga) = pga {
-        let directory = pga.directory.trim();
-        if !directory.is_empty() {
-            return expand_path(directory, warnings);
+        if let Some(directory) = pga.directory.as_deref() {
+            let trimmed = directory.trim();
+            if !trimmed.is_empty() {
+                return expand_path(trimmed, warnings);
+            }
         }
     }
     String::new()
@@ -332,7 +326,7 @@ fn parse_resolution(value: &str) -> Option<(u32, u32)> {
 }
 
 fn shell_split_args(raw: &str) -> Vec<String> {
-    raw.split_whitespace().map(str::to_string).collect()
+    shell_words::split(raw).unwrap_or_else(|_| raw.split_whitespace().map(str::to_string).collect())
 }
 
 pub fn is_wine_or_proton_runner(runner: &str) -> bool {
@@ -404,6 +398,56 @@ mod tests {
         let config = LutrisGameConfig::default();
         let result = map_lutris_to_profile(base_input(config));
         assert!(!result.importable);
+    }
+
+    #[test]
+    fn parse_resolution_valid_dimensions() {
+        assert_eq!(parse_resolution("1920x1080"), Some((1920, 1080)));
+    }
+
+    #[test]
+    fn parse_resolution_empty_returns_none() {
+        assert_eq!(parse_resolution(""), None);
+    }
+
+    #[test]
+    fn parse_resolution_missing_height_returns_none() {
+        assert_eq!(parse_resolution("1920"), None);
+    }
+
+    #[test]
+    fn parse_resolution_invalid_returns_none() {
+        assert_eq!(parse_resolution("axb"), None);
+    }
+
+    #[test]
+    fn map_gamescope_config_enabled_maps_fields() {
+        let system = LutrisSystemSection {
+            gamescope: Some(true),
+            gamescope_output_res: Some("1920x1080".to_string()),
+            gamescope_game_res: Some("1280x720".to_string()),
+            gamescope_window_mode: Some("fullscreen".to_string()),
+            gamescope_fsr_sharpness: Some("5".to_string()),
+            gamescope_fps_limiter: Some("60".to_string()),
+            gamescope_flags: Some("-w 1920 -h 1080".to_string()),
+            gamescope_hdr: Some(true),
+            gamescope_force_grab_cursor: Some(true),
+            ..Default::default()
+        };
+
+        let config = map_gamescope_config(Some(&system));
+        assert!(config.enabled);
+        assert_eq!(config.output_width, Some(1920));
+        assert_eq!(config.output_height, Some(1080));
+        assert_eq!(config.internal_width, Some(1280));
+        assert_eq!(config.internal_height, Some(720));
+        assert!(config.fullscreen);
+        assert_eq!(config.fsr_sharpness, Some(5));
+        assert_eq!(config.upscale_filter, Some(GamescopeFilter::Fsr));
+        assert_eq!(config.frame_rate_limit, Some(60));
+        assert!(config.hdr_enabled);
+        assert!(config.force_grab_cursor);
+        assert_eq!(config.extra_args, vec!["-w", "1920", "-h", "1080"]);
     }
 
     #[test]

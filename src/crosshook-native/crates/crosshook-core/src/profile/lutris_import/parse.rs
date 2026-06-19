@@ -11,6 +11,7 @@ pub struct LutrisGameConfig {
     pub name: Option<String>,
     #[serde(rename = "game-slug")]
     pub game_slug: Option<String>,
+    pub runner: Option<String>,
     pub game: Option<LutrisGameSection>,
     pub system: Option<LutrisSystemSection>,
     pub wine: Option<LutrisWineSection>,
@@ -53,7 +54,26 @@ pub struct LutrisWineSection {
     pub fsync: Option<bool>,
 }
 
+const MAX_LUTRIS_CONFIG_BYTES: u64 = 512 * 1024;
+
 pub fn parse_lutris_yaml(path: &Path) -> Result<LutrisGameConfig, LutrisImportError> {
+    let metadata = fs::metadata(path).map_err(|err| LutrisImportError::Io {
+        action: "stat".to_string(),
+        path: path.to_path_buf(),
+        message: err.to_string(),
+    })?;
+    if metadata.len() > MAX_LUTRIS_CONFIG_BYTES {
+        return Err(LutrisImportError::Io {
+            action: "read".to_string(),
+            path: path.to_path_buf(),
+            message: format!(
+                "file size {} bytes exceeds maximum of {} bytes",
+                metadata.len(),
+                MAX_LUTRIS_CONFIG_BYTES
+            ),
+        });
+    }
+
     let contents = fs::read_to_string(path).map_err(|err| LutrisImportError::Io {
         action: "read".to_string(),
         path: path.to_path_buf(),
