@@ -524,6 +524,19 @@ mod tests {
             as fn(SteamExternalLauncherExportRequest) -> Result<String, String>;
         let _ = preview_launcher_desktop
             as fn(SteamExternalLauncherExportRequest) -> Result<String, String>;
+        let _ = crate::commands::lutris::lutris_prepare_import
+            as fn(
+                Option<String>,
+                State<'_, crosshook_core::profile::ProfileStore>,
+            ) -> Result<crosshook_core::profile::LutrisImportPreview, String>;
+        let _ = crate::commands::lutris::lutris_import_profiles
+            as fn(
+                Vec<crosshook_core::profile::LutrisImportEntry>,
+                State<'_, crosshook_core::profile::ProfileStore>,
+                State<'_, crosshook_core::settings::SettingsStore>,
+                State<'_, crosshook_core::metadata::MetadataStore>,
+                tauri::AppHandle,
+            ) -> Result<crosshook_core::profile::LutrisImportResult, String>;
     }
 
     #[test]

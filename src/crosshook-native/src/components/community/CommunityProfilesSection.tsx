@@ -18,6 +18,8 @@ export interface CommunityProfilesSectionProps {
   onQueryChange: (value: string) => void;
   onRatingFilterChange: (value: 'all' | CommunityCompatibilityRating) => void;
   onImportFromFile: () => void;
+  onImportFromLutris: () => void;
+  lutrisBusy?: boolean;
   onImportEntry: (entry: CommunityProfileIndexEntry) => void;
 }
 
@@ -35,6 +37,8 @@ export function CommunityProfilesSection({
   onQueryChange,
   onRatingFilterChange,
   onImportFromFile,
+  onImportFromLutris,
+  lutrisBusy = false,
   onImportEntry,
 }: CommunityProfilesSectionProps) {
   return (
@@ -71,6 +75,14 @@ export function CommunityProfilesSection({
         </div>
         <button type="button" className="crosshook-button crosshook-button--secondary" onClick={onImportFromFile}>
           Import JSON
+        </button>
+        <button
+          type="button"
+          className="crosshook-button crosshook-button--secondary"
+          onClick={onImportFromLutris}
+          disabled={lutrisBusy || importing}
+        >
+          {lutrisBusy ? 'Scanning Lutris…' : 'Import from Lutris'}
         </button>
       </div>
 

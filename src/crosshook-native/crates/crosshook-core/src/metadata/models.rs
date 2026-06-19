@@ -80,6 +80,7 @@ pub enum SyncSource {
     AppDelete,
     FilesystemScan,
     Import,
+    LutrisImport,
     InitialCensus,
     AppMigration,
 }
@@ -93,6 +94,7 @@ impl SyncSource {
             Self::AppDelete => "app_delete",
             Self::FilesystemScan => "filesystem_scan",
             Self::Import => "import",
+            Self::LutrisImport => "lutris_import",
             Self::InitialCensus => "initial_census",
             Self::AppMigration => "app_migration",
         }

@@ -9,6 +9,7 @@ pub mod health;
 pub mod install;
 pub mod launch;
 mod log_stream;
+pub mod lutris;
 pub mod migration;
 pub mod offline;
 pub mod onboarding;

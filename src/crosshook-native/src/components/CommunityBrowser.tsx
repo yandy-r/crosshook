@@ -8,11 +8,14 @@ import {
   type UseCommunityProfilesResult,
   useCommunityProfiles,
 } from '../hooks/useCommunityProfiles';
+import { type LutrisImportEntry, type LutrisImportPreview, useLutrisImport } from '../hooks/useLutrisImport';
+import { chooseDirectory } from '../utils/dialog';
 import CommunityImportWizardModal from './CommunityImportWizardModal';
 import { CommunityProfilesSection } from './community/CommunityProfilesSection';
 import { CommunityTapManagementSection } from './community/CommunityTapManagementSection';
 import { ratingOrder } from './community/CompatibilityBadge';
 import { tapSubscriptionStableKey } from './community/tapSubscriptionKey';
+import LutrisImportModal from './LutrisImportModal';
 
 export interface CommunityBrowserProps {
   profilesDirectoryPath?: string;
@@ -80,6 +83,16 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
   const [notice, setNotice] = useState<string | null>(null);
   const [importDraft, setImportDraft] = useState<CommunityImportPreview | null>(null);
   const [importDraftSource, setImportDraftSource] = useState<string | null>(null);
+  const [lutrisPreview, setLutrisPreview] = useState<LutrisImportPreview | null>(null);
+  const {
+    isPreparing: isLutrisPreparing,
+    isImporting: isLutrisImporting,
+    importResult: lutrisImportResult,
+    importError: lutrisImportError,
+    clearImportState: clearLutrisImportState,
+    prepare: prepareLutrisImport,
+    importProfiles: importLutrisProfiles,
+  } = useLutrisImport();
   const internalState = useCommunityProfiles({
     profilesDirectoryPath,
   });
@@ -161,6 +174,56 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : String(importError));
     }
+  }
+
+  async function handleImportFromLutris() {
+    setNotice(null);
+    setError(null);
+    clearLutrisImportState();
+
+    try {
+      let preview = await prepareLutrisImport();
+
+      if (!preview.lutris_root) {
+        const directory = await chooseDirectory('Select Lutris config directory');
+        if (!directory) {
+          return;
+        }
+
+        preview = await prepareLutrisImport(directory);
+      }
+
+      if (!preview.lutris_root) {
+        setError(preview.diagnostics.join(' ') || 'Lutris library directory was not found.');
+        return;
+      }
+
+      setLutrisPreview(preview);
+    } catch (importError) {
+      setError(importError instanceof Error ? importError.message : String(importError));
+    }
+  }
+
+  async function handleLutrisImport(entries: LutrisImportEntry[]) {
+    const result = await importLutrisProfiles(entries);
+    if (result && result.imported_count > 0) {
+      await refreshProfiles().catch(() => undefined);
+    }
+  }
+
+  function handleCloseLutrisImportModal() {
+    if (lutrisImportResult) {
+      setNotice(
+        `Imported ${lutrisImportResult.imported_count} Lutris profile${lutrisImportResult.imported_count !== 1 ? 's' : ''}${
+          lutrisImportResult.skipped_count > 0 ? ` (${lutrisImportResult.skipped_count} skipped)` : ''
+        }${lutrisImportResult.failed_count > 0 ? ` (${lutrisImportResult.failed_count} failed)` : ''}.`
+      );
+    } else if (lutrisImportError) {
+      setError(lutrisImportError);
+    }
+
+    setLutrisPreview(null);
+    clearLutrisImportState();
   }
 
   async function handleImportEntry(entry: CommunityProfileIndexEntry) {
@@ -256,6 +319,8 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
         onQueryChange={setQuery}
         onRatingFilterChange={setRatingFilter}
         onImportFromFile={() => void handleImportFromFile()}
+        onImportFromLutris={() => void handleImportFromLutris()}
+        lutrisBusy={isLutrisPreparing || isLutrisImporting}
         onImportEntry={(entry) => void handleImportEntry(entry)}
       />
 
@@ -278,6 +343,19 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
           setImportDraftSource(null);
         }}
       />
+
+      {lutrisPreview ? (
+        <LutrisImportModal
+          preview={lutrisPreview}
+          onClose={handleCloseLutrisImportModal}
+          onImport={(entries) => {
+            void handleLutrisImport(entries);
+          }}
+          isImporting={isLutrisImporting}
+          importResult={lutrisImportResult}
+          importError={lutrisImportError}
+        />
+      ) : null}
     </section>
   );
 }

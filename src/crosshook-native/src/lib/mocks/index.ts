@@ -21,6 +21,7 @@ import { registerInstall, resetInstallMockState } from './handlers/install';
 import { resetLaunchMockState } from './handlers/launch';
 import { registerLauncher } from './handlers/launcher';
 import { registerLibrary } from './handlers/library';
+import { registerLutris } from './handlers/lutris';
 import { registerOnboarding, resetOnboardingMockState } from './handlers/onboarding';
 import { resetProfileMockState } from './handlers/profile';
 import { registerProton } from './handlers/proton';
@@ -52,6 +53,7 @@ export function registerMocks(): Map<string, Handler> {
   registerProtonUp(map);
   registerProtonDb(map);
   registerCommunity(map);
+  registerLutris(map);
   registerLauncher(map);
   registerLibrary(map);
   registerSystem(map);

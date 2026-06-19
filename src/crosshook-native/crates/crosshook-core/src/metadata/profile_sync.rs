@@ -282,6 +282,7 @@ fn created_at_for_insert(path: &Path, source: SyncSource) -> Option<String> {
         | SyncSource::AppDelete
         | SyncSource::FilesystemScan
         | SyncSource::Import
+        | SyncSource::LutrisImport
         | SyncSource::AppMigration => None,
     }
 }

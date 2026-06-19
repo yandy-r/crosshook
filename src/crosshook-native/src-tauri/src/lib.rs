@@ -415,6 +415,8 @@ pub fn run() {
             commands::community::community_export_profile,
             commands::community::community_import_profile,
             commands::community::community_prepare_import,
+            commands::lutris::lutris_prepare_import,
+            commands::lutris::lutris_import_profiles,
             commands::community::community_list_profiles,
             commands::community::community_sync,
             commands::shared::normalize_host_path,

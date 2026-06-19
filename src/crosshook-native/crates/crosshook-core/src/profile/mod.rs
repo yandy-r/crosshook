@@ -8,6 +8,7 @@ pub mod config_semantic_diff;
 mod creation_defaults;
 mod exchange;
 mod legacy;
+pub mod lutris_import;
 mod models;
 mod toml_store;
 
@@ -37,6 +38,10 @@ pub use exchange::{
     CommunityExchangeError, CommunityExportResult, CommunityImportPreview, CommunityImportResult,
 };
 pub use legacy::{delete, list, load, save, validate_name};
+pub use lutris_import::{
+    LutrisImportEntry, LutrisImportEntryResult, LutrisImportError, LutrisImportOutcome,
+    LutrisImportPreview, LutrisImportResult,
+};
 pub use models::{
     resolve_art_app_id, resolve_launch_method, validate_steam_app_id, CollectionDefaultsSection,
     GameProfile, GameSection, GamescopeConfig, GamescopeFilter, HookStage, InjectionFallback,

@@ -65,7 +65,7 @@ pub(super) fn cleanup_launchers_for_profile_delete(
     .map_err(|error| error.to_string())
 }
 
-pub(super) fn emit_profiles_changed(app: &AppHandle, reason: &str) {
+pub(crate) fn emit_profiles_changed(app: &AppHandle, reason: &str) {
     if let Err(error) = app.emit("profiles-changed", reason.to_string()) {
         tracing::warn!(%error, reason, "failed to emit profiles-changed event");
     }
