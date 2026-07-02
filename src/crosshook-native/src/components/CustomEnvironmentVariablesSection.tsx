@@ -1,6 +1,7 @@
 import { type ChangeEvent, useEffect, useMemo, useState } from 'react';
 
 import type { GameProfile } from '../types';
+import { envVarSignature } from '../utils/envVarSignature';
 
 /** Mirrors `RESERVED_ENV_KEYS` and `BLOCKED_ENV_KEY_PREFIXES` in crosshook-core `protondb/aggregation.rs`. */
 const RESERVED_CUSTOM_ENV_KEYS = new Set([
@@ -46,11 +47,6 @@ function customEnvRowsToRecord(rows: CustomEnvVarRow[]): Record<string, string> 
     out[row.key] = row.value;
   }
   return out;
-}
-
-function customEnvRecordSignature(record: Record<string, string>): string {
-  const sortedEntries = Object.entries(record).sort(([a], [b]) => a.localeCompare(b));
-  return JSON.stringify(sortedEntries);
 }
 
 function customEnvKeyFieldError(key: string): string | null {
@@ -127,16 +123,13 @@ export function CustomEnvironmentVariablesSection(props: CustomEnvironmentVariab
   const { profileName, customEnvVars, onUpdateProfile, idPrefix, onAutoSaveBlur } = props;
   const [rows, setRows] = useState<CustomEnvVarRow[]>(() => recordToCustomEnvRows(customEnvVars));
   const customEnvVarsSignature = useMemo(
-    () => JSON.stringify([profileName, customEnvRecordSignature(customEnvVars)]),
+    () => JSON.stringify([profileName, envVarSignature(customEnvVars)]),
     [profileName, customEnvVars]
   );
 
   useEffect(() => {
     setRows((currentRows) => {
-      const currentSignature = JSON.stringify([
-        profileName,
-        customEnvRecordSignature(customEnvRowsToRecord(currentRows)),
-      ]);
+      const currentSignature = JSON.stringify([profileName, envVarSignature(customEnvRowsToRecord(currentRows))]);
       if (currentSignature === customEnvVarsSignature) {
         return currentRows;
       }
