@@ -317,6 +317,26 @@ fn validate_name_rejects_invalid_names() {
 }
 
 #[test]
+fn validate_name_rejects_the_anonymous_session_key_sentinel() {
+    use crate::launch::ANONYMOUS_PROFILE_KEY;
+
+    // A profile literally named the anonymous session key would collide
+    // with `launch::session::ANONYMOUS_PROFILE_KEY`, letting
+    // `launch_reset_sessions` cancel anonymous sessions it does not own.
+    assert!(matches!(
+        validate_name(ANONYMOUS_PROFILE_KEY),
+        Err(ProfileStoreError::InvalidName(_))
+    ));
+    // Surrounding whitespace must not evade the reservation — validation
+    // trims the same way `session_profile_key_for_name` does.
+    let padded = format!("  {ANONYMOUS_PROFILE_KEY}  ");
+    assert!(matches!(
+        validate_name(&padded),
+        Err(ProfileStoreError::InvalidName(_))
+    ));
+}
+
+#[test]
 fn validate_name_rejects_control_characters() {
     for invalid in ["my\tprofile", "my\nprofile", "bad\u{7f}name", "nul\0inside"] {
         assert!(matches!(

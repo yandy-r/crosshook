@@ -1,3 +1,4 @@
+use crate::launch::ANONYMOUS_PROFILE_KEY;
 use crate::profile::LegacyProfileData;
 use std::fs;
 use std::io::{self, Write};
@@ -117,6 +118,13 @@ pub fn validate_name(name: &str) -> io::Result<()> {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             "profile name cannot be empty",
+        ));
+    }
+
+    if name.trim() == ANONYMOUS_PROFILE_KEY {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "profile name is reserved for anonymous launch sessions",
         ));
     }
 
@@ -258,5 +266,16 @@ mod tests {
         assert!(validate_name("foo/bar").is_err());
         assert!(validate_name("foo\\bar").is_err());
         assert!(validate_name("foo:bar").is_err());
+    }
+
+    #[test]
+    fn validate_name_rejects_the_anonymous_session_key_sentinel() {
+        // A profile literally named the anonymous session key would collide
+        // with `launch::session::ANONYMOUS_PROFILE_KEY`, letting
+        // `launch_reset_sessions` cancel anonymous sessions it does not own.
+        assert!(validate_name(ANONYMOUS_PROFILE_KEY).is_err());
+        // Surrounding whitespace must not evade the reservation — validation
+        // trims the same way `session_profile_key_for_name` does.
+        assert!(validate_name(&format!("  {ANONYMOUS_PROFILE_KEY}  ")).is_err());
     }
 }

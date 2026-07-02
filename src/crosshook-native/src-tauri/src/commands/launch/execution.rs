@@ -11,8 +11,8 @@ use crosshook_core::launch::{
         build_proton_game_command, build_proton_trainer_command, build_trainer_command,
         gamescope_pid_capture_path,
     },
-    validate, LaunchRequest, LaunchSessionRegistry, SessionKind, TeardownReason, WatchdogOutcome,
-    METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
+    session_profile_key_for_name, validate, LaunchRequest, LaunchSessionRegistry, SessionKind,
+    TeardownReason, WatchdogOutcome, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::ProfileStore;
@@ -30,19 +30,13 @@ use super::streaming::spawn_log_stream;
 use super::warnings::{collect_offline_launch_warnings, collect_trainer_hash_launch_warnings_ipc};
 use crate::commands::shared::{create_log_path, sanitize_display_path};
 
-/// Session registry key for launches that lack a user-facing profile name.
-/// Unlikely in practice (the validator rejects most such requests) but keeps
-/// the registry lookup robust when it does slip through.
-const ANONYMOUS_PROFILE_KEY: &str = "__crosshook_anonymous_profile__";
-
+/// Thin wrapper around the core key-derivation helper so launch-registration
+/// call sites don't need to reach into `request.profile_name` directly. Both
+/// this wrapper and [`launch_reset_sessions`] ultimately derive keys through
+/// [`crosshook_core::launch::session_profile_key_for_name`] so registrations
+/// and lookups always match.
 fn session_profile_key(request: &LaunchRequest) -> String {
-    request
-        .profile_name
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .unwrap_or(ANONYMOUS_PROFILE_KEY)
-        .to_string()
+    session_profile_key_for_name(request.profile_name.as_deref())
 }
 
 async fn enrich_umu_gameid_resolution(
@@ -134,9 +128,19 @@ pub async fn launch_game(
         &hook_context,
     ));
 
-    let child = command
-        .spawn()
-        .map_err(|error| format!("failed to launch helper: {error}"))?;
+    // Register the session before spawning so a concurrent `launch_reset_sessions`
+    // call can never miss the live process — deregister on spawn failure below.
+    let watchdog_outcome = WatchdogOutcome::new();
+    let (session_id, cancel_rx) =
+        session_registry.register(SessionKind::Game, session_profile_key(&request));
+
+    let child = match command.spawn() {
+        Ok(child) => child,
+        Err(error) => {
+            session_registry.deregister(session_id);
+            return Err(format!("failed to launch helper: {error}"));
+        }
+    };
     let child_pid = child.id();
 
     let sanitized_log_path = sanitize_display_path(&log_path.to_string_lossy());
@@ -169,9 +173,6 @@ pub async fn launch_game(
         .unwrap_or("")
         .to_string();
 
-    let watchdog_outcome = WatchdogOutcome::new();
-    let (session_id, cancel_rx) =
-        session_registry.register(SessionKind::Game, session_profile_key(&request));
     let stream_context = LaunchStreamContext {
         metadata_store,
         operation_id,
@@ -466,6 +467,23 @@ pub async fn launch_trainer(
         helper_log_path: log_path.to_string_lossy().into_owned(),
         warnings,
     })
+}
+
+/// User-initiated launch reset: cancels every active session (game and
+/// trainer) registered for the profile. The registry key is derived through
+/// the same helper as launch registration so lookups always match. Returns
+/// the number of sessions signalled — 0 when nothing was registered.
+///
+/// Mutates session-registry state (cancels live sessions), so this command
+/// lives alongside the other session-lifecycle entrypoints in this module
+/// rather than in `queries` (read-only launch commands).
+#[tauri::command]
+pub fn launch_reset_sessions(
+    profile_name: String,
+    session_registry: State<'_, Arc<LaunchSessionRegistry>>,
+) -> usize {
+    let profile_key = session_profile_key_for_name(Some(&profile_name));
+    session_registry.cancel_sessions_for_profile(&profile_key, TeardownReason::UserRequest)
 }
 
 /// Unified cancel-channel plumbing for both game and trainer launches.

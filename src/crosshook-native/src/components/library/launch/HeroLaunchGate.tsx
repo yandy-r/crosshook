@@ -85,6 +85,7 @@ export function HeroLaunchGate({
     launchGame,
     launchTrainer,
     phase,
+    resetLaunchSession,
     statusText,
   } = useLaunchStateContext();
 
@@ -208,6 +209,7 @@ export function HeroLaunchGate({
         onBeforeLaunch={handleBeforeLaunch}
         onLaunchGame={launchGame}
         onLaunchTrainer={launchTrainer}
+        onReset={resetLaunchSession}
         notSelectableHint={notSelectableHint}
         canExportDesktop={!profileMismatch}
       />

@@ -425,6 +425,7 @@ pub fn run() {
             commands::install::validate_install_request,
             commands::launch::launch_game,
             commands::launch::launch_trainer,
+            commands::launch::launch_reset_sessions,
             commands::launch::validate_launch,
             commands::launch::preview_launch,
             commands::launch::build_steam_launch_options_command,

@@ -659,6 +659,17 @@ export function registerLaunch(map: Map<string, Handler>): void {
   });
 
   // -------------------------------------------------------------------------
+  // launch_reset_sessions — no backend session registry in browser dev mode
+  // -------------------------------------------------------------------------
+  map.set('launch_reset_sessions', async (): Promise<number> => {
+    const fixture = getActiveFixture();
+    if (fixture === 'loading') return neverResolving<number>();
+    // `empty` and `error` both resolve 0 — reset is best-effort by contract
+    // and no backend sessions ever exist in browser dev mode.
+    return 0;
+  });
+
+  // -------------------------------------------------------------------------
   // check_gamescope_session — always false in browser dev mode
   // -------------------------------------------------------------------------
   map.set('check_gamescope_session', async (): Promise<boolean> => {

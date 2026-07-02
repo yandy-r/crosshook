@@ -403,6 +403,58 @@ describe('HeroLaunchCommandSection', () => {
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
+  // ── Reset button ─────────────────────────────────────────────────────────────
+
+  it('does not render the Reset button when phase is Idle', () => {
+    renderCommandSection({
+      onLaunchGame: vi.fn(),
+      onLaunchTrainer: vi.fn(),
+      onReset: vi.fn(),
+      phase: LaunchPhase.Idle,
+    });
+    expect(screen.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument();
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    LaunchPhase.WaitingForTrainer,
+    LaunchPhase.SessionActive,
+  ] as const)('renders the Reset button when phase is %s', (phase) => {
+    renderCommandSection({
+      onLaunchGame: vi.fn(),
+      onLaunchTrainer: vi.fn(),
+      onReset: vi.fn(),
+      phase,
+    });
+    const resetButton = screen.getByRole('button', { name: 'Reset' });
+    expect(resetButton).not.toBeDisabled();
+    expect(resetButton).toHaveAttribute(
+      'title',
+      'Reset launch tracking for game and trainer — does not close a running game'
+    );
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
+
+  it('Reset button stays clickable while busy and calls onReset', async () => {
+    const user = userEvent.setup();
+    const onReset = vi.fn();
+    renderCommandSection({
+      onLaunchGame: vi.fn(),
+      onLaunchTrainer: vi.fn(),
+      onReset,
+      phase: LaunchPhase.TrainerLaunching,
+      isBusy: true,
+      canLaunchGame: false,
+      canLaunchTrainer: false,
+    });
+
+    const resetButton = screen.getByRole('button', { name: 'Reset' });
+    expect(resetButton).not.toBeDisabled();
+    await user.click(resetButton);
+    expect(onReset).toHaveBeenCalledTimes(1);
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
+
   it('shows "Game Running" label when isGameRunning=true', () => {
     renderCommandSection({
       onLaunchGame: vi.fn(),

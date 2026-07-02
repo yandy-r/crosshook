@@ -6,7 +6,9 @@
 //! - `portal`      — Flatpak GameMode portal registration helpers
 //! - `diagnostics` — launch-log diagnostic helpers
 //! - `streaming`   — child/log streaming orchestration
-//! - `execution`   — launch command entrypoints and watchdog spawning
+//! - `execution`   — launch command entrypoints, session-lifecycle mutation
+//!   (`launch_game`, `launch_trainer`, `launch_reset_sessions`), and
+//!   watchdog spawning
 
 mod diagnostics;
 mod execution;
@@ -18,7 +20,7 @@ mod streaming;
 mod tests;
 mod warnings;
 
-pub use execution::{launch_game, launch_trainer};
+pub use execution::{launch_game, launch_reset_sessions, launch_trainer};
 pub use queries::{
     build_steam_launch_options_command, check_game_running, check_gamescope_session,
     launch_platform_status, list_launch_history_for_profile, list_running_profiles, preview_launch,
@@ -27,8 +29,10 @@ pub use queries::{
 
 // Re-export Tauri command macros so `generate_handler!` can resolve `commands::launch::<name>`.
 pub use execution::__cmd__launch_game;
+pub use execution::__cmd__launch_reset_sessions;
 pub use execution::__cmd__launch_trainer;
 pub use execution::__tauri_command_name_launch_game;
+pub use execution::__tauri_command_name_launch_reset_sessions;
 pub use execution::__tauri_command_name_launch_trainer;
 pub use queries::__cmd__build_steam_launch_options_command;
 pub use queries::__cmd__check_game_running;

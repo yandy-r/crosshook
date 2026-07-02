@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use crate::launch::ANONYMOUS_PROFILE_KEY;
 use crate::profile::GameProfile;
 
 use super::error::ProfileStoreError;
@@ -73,6 +74,12 @@ pub fn validate_name(name: &str) -> Result<String, ProfileStoreError> {
 
     let trimmed = name.trim();
     if trimmed.is_empty() || trimmed == "." || trimmed == ".." {
+        return Err(ProfileStoreError::InvalidName(name.to_string()));
+    }
+    // Reserved: colliding with this sentinel would let a saved profile's
+    // session-registry key alias the anonymous-launch key, letting
+    // `launch_reset_sessions` cancel anonymous sessions it does not own.
+    if trimmed == ANONYMOUS_PROFILE_KEY {
         return Err(ProfileStoreError::InvalidName(name.to_string()));
     }
     if trimmed.chars().any(char::is_control) {

@@ -63,6 +63,8 @@ vi.mock('@/components/library/launch/HeroLaunchCommandSection', () => ({
     onBeforeLaunch?: (action: 'game' | 'trainer') => Promise<boolean>;
     onLaunchGame?: () => void;
     onLaunchTrainer?: () => void;
+    onReset?: () => void;
+    phase?: LaunchPhase;
     notSelectableHint?: string | null;
     canLaunchGame?: boolean;
     canLaunchTrainer?: boolean;
@@ -92,6 +94,11 @@ vi.mock('@/components/library/launch/HeroLaunchCommandSection', () => ({
         >
           Launch Trainer
         </button>
+        {props.phase !== undefined && props.phase !== LaunchPhase.Idle && props.onReset ? (
+          <button type="button" onClick={() => props.onReset?.()}>
+            Reset
+          </button>
+        ) : null}
         {props.notSelectableHint ? <p role="note">{props.notSelectableHint}</p> : null}
       </div>
     );
@@ -140,6 +147,7 @@ vi.mock('@/components/library/launch/LaunchDepGateModal', () => ({
 const selectProfileSpy = vi.fn();
 const launchGameSpy = vi.fn();
 const launchTrainerSpy = vi.fn();
+const resetLaunchSessionSpy = vi.fn();
 
 function makeBaseDepGate(overrides: Record<string, unknown> = {}) {
   return {
@@ -189,18 +197,22 @@ function makeLaunchStateCtx(overrides: Record<string, unknown> = {}) {
     launchGame: launchGameSpy,
     launchTrainer: launchTrainerSpy,
     phase: LaunchPhase.Idle,
+    resetLaunchSession: resetLaunchSessionSpy,
     statusText: '',
     ...overrides,
   };
 }
 
-function renderGate(props: Partial<React.ComponentProps<typeof HeroLaunchGate>> = {}) {
+function renderGate(
+  props: Partial<React.ComponentProps<typeof HeroLaunchGate>> = {},
+  launchStateOverrides: Record<string, unknown> = {}
+) {
   const depGate = makeBaseDepGate();
   profileContextMock.mockReturnValue(makeProfileCtx());
   preferencesContextMock.mockReturnValue({
     settings: { umu_preference: 'auto', auto_install_prefix_deps: false },
   });
-  launchStateContextMock.mockReturnValue(makeLaunchStateCtx());
+  launchStateContextMock.mockReturnValue(makeLaunchStateCtx(launchStateOverrides));
   useLaunchDepGateMock.mockReturnValue(depGate);
 
   return render(
@@ -625,6 +637,32 @@ describe('HeroLaunchGate', () => {
 
     await user.click(screen.getByRole('button', { name: 'Launch Game' }));
     await waitFor(() => expect(launchGameSpy).toHaveBeenCalled());
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
+
+  // ── Reset affordance ─────────────────────────────────────────────────────────
+
+  it('does not expose the Reset button when phase is Idle', () => {
+    renderGate({}, { phase: LaunchPhase.Idle });
+    expect(screen.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument();
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    LaunchPhase.WaitingForTrainer,
+    LaunchPhase.SessionActive,
+  ] as const)('exposes the Reset button when phase is %s', (phase) => {
+    renderGate({}, { phase });
+    expect(screen.getByRole('button', { name: 'Reset' })).toBeInTheDocument();
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
+
+  it('clicking Reset invokes resetLaunchSession from the launch state context', async () => {
+    const user = userEvent.setup();
+    renderGate({}, { phase: LaunchPhase.WaitingForTrainer });
+
+    await user.click(screen.getByRole('button', { name: 'Reset' }));
+    expect(resetLaunchSessionSpy).toHaveBeenCalledTimes(1);
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 

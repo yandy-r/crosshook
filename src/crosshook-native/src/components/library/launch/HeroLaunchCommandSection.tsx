@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { usePreferencesContext } from '@/context/PreferencesContext';
 import { useProfileContext } from '@/context/ProfileContext';
 import { type SteamExternalLauncherExportRequest, useLauncherExport } from '@/hooks/useLauncherExport';
-import type { LaunchPhase, LaunchPreview, LaunchRequest } from '@/types/launch';
+import { LaunchPhase, type LaunchPreview, type LaunchRequest } from '@/types/launch';
 import type { GameProfile } from '@/types/profile';
 import { copyToClipboard } from '@/utils/clipboard';
 import { resolveLaunchMethod } from '@/utils/launch';
@@ -130,6 +130,8 @@ export interface HeroLaunchCommandSectionProps {
   onLaunchGame?: () => void;
   /** In-place trainer launch (from LaunchStateContext). */
   onLaunchTrainer?: () => void;
+  /** Resets launch status for game and trainer (from LaunchStateContext). */
+  onReset?: () => void | Promise<void>;
   /** Hint shown when the profile is not selectable (fallback profile). */
   notSelectableHint?: string | null;
   /** Whether export may act on the context-selected profile. */
@@ -149,10 +151,12 @@ export function HeroLaunchCommandSection({
   canLaunchTrainer,
   isBusy = false,
   isGameRunning = false,
+  phase,
   isIdle,
   onBeforeLaunch,
   onLaunchGame,
   onLaunchTrainer,
+  onReset,
   notSelectableHint,
   canExportDesktop = true,
 }: HeroLaunchCommandSectionProps) {
@@ -302,6 +306,22 @@ export function HeroLaunchCommandSection({
               >
                 {isBusy && !isIdle ? 'Launching…' : 'Launch Trainer'}
               </button>
+              {/* Recovery affordance for stuck launch states — deliberately
+                  stays clickable while busy so users can escape a wedged
+                  GameLaunching / WaitingForTrainer / SessionActive phase.
+                  Clears CrossHook's own tracking state and cancels session
+                  watchdogs/gamescope teardown; it never kills the game or
+                  trainer process itself. */}
+              {onReset && phase !== undefined && phase !== LaunchPhase.Idle ? (
+                <button
+                  type="button"
+                  className={secondaryActionClass}
+                  title="Reset launch tracking for game and trainer — does not close a running game"
+                  onClick={() => void onReset()}
+                >
+                  Reset
+                </button>
+              ) : null}
             </>
           ) : (
             <button

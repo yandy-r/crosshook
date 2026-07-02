@@ -8,9 +8,11 @@
 //! registry never touches PIDs directly.
 
 mod drain;
+mod keys;
 mod registry;
 mod types;
 
 pub use drain::drain_cancel_into_outcome;
+pub use keys::{session_profile_key_for_name, ANONYMOUS_PROFILE_KEY};
 pub use registry::LaunchSessionRegistry;
 pub use types::{LinkError, SessionId, SessionKind, TeardownReason, WatchdogOutcome};

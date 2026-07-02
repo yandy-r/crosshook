@@ -151,6 +151,14 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
   const [trainerHashUpdateBusy, setTrainerHashUpdateBusy] = useState(false);
   const activeHelperLogPathRef = useRef<string | null>(null);
   const observedGameProcessRef = useRef(false);
+  /**
+   * Bumped by `reset()` (and thus `resetLaunchSession`) so an in-flight
+   * `launchGame` / `launchTrainer` call can detect that the user reset the
+   * session while its backend call was still pending and skip applying its
+   * now-stale success/failure state — otherwise a late-resolving launch
+   * command could resurrect state the user explicitly cleared.
+   */
+  const launchGenerationRef = useRef(0);
   const hasLaunchRequest = request !== null;
   const isTwoStepLaunch = method !== 'native';
 
@@ -288,6 +296,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
       return;
     }
 
+    const generation = launchGenerationRef.current;
     const launchRequest = buildLaunchRequest(request, LaunchPhase.GameLaunching);
     activeHelperLogPathRef.current = null;
     observedGameProcessRef.current = false;
@@ -296,6 +305,9 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
 
     try {
       const validationIssue = await validateLaunchRequest(launchRequest);
+      if (launchGenerationRef.current !== generation) {
+        return;
+      }
       if (validationIssue) {
         dispatch({
           type: 'failure',
@@ -311,6 +323,12 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
       const result = await callCommand<LaunchResult>('launch_game', {
         request: launchRequest,
       });
+      if (launchGenerationRef.current !== generation) {
+        // The session was reset while this launch was in flight — do not
+        // resurrect tracking state (or the observed-process flag) for a
+        // launch the user already asked CrossHook to stop tracking.
+        return;
+      }
       setLaunchPathWarnings(result.warnings ?? []);
       activeHelperLogPathRef.current = result.helper_log_path;
       dispatch({
@@ -319,6 +337,9 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
         nextPhase: isTwoStepLaunch ? LaunchPhase.WaitingForTrainer : LaunchPhase.SessionActive,
       });
     } catch (error) {
+      if (launchGenerationRef.current !== generation) {
+        return;
+      }
       dispatch({
         type: 'failure',
         feedback: {
@@ -335,6 +356,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
       return;
     }
 
+    const generation = launchGenerationRef.current;
     const trainerFallbackPhase =
       state.phase === LaunchPhase.WaitingForTrainer ? LaunchPhase.WaitingForTrainer : LaunchPhase.Idle;
     const launchRequest = buildLaunchRequest(request, LaunchPhase.TrainerLaunching);
@@ -349,6 +371,9 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
           const report = await callCommand<OfflineReadinessReport>('check_offline_readiness', {
             name: profileName,
           });
+          if (launchGenerationRef.current !== generation) {
+            return;
+          }
           setOfflineReadiness(report);
           setOfflineReadinessError(null);
           if (report.blocking_reasons.length > 0) {
@@ -367,13 +392,21 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
             return;
           }
         } catch (err) {
+          if (launchGenerationRef.current !== generation) {
+            return;
+          }
           setOfflineReadinessError(normalizeRuntimeError(err));
         } finally {
-          setOfflineReadinessLoading(false);
+          if (launchGenerationRef.current === generation) {
+            setOfflineReadinessLoading(false);
+          }
         }
       }
 
       const validationIssue = await validateLaunchRequest(launchRequest);
+      if (launchGenerationRef.current !== generation) {
+        return;
+      }
       if (validationIssue) {
         dispatch({
           type: 'failure',
@@ -389,6 +422,12 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
       const result = await callCommand<LaunchResult>('launch_trainer', {
         request: launchRequest,
       });
+      if (launchGenerationRef.current !== generation) {
+        // The session was reset while this launch was in flight — do not
+        // resurrect tracking state for a launch the user already asked
+        // CrossHook to stop tracking.
+        return;
+      }
       setLaunchPathWarnings(result.warnings ?? []);
       activeHelperLogPathRef.current = result.helper_log_path;
       dispatch({
@@ -396,6 +435,9 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
         helperLogPath: result.helper_log_path,
       });
     } catch (error) {
+      if (launchGenerationRef.current !== generation) {
+        return;
+      }
       dispatch({
         type: 'failure',
         feedback: {
@@ -441,6 +483,10 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
   }
 
   function reset() {
+    // Invalidate any in-flight launchGame/launchTrainer call so its eventual
+    // success/failure resolution does not resurrect state this reset just
+    // cleared (see launchGenerationRef).
+    launchGenerationRef.current += 1;
     dispatch({ type: 'reset' });
     setIsGameRunning(false);
     observedGameProcessRef.current = false;
@@ -448,6 +494,18 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
     setOfflineReadinessError(null);
     setLaunchPathWarnings([]);
     setTrainerHashUpdateBusy(false);
+  }
+
+  async function resetLaunchSession(): Promise<void> {
+    try {
+      if (profileName.trim()) {
+        await callCommand<number>('launch_reset_sessions', { profileName });
+      }
+    } catch {
+      // Best-effort backend teardown — local reset must still recover the UI
+      // even when the session registry is unreachable.
+    }
+    reset();
   }
 
   const statusText = (() => {
@@ -551,6 +609,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
     offlineWarning,
     phase: state.phase,
     reset,
+    resetLaunchSession,
     statusText,
     feedback: state.feedback,
   };

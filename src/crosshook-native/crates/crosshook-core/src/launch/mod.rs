@@ -52,8 +52,8 @@ pub use request::{
 };
 pub use runtime_helpers::{launch_platform_capabilities, LaunchPlatformCapabilities};
 pub use session::{
-    drain_cancel_into_outcome, LaunchSessionRegistry, LinkError, SessionId, SessionKind,
-    TeardownReason, WatchdogOutcome,
+    drain_cancel_into_outcome, session_profile_key_for_name, LaunchSessionRegistry, LinkError,
+    SessionId, SessionKind, TeardownReason, WatchdogOutcome, ANONYMOUS_PROFILE_KEY,
 };
 pub use trainer_hash::{
     collect_trainer_hash_launch_warnings, launch_issues_from_trainer_hash_outcome,
