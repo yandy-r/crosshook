@@ -41,10 +41,27 @@ jobs:
           cache: npm
           cache-dependency-path: src/crosshook-native/package-lock.json
 
+      # Manual rustup install — matches .forgejo/workflows/lint.yml. The
+      # Forgejo runner only resolves mirrored `actions/*` actions, so
+      # third-party actions like dtolnay/rust-toolchain fail at job setup.
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
+        run: |
+          set -euo pipefail
+          export CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
+
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            curl ca-certificates
+
+          if [[ ! -x "$CARGO_HOME/bin/cargo" ]]; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+              | sh -s -- -y --default-toolchain none --profile minimal
+          fi
+
+          export PATH="$CARGO_HOME/bin:$PATH"
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
 
       - name: Install Linux build prerequisites
         run: |
@@ -198,8 +215,10 @@ jobs:
       - name: Validate staged AppStream metadata
         run: appstreamcli validate flatpak-staging/dev.crosshook.CrossHook.metainfo.xml
 
+      # Fully-qualified URL so the Forgejo runner can resolve this
+      # third-party action (only mirrored `actions/*` resolve by short name).
       - name: Build Flatpak bundle
-        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        uses: https://github.com/flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
           bundle: ${{ env.FLATPAK_BUNDLE_NAME }}
           manifest-path: flatpak-staging/dev.crosshook.CrossHook.yml
