@@ -340,6 +340,17 @@ mod tests {
     // Mutex that serialises env-var mutations across all tests in this module.
     static FLATPAK_ID_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+    /// Returns `true` when the test process runs with an effective UID of 0.
+    ///
+    /// Root bypasses directory permission bits via `DAC_OVERRIDE`, so any
+    /// assertion that a `0o555` directory is *un*writable is meaningless under
+    /// root (e.g. the Forgejo `act_runner` container, which executes jobs as
+    /// root). Such assertions are skipped in that environment.
+    fn running_as_root() -> bool {
+        // SAFETY: `geteuid` is always successful and has no preconditions.
+        unsafe { nix::libc::geteuid() == 0 }
+    }
+
     /// Scoped guard that sets an env var and restores it on drop.
     struct ScopedEnv {
         key: &'static str,
@@ -448,6 +459,17 @@ mod tests {
     /// and `reason = Some("flatpak-steam-path-read-only")`.
     #[test]
     fn resolver_marks_unwritable_flatpak_path_with_reason() {
+        if running_as_root() {
+            // Root ignores the `0o555` mode via DAC_OVERRIDE, so the probe would
+            // succeed and the read-only assertion cannot hold. Skip in that
+            // environment (e.g. the Forgejo container runner).
+            eprintln!(
+                "skipping resolver_marks_unwritable_flatpak_path_with_reason: \
+                 read-only directory permissions do not restrict root"
+            );
+            return;
+        }
+
         let home = tempdir().unwrap();
 
         // Create the Flatpak Steam path and make it read-only.
