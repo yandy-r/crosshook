@@ -4,6 +4,54 @@ All notable changes to this project will be documented in this file.
 
 This file is generated with `git-cliff` from the repository history and release tags.
 
+## [v0.6.0] - 2026-07-02
+
+### Bug Fixes
+
+- **launch:** Correct skip-launcher argv token and add nolauncher catalog entry ([`15c394a`](https://github.com/yandy-r/crosshook/commit/15c394a9cd7688ed748fbe230853f3e77d2ee810))
+
+- **launch:** Save and persist command arguments on Steam profiles ([`ec6c627`](https://github.com/yandy-r/crosshook/commit/ec6c627ac845d2c4e9e5037f0340ae81f24f16f0))
+
+- **profiles:** Address Lutris import review findings from PR #20 ([`e33477a`](https://github.com/yandy-r/crosshook/commit/e33477afa572e23c004d7a6152f40e89e5d57afb))
+
+- **profiles:** Persist custom env var edits from the launch options page ([`72c8dd9`](https://github.com/yandy-r/crosshook/commit/72c8dd91bab2efe61f566644f3c40eb30d2ad18a))
+
+- **launch:** Restore launch status reset for game and trainer sessions ([`f66f108`](https://github.com/yandy-r/crosshook/commit/f66f108a1eb5032db4469882d355f1864e75235b))
+
+### CI
+
+- Move collaboration workflow to Forgejo ([`c4eb0fd`](https://github.com/yandy-r/crosshook/commit/c4eb0fdf96473e7ef5e3f1f52ab616335c252d54))
+
+- Fix Forgejo lint and PR title workflows ([`8470edb`](https://github.com/yandy-r/crosshook/commit/8470edb6a640ddbfc47e7e525756c37fb4630e6a))
+
+- Export cargo PATH for Forgejo Rust lint job ([`4f77c44`](https://github.com/yandy-r/crosshook/commit/4f77c44788759aee7856a62ed372bd885d864121))
+
+- Install curl before rustup on Forgejo runners ([`59f5a9d`](https://github.com/yandy-r/crosshook/commit/59f5a9dea89b15b5d24d5330d8ac52db17931c9d))
+
+- Simplify Forgejo Rust lint job setup ([`85de91b`](https://github.com/yandy-r/crosshook/commit/85de91b53e760a88a2eb8ee12701eacdb75f4231))
+
+- Add build deps for Forgejo Rust clippy job ([`7b76578`](https://github.com/yandy-r/crosshook/commit/7b76578250d12d7bb6fb22b9c4dd33bfea485e97))
+
+- Scope Forgejo clippy to core and cli crates ([`7d747fd`](https://github.com/yandy-r/crosshook/commit/7d747fdebd13113a060231263b4ff1ca8d1f8702))
+
+- Trim Rust lint apt deps and use stable toolchain ([`ff716d7`](https://github.com/yandy-r/crosshook/commit/ff716d7cebba38b127e368b6a37d71d51ddd8db9))
+
+- Fix Forgejo rustup component install syntax ([`46853ee`](https://github.com/yandy-r/crosshook/commit/46853eebdf87a9978124f00fa081f4266fdf3ee0))
+
+### Documentation
+
+- Refresh ROADMAP for Forgejo issues and v0.5.0 ([`289cd27`](https://github.com/yandy-r/crosshook/commit/289cd27b7fe4219a5bcc65958edf41bc4a0e77c1))
+
+### Features
+
+- **launch:** Add command arguments sub-tab and catalog ([#504](https://github.com/yandy-r/crosshook/issues/504)) ([`4436188`](https://github.com/yandy-r/crosshook/commit/44361884fe29c284e1a5efcb3ccc89e22ad6f3eb))
+
+- **ci:** Publish releases to Forgejo and GitHub ([`ec5e02b`](https://github.com/yandy-r/crosshook/commit/ec5e02ba3d9ec2b6858fdeeaa69fb5410503343a))
+
+- **profiles:** Enhance config history diff, retention, and UX ([`75f8363`](https://github.com/yandy-r/crosshook/commit/75f83632178c592787c21924df3808195542b58f))
+
+- **profiles:** Import Lutris game configs as profiles ([`52aedc4`](https://github.com/yandy-r/crosshook/commit/52aedc4de178f00dc9abaa4493f3179f5af5f1a4))
+
 ## [v0.5.0] - 2026-06-12
 
 ### Bug Fixes
