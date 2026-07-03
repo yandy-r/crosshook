@@ -158,8 +158,8 @@ pub fn index_community_tap_result(
                 tap_id, relative_path, manifest_path,
                 game_name, game_version, trainer_name, trainer_version,
                 proton_version, compatibility_rating, author, description,
-                platform_tags, schema_version, created_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+                platform_tags, trainer_loading_mode, schema_version, created_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
             params![
                 tap_id,
                 relative_path.as_ref(),
@@ -173,6 +173,7 @@ pub fn index_community_tap_result(
                 nullable_text(&entry.manifest.metadata.author),
                 nullable_text(&entry.manifest.metadata.description),
                 nullable_text(&platform_tags),
+                entry.manifest.profile.trainer.loading_mode.as_str(),
                 entry.manifest.schema_version as i64,
                 now,
             ],

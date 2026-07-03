@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { usePreferencesContext } from '../context/PreferencesContext';
 import { useLauncherExport } from '../hooks/useLauncherExport';
+import { LOADING_MODE_LABELS } from '../lib/loadingModes';
 import type { GameProfile, LaunchMethod } from '../types';
 import {
   automaticLauncherSuffix,
@@ -87,11 +88,7 @@ export function LauncherExport({
       method === 'steam_applaunch'
         ? [
             { label: 'Trainer Path', value: safeTrim(profile.trainer.path) || 'Not set' },
-            {
-              label: 'Trainer Loading Mode',
-              value:
-                profile.trainer.loading_mode === 'copy_to_prefix' ? 'Copy into prefix' : 'Run from current directory',
-            },
+            { label: 'Trainer Loading Mode', value: LOADING_MODE_LABELS[profile.trainer.loading_mode] },
             { label: 'Steam App ID', value: safeTrim(profile.steam.app_id) || 'Not set' },
             { label: 'Compatdata Path', value: safeTrim(profile.steam.compatdata_path) || 'Not set' },
             { label: 'Proton Path', value: safeTrim(profile.steam.proton_path) || 'Not set' },
@@ -100,11 +97,7 @@ export function LauncherExport({
           ]
         : [
             { label: 'Trainer Path', value: safeTrim(profile.trainer.path) || 'Not set' },
-            {
-              label: 'Trainer Loading Mode',
-              value:
-                profile.trainer.loading_mode === 'copy_to_prefix' ? 'Copy into prefix' : 'Run from current directory',
-            },
+            { label: 'Trainer Loading Mode', value: LOADING_MODE_LABELS[profile.trainer.loading_mode] },
             { label: 'Prefix Path', value: safeTrim(profile.runtime.prefix_path) || 'Not set' },
             { label: 'Proton Path', value: safeTrim(profile.runtime.proton_path) || 'Not set' },
             { label: 'Network Isolation', value: (profile.launch.network_isolation ?? true) ? 'Enabled' : 'Disabled' },

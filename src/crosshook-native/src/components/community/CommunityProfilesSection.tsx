@@ -1,41 +1,55 @@
-import type { CommunityCompatibilityRating, CommunityProfileIndexEntry } from '../../hooks/useCommunityProfiles';
-import { deriveCommunityImportProfileName } from '../../hooks/useCommunityProfiles';
+import type { FacetKey } from '../../hooks/useCommunityCatalog';
+import { deriveCatalogEntryProfileName } from '../../hooks/useCommunityProfiles';
+import type { CatalogEntry, CatalogFacets, CatalogQuery } from '../../types/discovery';
+import { DiscoveryDegradedBanner } from '../discovery/DiscoveryDegradedBanner';
+import { DiscoveryFacetBar } from '../discovery/DiscoveryFacetBar';
+import { catalogEntryBand } from '../discovery/DiscoveryResultCard';
+import { DiscoveryShowMoreButton } from '../discovery/DiscoveryShowMoreButton';
 import { DashboardPanelSection } from '../layout/DashboardPanelSection';
-import { ThemedSelectField } from '../ui/ThemedSelectField';
-import { CompatibilityBadge, ratingLabel, ratingOrder } from './CompatibilityBadge';
+import { CompatibilityBadge } from './CompatibilityBadge';
 
 export interface CommunityProfilesSectionProps {
-  visibleEntries: CommunityProfileIndexEntry[];
-  totalEntries: number;
+  entries: CatalogEntry[];
+  totalCount: number;
+  facets: CatalogFacets;
+  catalogQuery: CatalogQuery;
+  searchText: string;
   diagnostics: string[];
-  query: string;
-  ratingFilter: 'all' | CommunityCompatibilityRating;
-  loading: boolean;
+  catalogLoading: boolean;
+  catalogError: string | null;
+  degraded: boolean;
   importing: boolean;
   notice: string | null;
   error: string | null;
   importedProfileNames: Set<string>;
-  onQueryChange: (value: string) => void;
-  onRatingFilterChange: (value: 'all' | CommunityCompatibilityRating) => void;
+  onSearchTextChange: (value: string) => void;
+  onSetFacet: (key: FacetKey, value: string | undefined) => void;
+  onClearFilters: () => void;
+  onLoadMore: () => void;
   onImportFromFile: () => void;
   onImportFromLutris: () => void;
   lutrisBusy?: boolean;
-  onImportEntry: (entry: CommunityProfileIndexEntry) => void;
+  onImportEntry: (entry: CatalogEntry) => void;
 }
 
 export function CommunityProfilesSection({
-  visibleEntries,
-  totalEntries,
+  entries,
+  totalCount,
+  facets,
+  catalogQuery,
+  searchText,
   diagnostics,
-  query,
-  ratingFilter,
-  loading,
+  catalogLoading,
+  catalogError,
+  degraded,
   importing,
   notice,
   error,
   importedProfileNames,
-  onQueryChange,
-  onRatingFilterChange,
+  onSearchTextChange,
+  onSetFacet,
+  onClearFilters,
+  onLoadMore,
   onImportFromFile,
   onImportFromLutris,
   lutrisBusy = false,
@@ -45,7 +59,7 @@ export function CommunityProfilesSection({
     <DashboardPanelSection
       eyebrow="Profile Index"
       title="Community Profiles"
-      summary={`${visibleEntries.length} of ${totalEntries} profiles`}
+      summary={`${entries.length} of ${totalCount} profiles`}
       titleAs="h2"
       className="crosshook-community-browser__panel"
     >
@@ -57,20 +71,9 @@ export function CommunityProfilesSection({
           <input
             id="community-search"
             className="crosshook-input"
-            value={query}
-            onChange={(event) => onQueryChange(event.target.value)}
+            value={searchText}
+            onChange={(event) => onSearchTextChange(event.target.value)}
             placeholder="Search game, trainer, author, tag..."
-          />
-        </div>
-        <div className="crosshook-community-browser__field">
-          <ThemedSelectField
-            label="Compatibility"
-            value={ratingFilter}
-            onValueChange={(val) => onRatingFilterChange(val as 'all' | CommunityCompatibilityRating)}
-            options={[
-              { value: 'all', label: 'All ratings' },
-              ...ratingOrder.map((rating) => ({ value: rating, label: ratingLabel[rating] })),
-            ]}
           />
         </div>
         <button type="button" className="crosshook-button crosshook-button--secondary" onClick={onImportFromFile}>
@@ -85,6 +88,10 @@ export function CommunityProfilesSection({
           {lutrisBusy ? 'Scanning Lutris…' : 'Import from Lutris'}
         </button>
       </div>
+
+      <DiscoveryFacetBar facets={facets} query={catalogQuery} onSetFacet={onSetFacet} onClearFilters={onClearFilters} />
+
+      {degraded ? <DiscoveryDegradedBanner /> : null}
 
       {notice ? (
         <p
@@ -101,6 +108,11 @@ export function CommunityProfilesSection({
           {error}
         </div>
       ) : null}
+      {catalogError ? (
+        <div className="crosshook-error-banner crosshook-error-banner--section" role="alert">
+          {catalogError}
+        </div>
+      ) : null}
       {diagnostics.length > 0 ? (
         <div className="crosshook-community-browser__diagnostics">
           {diagnostics.map((diagnostic) => (
@@ -111,86 +123,90 @@ export function CommunityProfilesSection({
         </div>
       ) : null}
 
-      {loading ? (
+      {catalogLoading && entries.length === 0 ? (
         <p className="crosshook-muted crosshook-community-browser__helper">Loading community profiles...</p>
-      ) : visibleEntries.length === 0 ? (
+      ) : entries.length === 0 ? (
         <p className="crosshook-community-browser__empty">
           No community profiles matched the current search. Sync a tap or widen the filter.
         </p>
       ) : (
-        <div className="crosshook-community-browser__profile-grid">
-          {visibleEntries.map((entry) => {
-            const importedProfileName = deriveCommunityImportProfileName(entry);
-            const isImported = importedProfileNames.has(importedProfileName);
-            return (
-              <article
-                key={`${entry.tap_url}::${entry.relative_path}`}
-                className="crosshook-community-browser__profile-card"
-              >
-                <div className="crosshook-community-browser__profile-header">
-                  <div className="crosshook-community-browser__profile-title">
-                    <h3 className="crosshook-community-browser__profile-name">
-                      {entry.manifest.metadata.game_name || 'Untitled profile'}
-                    </h3>
-                    <div className="crosshook-muted crosshook-community-browser__profile-author">
-                      {entry.manifest.metadata.author || 'Unknown author'}
+        <>
+          <div className="crosshook-community-browser__profile-grid">
+            {entries.map((entry) => {
+              const importedProfileName = deriveCatalogEntryProfileName(entry);
+              const isImported = importedProfileNames.has(importedProfileName);
+              const platformTags = entry.platformTags?.split(' ').filter(Boolean) ?? [];
+              return (
+                <article
+                  key={`${entry.tapUrl}::${entry.relativePath}`}
+                  className="crosshook-community-browser__profile-card"
+                >
+                  <div className="crosshook-community-browser__profile-header">
+                    <div className="crosshook-community-browser__profile-title">
+                      <h3 className="crosshook-community-browser__profile-name">
+                        {entry.gameName ?? 'Untitled profile'}
+                      </h3>
+                      <div className="crosshook-muted crosshook-community-browser__profile-author">
+                        {entry.author ?? 'Unknown author'}
+                      </div>
                     </div>
+                    <CompatibilityBadge rating={catalogEntryBand(entry)} />
                   </div>
-                  <CompatibilityBadge rating={entry.manifest.metadata.compatibility_rating} />
-                </div>
 
-                <div className="crosshook-community-browser__meta-grid">
-                  <div className="crosshook-muted crosshook-community-browser__meta-line">
-                    Trainer: {entry.manifest.metadata.trainer_name || 'Unknown'}{' '}
-                    {entry.manifest.metadata.trainer_version ? `(${entry.manifest.metadata.trainer_version})` : ''}
+                  <div className="crosshook-community-browser__meta-grid">
+                    <div className="crosshook-muted crosshook-community-browser__meta-line">
+                      Trainer: {entry.trainerName ?? 'Unknown'}{' '}
+                      {entry.trainerVersion ? `(${entry.trainerVersion})` : ''}
+                    </div>
+                    <div className="crosshook-muted crosshook-community-browser__meta-line">
+                      Proton: {entry.protonVersion ?? 'Unknown'}
+                    </div>
+                    <div className="crosshook-muted crosshook-community-browser__meta-line">
+                      Game version: {entry.gameVersion ?? 'Unknown'}
+                    </div>
+                    <p className="crosshook-heading-copy crosshook-community-browser__description">
+                      {entry.description ?? 'No description provided.'}
+                    </p>
                   </div>
-                  <div className="crosshook-muted crosshook-community-browser__meta-line">
-                    Proton: {entry.manifest.metadata.proton_version || 'Unknown'}
-                  </div>
-                  <div className="crosshook-muted crosshook-community-browser__meta-line">
-                    Game version: {entry.manifest.metadata.game_version || 'Unknown'}
-                  </div>
-                  <p className="crosshook-heading-copy crosshook-community-browser__description">
-                    {entry.manifest.metadata.description || 'No description provided.'}
-                  </p>
-                </div>
 
-                <div className="crosshook-community-browser__chip-row">
-                  {entry.manifest.metadata.platform_tags.length > 0 ? (
-                    entry.manifest.metadata.platform_tags.map((tag) => (
-                      <span key={tag} className="crosshook-community-browser__platform-tag">
-                        {tag}
+                  <div className="crosshook-community-browser__chip-row">
+                    {platformTags.length > 0 ? (
+                      platformTags.map((tag) => (
+                        <span key={tag} className="crosshook-community-browser__platform-tag">
+                          {tag}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="crosshook-muted crosshook-community-browser__platform-tag crosshook-community-browser__platform-tag--empty">
+                        No platform tags
                       </span>
-                    ))
-                  ) : (
-                    <span className="crosshook-muted crosshook-community-browser__platform-tag crosshook-community-browser__platform-tag--empty">
-                      No platform tags
-                    </span>
-                  )}
-                </div>
+                    )}
+                  </div>
 
-                <div className="crosshook-muted crosshook-community-browser__source">Source: {entry.tap_url}</div>
+                  <div className="crosshook-muted crosshook-community-browser__source">Source: {entry.tapUrl}</div>
 
-                <div className="crosshook-community-browser__button-row">
-                  {isImported ? (
-                    <span className="crosshook-community-browser__imported-badge">Imported</span>
-                  ) : (
-                    <button
-                      type="button"
-                      className="crosshook-button"
-                      onClick={() => {
-                        onImportEntry(entry);
-                      }}
-                      disabled={importing}
-                    >
-                      {importing ? 'Importing...' : 'Import'}
-                    </button>
-                  )}
-                </div>
-              </article>
-            );
-          })}
-        </div>
+                  <div className="crosshook-community-browser__button-row">
+                    {isImported ? (
+                      <span className="crosshook-community-browser__imported-badge">Imported</span>
+                    ) : entry.manifestPath.length > 0 ? (
+                      <button
+                        type="button"
+                        className="crosshook-button"
+                        onClick={() => {
+                          onImportEntry(entry);
+                        }}
+                        disabled={importing}
+                      >
+                        {importing ? 'Importing...' : 'Import'}
+                      </button>
+                    ) : null}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+          <DiscoveryShowMoreButton shownCount={entries.length} totalCount={totalCount} onLoadMore={onLoadMore} />
+        </>
       )}
     </DashboardPanelSection>
   );

@@ -1,19 +1,18 @@
 import { useMemo, useState } from 'react';
 import { open } from '@/lib/plugin-stubs/dialog';
+import { useCommunityCatalog } from '../hooks/useCommunityCatalog';
 import {
-  type CommunityCompatibilityRating,
   type CommunityImportPreview,
-  type CommunityProfileIndexEntry,
   type CommunityTapSyncResult,
   type UseCommunityProfilesResult,
   useCommunityProfiles,
 } from '../hooks/useCommunityProfiles';
 import { type LutrisImportEntry, type LutrisImportPreview, useLutrisImport } from '../hooks/useLutrisImport';
+import type { CatalogEntry, CatalogFacets } from '../types/discovery';
 import { chooseDirectory } from '../utils/dialog';
 import CommunityImportWizardModal from './CommunityImportWizardModal';
 import { CommunityProfilesSection } from './community/CommunityProfilesSection';
 import { CommunityTapManagementSection } from './community/CommunityTapManagementSection';
-import { ratingOrder } from './community/CompatibilityBadge';
 import { tapSubscriptionStableKey } from './community/tapSubscriptionKey';
 import LutrisImportModal from './LutrisImportModal';
 
@@ -24,41 +23,12 @@ export interface CommunityBrowserProps {
 
 const DEFAULT_PROFILES_DIRECTORY = '~/.config/crosshook/profiles';
 
-function matchesQuery(entry: CommunityProfileIndexEntry, query: string): boolean {
-  const normalized = query.trim().toLowerCase();
-  if (!normalized) {
-    return true;
-  }
-
-  const haystack = [
-    entry.manifest.metadata.game_name,
-    entry.manifest.metadata.game_version,
-    entry.manifest.metadata.trainer_name,
-    entry.manifest.metadata.trainer_version,
-    entry.manifest.metadata.proton_version,
-    entry.manifest.metadata.author,
-    entry.manifest.metadata.description,
-    entry.manifest.metadata.platform_tags.join(' '),
-    entry.tap_url,
-    entry.relative_path,
-  ]
-    .join(' ')
-    .toLowerCase();
-
-  return haystack.includes(normalized);
-}
-
-function sortProfiles(entries: CommunityProfileIndexEntry[]): CommunityProfileIndexEntry[] {
-  return [...entries].sort((left, right) => {
-    const rank = (value: CommunityCompatibilityRating) => ratingOrder.indexOf(value as CommunityCompatibilityRating);
-
-    return (
-      rank(left.manifest.metadata.compatibility_rating) - rank(right.manifest.metadata.compatibility_rating) ||
-      left.manifest.metadata.game_name.localeCompare(right.manifest.metadata.game_name) ||
-      left.manifest_path.localeCompare(right.manifest_path)
-    );
-  });
-}
+const EMPTY_CATALOG_FACETS: CatalogFacets = {
+  gameTitles: [],
+  loadingModes: [],
+  compatibilityBands: [],
+  taps: [],
+};
 
 async function chooseCommunityProfileImport(): Promise<string | null> {
   const result = await open({
@@ -78,8 +48,6 @@ async function chooseCommunityProfileImport(): Promise<string | null> {
 export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRECTORY, state }: CommunityBrowserProps) {
   const [tapUrl, setTapUrl] = useState('');
   const [tapBranch, setTapBranch] = useState('');
-  const [query, setQuery] = useState('');
-  const [ratingFilter, setRatingFilter] = useState<'all' | CommunityCompatibilityRating>('all');
   const [notice, setNotice] = useState<string | null>(null);
   const [importDraft, setImportDraft] = useState<CommunityImportPreview | null>(null);
   const [importDraftSource, setImportDraftSource] = useState<string | null>(null);
@@ -116,6 +84,7 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
     saveImportedProfile,
     setError,
   } = state ?? internalState;
+  const catalog = useCommunityCatalog();
 
   const cachedTapNotices = useMemo(() => {
     return lastTapSyncResults
@@ -136,15 +105,6 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
       });
   }, [lastTapSyncResults]);
 
-  const visibleEntries = useMemo(() => {
-    const filtered = index.entries.filter((entry) => {
-      const matchesRating = ratingFilter === 'all' || entry.manifest.metadata.compatibility_rating === ratingFilter;
-      return matchesRating && matchesQuery(entry, query);
-    });
-
-    return sortProfiles(filtered);
-  }, [index.entries, query, ratingFilter]);
-
   async function handleAddTap() {
     setNotice(null);
     try {
@@ -155,6 +115,7 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
       setTapUrl('');
       setTapBranch('');
       setNotice('Tap saved.');
+      void catalog.refresh();
     } catch (tapError) {
       setError(tapError instanceof Error ? tapError.message : String(tapError));
     }
@@ -226,12 +187,12 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
     clearLutrisImportState();
   }
 
-  async function handleImportEntry(entry: CommunityProfileIndexEntry) {
+  async function handleImportEntry(entry: CatalogEntry) {
     setNotice(null);
     try {
-      const draft = await prepareCommunityImport(entry.manifest_path);
+      const draft = await prepareCommunityImport(entry.manifestPath);
       setImportDraft(draft);
-      setImportDraftSource(entry.tap_url);
+      setImportDraftSource(entry.tapUrl);
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : String(importError));
     }
@@ -275,14 +236,18 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
           });
         }}
         onSync={() => {
-          void syncTaps().catch((syncError) => {
-            setError(syncError instanceof Error ? syncError.message : String(syncError));
-          });
+          void syncTaps()
+            .then(() => catalog.refresh())
+            .catch((syncError) => {
+              setError(syncError instanceof Error ? syncError.message : String(syncError));
+            });
         }}
         onRemoveTap={(tapToRemove) => {
-          void removeTap(tapToRemove).catch((removeError) => {
-            setError(removeError instanceof Error ? removeError.message : String(removeError));
-          });
+          void removeTap(tapToRemove)
+            .then(() => catalog.refresh())
+            .catch((removeError) => {
+              setError(removeError instanceof Error ? removeError.message : String(removeError));
+            });
         }}
         onPinTap={(tapToPin) => {
           setNotice(null);
@@ -306,18 +271,23 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
       />
 
       <CommunityProfilesSection
-        visibleEntries={visibleEntries}
-        totalEntries={index.entries.length}
+        entries={catalog.data?.entries ?? []}
+        totalCount={catalog.data?.totalCount ?? 0}
+        facets={catalog.data?.facets ?? EMPTY_CATALOG_FACETS}
+        catalogQuery={catalog.query}
+        searchText={catalog.searchText}
         diagnostics={index.diagnostics}
-        query={query}
-        ratingFilter={ratingFilter}
-        loading={loading}
+        catalogLoading={loading || catalog.loading}
+        catalogError={catalog.error}
+        degraded={catalog.data?.degraded ?? false}
         importing={importing}
         notice={notice}
         error={error}
         importedProfileNames={importedProfileNames}
-        onQueryChange={setQuery}
-        onRatingFilterChange={setRatingFilter}
+        onSearchTextChange={catalog.setSearchText}
+        onSetFacet={catalog.setFacet}
+        onClearFilters={catalog.clearFilters}
+        onLoadMore={() => void catalog.loadMore()}
         onImportFromFile={() => void handleImportFromFile()}
         onImportFromLutris={() => void handleImportFromLutris()}
         lutrisBusy={isLutrisPreparing || isLutrisImporting}

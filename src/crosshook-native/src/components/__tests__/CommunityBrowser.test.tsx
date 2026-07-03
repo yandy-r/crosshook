@@ -1,20 +1,41 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { UseCommunityProfilesResult } from '@/hooks/useCommunityProfiles';
+import type { CommunityTapSubscription, UseCommunityProfilesResult } from '@/hooks/useCommunityProfiles';
 import { CommunityBrowser } from '../CommunityBrowser';
+
+interface TapManagementMockProps {
+  onSync: () => void;
+  onRemoveTap: (tap: CommunityTapSubscription) => void;
+}
 
 // ---------------------------------------------------------------------------
 // Module mocks — keep IPC and heavy child sections out of scope
 // ---------------------------------------------------------------------------
 
 const useCommunityProfilesMock = vi.fn();
+const useCommunityCatalogMock = vi.fn();
 
 vi.mock('@/hooks/useCommunityProfiles', () => ({
   useCommunityProfiles: () => useCommunityProfilesMock(),
 }));
 
+vi.mock('@/hooks/useCommunityCatalog', () => ({
+  useCommunityCatalog: () => useCommunityCatalogMock(),
+}));
+
 vi.mock('@/components/community/CommunityTapManagementSection', () => ({
-  CommunityTapManagementSection: () => <div>Tap Management Section</div>,
+  CommunityTapManagementSection: ({ onSync, onRemoveTap }: TapManagementMockProps) => (
+    <div>
+      Tap Management Section
+      <button type="button" onClick={onSync}>
+        Sync taps now
+      </button>
+      <button type="button" onClick={() => onRemoveTap({ url: 'https://example.com/tap.git' })}>
+        Remove tap now
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock('@/components/community/CommunityProfilesSection', () => ({
@@ -58,9 +79,25 @@ function buildCommunityState(overrides: Partial<UseCommunityProfilesResult> = {}
   };
 }
 
+function buildCatalogReturn() {
+  return {
+    data: null,
+    loading: false,
+    error: null,
+    query: {},
+    searchText: '',
+    setSearchText: vi.fn(),
+    setFacet: vi.fn(),
+    clearFilters: vi.fn(),
+    loadMore: vi.fn().mockResolvedValue(undefined),
+    refresh: vi.fn().mockResolvedValue(undefined),
+  };
+}
+
 describe('CommunityBrowser', () => {
   beforeEach(() => {
     useCommunityProfilesMock.mockReturnValue(buildCommunityState());
+    useCommunityCatalogMock.mockReturnValue(buildCatalogReturn());
   });
 
   // (a) Shell chrome: root section renders with the community-browser aria-label
@@ -126,7 +163,32 @@ describe('CommunityBrowser', () => {
   it('renders the tap management and profiles child sections', () => {
     render(<CommunityBrowser />);
 
-    expect(screen.getByText('Tap Management Section')).toBeInTheDocument();
+    expect(screen.getByText(/Tap Management Section/)).toBeInTheDocument();
     expect(screen.getByText('Profiles Section')).toBeInTheDocument();
+  });
+
+  // Mutations refresh the catalog so Browse stays in sync with the backend order
+  it('sync triggers catalog refresh', async () => {
+    const catalog = buildCatalogReturn();
+    useCommunityCatalogMock.mockReturnValue(catalog);
+    render(<CommunityBrowser />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Sync taps now' }));
+
+    await waitFor(() => {
+      expect(catalog.refresh).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('tap removal triggers catalog refresh', async () => {
+    const catalog = buildCatalogReturn();
+    useCommunityCatalogMock.mockReturnValue(catalog);
+    render(<CommunityBrowser />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Remove tap now' }));
+
+    await waitFor(() => {
+      expect(catalog.refresh).toHaveBeenCalledTimes(1);
+    });
   });
 });

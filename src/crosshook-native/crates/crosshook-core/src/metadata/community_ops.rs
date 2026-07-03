@@ -3,7 +3,7 @@ use rusqlite::{params, OptionalExtension};
 
 use super::{community_index, MetadataStore, MetadataStoreError};
 use crate::community::taps::CommunityTapSyncResult;
-use crate::discovery::TrainerSearchResponse;
+use crate::discovery::{CatalogPage, CatalogQuery};
 use crate::metadata::models::CommunityProfileRow;
 
 impl MetadataStore {
@@ -78,14 +78,30 @@ impl MetadataStore {
         })
     }
 
-    pub fn search_trainer_sources(
+    /// Errors when the store is unavailable (no silent empty page) so the
+    /// command layer can fall back to the degraded filesystem catalog.
+    pub fn query_community_catalog(
         &self,
-        query: &str,
-        limit: i64,
-        offset: i64,
-    ) -> Result<TrainerSearchResponse, MetadataStoreError> {
-        self.with_conn("search trainer sources", |conn| {
-            crate::discovery::search_trainer_sources(conn, query, limit, offset)
+        query: &CatalogQuery,
+    ) -> Result<CatalogPage, MetadataStoreError> {
+        self.with_sqlite_conn("query the community catalog", |conn| {
+            community_index::query_community_catalog(conn, query)
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn query_community_catalog_errors_when_store_unavailable() {
+        let store = MetadataStore::disabled();
+        let result = store.query_community_catalog(&CatalogQuery::default());
+        assert!(
+            result.is_err(),
+            "unavailable store must error so the degraded fallback runs instead of \
+             returning an empty non-degraded page"
+        );
     }
 }

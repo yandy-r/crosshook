@@ -20,7 +20,7 @@ pub fn list_community_tap_profiles(
                     "SELECT cp.id, cp.tap_id, ct.tap_url, cp.relative_path, cp.manifest_path,
                             cp.game_name, cp.game_version, cp.trainer_name, cp.trainer_version,
                             cp.proton_version, cp.compatibility_rating, cp.author, cp.description,
-                            cp.platform_tags, cp.schema_version, cp.created_at
+                            cp.platform_tags, cp.trainer_loading_mode, cp.schema_version, cp.created_at
                      FROM community_profiles cp
                      JOIN community_taps ct ON cp.tap_id = ct.tap_id
                      WHERE ct.tap_url = ?1",
@@ -48,7 +48,7 @@ pub fn list_community_tap_profiles(
                     "SELECT cp.id, cp.tap_id, ct.tap_url, cp.relative_path, cp.manifest_path,
                             cp.game_name, cp.game_version, cp.trainer_name, cp.trainer_version,
                             cp.proton_version, cp.compatibility_rating, cp.author, cp.description,
-                            cp.platform_tags, cp.schema_version, cp.created_at
+                            cp.platform_tags, cp.trainer_loading_mode, cp.schema_version, cp.created_at
                      FROM community_profiles cp
                      JOIN community_taps ct ON cp.tap_id = ct.tap_id",
                 )

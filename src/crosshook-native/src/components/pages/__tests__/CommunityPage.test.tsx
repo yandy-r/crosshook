@@ -47,6 +47,13 @@ describe('CommunityPage', () => {
           entries: [],
           diagnostics: [],
         }),
+        discovery_catalog: async () => ({
+          entries: [],
+          facets: { gameTitles: [], loadingModes: [], compatibilityBands: [], taps: [] },
+          totalCount: 0,
+          tapCount: 0,
+          degraded: false,
+        }),
       },
     });
 

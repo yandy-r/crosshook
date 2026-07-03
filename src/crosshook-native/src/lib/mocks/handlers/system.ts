@@ -1,9 +1,12 @@
 import type { DiagnosticBundleResult } from '../../../types/diagnostics';
 
 import type {
+  CatalogEntry,
+  CatalogFacetValue,
+  CatalogPage,
+  CatalogQuery,
   ExternalTrainerSearchResponse,
   ExternalTrainerSourceSubscription,
-  TrainerSearchResponse,
   VersionMatchResult,
 } from '../../../types/discovery';
 import type { CommandArgumentCatalogPayload, CommandArgumentEntry } from '../../../types/launch-command-arguments';
@@ -37,41 +40,225 @@ let externalSources: ExternalTrainerSourceSubscription[] = structuredClone(DEFAU
 
 // --- discovery ---
 
-const MOCK_TRAINER_RESULTS: TrainerSearchResponse = {
-  results: [
-    {
-      id: 1,
-      gameName: 'Synthetic Quest',
-      steamAppId: 9999001,
-      sourceName: 'Mock Trainer Index',
-      sourceUrl: 'https://mock.example.invalid/trainers/synthetic-quest',
-      trainerVersion: '1.0.0',
-      gameVersion: '2.0.1',
-      notes: 'Synthetic data — not a real trainer.',
-      sha256: 'aabbccdd00112233aabbccdd00112233aabbccdd00112233aabbccdd00112233',
-      relativePath: 'trainers/synthetic-quest/trainer.exe',
-      tapUrl: 'https://mock.example.invalid/tap/synthetic-quest',
-      tapLocalPath: '/mock/tap/synthetic-quest',
-      relevanceScore: 0.95,
+const MOCK_CATALOG_PROFILE_ENTRIES: CatalogEntry[] = [
+  {
+    id: 1,
+    tapUrl: 'https://mock.example.invalid/tap/alpha',
+    tapLocalPath: '/mock/tap/alpha',
+    relativePath: 'profiles/synthetic-quest/community-profile.json',
+    manifestPath: '/mock/tap/alpha/profiles/synthetic-quest/community-profile.json',
+    gameName: 'Synthetic Quest',
+    gameVersion: '2.0.1',
+    trainerName: 'Synthetic Trainer',
+    trainerVersion: '1.0.0',
+    protonVersion: 'GE-Proton9-21',
+    compatibilityRating: 'platinum',
+    author: 'Mock Author',
+    description: 'Synthetic data — not a real trainer.',
+    platformTags: 'linux steam-deck',
+    trainerLoadingMode: 'source_directory',
+    schemaVersion: 1,
+    sources: [
+      {
+        sourceName: 'Mock Trainer Index',
+        sourceUrl: 'https://mock.example.invalid/trainers/synthetic-quest',
+        sha256: 'aabbccdd00112233aabbccdd00112233aabbccdd00112233aabbccdd00112233',
+        trainerVersion: '1.0.0',
+        gameVersion: '2.0.1',
+        notes: 'Synthetic data — not a real trainer.',
+      },
+      {
+        sourceName: 'Mock Mirror',
+        sourceUrl: 'https://mock.example.invalid/mirror/synthetic-quest',
+        sha256: null,
+        trainerVersion: null,
+        gameVersion: null,
+        notes: null,
+      },
+    ],
+  },
+  {
+    id: 2,
+    tapUrl: 'https://mock.example.invalid/tap/alpha',
+    tapLocalPath: '/mock/tap/alpha',
+    relativePath: 'profiles/dev-test-game/community-profile.json',
+    manifestPath: '/mock/tap/alpha/profiles/dev-test-game/community-profile.json',
+    gameName: 'Dev Test Game',
+    gameVersion: '1.5.0',
+    trainerName: 'Dev Trainer',
+    trainerVersion: '0.9.0',
+    protonVersion: null,
+    compatibilityRating: 'working',
+    author: 'Mock Author',
+    description: null,
+    platformTags: 'linux',
+    trainerLoadingMode: 'copy_to_prefix',
+    schemaVersion: 1,
+    sources: [
+      {
+        sourceName: 'Mock Trainer Index',
+        sourceUrl: 'https://mock.example.invalid/trainers/dev-test-game',
+        sha256: null,
+        trainerVersion: '0.9.0',
+        gameVersion: '1.5.0',
+        notes: null,
+      },
+    ],
+  },
+  {
+    id: 3,
+    tapUrl: 'https://mock.example.invalid/tap/beta',
+    tapLocalPath: '/mock/tap/beta',
+    relativePath: 'profiles/orphan-game/community-profile.json',
+    manifestPath: '/mock/tap/beta/profiles/orphan-game/community-profile.json',
+    gameName: 'Orphan Game',
+    gameVersion: null,
+    trainerName: null,
+    trainerVersion: null,
+    protonVersion: null,
+    compatibilityRating: null,
+    author: null,
+    description: 'Sourceless profile — import only.',
+    platformTags: null,
+    trainerLoadingMode: null,
+    schemaVersion: 1,
+    sources: [],
+  },
+  {
+    // Source-only entry: trainer sources without a community profile (empty manifestPath hides Import).
+    id: null,
+    tapUrl: 'https://mock.example.invalid/tap/beta',
+    tapLocalPath: '/mock/tap/beta',
+    relativePath: 'trainer-sources/source-only-game',
+    manifestPath: '',
+    gameName: 'Source Only Game',
+    gameVersion: null,
+    trainerName: null,
+    trainerVersion: null,
+    protonVersion: null,
+    compatibilityRating: null,
+    author: null,
+    description: null,
+    platformTags: null,
+    trainerLoadingMode: null,
+    schemaVersion: 0,
+    sources: [
+      {
+        sourceName: 'Mock Source Index',
+        sourceUrl: 'https://mock.example.invalid/sources/source-only-game',
+        sha256: null,
+        trainerVersion: '2.4.0',
+        gameVersion: null,
+        notes: 'Synthetic source-only listing — no community profile.',
+      },
+    ],
+  },
+];
+
+type MockFacetKey = 'gameTitles' | 'loadingModes' | 'compatibilityBands' | 'tapUrls';
+
+function normalizeBand(entry: CatalogEntry): string {
+  const rating = entry.compatibilityRating;
+  return rating === 'platinum' || rating === 'working' || rating === 'partial' || rating === 'broken'
+    ? rating
+    : 'unknown';
+}
+
+function normalizeMode(entry: CatalogEntry): string {
+  const mode = entry.trainerLoadingMode;
+  return mode === 'source_directory' || mode === 'copy_to_prefix' ? mode : 'unknown';
+}
+
+function mockEntryFacetValue(entry: CatalogEntry, key: MockFacetKey): string | null {
+  switch (key) {
+    case 'gameTitles':
+      return entry.gameName ?? null;
+    case 'loadingModes':
+      return normalizeMode(entry);
+    case 'compatibilityBands':
+      return normalizeBand(entry);
+    case 'tapUrls':
+      return entry.tapUrl;
+  }
+}
+
+function mockMatchesDimension(entry: CatalogEntry, key: MockFacetKey, selections: string[]): boolean {
+  if (selections.length === 0) return true;
+  const value = mockEntryFacetValue(entry, key);
+  return value !== null && selections.includes(value);
+}
+
+/** Mirrors the fields Rust `matches_text` searches (names, secondary fields, versions, sources). */
+function mockMatchesText(entry: CatalogEntry, query: string): boolean {
+  const haystack = [
+    entry.gameName,
+    entry.trainerName,
+    entry.author,
+    entry.description,
+    entry.platformTags,
+    entry.tapUrl,
+    entry.gameVersion,
+    entry.trainerVersion,
+    entry.protonVersion,
+    entry.manifestPath,
+    ...entry.sources.flatMap((source) => [source.sourceName, source.notes]),
+  ]
+    .filter((value): value is string => typeof value === 'string' && value.length > 0)
+    .join(' ')
+    .toLowerCase();
+  return haystack.includes(query);
+}
+
+function mockFacetCounts(entries: CatalogEntry[], key: MockFacetKey): CatalogFacetValue[] {
+  const counts = new Map<string, number>();
+  for (const entry of entries) {
+    const value = mockEntryFacetValue(entry, key);
+    if (value !== null) {
+      counts.set(value, (counts.get(value) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .map(([value, count]) => ({ value, count }))
+    .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
+}
+
+/** Dev-mode fidelity only; the real filter/facet/rank semantics live in Rust. */
+function buildMockCatalogPage(entries: CatalogEntry[], query: CatalogQuery | undefined): CatalogPage {
+  const q = (query?.query ?? '').trim().toLowerCase();
+  const selections: Record<MockFacetKey, string[]> = {
+    gameTitles: query?.gameTitles ?? [],
+    loadingModes: query?.loadingModes ?? [],
+    compatibilityBands: query?.compatibilityBands ?? [],
+    tapUrls: query?.tapUrls ?? [],
+  };
+  const dimensionKeys: MockFacetKey[] = ['gameTitles', 'loadingModes', 'compatibilityBands', 'tapUrls'];
+
+  const textMatched = entries.filter((entry) => q.length === 0 || mockMatchesText(entry, q));
+  const matched = textMatched.filter((entry) =>
+    dimensionKeys.every((key) => mockMatchesDimension(entry, key, selections[key]))
+  );
+
+  const facetDomain = (facetKey: MockFacetKey) =>
+    textMatched.filter((entry) =>
+      dimensionKeys.every((key) => key === facetKey || mockMatchesDimension(entry, key, selections[key]))
+    );
+
+  const offset = query?.offset ?? 0;
+  const limit = query?.limit ?? 50;
+
+  return {
+    entries: matched.slice(offset, offset + limit),
+    facets: {
+      gameTitles: mockFacetCounts(facetDomain('gameTitles'), 'gameTitles'),
+      loadingModes: mockFacetCounts(facetDomain('loadingModes'), 'loadingModes'),
+      compatibilityBands: mockFacetCounts(facetDomain('compatibilityBands'), 'compatibilityBands'),
+      taps: mockFacetCounts(facetDomain('tapUrls'), 'tapUrls'),
     },
-    {
-      id: 2,
-      gameName: 'Dev Test Game',
-      steamAppId: 9999002,
-      sourceName: 'Mock Trainer Index',
-      sourceUrl: 'https://mock.example.invalid/trainers/dev-test-game',
-      trainerVersion: '0.9.0',
-      gameVersion: '1.5.0',
-      notes: undefined,
-      sha256: undefined,
-      relativePath: 'trainers/dev-test-game/trainer.exe',
-      tapUrl: 'https://mock.example.invalid/tap/dev-test-game',
-      tapLocalPath: '/mock/tap/dev-test-game',
-      relevanceScore: 0.72,
-    },
-  ],
-  totalCount: 2,
-};
+    totalCount: matched.length,
+    tapCount: new Set(entries.map((entry) => entry.tapUrl)).size,
+    degraded: false,
+  };
+}
 
 const MOCK_EXTERNAL_SEARCH_RESPONSE: ExternalTrainerSearchResponse = {
   results: [
@@ -319,8 +506,9 @@ const MOCK_TRAINER_TYPE_CATALOG: TrainerTypeEntry[] = [
 export function registerSystem(map: Map<string, Handler>): void {
   // --- discovery ---
 
-  map.set('discovery_search_trainers', async (_args): Promise<TrainerSearchResponse> => {
-    return structuredClone(MOCK_TRAINER_RESULTS);
+  map.set('discovery_catalog', async (args): Promise<CatalogPage> => {
+    const { query } = args as { query?: CatalogQuery };
+    return buildMockCatalogPage(structuredClone(MOCK_CATALOG_PROFILE_ENTRIES), query);
   });
 
   map.set('discovery_search_external', async (_args): Promise<ExternalTrainerSearchResponse> => {

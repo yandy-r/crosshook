@@ -289,6 +289,7 @@ pub struct CommunityProfileRow {
     pub author: Option<String>,
     pub description: Option<String>,
     pub platform_tags: Option<String>,
+    pub trainer_loading_mode: Option<String>,
     pub schema_version: i64,
     pub created_at: String,
 }

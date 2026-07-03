@@ -143,7 +143,8 @@ pub(super) fn map_community_profile_row(
         author: row.get(11)?,
         description: row.get(12)?,
         platform_tags: row.get(13)?,
-        schema_version: row.get(14)?,
-        created_at: row.get(15)?,
+        trainer_loading_mode: row.get(14)?,
+        schema_version: row.get(15)?,
+        created_at: row.get(16)?,
     })
 }

@@ -2,6 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 
 import type { ExternalTrainerSearchResponse } from '../types/discovery';
+import { useDebounce } from './useDebounce';
+
+// Longer debounce than local search (600ms) since this hits the network.
+const EXTERNAL_SEARCH_DEBOUNCE_MS = 600;
 
 export interface UseExternalTrainerSearchReturn {
   data: ExternalTrainerSearchResponse | null;
@@ -80,16 +84,10 @@ export function useExternalTrainerSearch(
   );
 
   // Auto-fire with debounce when gameName changes.
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const clearDebounceTimer = useCallback(() => {
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-      debounceTimerRef.current = null;
-    }
-  }, []);
+  const searchDebounce = useDebounce(EXTERNAL_SEARCH_DEBOUNCE_MS);
 
   useEffect(() => {
-    clearDebounceTimer();
+    searchDebounce.cancel();
 
     const trimmed = gameName.trim();
     if (!trimmed) {
@@ -100,23 +98,21 @@ export function useExternalTrainerSearch(
       return;
     }
 
-    // Longer debounce than local search (600ms) since this hits the network.
-    debounceTimerRef.current = setTimeout(() => {
-      debounceTimerRef.current = null;
+    searchDebounce.schedule(() => {
       void fetchResults(false);
-    }, 600);
+    });
 
     return () => {
-      clearDebounceTimer();
+      searchDebounce.cancel();
     };
-  }, [gameName, fetchResults, clearDebounceTimer]);
+  }, [gameName, fetchResults, searchDebounce]);
 
   const search = useCallback(
     async (forceRefresh = false): Promise<void> => {
-      clearDebounceTimer();
+      searchDebounce.cancel();
       await fetchResults(forceRefresh);
     },
-    [fetchResults, clearDebounceTimer]
+    [fetchResults, searchDebounce]
   );
 
   return { data, loading, error, search };

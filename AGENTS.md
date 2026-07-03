@@ -198,7 +198,7 @@ src/crosshook-native/              # Primary source root
 **Location**: `~/.local/share/crosshook/metadata.db`
 **Mode**: WAL (write-ahead logging)
 **Permissions**: `0600` (owner read/write only)
-**Current schema version**: 24
+**Current schema version**: 25
 **Access**: `MetadataStore::try_new()` in `crosshook-core`
 **Migrations**: `src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs`
 
@@ -211,7 +211,7 @@ src/crosshook-native/              # Primary source root
 | `launchers`                      |      v3      | Known launcher executables                                                                                                                                  |
 | `launch_operations`              |      v3      | Per-launch history and diagnostics                                                                                                                          |
 | `community_taps`                 |      v4      | Subscribed community tap sources                                                                                                                            |
-| `community_profiles`             |      v4      | Fetched community profile snapshots                                                                                                                         |
+| `community_profiles`             |      v4      | Fetched community profile snapshots (v25 adds nullable `trainer_loading_mode` for the discovery catalog loading-mode facet)                                 |
 | `external_cache_entries`         |      v4      | Generic HTTP response cache (512 KiB payload cap per entry)                                                                                                 |
 | `collections`                    |      v4      | Named profile collections                                                                                                                                   |
 | `collection_profiles`            |      v4      | Collection ↔ profile membership                                                                                                                             |

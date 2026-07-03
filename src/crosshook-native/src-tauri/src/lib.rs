@@ -535,7 +535,7 @@ pub fn run() {
             commands::prefix_deps::install_prefix_dependency,
             commands::prefix_deps::get_dependency_status,
             // Trainer discovery
-            commands::discovery::discovery_search_trainers,
+            commands::discovery::discovery_catalog,
             commands::discovery::discovery_search_external,
             commands::discovery::discovery_check_version_compatibility,
             commands::discovery::discovery_list_external_sources,

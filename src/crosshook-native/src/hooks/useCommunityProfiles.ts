@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { subscribeEvent } from '@/lib/events';
 import { callCommand } from '@/lib/ipc';
 import type { AppSettingsData, GameProfile } from '../types';
+import type { CatalogEntry } from '../types/discovery';
 import { toSettingsSaveRequest } from '../types/settings';
 
 export type CommunityCompatibilityRating = 'unknown' | 'broken' | 'partial' | 'working' | 'platinum';
@@ -134,13 +135,13 @@ function basename(value: string): string {
   return parts[parts.length - 1] ?? '';
 }
 
-export function deriveCommunityImportProfileName(entry: CommunityProfileIndexEntry): string {
-  const gameName = entry.manifest.metadata.game_name.trim();
-  if (gameName.length > 0) {
-    return sanitizeProfileName(gameName);
+function deriveProfileNameFrom(gameName: string, relativePath: string): string {
+  const trimmedGameName = gameName.trim();
+  if (trimmedGameName.length > 0) {
+    return sanitizeProfileName(trimmedGameName);
   }
 
-  const normalizedRelativePath = entry.relative_path.replace(/\\/g, '/');
+  const normalizedRelativePath = relativePath.replace(/\\/g, '/');
   const segments = normalizedRelativePath.split('/').filter((segment) => segment.length > 0);
   const parent = segments.length > 1 ? segments[segments.length - 2] : basename(normalizedRelativePath);
   if (parent.length > 0) {
@@ -148,6 +149,14 @@ export function deriveCommunityImportProfileName(entry: CommunityProfileIndexEnt
   }
 
   return 'community-profile';
+}
+
+export function deriveCommunityImportProfileName(entry: CommunityProfileIndexEntry): string {
+  return deriveProfileNameFrom(entry.manifest.metadata.game_name, entry.relative_path);
+}
+
+export function deriveCatalogEntryProfileName(entry: CatalogEntry): string {
+  return deriveProfileNameFrom(entry.gameName ?? '', entry.relativePath);
 }
 
 function tapIdentityKey(tap: CommunityTapSubscription): string {

@@ -2,8 +2,36 @@
 
 use super::constants::*;
 use super::MetadataStoreError;
-use crate::discovery::models::TrainerSourcesManifest;
+use crate::discovery::models::{TrainerSourceEntry, TrainerSourcesManifest};
 use rusqlite::{params, Connection, Transaction, TransactionBehavior};
+
+/// Returns `true` when a trainer sources manifest must be skipped entirely
+/// (A6 byte-cap violation on `game_name`).
+pub(super) fn trainer_manifest_rejected(manifest: &TrainerSourcesManifest) -> bool {
+    manifest.game_name.len() > MAX_GAME_NAME_BYTES
+}
+
+/// Returns `Some(reason)` when a trainer source entry must be skipped
+/// (non-HTTPS URL or A6 byte-cap violation); `None` when acceptable.
+pub(super) fn trainer_source_rejection(entry: &TrainerSourceEntry) -> Option<&'static str> {
+    if !entry.source_url.starts_with("https://") {
+        return Some("non-HTTPS source_url");
+    }
+    if entry.source_url.len() > MAX_SOURCE_URL_BYTES {
+        return Some("source_url exceeds byte cap");
+    }
+    if entry.source_name.len() > MAX_SOURCE_NAME_BYTES {
+        return Some("source_name exceeds byte cap");
+    }
+    if entry
+        .notes
+        .as_ref()
+        .is_some_and(|notes| notes.len() > MAX_NOTES_BYTES)
+    {
+        return Some("notes exceed byte cap");
+    }
+    None
+}
 
 /// Index trainer source manifests for a single tap into the `trainer_sources` table.
 ///
@@ -36,7 +64,7 @@ pub fn index_trainer_sources(
     let mut inserted: usize = 0;
 
     for (relative_path, manifest) in sources {
-        if manifest.game_name.len() > MAX_GAME_NAME_BYTES {
+        if trainer_manifest_rejected(manifest) {
             tracing::warn!(
                 game_name_len = manifest.game_name.len(),
                 max = MAX_GAME_NAME_BYTES,
@@ -47,49 +75,15 @@ pub fn index_trainer_sources(
         }
 
         for entry in &manifest.sources {
-            if !entry.source_url.starts_with("https://") {
+            if let Some(reason) = trainer_source_rejection(entry) {
                 tracing::warn!(
                     source_url = %entry.source_url,
                     game_name = %manifest.game_name,
                     relative_path = %relative_path,
-                    "skipping trainer source entry with non-HTTPS source_url"
+                    reason = %reason,
+                    "skipping trainer source entry"
                 );
                 continue;
-            }
-
-            if entry.source_url.len() > MAX_SOURCE_URL_BYTES {
-                tracing::warn!(
-                    source_url_len = entry.source_url.len(),
-                    max = MAX_SOURCE_URL_BYTES,
-                    game_name = %manifest.game_name,
-                    relative_path = %relative_path,
-                    "skipping trainer source entry: source_url exceeds {} bytes", MAX_SOURCE_URL_BYTES
-                );
-                continue;
-            }
-
-            if entry.source_name.len() > MAX_SOURCE_NAME_BYTES {
-                tracing::warn!(
-                    source_name_len = entry.source_name.len(),
-                    max = MAX_SOURCE_NAME_BYTES,
-                    game_name = %manifest.game_name,
-                    relative_path = %relative_path,
-                    "skipping trainer source entry: source_name exceeds {} bytes", MAX_SOURCE_NAME_BYTES
-                );
-                continue;
-            }
-
-            if let Some(notes) = &entry.notes {
-                if notes.len() > MAX_NOTES_BYTES {
-                    tracing::warn!(
-                        notes_len = notes.len(),
-                        max = MAX_NOTES_BYTES,
-                        game_name = %manifest.game_name,
-                        relative_path = %relative_path,
-                        "skipping trainer source entry: notes exceeds {} bytes", MAX_NOTES_BYTES
-                    );
-                    continue;
-                }
             }
 
             tx.execute(

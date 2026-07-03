@@ -3,12 +3,16 @@
 use super::constants::*;
 use super::db;
 use super::helpers::check_a6_bounds;
+use super::indexing::index_community_tap_result_with_trainers;
 use super::trainer_sources::index_trainer_sources;
-use crate::community::index::CommunityProfileIndexEntry;
-use crate::community::{CommunityProfileManifest, CommunityProfileMetadata, CompatibilityRating};
+use crate::community::index::{CommunityProfileIndex, CommunityProfileIndexEntry};
+use crate::community::{
+    CommunityProfileManifest, CommunityProfileMetadata, CommunityTapSubscription,
+    CommunityTapSyncResult, CommunityTapSyncStatus, CommunityTapWorkspace, CompatibilityRating,
+};
 use crate::discovery::models::{TrainerSourceEntry, TrainerSourcesManifest};
 use crate::metadata::migrations;
-use crate::profile::GameProfile;
+use crate::profile::{GameProfile, TrainerLoadingMode};
 use rusqlite::{params, Connection};
 use std::path::PathBuf;
 
@@ -331,4 +335,49 @@ fn index_trainer_sources_deletes_and_reinserts_on_reindex() {
         )
         .unwrap();
     assert_eq!(new_count, 1, "new Cyberpunk 2077 entry should be present");
+}
+
+#[test]
+fn index_backfills_trainer_loading_mode() {
+    let conn = db::open_in_memory().unwrap();
+    migrations::run_migrations(&conn).unwrap();
+
+    let mut entry = make_entry(String::new(), String::new(), String::new());
+    entry.manifest.profile.trainer.loading_mode = TrainerLoadingMode::CopyToPrefix;
+
+    let result = CommunityTapSyncResult {
+        workspace: CommunityTapWorkspace {
+            subscription: CommunityTapSubscription {
+                url: entry.tap_url.clone(),
+                branch: None,
+                pinned_commit: None,
+            },
+            local_path: entry.tap_path.clone(),
+        },
+        status: CommunityTapSyncStatus::Cloned,
+        head_commit: "deadbeef".to_string(),
+        index: CommunityProfileIndex {
+            entries: vec![entry],
+            diagnostics: Vec::new(),
+            trainer_sources: Vec::new(),
+        },
+        from_cache: false,
+        last_sync_at: None,
+    };
+
+    let mut conn = conn;
+    index_community_tap_result_with_trainers(&mut conn, &result).unwrap();
+
+    let stored: Option<String> = conn
+        .query_row(
+            "SELECT trainer_loading_mode FROM community_profiles",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        stored.as_deref(),
+        Some("copy_to_prefix"),
+        "indexing must persist the manifest's trainer loading mode"
+    );
 }

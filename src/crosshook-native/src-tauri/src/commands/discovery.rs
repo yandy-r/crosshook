@@ -1,25 +1,32 @@
+use crosshook_core::community::CommunityTapStore;
 use crosshook_core::discovery::matching;
 use crosshook_core::discovery::models::validate_external_source;
 use crosshook_core::discovery::{
-    ExternalTrainerSearchQuery, ExternalTrainerSearchResponse, ExternalTrainerSourceSubscription,
-    TrainerSearchQuery, TrainerSearchResponse, VersionMatchResult,
+    CatalogPage, CatalogQuery, ExternalTrainerSearchQuery, ExternalTrainerSearchResponse,
+    ExternalTrainerSourceSubscription, VersionMatchResult,
 };
-use crosshook_core::metadata::MetadataStore;
+use crosshook_core::metadata::{degraded_catalog_from_taps, MetadataStore};
 use crosshook_core::settings::SettingsStore;
 use tauri::State;
 
 #[tauri::command]
-pub fn discovery_search_trainers(
-    query: TrainerSearchQuery,
+pub fn discovery_catalog(
+    query: CatalogQuery,
     metadata_store: State<'_, MetadataStore>,
-) -> Result<TrainerSearchResponse, String> {
-    metadata_store
-        .search_trainer_sources(
-            &query.query,
-            query.limit.unwrap_or(20) as i64,
-            query.offset.unwrap_or(0) as i64,
-        )
-        .map_err(|e| e.to_string())
+    settings_store: State<'_, SettingsStore>,
+    tap_store: State<'_, CommunityTapStore>,
+) -> Result<CatalogPage, String> {
+    match metadata_store.query_community_catalog(&query) {
+        Ok(page) => Ok(page),
+        Err(db_error) => {
+            tracing::warn!(%db_error, "metadata catalog query failed; falling back to tap index");
+            let taps = settings_store
+                .load()
+                .map_err(|e| e.to_string())?
+                .community_taps;
+            Ok(degraded_catalog_from_taps(&tap_store, &taps, &query))
+        }
+    }
 }
 
 #[tauri::command]
@@ -123,12 +130,14 @@ mod tests {
 
     #[test]
     fn command_names_match_expected_ipc_contract() {
-        // Phase A: sync search
-        let _ = discovery_search_trainers
+        // Aggregated cross-tap catalog (Discover + Browse)
+        let _ = discovery_catalog
             as fn(
-                TrainerSearchQuery,
+                CatalogQuery,
                 State<'_, MetadataStore>,
-            ) -> Result<TrainerSearchResponse, String>;
+                State<'_, SettingsStore>,
+                State<'_, CommunityTapStore>,
+            ) -> Result<CatalogPage, String>;
 
         // Phase B: sync version compatibility check
         let _ = discovery_check_version_compatibility

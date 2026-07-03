@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { open as shellOpen } from '@/lib/plugin-stubs/shell';
 import { usePreferencesContext } from '../context/PreferencesContext';
+import { useCommunityCatalog } from '../hooks/useCommunityCatalog';
 import { useExternalTrainerSearch } from '../hooks/useExternalTrainerSearch';
 import { useImportCommunityProfile } from '../hooks/useImportCommunityProfile';
-import { useTrainerDiscovery } from '../hooks/useTrainerDiscovery';
-import type { TrainerSearchResult } from '../types/discovery';
+import type { CatalogEntry } from '../types/discovery';
+import { catalogEntryKey, DiscoveryCatalogSection } from './discovery/DiscoveryCatalogSection';
 import { ExternalResultsSection } from './ExternalResultsSection';
 import { DashboardPanelSection } from './layout/DashboardPanelSection';
 
@@ -57,150 +57,31 @@ function ConsentDialog({ onAccept, onCancel }: ConsentDialogProps) {
 }
 
 // ---------------------------------------------------------------------------
-// TrainerResultCard
-// ---------------------------------------------------------------------------
-
-interface TrainerResultCardProps {
-  result: TrainerSearchResult;
-  onImport: (result: TrainerSearchResult) => void;
-  importing: boolean;
-}
-
-function TrainerResultCard({ result, onImport, importing }: TrainerResultCardProps) {
-  const [expanded, setExpanded] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const copyTimeoutRef = useRef<number | null>(null);
-  const isMountedRef = useRef(true);
-
-  const handleOpenSource = useCallback(() => {
-    void shellOpen(result.sourceUrl);
-  }, [result.sourceUrl]);
-
-  const handleToggleExpand = useCallback(() => {
-    setExpanded((prev) => !prev);
-  }, []);
-
-  useEffect(
-    () => () => {
-      isMountedRef.current = false;
-      if (copyTimeoutRef.current !== null) {
-        clearTimeout(copyTimeoutRef.current);
-      }
-    },
-    []
-  );
-
-  const handleCopySha = useCallback(() => {
-    if (!result.sha256) return;
-    void navigator.clipboard.writeText(result.sha256).then(() => {
-      if (!isMountedRef.current) {
-        return;
-      }
-      if (copyTimeoutRef.current !== null) {
-        clearTimeout(copyTimeoutRef.current);
-      }
-      setCopied(true);
-      copyTimeoutRef.current = window.setTimeout(() => {
-        if (!isMountedRef.current) {
-          return;
-        }
-        setCopied(false);
-        copyTimeoutRef.current = null;
-      }, 2000);
-    });
-  }, [result.sha256]);
-
-  const sha256Display = result.sha256
-    ? result.sha256.length > 16
-      ? `${result.sha256.slice(0, 8)}…${result.sha256.slice(-8)}`
-      : result.sha256
-    : null;
-
-  return (
-    <article className="crosshook-discovery-card">
-      <div className="crosshook-discovery-card__header">
-        <div className="crosshook-discovery-card__title-row">
-          <h3 className="crosshook-discovery-card__game-name">{result.gameName}</h3>
-          <span className="crosshook-discovery-badge crosshook-discovery-badge--community">
-            {result.sourceName} · Community
-          </span>
-        </div>
-        <button
-          type="button"
-          className="crosshook-discovery-card__expand-toggle"
-          aria-expanded={expanded}
-          aria-label={expanded ? 'Collapse details' : 'Expand details'}
-          onClick={handleToggleExpand}
-        >
-          {expanded ? '▲' : '▼'}
-        </button>
-      </div>
-
-      {expanded && (
-        <div className="crosshook-discovery-card__details">
-          {result.trainerVersion && (
-            <div className="crosshook-discovery-card__meta-line">
-              <span className="crosshook-muted">Trainer version:</span> {result.trainerVersion}
-            </div>
-          )}
-          {result.gameVersion && (
-            <div className="crosshook-discovery-card__meta-line">
-              <span className="crosshook-muted">Game version:</span> {result.gameVersion}
-            </div>
-          )}
-          {result.notes && (
-            <div className="crosshook-discovery-card__meta-line">
-              <span className="crosshook-muted">Notes:</span> {result.notes}
-            </div>
-          )}
-          {sha256Display && (
-            <div className="crosshook-discovery-card__meta-line crosshook-discovery-card__sha-row">
-              <span className="crosshook-muted">SHA-256:</span>{' '}
-              <code className="crosshook-discovery-card__sha">{sha256Display}</code>
-              <button
-                type="button"
-                className="crosshook-button crosshook-button--compact crosshook-button--secondary"
-                onClick={handleCopySha}
-                title="Copy full SHA-256"
-                aria-label={`Copy SHA-256 checksum for ${result.gameName}`}
-              >
-                {copied ? 'Copied' : 'Copy'}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="crosshook-discovery-card__actions">
-        <button type="button" className="crosshook-button crosshook-button--secondary" onClick={handleOpenSource}>
-          Get Trainer
-        </button>
-        <button type="button" className="crosshook-button" onClick={() => onImport(result)} disabled={importing}>
-          {importing ? 'Importing…' : 'Import Profile'}
-        </button>
-      </div>
-    </article>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // TrainerDiscoveryPanel
 // ---------------------------------------------------------------------------
 
 export function TrainerDiscoveryPanel({ initialQuery = '' }: TrainerDiscoveryPanelProps) {
   const { importCommunityProfile } = useImportCommunityProfile();
   const { settings, persistSettings } = usePreferencesContext();
-  const [query, setQuery] = useState(initialQuery);
-  const [importingId, setImportingId] = useState<number | null>(null);
+  const [importingKey, setImportingKey] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importNotice, setImportNotice] = useState<string | null>(null);
   const [pendingConsent, setPendingConsent] = useState(false);
 
-  const { data, loading, error } = useTrainerDiscovery(settings.discovery_enabled ? query : '');
-  const externalSearch = useExternalTrainerSearch(settings.discovery_enabled ? query : '');
+  const catalog = useCommunityCatalog({ enabled: settings.discovery_enabled });
+  const externalSearch = useExternalTrainerSearch(settings.discovery_enabled ? catalog.searchText : '');
 
-  const results = data?.results ?? [];
-  const totalCount = data?.totalCount ?? 0;
+  const initialQueryAppliedRef = useRef(false);
+  const { setSearchText } = catalog;
+  useEffect(() => {
+    if (initialQueryAppliedRef.current) {
+      return;
+    }
+    initialQueryAppliedRef.current = true;
+    if (initialQuery.trim().length > 0) {
+      setSearchText(initialQuery);
+    }
+  }, [initialQuery, setSearchText]);
 
   // Show consent dialog if feature is disabled
   const showConsent = !settings.discovery_enabled && pendingConsent;
@@ -219,24 +100,19 @@ export function TrainerDiscoveryPanel({ initialQuery = '' }: TrainerDiscoveryPan
     setPendingConsent(false);
   }, []);
 
-  const handleClearQuery = useCallback(() => {
-    setQuery('');
-  }, []);
-
   const handleImport = useCallback(
-    async (result: TrainerSearchResult) => {
-      setImportingId(result.id);
+    async (entry: CatalogEntry) => {
+      setImportingKey(catalogEntryKey(entry));
       setImportError(null);
       setImportNotice(null);
 
-      const profilePath = `${result.tapLocalPath}/${result.relativePath}/community-profile.json`;
       try {
-        await importCommunityProfile(profilePath);
-        setImportNotice(`Imported profile for ${result.gameName}.`);
+        await importCommunityProfile(entry.manifestPath);
+        setImportNotice(`Imported profile for ${entry.gameName ?? entry.relativePath}.`);
       } catch (err) {
         setImportError(err instanceof Error ? err.message : String(err));
       } finally {
-        setImportingId(null);
+        setImportingKey(null);
       }
     },
     [importCommunityProfile]
@@ -266,99 +142,31 @@ export function TrainerDiscoveryPanel({ initialQuery = '' }: TrainerDiscoveryPan
 
       {settings.discovery_enabled && (
         <>
-          <DashboardPanelSection
-            eyebrow="Search"
-            title="Find trainers"
-            summary="Search by game name or trainer title across configured community sources."
-            titleAs="h2"
-          >
-            <div className="crosshook-discovery-panel__search-row">
-              <div className="crosshook-discovery-search crosshook-discovery-panel__search-field">
-                <input
-                  id="discovery-search"
-                  className="crosshook-input"
-                  type="search"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search games or trainers..."
-                  aria-label="Search games or trainers"
-                />
-                {query.length > 0 && (
-                  <button
-                    type="button"
-                    className="crosshook-discovery-search__clear"
-                    aria-label="Clear search"
-                    onClick={handleClearQuery}
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
+          {importNotice && (
+            <div className="crosshook-warning-banner crosshook-warning-banner--section" role="status">
+              {importNotice}
             </div>
+          )}
+          {importError && (
+            <div className="crosshook-error-banner crosshook-error-banner--section" role="alert">
+              {importError}
+            </div>
+          )}
 
-            {importNotice && (
-              <div className="crosshook-warning-banner crosshook-warning-banner--section" role="status">
-                {importNotice}
-              </div>
-            )}
-            {importError && (
-              <div className="crosshook-error-banner crosshook-error-banner--section" role="alert">
-                {importError}
-              </div>
-            )}
-          </DashboardPanelSection>
+          <DiscoveryCatalogSection
+            catalog={catalog}
+            importingKey={importingKey}
+            onImport={(entry) => {
+              void handleImport(entry);
+            }}
+          />
 
           <DashboardPanelSection
-            eyebrow="Results"
-            title="Matching trainers"
-            summary="Local and online trainer results for your query."
+            eyebrow="Online"
+            title="External results"
+            summary="Online trainer results for your query from configured external sources."
             titleAs="h2"
           >
-            {!loading && query.trim() && error ? (
-              <div className="crosshook-error-banner crosshook-error-banner--section" role="alert">
-                {error}
-              </div>
-            ) : null}
-            <div
-              className="crosshook-discovery-panel__results-meta"
-              role="status"
-              aria-live="polite"
-              aria-atomic="true"
-            >
-              {loading && <span className="crosshook-muted">Searching…</span>}
-              {!loading && !error && query.trim() && totalCount > 0 && (
-                <span className="crosshook-muted">{`${totalCount} result${totalCount !== 1 ? 's' : ''}`}</span>
-              )}
-              {!loading && !error && query.trim() && totalCount === 0 && (
-                <div className="crosshook-discovery-panel__empty">
-                  <p className="crosshook-muted">No local trainers found for &ldquo;{query.trim()}&rdquo;</p>
-                  <p className="crosshook-muted crosshook-discovery-panel__empty-hint">
-                    Check the online results below, or add community taps with <code>trainer-sources.json</code>{' '}
-                    manifests for local discovery.
-                  </p>
-                </div>
-              )}
-              {!query.trim() && !loading && (
-                <span className="crosshook-muted">Enter a search query above to discover trainers.</span>
-              )}
-            </div>
-
-            {!loading && !error && results.length > 0 && (
-              <ul className="crosshook-discovery-results crosshook-list-reset">
-                {results.map((result) => (
-                  <li key={result.id}>
-                    <TrainerResultCard
-                      result={result}
-                      onImport={(r) => {
-                        void handleImport(r);
-                      }}
-                      importing={importingId === result.id}
-                    />
-                  </li>
-                ))}
-              </ul>
-            )}
-
             <ExternalResultsSection
               data={externalSearch.data}
               loading={externalSearch.loading}

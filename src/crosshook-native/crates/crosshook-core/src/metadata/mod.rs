@@ -16,14 +16,14 @@
 //! - [`store`] — `MetadataStore` struct, constructors, `with_conn*` helpers
 //! - [`util`] — shared utilities (`in_clause_placeholders`)
 //! - [`db`] — SQLite connection opening (permissions, symlink guard)
-//! - [`migrations`] — schema migrations (current: **v24**)
+//! - [`migrations`] — schema migrations (current: **v25**)
 //! - [`models`] — shared row types, error type, size limits
 //!
 //! ## Per-domain operations (`*_ops.rs` → delegates to `*_store.rs`)
 //!
 //! - [`profile_ops`] / [`profile_sync`] — profile write/rename/delete/sync
 //! - [`launcher_ops`] / [`launcher_sync`] / [`launch_history`] — launcher exports, launch ops
-//! - [`community_ops`] / [`community_index`] — community tap indexing, trainer search
+//! - [`community_ops`] / [`community_index`] — community tap indexing, catalog queries
 //! - [`collections_ops`] / [`collections`] — collections, favorites, per-collection defaults
 //! - [`cache_ops`] / [`cache_store`] — generic external cache (`external_cache_entries`)
 //! - [`umu_gameid_cache_ops`] / [`umu_gameid_cache_store`] — umu GAMEID lookup cache
@@ -120,6 +120,7 @@ mod trainer_hash_tests;
 #[cfg(test)]
 mod version_store_tests;
 
+pub use community_index::degraded_catalog_from_taps;
 pub use game_image_store::GameImageCacheRow;
 pub use health_store::HealthSnapshotRow;
 pub use models::{

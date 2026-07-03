@@ -4,6 +4,7 @@
 //! into the metadata database. It enforces A6 string length bounds and validates
 //! trainer source URLs (HTTPS-only).
 
+mod catalog;
 mod constants;
 mod helpers;
 mod indexing;
@@ -14,6 +15,7 @@ mod trainer_sources;
 mod tests;
 
 // Re-export public API (preserving existing import paths)
+pub use catalog::{degraded_catalog_from_taps, query_community_catalog};
 pub use indexing::index_community_tap_result_with_trainers;
 pub use queries::list_community_tap_profiles;
 

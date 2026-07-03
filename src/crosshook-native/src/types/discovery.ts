@@ -1,32 +1,63 @@
 export type VersionMatchStatus = 'exact' | 'compatible' | 'newer_available' | 'outdated' | 'unknown';
 
-export interface TrainerSearchQuery {
-  query: string;
-  compatibilityFilter?: string;
-  platformFilter?: string;
+export interface CatalogQuery {
+  query?: string;
+  gameTitles?: string[];
+  loadingModes?: string[];
+  compatibilityBands?: string[];
+  tapUrls?: string[];
   limit?: number;
   offset?: number;
 }
 
-export interface TrainerSearchResult {
-  id: number;
-  gameName: string;
-  steamAppId?: number;
+export interface CatalogSource {
   sourceName: string;
   sourceUrl: string;
-  trainerVersion?: string;
-  gameVersion?: string;
-  notes?: string;
-  sha256?: string;
-  relativePath: string;
-  tapUrl: string;
-  tapLocalPath: string;
-  relevanceScore: number;
+  sha256?: string | null;
+  trainerVersion?: string | null;
+  gameVersion?: string | null;
+  notes?: string | null;
 }
 
-export interface TrainerSearchResponse {
-  results: TrainerSearchResult[];
+export interface CatalogEntry {
+  id: number | null;
+  tapUrl: string;
+  tapLocalPath: string;
+  relativePath: string;
+  /** Empty for source-only entries (no community profile to import). */
+  manifestPath: string;
+  gameName?: string | null;
+  gameVersion?: string | null;
+  trainerName?: string | null;
+  trainerVersion?: string | null;
+  protonVersion?: string | null;
+  compatibilityRating?: string | null;
+  author?: string | null;
+  description?: string | null;
+  platformTags?: string | null;
+  trainerLoadingMode?: string | null;
+  schemaVersion: number;
+  sources: CatalogSource[];
+}
+
+export interface CatalogFacetValue {
+  value: string;
+  count: number;
+}
+
+export interface CatalogFacets {
+  gameTitles: CatalogFacetValue[];
+  loadingModes: CatalogFacetValue[];
+  compatibilityBands: CatalogFacetValue[];
+  taps: CatalogFacetValue[];
+}
+
+export interface CatalogPage {
+  entries: CatalogEntry[];
+  facets: CatalogFacets;
   totalCount: number;
+  tapCount: number;
+  degraded: boolean;
 }
 
 export interface VersionMatchResult {
