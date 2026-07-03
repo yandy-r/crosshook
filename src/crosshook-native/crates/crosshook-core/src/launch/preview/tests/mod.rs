@@ -3,3 +3,4 @@ mod csv_coverage;
 mod environment;
 mod fixtures;
 mod method_resolution;
+mod wrapper_details;

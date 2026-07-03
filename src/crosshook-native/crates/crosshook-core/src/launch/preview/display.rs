@@ -144,8 +144,8 @@ impl LaunchPreview {
 mod tests {
     use super::*;
     use crate::launch::preview::types::{
-        EnvVarSource, PreviewEnvVar, PreviewTrainerInfo, PreviewValidation, ProtonSetup,
-        ResolvedLaunchMethod,
+        EnvVarSource, GamescopeDecisionPreview, PreviewEnvVar, PreviewTrainerInfo,
+        PreviewValidation, ProtonSetup, ResolvedLaunchMethod,
     };
     use crate::profile::TrainerLoadingMode;
 
@@ -168,6 +168,7 @@ mod tests {
             }]),
             cleared_variables: Vec::new(),
             wrappers: None,
+            wrapper_details: None,
             effective_command: Some(r#"gamescope "C:\Games\Example.exe""#.to_string()),
             directives_error: Some("line1\nline2".to_string()),
             steam_launch_options: Some(r#""C:\Games\Example.exe""#.to_string()),
@@ -190,6 +191,14 @@ mod tests {
             generated_at: "2024-01-01T00:00:00Z".to_string(),
             display_text: String::new(),
             gamescope_active: false,
+            gamescope_decision: GamescopeDecisionPreview {
+                enabled: false,
+                allow_nested: false,
+                inside_gamescope_session: false,
+                active: false,
+                reason: "disabled in profile".to_string(),
+                mangohud_folded_into_gamescope: false,
+            },
             umu_decision: None,
         };
 

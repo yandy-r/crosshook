@@ -8,10 +8,23 @@ use super::super::{
 };
 use super::command_check::is_command_available;
 
+/// Records which optimization catalog entry pushed a wrapper token, for preview attribution.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WrapperOrigin {
+    /// Token exactly as pushed into `LaunchDirectives::wrappers`.
+    pub wrapper: String,
+    /// `OptimizationEntry::id` that contributed the wrapper.
+    pub option_id: String,
+    /// `OptimizationEntry::label` for display.
+    pub option_label: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct LaunchDirectives {
     pub env: Vec<(String, String)>,
     pub wrappers: Vec<String>,
+    #[serde(default)]
+    pub wrapper_origins: Vec<WrapperOrigin>,
 }
 
 impl LaunchDirectives {
@@ -111,6 +124,11 @@ pub(crate) fn resolve_directives_with_catalog(
 
         for wrapper in &entry.wrappers {
             directives.wrappers.push(wrapper.clone());
+            directives.wrapper_origins.push(WrapperOrigin {
+                wrapper: wrapper.clone(),
+                option_id: entry.id.clone(),
+                option_label: entry.label.clone(),
+            });
         }
     }
 
@@ -203,6 +221,46 @@ mod tests {
 
         assert_eq!(directives.wrappers, vec!["mangohud", "gamemoderun"]);
         assert!(directives.env.is_empty());
+    }
+
+    #[test]
+    fn records_wrapper_origins_aligned_with_pushed_wrappers() {
+        let catalog = make_test_catalog();
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        write_executable_file(&temp_dir.path().join("mangohud"));
+        write_executable_file(&temp_dir.path().join("gamemoderun"));
+        let _command_search_path =
+            crate::launch::test_support::ScopedCommandSearchPath::new(temp_dir.path());
+
+        let ids = vec![
+            "use_gamemode".to_string(),
+            "show_mangohud_overlay".to_string(),
+        ];
+        let directives = resolve_directives_with_catalog(&ids, METHOD_PROTON_RUN, &catalog)
+            .expect("resolve directives");
+
+        assert_eq!(
+            directives.wrapper_origins,
+            vec![
+                WrapperOrigin {
+                    wrapper: "mangohud".to_string(),
+                    option_id: "show_mangohud_overlay".to_string(),
+                    option_label: "Show MangoHud overlay".to_string(),
+                },
+                WrapperOrigin {
+                    wrapper: "gamemoderun".to_string(),
+                    option_id: "use_gamemode".to_string(),
+                    option_label: "Use GameMode".to_string(),
+                },
+            ]
+        );
+        let origin_wrappers: Vec<&str> = directives
+            .wrapper_origins
+            .iter()
+            .map(|origin| origin.wrapper.as_str())
+            .collect();
+        let wrappers: Vec<&str> = directives.wrappers.iter().map(String::as_str).collect();
+        assert_eq!(origin_wrappers, wrappers);
     }
 
     #[test]

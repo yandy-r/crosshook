@@ -9,6 +9,11 @@ import type { GameProfile } from '../types/profile';
 import type { ResolvedLaunchMethod } from './launch';
 import { groupIssuesByNode, type PipelineNodeId } from './mapValidationToNode';
 
+export interface DerivePipelineNodesOptions {
+  /** Node ids to drop from the derivation (also excluded from launch-node aggregation). */
+  omitNodes?: readonly PipelineNodeId[];
+}
+
 /**
  * Derives pipeline nodes for the launch method. Tier 1 (config-only) when `preview` is null; Tier 2
  * (preview-derived validation and resolved paths) when `preview` is set. When `phase` is not `Idle`,
@@ -16,11 +21,13 @@ import { groupIssuesByNode, type PipelineNodeId } from './mapValidationToNode';
  */
 export function derivePipelineNodes(
   method: ResolvedLaunchMethod,
-  profile: GameProfile,
+  profile: GameProfile | null,
   preview: LaunchPreview | null,
-  phase: LaunchPhase
+  phase: LaunchPhase,
+  options: DerivePipelineNodesOptions = {}
 ): PipelineNode[] {
-  const ids = METHOD_NODE_IDS[method];
+  const omit = new Set(options.omitNodes ?? []);
+  const ids = METHOD_NODE_IDS[method].filter((id) => !omit.has(id));
   const issuesByNode = preview
     ? groupIssuesByNode(preview.validation.issues)
     : new Map<PipelineNodeId, LaunchValidationIssue[]>();
@@ -124,9 +131,12 @@ const METHOD_NODE_IDS: Record<ResolvedLaunchMethod, readonly PipelineNodeId[]> =
 
 function tier1Status(
   nodeId: PipelineNodeId,
-  profile: GameProfile,
+  profile: GameProfile | null,
   _method: ResolvedLaunchMethod
 ): Extract<PipelineNodeStatus, 'configured' | 'not-configured'> {
+  if (profile === null) {
+    return 'not-configured';
+  }
   switch (nodeId) {
     case 'game':
       return profile.game.executable_path.trim() !== '' ? 'configured' : 'not-configured';
@@ -145,7 +155,7 @@ function tier1Status(
   }
 }
 
-function lastPathSegment(path: string): string {
+export function lastPathSegment(path: string): string {
   const trimmed = path.trim();
   if (!trimmed) {
     return '';

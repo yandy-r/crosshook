@@ -9,7 +9,7 @@ mod steam_options;
 pub use command_check::is_command_available;
 pub use directives::{
     is_known_launch_optimization_id, resolve_launch_directives,
-    resolve_launch_directives_for_method, LaunchDirectives,
+    resolve_launch_directives_for_method, LaunchDirectives, WrapperOrigin,
 };
 pub use gamemode::{should_register_gamemode_portal, USE_GAMEMODE_OPTIMIZATION_ID};
 pub use steam_options::{build_steam_launch_options_command, escape_steam_token};

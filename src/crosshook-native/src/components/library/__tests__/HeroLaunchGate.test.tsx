@@ -666,6 +666,23 @@ describe('HeroLaunchGate', () => {
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
+  // ── Pipeline detail panel ────────────────────────────────────────────────────
+
+  it('renders the pipeline detail toggle after a preview is available', () => {
+    renderGate();
+    const toggle = screen.getByRole('button', { name: /pipeline details/i });
+    expect(toggle).toBeInTheDocument();
+    expect(toggle).not.toBeDisabled();
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
+
+  it('pipeline details are collapsed by default', () => {
+    renderGate();
+    expect(screen.getByRole('button', { name: /pipeline details/i })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('region', { name: 'Launch pipeline details' })).not.toBeInTheDocument();
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
+
   // ── profileMismatch forwarded ────────────────────────────────────────────────
 
   it('forwards profileMismatch=true to HeroLaunchSubTabsHost', () => {

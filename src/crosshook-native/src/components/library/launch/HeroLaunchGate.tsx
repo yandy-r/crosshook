@@ -19,6 +19,7 @@ import { copyToClipboard } from '@/utils/clipboard';
 import { resolveLaunchMethod } from '@/utils/launch';
 import { LaunchPipeline } from '../../LaunchPipeline';
 import { LaunchPanelFeedback } from '../../launch-panel/LaunchPanelFeedback';
+import { PipelineDetailPanel } from '../../launch-pipeline/PipelineDetailPanel';
 import type { HeroLaunchCommandSectionProps } from './HeroLaunchCommandSection';
 import { HeroLaunchCommandSection } from './HeroLaunchCommandSection';
 import type { HeroLaunchSubTabsHostProps } from './HeroLaunchSubTabsHost';
@@ -217,6 +218,7 @@ export function HeroLaunchGate({
       {/* ── Pipeline visualization + log path + guidance ── */}
       <div className="crosshook-launch-panel__runner-stack">
         <LaunchPipeline method={launchMethod} profile={profile} preview={preview} phase={phase} />
+        <PipelineDetailPanel preview={preview} />
         {helperLogPath ? <span className="crosshook-launch-panel__indicator-copy">Log: {helperLogPath}</span> : null}
         {launchGuidanceText ? (
           <p id={launchGuidanceId} className="crosshook-launch-panel__indicator-guidance">

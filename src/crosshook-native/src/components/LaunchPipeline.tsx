@@ -1,7 +1,7 @@
 import * as Tooltip from '@radix-ui/react-tooltip';
 import type { CSSProperties } from 'react';
 import { useMemo } from 'react';
-import type { LaunchPhase, LaunchPreview, PipelineNodeStatus } from '../types/launch';
+import type { LaunchPhase, LaunchPreview, PipelineNodeId, PipelineNodeStatus } from '../types/launch';
 import type { GameProfile } from '../types/profile';
 import { derivePipelineNodes } from '../utils/derivePipelineNodes';
 import type { ResolvedLaunchMethod } from '../utils/launch';
@@ -9,9 +9,11 @@ import '../styles/launch-pipeline.css';
 
 interface LaunchPipelineProps {
   method: ResolvedLaunchMethod;
-  profile: GameProfile;
+  profile: GameProfile | null;
   preview: LaunchPreview | null;
   phase: LaunchPhase;
+  compact?: boolean;
+  omitNodes?: readonly PipelineNodeId[];
 }
 
 const STATUS_ICON: Record<PipelineNodeStatus, string> = {
@@ -47,8 +49,11 @@ const TOOLTIP_ARROW_STYLE: CSSProperties = {
   fill: 'var(--crosshook-color-surface-raised, #2a2a2e)',
 };
 
-export function LaunchPipeline({ method, profile, preview, phase }: LaunchPipelineProps) {
-  const nodes = useMemo(() => derivePipelineNodes(method, profile, preview, phase), [method, profile, preview, phase]);
+export function LaunchPipeline({ method, profile, preview, phase, compact, omitNodes }: LaunchPipelineProps) {
+  const nodes = useMemo(
+    () => derivePipelineNodes(method, profile, preview, phase, { omitNodes }),
+    [method, profile, preview, phase, omitNodes]
+  );
   const liveActiveIdx = nodes.findIndex((n) => n.status === 'active');
   const firstIssueIdx = nodes.findIndex(
     (n) => n.id !== 'launch' && (n.status === 'not-configured' || n.status === 'error')
@@ -70,7 +75,10 @@ export function LaunchPipeline({ method, profile, preview, phase }: LaunchPipeli
   }, [nodes]);
 
   return (
-    <nav className="crosshook-launch-pipeline" aria-label="Launch pipeline">
+    <nav
+      className={`crosshook-launch-pipeline${compact ? ' crosshook-launch-pipeline--compact' : ''}`}
+      aria-label="Launch pipeline"
+    >
       <ol className="crosshook-launch-pipeline__steps">
         {nodes.map((node, index) => {
           const statusText = node.detail || STATUS_LABEL[node.status];

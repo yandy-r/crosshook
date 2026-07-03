@@ -28,8 +28,9 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
     let validation_issues = validate_all(request);
     let gamescope_config = request.effective_gamescope_config();
 
-    let gamescope_active = gamescope_config.enabled
-        && (gamescope_config.allow_nested || !is_inside_gamescope_session());
+    let inside_gamescope_session = is_inside_gamescope_session();
+    let gamescope_active =
+        gamescope_config.enabled && (gamescope_config.allow_nested || !inside_gamescope_session);
 
     let (resolved_argument_tokens, command_arguments_error) =
         resolve_preview_command_arguments(request);
@@ -59,8 +60,18 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
 
     let argument_tokens = resolved_argument_tokens.as_deref();
 
+    let wrappers_had_mangohud = directives
+        .as_ref()
+        .is_some_and(|d| d.wrappers.iter().any(|w| w.trim() == "mangohud"));
+    let gamescope_decision = super::details::build_gamescope_decision(
+        &gamescope_config,
+        gamescope_active,
+        inside_gamescope_session,
+        gamescope_active && wrappers_had_mangohud,
+    );
+
     // Environment and command depend on successful directive resolution.
-    let (environment, wrappers, effective_command) = match &directives {
+    let (environment, wrappers, wrapper_details, effective_command) = match &directives {
         Some(directives) => {
             // Compute effective wrappers: prepend unshare for trainer-only + isolation.
             let effective_wrappers = if request.launch_trainer_only
@@ -74,7 +85,6 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
                 directives.wrappers.clone()
             };
 
-            let wrappers_had_mangohud = directives.wrappers.iter().any(|w| w.trim() == "mangohud");
             let mut env = Vec::new();
             collect_host_environment(&mut env);
             match resolved_method {
@@ -110,9 +120,26 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
                     None
                 }
             };
-            (Some(env), Some(effective_wrappers), effective_command)
+            let wrapper_details = if resolved_method == ResolvedLaunchMethod::Native {
+                Vec::new()
+            } else {
+                super::details::build_wrapper_details(&super::details::WrapperDetailInputs {
+                    launch_trainer_only: request.launch_trainer_only,
+                    network_isolation: request.network_isolation,
+                    unshare_available: is_unshare_net_available(),
+                    wrapper_origins: &directives.wrapper_origins,
+                    gamescope_config: &gamescope_config,
+                    gamescope_decision: &gamescope_decision,
+                })
+            };
+            (
+                Some(env),
+                Some(effective_wrappers),
+                Some(wrapper_details),
+                effective_command,
+            )
         }
-        None => (None, None, None),
+        None => (None, None, None, None),
     };
 
     // Steam launch options (for copy/paste); may still be computed when directive resolution failed
@@ -168,6 +195,7 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
         environment,
         cleared_variables,
         wrappers,
+        wrapper_details,
         effective_command,
         directives_error,
         steam_launch_options,
@@ -179,6 +207,7 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
         generated_at,
         display_text: String::new(),
         gamescope_active,
+        gamescope_decision,
         umu_decision,
     };
 

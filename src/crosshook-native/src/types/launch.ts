@@ -215,6 +215,28 @@ export interface UmuDecisionPreview {
   gameid_resolution?: UmuGameIdResolutionPreview | null;
 }
 
+export type PreviewWrapperSource = 'optimization' | 'network_isolation' | 'gamescope';
+
+export interface PreviewWrapperDetail {
+  command: string[];
+  source: PreviewWrapperSource;
+  active: boolean;
+  reason: string;
+  optimization_id: string | null;
+  optimization_label: string | null;
+  /** Set when the wrapper is absorbed into another invocation (e.g. 'gamescope --mangoapp'). */
+  folded_into?: string | null;
+}
+
+export interface GamescopeDecisionPreview {
+  enabled: boolean;
+  allow_nested: boolean;
+  inside_gamescope_session: boolean;
+  active: boolean;
+  reason: string;
+  mangohud_folded_into_gamescope: boolean;
+}
+
 export interface UmuDatabaseRefreshStatus {
   refreshed: boolean;
   cached_at: string | null;
@@ -230,6 +252,7 @@ export interface LaunchPreview {
   environment: PreviewEnvVar[] | null;
   cleared_variables: string[];
   wrappers: string[] | null;
+  wrapper_details?: PreviewWrapperDetail[] | null;
   effective_command: string | null;
   directives_error: string | null;
   steam_launch_options: string | null;
@@ -241,6 +264,7 @@ export interface LaunchPreview {
   generated_at: string;
   display_text: string;
   gamescope_active?: boolean;
+  gamescope_decision?: GamescopeDecisionPreview;
   umu_decision?: UmuDecisionPreview | null;
 }
 

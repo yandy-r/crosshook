@@ -1,5 +1,11 @@
 import type { ProfileHealthReport } from '@/types/health';
-import type { LaunchPreview, LaunchRequest } from '@/types/launch';
+import type {
+  GamescopeDecisionPreview,
+  LaunchPreview,
+  LaunchRequest,
+  PreviewWrapperDetail,
+  UmuDecisionPreview,
+} from '@/types/launch';
 import {
   type CommandArgumentCatalogPayload,
   type CommandArgumentEntry,
@@ -243,9 +249,15 @@ export function makeLaunchPreview(overrides: Partial<LaunchPreview> = {}): Launc
   return {
     resolved_method: 'proton_run',
     validation: { issues: [] },
-    environment: [{ key: 'DXVK_HUD', value: 'fps', source: 'profile_custom' }],
-    cleared_variables: [],
+    environment: [
+      { key: 'DISPLAY', value: ':0', source: 'host' },
+      { key: 'WINEPREFIX', value: '/prefixes/synthetic-quest', source: 'proton_runtime' },
+      { key: 'PROTON_NO_ESYNC', value: '1', source: 'launch_optimization' },
+      { key: 'DXVK_HUD', value: 'fps', source: 'profile_custom' },
+    ],
+    cleared_variables: ['WINEDLLOVERRIDES', 'WINEESYNC'],
     wrappers: ['gamescope'],
+    wrapper_details: [makePreviewWrapperDetail()],
     effective_command: 'gamescope -- /compat/proton run /games/synthetic-quest/game.exe',
     directives_error: null,
     steam_launch_options: null,
@@ -262,7 +274,50 @@ export function makeLaunchPreview(overrides: Partial<LaunchPreview> = {}): Launc
     trainer: null,
     generated_at: '2026-04-23T12:00:00.000Z',
     display_text: '',
+    gamescope_decision: makeGamescopeDecisionPreview(),
     umu_decision: null,
+    ...overrides,
+  };
+}
+
+/** Factory for `PreviewWrapperDetail` used in pipeline detail tests. */
+export function makePreviewWrapperDetail(overrides: Partial<PreviewWrapperDetail> = {}): PreviewWrapperDetail {
+  return {
+    command: ['gamemoderun'],
+    source: 'optimization',
+    active: true,
+    reason: "Enabled by launch optimization 'Use GameMode'",
+    optimization_id: 'use_gamemode',
+    optimization_label: 'Use GameMode',
+    folded_into: null,
+    ...overrides,
+  };
+}
+
+/** Factory for `GamescopeDecisionPreview` used in pipeline detail tests. */
+export function makeGamescopeDecisionPreview(
+  overrides: Partial<GamescopeDecisionPreview> = {}
+): GamescopeDecisionPreview {
+  return {
+    enabled: true,
+    allow_nested: false,
+    inside_gamescope_session: false,
+    active: true,
+    reason: 'active',
+    mangohud_folded_into_gamescope: false,
+    ...overrides,
+  };
+}
+
+/** Factory for `UmuDecisionPreview` used in pipeline detail and command section tests. */
+export function makeUmuDecisionPreview(overrides: Partial<UmuDecisionPreview> = {}): UmuDecisionPreview {
+  return {
+    requested_preference: 'auto',
+    umu_run_path_on_backend_path: '/usr/bin/umu-run',
+    will_use_umu: true,
+    reason: 'using umu-run at /usr/bin/umu-run',
+    csv_coverage: 'found',
+    gameid_resolution: null,
     ...overrides,
   };
 }

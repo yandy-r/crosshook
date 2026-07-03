@@ -1,6 +1,13 @@
 import type { DiagnosticReport } from '../../../types/diagnostics';
 import type { InjectionLogEvent } from '../../../types/injection';
-import type { LaunchPreview, LaunchRequest, LaunchResult, LaunchValidationIssue } from '../../../types/launch';
+import type {
+  GamescopeDecisionPreview,
+  LaunchPreview,
+  LaunchRequest,
+  LaunchResult,
+  LaunchValidationIssue,
+  PreviewWrapperDetail,
+} from '../../../types/launch';
 import type { LaunchHistoryEntry } from '../../../types/library';
 import { getActiveFixture } from '../../fixture';
 import { emitMockEvent } from '../eventBus';
@@ -210,6 +217,64 @@ function makePreviewEnvVars(): LaunchPreview['environment'] {
     { key: 'PROTON_LOG', value: '1', source: 'launch_optimization' },
     { key: 'MOCK_ENV', value: 'devuser', source: 'host' },
   ];
+}
+
+function buildMockGamescopeDecision(request: LaunchRequest): GamescopeDecisionPreview {
+  const gamescopeEnabled = request.gamescope?.enabled ?? false;
+  return {
+    enabled: gamescopeEnabled,
+    allow_nested: request.gamescope?.allow_nested ?? false,
+    inside_gamescope_session: false,
+    active: gamescopeEnabled,
+    reason: gamescopeEnabled ? 'active' : 'disabled in profile',
+    mangohud_folded_into_gamescope:
+      gamescopeEnabled && (request.optimizations?.enabled_option_ids ?? []).includes('show_mangohud_overlay'),
+  };
+}
+
+function buildMockWrapperDetails(request: LaunchRequest, decision: GamescopeDecisionPreview): PreviewWrapperDetail[] {
+  const details: PreviewWrapperDetail[] = [];
+  const gamescopeDetail: PreviewWrapperDetail | null = decision.enabled
+    ? {
+        command: ['gamescope', '--'],
+        source: 'gamescope',
+        active: decision.active,
+        reason: decision.reason,
+        optimization_id: null,
+        optimization_label: null,
+        folded_into: null,
+      }
+    : null;
+  if (gamescopeDetail?.active) {
+    details.push(gamescopeDetail);
+  }
+  for (const id of request.optimizations?.enabled_option_ids ?? []) {
+    if (id === 'use_gamemode') {
+      details.push({
+        command: ['gamemoderun'],
+        source: 'optimization',
+        active: true,
+        reason: "Enabled by launch optimization 'Use GameMode'",
+        optimization_id: 'use_gamemode',
+        optimization_label: 'Use GameMode',
+        folded_into: null,
+      });
+    } else if (id === 'show_mangohud_overlay') {
+      details.push({
+        command: ['mangohud'],
+        source: 'optimization',
+        active: true,
+        reason: "Enabled by launch optimization 'Show MangoHud overlay'",
+        optimization_id: 'show_mangohud_overlay',
+        optimization_label: 'Show MangoHud overlay',
+        folded_into: decision.mangohud_folded_into_gamescope ? 'gamescope --mangoapp' : null,
+      });
+    }
+  }
+  if (gamescopeDetail && !gamescopeDetail.active) {
+    details.push(gamescopeDetail);
+  }
+  return details;
 }
 
 function scheduleLaunchTimeout(callback: () => void, delayMs: number): void {
@@ -473,6 +538,7 @@ export function registerLaunch(map: Map<string, Handler>): void {
         environment: null,
         cleared_variables: [],
         wrappers: null,
+        wrapper_details: null,
         effective_command: null,
         directives_error: isNative ? null : 'Mock directive resolution error',
         steam_launch_options: null,
@@ -491,6 +557,14 @@ export function registerLaunch(map: Map<string, Handler>): void {
         trainer: null,
         generated_at: new Date().toISOString(),
         display_text: 'Mock preview with validation issues for pipeline Tier 2.',
+        gamescope_decision: {
+          enabled: false,
+          allow_nested: false,
+          inside_gamescope_session: false,
+          active: false,
+          reason: 'disabled in profile',
+          mangohud_folded_into_gamescope: false,
+        },
         umu_decision: null,
       };
       return previewWithIssues;
@@ -501,6 +575,13 @@ export function registerLaunch(map: Map<string, Handler>): void {
     const mockUmuRun = '/usr/bin/umu-run';
     const mockUsesUmu = method === 'proton_run';
 
+    const gamescopeDecision = buildMockGamescopeDecision(request);
+    const wrapperDetails = buildMockWrapperDetails(request, gamescopeDecision);
+    const wrapperTokens = wrapperDetails
+      .filter((detail) => detail.active && !detail.folded_into)
+      .map((detail) => detail.command.join(' '));
+    const wrapperPrefix = wrapperTokens.length > 0 ? `${wrapperTokens.join(' ')} ` : '';
+
     const commandArgumentTokens = request.launch_trainer_only
       ? []
       : resolveMockCommandArgumentTokens(
@@ -509,9 +590,10 @@ export function registerLaunch(map: Map<string, Handler>): void {
           method === 'steam_applaunch' ? 'steam_applaunch' : 'proton_run'
         );
 
+    const argumentSuffix = commandArgumentTokens.length > 0 ? ` ${commandArgumentTokens.join(' ')}` : '';
     const protonEffectiveCommand = mockUsesUmu
-      ? `gamescope mangohud -- ${mockUmuRun} ${mockGameExe}${commandArgumentTokens.length > 0 ? ` ${commandArgumentTokens.join(' ')}` : ''}`
-      : `${mockProtonExe} run ${mockGameExe}${commandArgumentTokens.length > 0 ? ` ${commandArgumentTokens.join(' ')}` : ''}`;
+      ? `${wrapperPrefix}${mockUmuRun} ${mockGameExe}${argumentSuffix}`
+      : `${wrapperPrefix}${mockProtonExe} run ${mockGameExe}${argumentSuffix}`;
 
     const steamLaunchOptionsBase =
       method === 'steam_applaunch'
@@ -530,8 +612,9 @@ export function registerLaunch(map: Map<string, Handler>): void {
       resolved_method: method,
       validation: { issues: [] },
       environment: makePreviewEnvVars(),
-      cleared_variables: ['LD_PRELOAD'],
-      wrappers: ['gamescope', 'mangohud'],
+      cleared_variables: ['WINEDLLOVERRIDES', 'WINEESYNC'],
+      wrappers: wrapperTokens,
+      wrapper_details: wrapperDetails,
       effective_command:
         method === 'steam_applaunch' ? steamLaunchOptions : method === 'native' ? mockGameExe : protonEffectiveCommand,
       directives_error: null,
@@ -560,6 +643,8 @@ export function registerLaunch(map: Map<string, Handler>): void {
           : null,
       generated_at: new Date().toISOString(),
       display_text: 'Mock preview: game will be launched via Proton with PROTON_LOG=1 and esync enabled.',
+      gamescope_active: gamescopeDecision.active,
+      gamescope_decision: gamescopeDecision,
       umu_decision:
         method === 'proton_run'
           ? (() => {
@@ -625,7 +710,6 @@ export function registerLaunch(map: Map<string, Handler>): void {
             },
           ],
         },
-        wrappers: ['gamescope'],
         display_text: 'Mock preview with warning-severity validation.',
       };
     }

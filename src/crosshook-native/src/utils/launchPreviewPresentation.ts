@@ -1,4 +1,4 @@
-import type { EnvVarSource, PreviewEnvVar, UmuGameIdResolutionSource } from '@/types/launch';
+import type { EnvVarSource, UmuGameIdResolutionSource } from '@/types/launch';
 
 /** Returns a readable label for a launch preview method identifier. */
 export function launchMethodLabel(method: string): string {
@@ -28,21 +28,6 @@ export function envSourceLabel(source: EnvVarSource): string {
     case 'profile_custom':
       return 'Profile custom';
   }
-}
-
-/** Groups preview environment variables by their display source label. */
-export function groupPreviewEnvBySource(vars: PreviewEnvVar[]): [string, PreviewEnvVar[]][] {
-  const groups = new Map<string, PreviewEnvVar[]>();
-  for (const envVar of vars) {
-    const label = envSourceLabel(envVar.source);
-    const list = groups.get(label);
-    if (list) {
-      list.push(envVar);
-    } else {
-      groups.set(label, [envVar]);
-    }
-  }
-  return Array.from(groups.entries());
 }
 
 export function umuGameIdResolutionSourceLabel(source: UmuGameIdResolutionSource): string {

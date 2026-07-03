@@ -107,6 +107,10 @@ pub struct LaunchPreview {
     /// None when directive resolution fails.
     pub wrappers: Option<Vec<String>>,
 
+    /// Per-wrapper attribution and active/inactive rationale, in invocation order.
+    /// None when directive resolution fails (mirrors `wrappers`).
+    pub wrapper_details: Option<Vec<PreviewWrapperDetail>>,
+
     /// Human-readable effective command string.
     /// None when directive resolution fails.
     pub effective_command: Option<String>,
@@ -142,6 +146,9 @@ pub struct LaunchPreview {
     /// Whether gamescope will be active for this launch.
     pub gamescope_active: bool,
 
+    /// Structured gamescope decision (why gamescope will or will not run).
+    pub gamescope_decision: GamescopeDecisionPreview,
+
     /// Diagnostic: how the umu decision was resolved for this preview.
     /// Only populated for `proton_run` method; `None` for `steam_applaunch` and `native`.
     pub umu_decision: Option<UmuDecisionPreview>,
@@ -163,4 +170,43 @@ pub struct UmuDecisionPreview {
     pub csv_coverage: crate::umu_database::CsvCoverage,
     /// Runtime GAMEID resolution details used by the command builder.
     pub gameid_resolution: Option<crate::launch::request::UmuGameIdResolution>,
+}
+
+/// Why a wrapper token appears in the preview chain.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PreviewWrapperSource {
+    Optimization,
+    NetworkIsolation,
+    Gamescope,
+}
+
+/// One wrapper in the launch chain, in process-invocation order, with attribution.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PreviewWrapperDetail {
+    /// Command tokens: ["gamemoderun"], ["unshare", "--net"], ["gamescope", <args...>, "--"].
+    pub command: Vec<String>,
+    pub source: PreviewWrapperSource,
+    /// False when configured but will not run (nested-gamescope skip, unshare unavailable).
+    pub active: bool,
+    /// Human-readable why, e.g. "Enabled by launch optimization 'Show MangoHud overlay'".
+    pub reason: String,
+    /// Some iff `source == Optimization`.
+    pub optimization_id: Option<String>,
+    pub optimization_label: Option<String>,
+    /// Some when this wrapper does not run standalone but is absorbed into another
+    /// wrapper's invocation (e.g. mangohud folded into `gamescope --mangoapp`).
+    pub folded_into: Option<String>,
+}
+
+/// Structured gamescope rationale for the preview (always present).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct GamescopeDecisionPreview {
+    pub enabled: bool,
+    pub allow_nested: bool,
+    pub inside_gamescope_session: bool,
+    /// Mirrors `LaunchPreview::gamescope_active` (kept for compat).
+    pub active: bool,
+    pub reason: String,
+    pub mangohud_folded_into_gamescope: bool,
 }

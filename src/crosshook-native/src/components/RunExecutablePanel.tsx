@@ -1,11 +1,19 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { usePreferencesContext } from '../context/PreferencesContext';
+import { usePreviewState } from '../hooks/usePreviewState';
 import { useRunExecutable } from '../hooks/useRunExecutable';
+import { LaunchPhase, type PipelineNodeId } from '../types/launch';
 import type { RunExecutableStage } from '../types/run-executable';
+import { buildRunExecutablePreviewRequest } from '../utils/runExecutablePreview';
+import { LaunchPipeline } from './LaunchPipeline';
+import { PipelineDetailPanel } from './launch-pipeline/PipelineDetailPanel';
 import type { ProtonInstallOption } from './ProfileFormSections';
 import { InstallField } from './ui/InstallField';
 import { ProtonPathField } from './ui/ProtonPathField';
 
 const RUNNING_WARNING_ID = 'run-executable-running-warning';
+
+const RUN_EXE_OMIT_NODES: readonly PipelineNodeId[] = ['trainer', 'optimizations'];
 
 export interface RunExecutablePanelProps {
   protonInstalls: ProtonInstallOption[];
@@ -54,6 +62,27 @@ export function RunExecutablePanel({ protonInstalls, protonInstallsError }: RunE
   const [showConfirmation, setShowConfirmation] = useState(false);
   const cancelButtonRef = useRef<HTMLButtonElement | null>(null);
   const triggerButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  const { settings } = usePreferencesContext();
+  const { preview, requestPreview, clearPreview } = usePreviewState();
+
+  const previewRequest = useMemo(
+    () => buildRunExecutablePreviewRequest(request, settings.umu_preference),
+    [request, settings.umu_preference]
+  );
+
+  useEffect(() => {
+    if (previewRequest === null) {
+      clearPreview();
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      void requestPreview(previewRequest);
+    }, 400);
+    return () => window.clearTimeout(handle);
+  }, [previewRequest, requestPreview, clearPreview]);
+
+  const pipelinePhase = stage === 'preparing' || stage === 'running' ? LaunchPhase.GameLaunching : LaunchPhase.Idle;
 
   const logPath = result?.helper_log_path ?? '';
   const resolvedPrefixPath = result?.resolved_prefix_path ?? '';
@@ -150,6 +179,25 @@ export function RunExecutablePanel({ protonInstalls, protonInstallsError }: RunE
               helpText="Optional override for the process current directory."
             />
           </div>
+        </div>
+
+        <div className="crosshook-install-section">
+          <div className="crosshook-install-section-title">Launch pipeline</div>
+          <LaunchPipeline
+            method="proton_run"
+            profile={null}
+            preview={preview}
+            phase={pipelinePhase}
+            compact
+            omitNodes={RUN_EXE_OMIT_NODES}
+          />
+          {request.prefix_path.trim() === '' ? (
+            <p className="crosshook-help-text">
+              Prefix will be auto-created under _run-adhoc/ at run time — the preview shows the prefix step as not
+              configured because the slug is resolved server-side.
+            </p>
+          ) : null}
+          <PipelineDetailPanel preview={preview} />
         </div>
 
         <div className="crosshook-install-review">
