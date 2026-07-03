@@ -27,7 +27,10 @@ use super::shared::{
     LaunchResult, LaunchStreamContext,
 };
 use super::streaming::spawn_log_stream;
-use super::warnings::{collect_offline_launch_warnings, collect_trainer_hash_launch_warnings_ipc};
+use super::warnings::{
+    coexistence_records_from_warnings, collect_mod_coexistence_warnings_ipc,
+    collect_offline_launch_warnings, collect_trainer_hash_launch_warnings_ipc,
+};
 use crate::commands::shared::{create_log_path, sanitize_display_path};
 
 /// Thin wrapper around the core key-derivation helper so launch-registration
@@ -79,11 +82,20 @@ pub async fn launch_game(
     warnings.append(
         &mut collect_trainer_hash_launch_warnings_ipc(
             request.profile_name.clone(),
-            profile_store,
+            profile_store.clone(),
             metadata_store.clone(),
         )
         .await,
     );
+    let mod_warnings = collect_mod_coexistence_warnings_ipc(
+        &request,
+        request.profile_name.clone(),
+        profile_store,
+        metadata_store.clone(),
+    )
+    .await;
+    let coexistence_advisories = coexistence_records_from_warnings(&mod_warnings);
+    warnings.extend(mod_warnings);
     let method: &'static str = match request.resolved_method() {
         METHOD_STEAM_APPLAUNCH => METHOD_STEAM_APPLAUNCH,
         METHOD_PROTON_RUN => METHOD_PROTON_RUN,
@@ -184,6 +196,7 @@ pub async fn launch_game(
         session_id,
         session_kind: SessionKind::Game,
         session_registry: session_registry.clone(),
+        coexistence_advisories,
         hook_context: LaunchHookStreamContext {
             post_exit_hooks: request.post_exit_hooks.clone(),
             execution_context: hook_context,
@@ -245,11 +258,20 @@ pub async fn launch_trainer(
     warnings.append(
         &mut collect_trainer_hash_launch_warnings_ipc(
             request.profile_name.clone(),
-            profile_store,
+            profile_store.clone(),
             metadata_store.clone(),
         )
         .await,
     );
+    let mod_warnings = collect_mod_coexistence_warnings_ipc(
+        &request,
+        request.profile_name.clone(),
+        profile_store,
+        metadata_store.clone(),
+    )
+    .await;
+    let coexistence_advisories = coexistence_records_from_warnings(&mod_warnings);
+    warnings.extend(mod_warnings);
     let resolved_method: &'static str = match request.resolved_method() {
         METHOD_STEAM_APPLAUNCH => METHOD_STEAM_APPLAUNCH,
         METHOD_PROTON_RUN => METHOD_PROTON_RUN,
@@ -428,6 +450,7 @@ pub async fn launch_trainer(
         session_id,
         session_kind: SessionKind::Trainer,
         session_registry: session_registry.clone(),
+        coexistence_advisories,
         hook_context: LaunchHookStreamContext {
             post_exit_hooks: request.post_exit_hooks.clone(),
             execution_context: hook_context,

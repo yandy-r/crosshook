@@ -59,6 +59,11 @@ describe('useScrollEnhance selectors', () => {
     expect(matches?.length).toBe(1);
   });
 
+  it('registers the mods detection review list exactly once', () => {
+    const matches = SCROLL_ENHANCE_SELECTORS.match(/\.crosshook-mods-review__list\b/g);
+    expect(matches?.length).toBe(1);
+  });
+
   it('falls back to the nearest scrollable ancestor when a registered child cannot scroll', () => {
     const outer = document.createElement('div');
     outer.className = 'crosshook-route-card-scroll';

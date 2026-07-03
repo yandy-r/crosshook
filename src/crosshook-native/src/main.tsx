@@ -31,6 +31,7 @@ import './styles/palette.css';
 import './styles/hero-detail.css';
 import './styles/breadcrumb.css';
 import './styles/collections-sidebar.css';
+import './styles/mods.css';
 
 if (import.meta.env.DEV) {
   void import('./lib/ipc').then(({ callCommand }) => {

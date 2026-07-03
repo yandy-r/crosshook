@@ -1,0 +1,267 @@
+/* Mod coexistence registry (Hero Detail → Trainer tab) */
+
+.crosshook-mods {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.crosshook-mods__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.crosshook-mods__empty {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--crosshook-color-text-muted);
+}
+
+.crosshook-mods__notice,
+.crosshook-mods__hint {
+  margin: 0;
+  color: var(--crosshook-color-text-subtle);
+  font-size: 0.85rem;
+}
+
+.crosshook-mods-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.crosshook-mods-list__item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--crosshook-color-border);
+  border-radius: var(--crosshook-radius-sm);
+  background: var(--crosshook-color-bg-elevated);
+}
+
+.crosshook-mods-list__item--disabled {
+  opacity: 0.55;
+}
+
+.crosshook-mods-list__main,
+.crosshook-mods-list__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.crosshook-mods-list__name {
+  font-weight: 600;
+  max-width: 18rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crosshook-mods-list__chip,
+.crosshook-mods-list__badge {
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--crosshook-color-border);
+  color: var(--crosshook-color-text-muted);
+}
+
+.crosshook-mods-list__badge[data-provenance='detected'] {
+  border-color: var(--crosshook-color-accent);
+  color: var(--crosshook-color-accent);
+}
+
+.crosshook-mods-list__toggle {
+  appearance: none;
+  border: 1px solid var(--crosshook-color-border);
+  background: var(--crosshook-color-surface-strong);
+  border-radius: 999px;
+  width: 34px;
+  height: 18px;
+  padding: 2px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+
+.crosshook-mods-list__toggle-track {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--crosshook-color-text-subtle);
+  transition: transform 120ms ease, background-color 120ms ease;
+}
+
+.crosshook-mods-list__toggle[aria-checked='true'] .crosshook-mods-list__toggle-track {
+  transform: translateX(16px);
+  background: var(--crosshook-color-accent);
+}
+
+.crosshook-mods-list__paths {
+  font-family: var(--crosshook-font-mono);
+  font-size: 0.78rem;
+  color: var(--crosshook-color-text-subtle);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 20rem;
+}
+
+.crosshook-mods-list__actions {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.crosshook-mods-list__editor {
+  list-style: none;
+  padding: 8px;
+  border-left: 2px solid var(--crosshook-color-accent);
+}
+
+.crosshook-mods-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.crosshook-mods-form__row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.crosshook-mods-form__row--inline {
+  flex-direction: row;
+  align-items: center;
+}
+
+.crosshook-mods-form__paths {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid var(--crosshook-color-border);
+  border-radius: var(--crosshook-radius-sm);
+  padding: 8px;
+}
+
+.crosshook-mods-form__path-row {
+  display: flex;
+  gap: 4px;
+}
+
+.crosshook-mods-form__help {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--crosshook-color-text-subtle);
+}
+
+.crosshook-mods-form__error {
+  margin: 0;
+  color: var(--crosshook-color-danger);
+  font-size: 0.85rem;
+}
+
+.crosshook-mods-form__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.crosshook-mods-review__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.crosshook-mods-review__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  max-height: 40vh;
+  overscroll-behavior: contain;
+}
+
+.crosshook-mods-review__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.crosshook-mods-review__name {
+  font-weight: 600;
+}
+
+.crosshook-mods-review__registered {
+  font-size: 0.78rem;
+  color: var(--crosshook-color-text-subtle);
+}
+
+.crosshook-mods-review__paths {
+  margin: 0 0 0 26px;
+  font-family: var(--crosshook-font-mono);
+  font-size: 0.78rem;
+  color: var(--crosshook-color-text-subtle);
+}
+
+.crosshook-mods-review__notice,
+.crosshook-mods-review__empty {
+  margin: 0;
+  color: var(--crosshook-color-text-muted);
+}
+
+.crosshook-mods-review__failures p {
+  margin: 0;
+  color: var(--crosshook-color-danger);
+  font-size: 0.85rem;
+}
+
+.crosshook-mods-review__footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 8px;
+}
+
+.crosshook-mods-advisories {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.crosshook-mods-advisories__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.crosshook-mods-advisories__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.crosshook-mods-advisories__empty,
+.crosshook-mods-advisories__message,
+.crosshook-mods-advisories__help {
+  margin: 0;
+}
+
+.crosshook-mods-advisories__help {
+  color: var(--crosshook-color-text-subtle);
+  font-size: 0.82rem;
+}

@@ -8,6 +8,7 @@ pub mod diagnostics;
 pub mod env;
 pub mod hooks;
 pub mod mangohud_presets;
+pub mod mod_coexistence;
 pub mod optimizations;
 pub mod preview;
 pub mod request;
@@ -30,11 +31,18 @@ pub use command_arguments::{
     resolve_command_arguments_for_method, CommandArgumentCatalog, CommandArgumentEntry,
     CommandArgumentResolveError, ResolvedCommandArguments,
 };
-pub use diagnostics::{analyze, should_surface_report, DiagnosticReport};
+pub use diagnostics::{
+    analyze, should_surface_report, CoexistenceAdvisoryRecord, DiagnosticReport,
+};
 pub use env::{
     BUILTIN_LAUNCH_OPTIMIZATION_ENV_VARS, PASSTHROUGH_DISPLAY_VARS, REQUIRED_PROTON_VARS,
     WINE_ENV_VARS_TO_CLEAR,
 };
+pub use mod_coexistence::{
+    analyze_profile_mod_coexistence, collect_mod_coexistence_launch_warnings,
+    MAX_COEXISTENCE_ADVISORY_RECORDS,
+};
+
 pub use hooks::{
     build_launch_hook_execution_context, run_post_exit_hooks, run_pre_launch_hooks,
     LaunchHookExecutionContext, DEFAULT_HOOK_TIMEOUT,

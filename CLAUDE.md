@@ -74,7 +74,8 @@ For storage changes, plans must also:
 
 Operational metadata lives in **`~/.local/share/crosshook/metadata.db`** (WAL, `0600`). Migrations: `src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs`.
 
-- **Current schema version**: **25**
+- **Current schema version**: **26**
+- **Migration v25→v26**: adds `profile_mods` — per-profile mod coexistence registry (machine-local; drives trainer coexistence advisories; never exported with community profiles).
 - **Migration v24→v25**: adds nullable `community_profiles.trainer_loading_mode` for the discovery catalog loading-mode facet; resets tap watermarks (`last_head_commit`) so the next community sync backfills the column offline. No new tables.
 - **Migration v23→v24**: adds `umu_gameid_lookup_cache` for the opt-in umu GAMEID HTTP resolver, including cached hits, misses, and stale fallback metadata.
 - **Migration v22→v23**: evicts `proton_release_catalog` rows so additive DTO fields (e.g. `published_at`) repopulate on next fetch. No schema change.

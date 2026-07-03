@@ -5,7 +5,8 @@ import { emitMockEvent, resetBrowserEventBus } from '@/lib/events';
 import { makeLibraryCardData, makeProfileDraft } from '@/test/fixtures';
 import type { InjectionLogEvent } from '@/types/injection';
 import type { GameProfile, LoadedDllHook } from '@/types/profile';
-import { HeroDetailTrainerTab } from '../HeroDetailTrainerTab';
+import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '@/types/profile';
+import { HeroDetailTrainerTab, trainerAdvisorySignature } from '../HeroDetailTrainerTab';
 
 const profileContextMock = vi.fn();
 const updateProfileSpy = vi.fn();
@@ -277,6 +278,15 @@ describe('HeroDetailTrainerTab', () => {
     }
   });
 
+  it('hides the mods section behind the profile mismatch status', () => {
+    renderTrainerTab({ displayProfileName: 'Other Quest' });
+
+    expect(screen.getByRole('heading', { name: 'Installed mods' })).toBeInTheDocument();
+    expect(screen.getByText('Select Other Quest to manage its mod registry here.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Scan game directory' })).not.toBeInTheDocument();
+    expect(screen.queryByText('No mods registered for this game yet.')).not.toBeInTheDocument();
+  });
+
   it('renders stored-only unsupported runtime messaging for matching injection log events', async () => {
     renderTrainerTab();
 
@@ -314,6 +324,31 @@ describe('HeroDetailTrainerTab', () => {
     expect(screen.queryByText('Ignored event.')).not.toBeInTheDocument();
     expect(screen.queryByText('Malformed event.')).not.toBeInTheDocument();
     expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
+
+  it('trainerAdvisorySignature changes for every advisory input', () => {
+    const base = makeProfile();
+    const signature = trainerAdvisorySignature(base);
+    expect(trainerAdvisorySignature(makeProfile())).toBe(signature);
+
+    const variants: [string, GameProfile][] = [
+      ['trainer path', { ...base, trainer: { ...base.trainer, path: '/trainers/other.exe' } }],
+      ['loading mode', { ...base, trainer: { ...base.trainer, loading_mode: 'copy_to_prefix' } }],
+      ['launch method', { ...base, launch: { ...base.launch, method: 'native' } }],
+      [
+        'mangohud enabled',
+        { ...base, launch: { ...base.launch, mangohud: { ...DEFAULT_MANGOHUD_CONFIG, enabled: true } } },
+      ],
+      [
+        'gamescope enabled',
+        { ...base, launch: { ...base.launch, gamescope: { ...DEFAULT_GAMESCOPE_CONFIG, enabled: true } } },
+      ],
+      ['injection method', { ...base, injection: { ...base.injection, method: 'load_library' } }],
+      ['injection dll paths', { ...base, injection: { ...base.injection, dll_paths: ['/hooks/extra.dll'] } }],
+    ];
+    for (const [label, variant] of variants) {
+      expect(trainerAdvisorySignature(variant), `signature must change when ${label} changes`).not.toBe(signature);
+    }
   });
 
   it('caps the recent injection log at 200 rows', async () => {

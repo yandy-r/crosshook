@@ -16,7 +16,7 @@
 //! - [`store`] — `MetadataStore` struct, constructors, `with_conn*` helpers
 //! - [`util`] — shared utilities (`in_clause_placeholders`)
 //! - [`db`] — SQLite connection opening (permissions, symlink guard)
-//! - [`migrations`] — schema migrations (current: **v25**)
+//! - [`migrations`] — schema migrations (current: **v26**)
 //! - [`models`] — shared row types, error type, size limits
 //!
 //! ## Per-domain operations (`*_ops.rs` → delegates to `*_store.rs`)
@@ -27,6 +27,7 @@
 //! - [`collections_ops`] / [`collections`] — collections, favorites, per-collection defaults
 //! - [`cache_ops`] / [`cache_store`] — generic external cache (`external_cache_entries`)
 //! - [`umu_gameid_cache_ops`] / [`umu_gameid_cache_store`] — umu GAMEID lookup cache
+//! - [`mods_ops`] / [`mods_store`] — per-profile mod coexistence registry (`profile_mods`)
 //! - [`launch_queries`] — usage-insights queries (`query_most_launched`, etc.)
 //! - [`health_ops`] / [`health_store`] — profile health snapshots
 //! - [`game_image_ops`] / [`game_image_store`] — Steam game image cache
@@ -47,6 +48,7 @@
 //! - [`cache_tests`], [`collections_crud_tests`], [`collections_defaults_tests`]
 //! - [`collections_favorites_tests`], [`launch_queries_tests`]
 //! - [`migrations_sanity_tests`], [`trainer_hash_tests`]
+//! - [`mods_tests`], [`mods_launch_tests`]
 //! - [`version_store_tests`], [`correlation_status_tests`]
 //!
 //! This layout is a refactor of a previously-3,747-line `mod.rs`; see issue #291.
@@ -71,6 +73,8 @@ mod launcher_ops;
 mod launcher_sync;
 mod migrations;
 mod models;
+mod mods_ops;
+mod mods_store;
 mod offline_ops;
 pub(crate) mod offline_store;
 mod optimization_catalog_store;
@@ -111,6 +115,10 @@ mod launch_queries_tests;
 mod launcher_tests;
 #[cfg(test)]
 mod migrations_sanity_tests;
+#[cfg(test)]
+mod mods_launch_tests;
+#[cfg(test)]
+mod mods_tests;
 #[cfg(test)]
 mod profile_sync_tests;
 #[cfg(test)]

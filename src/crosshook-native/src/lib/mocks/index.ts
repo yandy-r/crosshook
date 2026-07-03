@@ -22,6 +22,7 @@ import { resetLaunchMockState } from './handlers/launch';
 import { registerLauncher } from './handlers/launcher';
 import { registerLibrary } from './handlers/library';
 import { registerLutris } from './handlers/lutris';
+import { registerMods, resetModsMockState } from './handlers/mods';
 import { registerOnboarding, resetOnboardingMockState } from './handlers/onboarding';
 import { resetProfileMockState } from './handlers/profile';
 import { registerProton } from './handlers/proton';
@@ -58,6 +59,7 @@ export function registerMocks(): Map<string, Handler> {
   registerLibrary(map);
   registerSystem(map);
   registerCollections(map);
+  registerMods(map);
   registerUmuDatabase(map);
 
   // Wrap every handler with the orthogonal debug-toggle middleware
@@ -75,6 +77,7 @@ export function resetMockEnvironment(): void {
   resetHealthMockState();
   resetInstallMockState();
   resetLaunchMockState();
+  resetModsMockState();
   resetOnboardingMockState();
   resetProfileMockState();
   resetProtonDbMockState();

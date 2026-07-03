@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use crosshook_core::launch::{
-    LaunchHookExecutionContext, LaunchSessionRegistry, LaunchValidationIssue, SessionId,
-    SessionKind, WatchdogOutcome,
+    CoexistenceAdvisoryRecord, LaunchHookExecutionContext, LaunchSessionRegistry,
+    LaunchValidationIssue, SessionId, SessionKind, WatchdogOutcome,
 };
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::LaunchHook;
@@ -197,6 +197,7 @@ pub(crate) struct LaunchStreamContext {
     pub(crate) session_id: SessionId,
     pub(crate) session_kind: SessionKind,
     pub(crate) session_registry: Arc<LaunchSessionRegistry>,
+    pub(crate) coexistence_advisories: Vec<CoexistenceAdvisoryRecord>,
     pub(crate) hook_context: LaunchHookStreamContext,
 }
 

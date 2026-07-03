@@ -8,10 +8,12 @@ use crosshook_core::launch::{
     METHOD_STEAM_APPLAUNCH,
 };
 use crosshook_core::metadata::{LaunchHistoryEntry, MetadataStore, MAX_HISTORY_LIST_LIMIT};
-use crosshook_core::profile::GamescopeConfig;
+use crosshook_core::profile::{GamescopeConfig, ProfileStore};
 use crosshook_core::settings::{AppSettingsData, SettingsStore};
 use crosshook_core::umu_database;
 use tauri::State;
+
+use super::warnings::collect_mod_coexistence_warnings_ipc;
 
 fn map_error(e: impl ToString) -> String {
     e.to_string()
@@ -27,6 +29,7 @@ pub async fn preview_launch(
     request: LaunchRequest,
     settings_store: State<'_, SettingsStore>,
     metadata_store: State<'_, MetadataStore>,
+    profile_store: State<'_, ProfileStore>,
 ) -> Result<LaunchPreview, String> {
     let mut request = request;
     let settings = settings_store
@@ -36,7 +39,17 @@ pub async fn preview_launch(
         umu_database::resolve_umu_game_id(&request, settings.umu_database_lookup, &metadata_store)
             .await,
     );
-    build_launch_preview(&request).map_err(|error| error.to_string())
+    let mut preview = build_launch_preview(&request).map_err(|error| error.to_string())?;
+    preview.validation.issues.extend(
+        collect_mod_coexistence_warnings_ipc(
+            &request,
+            request.profile_name.clone(),
+            profile_store.inner().clone(),
+            metadata_store.inner().clone(),
+        )
+        .await,
+    );
+    Ok(preview)
 }
 
 /// Builds a Steam per-game “Launch Options” line from the same optimization IDs as `proton_run`,

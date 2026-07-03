@@ -53,10 +53,14 @@ fn migration_24_to_25_resets_tap_watermarks() {
     let conn = db::open_in_memory().unwrap();
     run_migrations(&conn).unwrap();
 
-    // Rebuild the v24 steady state: no trainer_loading_mode column, a stored
-    // watermark, and user_version pinned at 24 so run_migrations replays 24→25.
-    conn.execute_batch("ALTER TABLE community_profiles DROP COLUMN trainer_loading_mode")
-        .unwrap();
+    // Rebuild the v24 steady state: no trainer_loading_mode column, no
+    // profile_mods table (added in v26), a stored watermark, and user_version
+    // pinned at 24 so run_migrations replays 24→25 (and 25→26).
+    conn.execute_batch(
+        "ALTER TABLE community_profiles DROP COLUMN trainer_loading_mode;
+         DROP TABLE profile_mods;",
+    )
+    .unwrap();
     conn.pragma_update(None, "user_version", 24_u32).unwrap();
     conn.execute(
         "INSERT INTO community_taps (

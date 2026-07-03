@@ -10,8 +10,8 @@ use chrono::Utc;
 use crate::launch::request::{ValidationSeverity, METHOD_STEAM_APPLAUNCH};
 
 pub use models::{
-    ActionableSuggestion, DiagnosticReport, ExitCodeInfo, FailureMode, PatternMatch,
-    MAX_DIAGNOSTIC_ENTRIES, MAX_LINE_DISPLAY_CHARS, MAX_LOG_TAIL_BYTES,
+    ActionableSuggestion, CoexistenceAdvisoryRecord, DiagnosticReport, ExitCodeInfo, FailureMode,
+    PatternMatch, MAX_DIAGNOSTIC_ENTRIES, MAX_LINE_DISPLAY_CHARS, MAX_LOG_TAIL_BYTES,
 };
 
 pub fn analyze(exit_status: Option<ExitStatus>, log_tail: &str, method: &str) -> DiagnosticReport {
@@ -32,6 +32,7 @@ pub fn analyze(exit_status: Option<ExitStatus>, log_tail: &str, method: &str) ->
         log_tail_path: None,
         analyzed_at: Utc::now().to_rfc3339(),
         teardown_reason: None,
+        coexistence_advisories: Vec::new(),
     }
 }
 

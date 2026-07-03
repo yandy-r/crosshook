@@ -72,6 +72,24 @@ impl LaunchValidationIssue {
         }
     }
 
+    /// Maps a mod-coexistence advisory onto the shared issue shape (Warning/Info only).
+    pub fn mod_coexistence_advisory(advisory: &crate::mods::CoexistenceAdvisory) -> Self {
+        Self {
+            message: advisory.message.clone(),
+            help: advisory.help.clone(),
+            severity: advisory.severity,
+            code: Some(advisory.code.to_string()),
+            trainer_hash_stored: None,
+            trainer_hash_current: None,
+            trainer_sha256_community: None,
+            hook_id: None,
+            hook_name: None,
+            hook_stage: None,
+            hook_exit_code: None,
+            hook_timed_out: None,
+        }
+    }
+
     pub fn launch_hook_skipped(
         hook: &crate::profile::LaunchHook,
         message: &str,

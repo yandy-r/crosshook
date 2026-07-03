@@ -39,6 +39,7 @@ fn fresh_report() -> DiagnosticReport {
         log_tail_path: None,
         analyzed_at: "2026-04-19T00:00:00Z".to_string(),
         teardown_reason: None,
+        coexistence_advisories: vec![],
     }
 }
 

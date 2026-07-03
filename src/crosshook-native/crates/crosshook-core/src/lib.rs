@@ -9,6 +9,7 @@ pub mod install;
 pub mod launch;
 pub mod logging;
 pub mod metadata;
+pub mod mods;
 pub mod offline;
 pub mod onboarding;
 pub mod platform;

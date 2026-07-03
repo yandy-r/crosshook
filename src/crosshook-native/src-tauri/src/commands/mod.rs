@@ -11,6 +11,7 @@ pub mod launch;
 mod log_stream;
 pub mod lutris;
 pub mod migration;
+pub mod mods;
 pub mod offline;
 pub mod onboarding;
 pub mod prefix_deps;

@@ -36,7 +36,12 @@ export function mapValidationToNode(issue: LaunchValidationIssue): PipelineNodeI
   if (code.startsWith('steam_')) {
     return 'steam';
   }
-  if (code.startsWith('trainer_') || code.startsWith('native_trainer') || code.startsWith('unshare_net')) {
+  if (
+    code.startsWith('trainer_') ||
+    code.startsWith('native_trainer') ||
+    code.startsWith('unshare_net') ||
+    code.startsWith('mod_coexistence_')
+  ) {
     return 'trainer';
   }
   if (

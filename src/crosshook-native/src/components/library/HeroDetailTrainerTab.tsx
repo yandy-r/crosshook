@@ -3,6 +3,7 @@ import { useProfileContext } from '@/context/ProfileContext';
 import type { LibraryCardData } from '@/types/library';
 import type { GameProfile, InjectionSection, LoadedDllHook } from '@/types/profile';
 import { DashboardPanelSection } from '../layout/DashboardPanelSection';
+import { HeroModsSection } from './mods/HeroModsSection';
 import { InjectionConfigPanel } from './trainer/InjectionConfigPanel';
 import { InjectionLogTail } from './trainer/InjectionLogTail';
 import { LoadedDllHookListPanel } from './trainer/LoadedDllHookListPanel';
@@ -19,6 +20,22 @@ function syncLegacyInjectionMirrors(injection: InjectionSection): InjectionSecti
     dll_paths: injection.loaded_hooks.map((hook) => hook.path),
     inject_on_launch: injection.loaded_hooks.map((hook) => hook.enabled),
   };
+}
+
+/**
+ * Change key for the mod coexistence advisories: covers every profile field
+ * the backend rules read (trainer, launch method, overlays, injection).
+ */
+export function trainerAdvisorySignature(profile: GameProfile): string {
+  return [
+    profile.trainer.path,
+    profile.trainer.loading_mode,
+    profile.launch.method,
+    String(profile.launch.mangohud?.enabled ?? false),
+    String(profile.launch.gamescope?.enabled ?? false),
+    profile.injection.method,
+    profile.injection.dll_paths.join(','),
+  ].join('|');
 }
 
 export function HeroDetailTrainerTab({ summary, displayProfileName }: HeroDetailTrainerTabProps) {
@@ -119,6 +136,26 @@ export function HeroDetailTrainerTab({ summary, displayProfileName }: HeroDetail
 
       <DashboardPanelSection title="Recent injection log" titleAs="h3" className="crosshook-hero-detail__section">
         <InjectionLogTail profileName={resolvedProfileName} />
+      </DashboardPanelSection>
+
+      <DashboardPanelSection
+        eyebrow="Coexistence"
+        title="Installed mods"
+        titleAs="h3"
+        className="crosshook-hero-detail__section"
+      >
+        {profileMismatch ? (
+          <p className="crosshook-hero-detail__muted" role="status">
+            Select {resolvedProfileName || 'this game'} to manage its mod registry here.
+          </p>
+        ) : (
+          <HeroModsSection
+            profileName={resolvedProfileName}
+            hasTrainerConfigured={profile.trainer.path.trim().length > 0}
+            gameExecutablePath={profile.game.executable_path}
+            trainerSignature={trainerAdvisorySignature(profile)}
+          />
+        )}
       </DashboardPanelSection>
     </div>
   );

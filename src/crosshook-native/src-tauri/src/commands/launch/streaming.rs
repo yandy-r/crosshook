@@ -264,6 +264,7 @@ async fn finalize_launch_stream(
         .watchdog_outcome
         .reason()
         .or(Some(TeardownReason::NaturalExit));
+    report.coexistence_advisories = context.coexistence_advisories.clone();
 
     if let Some(ref op_id) = context.operation_id {
         let ms = context.metadata_store.clone();
