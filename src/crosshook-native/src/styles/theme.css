@@ -4446,18 +4446,29 @@ textarea {
   line-height: 1.55;
 }
 
+:root[data-crosshook-motion='reduced'] *,
+:root[data-crosshook-motion='reduced'] *::before,
+:root[data-crosshook-motion='reduced'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+  transition-duration: 0.01ms !important;
+}
+
+:root[data-crosshook-motion='reduced'] .crosshook-button:hover {
+  transform: none;
+}
+
+/* OS reduced-motion wins at the CSS layer even if JS never runs, unless the app
+   explicitly resolved the preference to 'full'. */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  :root:not([data-crosshook-motion='full']) *,
+  :root:not([data-crosshook-motion='full']) *::before,
+  :root:not([data-crosshook-motion='full']) *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
-  }
-
-  .crosshook-button:hover {
-    transform: none;
   }
 }
 
@@ -4812,10 +4823,8 @@ textarea {
   display: inline-block;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .crosshook-health-dashboard-skeleton {
-    animation: none;
-  }
+:root[data-crosshook-motion='reduced'] .crosshook-health-dashboard-skeleton {
+  animation: none;
 }
 
 /* ── Config History Panel ── */
@@ -5043,10 +5052,8 @@ textarea {
   animation: crosshook-skeleton-shimmer var(--crosshook-skeleton-duration) ease-in-out infinite;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .crosshook-skeleton {
-    animation: none;
-  }
+:root[data-crosshook-motion='reduced'] .crosshook-skeleton {
+  animation: none;
 }
 
 /* ── Game Metadata Bar ── */

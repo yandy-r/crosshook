@@ -287,3 +287,24 @@
     --crosshook-launch-panel-action-min-height: 54px;
   }
 }
+
+/* Windows High Contrast / forced-colors: map tokens onto system colors.
+   WebKitGTK support is partial — the matchMedia side (useHighContrastTheme auto
+   resolution) is the primary mechanism; this layer is progressive enhancement. */
+@media (forced-colors: active) {
+  :root {
+    --crosshook-color-bg: Canvas;
+    --crosshook-color-bg-elevated: Canvas;
+    --crosshook-color-surface: Canvas;
+    --crosshook-color-surface-strong: Canvas;
+    --crosshook-color-border: CanvasText;
+    --crosshook-color-border-strong: CanvasText;
+    --crosshook-color-border-muted: GrayText;
+    --crosshook-color-text: CanvasText;
+    --crosshook-color-text-muted: GrayText;
+    --crosshook-color-text-subtle: GrayText;
+    --crosshook-color-accent: Highlight;
+    --crosshook-color-accent-strong: Highlight;
+    --crosshook-color-accent-soft: Highlight;
+  }
+}

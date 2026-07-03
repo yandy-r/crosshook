@@ -182,8 +182,6 @@
   background: var(--crosshook-color-border);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .crosshook-themed-select__content {
-    animation: none;
-  }
+:root[data-crosshook-motion='reduced'] .crosshook-themed-select__content {
+  animation: none;
 }

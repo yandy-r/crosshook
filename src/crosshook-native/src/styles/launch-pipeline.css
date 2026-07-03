@@ -209,15 +209,16 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .crosshook-launch-pipeline__node[data-status='active'] .crosshook-launch-pipeline__node-indicator {
-    animation: none;
-  }
+:root[data-crosshook-motion='reduced']
+  .crosshook-launch-pipeline__node[data-status='active']
+  .crosshook-launch-pipeline__node-indicator {
+  animation: none;
+}
 
+:root[data-crosshook-motion='reduced']
   .crosshook-launch-pipeline__node[data-status='active'][data-tone='waiting']
-    .crosshook-launch-pipeline__node-indicator {
-    animation: none;
-  }
+  .crosshook-launch-pipeline__node-indicator {
+  animation: none;
 }
 
 /* --- Responsive: <= 1360px --- */

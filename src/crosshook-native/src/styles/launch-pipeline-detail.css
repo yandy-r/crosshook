@@ -221,8 +221,6 @@
   color: var(--crosshook-color-text-subtle);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .crosshook-pipeline-detail__toggle-chevron {
-    transition: none;
-  }
+:root[data-crosshook-motion='reduced'] .crosshook-pipeline-detail__toggle-chevron {
+  transition: none;
 }

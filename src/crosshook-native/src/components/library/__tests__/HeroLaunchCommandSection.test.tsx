@@ -268,7 +268,7 @@ describe('HeroLaunchCommandSection', () => {
   it('disables desktop export when the displayed profile does not match the selected profile', () => {
     renderCommandSection({ canExportDesktop: false });
 
-    expect(screen.getByRole('button', { name: '.desktop' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Export .desktop launcher' })).toBeDisabled();
     expect(useLauncherExportMock).not.toHaveBeenCalled();
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
@@ -403,6 +403,29 @@ describe('HeroLaunchCommandSection', () => {
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
+  // ── Authored accessible names (a11y label regression) ───────────────────────
+
+  it('secondary actions have authored names', () => {
+    renderCommandSection({
+      onLaunchGame: vi.fn(),
+      onLaunchTrainer: vi.fn(),
+      onReset: vi.fn(),
+      phase: LaunchPhase.SessionActive,
+      canExportDesktop: false,
+    });
+
+    // Names come from authored aria-labels (not runtime hydration patching):
+    // the visible text is ".desktop" / "Reset".
+    const exportButton = screen.getByRole('button', { name: 'Export .desktop launcher' });
+    expect(exportButton).toHaveAttribute('aria-label', 'Export .desktop launcher');
+    expect(exportButton).toHaveTextContent('.desktop');
+
+    const resetButton = screen.getByRole('button', { name: 'Reset launch tracking for game and trainer' });
+    expect(resetButton).toHaveAttribute('aria-label', 'Reset launch tracking for game and trainer');
+    expect(resetButton).toHaveTextContent('Reset');
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
+
   // ── Reset button ─────────────────────────────────────────────────────────────
 
   it('does not render the Reset button when phase is Idle', () => {
@@ -412,7 +435,9 @@ describe('HeroLaunchCommandSection', () => {
       onReset: vi.fn(),
       phase: LaunchPhase.Idle,
     });
-    expect(screen.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Reset launch tracking for game and trainer' })
+    ).not.toBeInTheDocument();
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
@@ -426,7 +451,7 @@ describe('HeroLaunchCommandSection', () => {
       onReset: vi.fn(),
       phase,
     });
-    const resetButton = screen.getByRole('button', { name: 'Reset' });
+    const resetButton = screen.getByRole('button', { name: 'Reset launch tracking for game and trainer' });
     expect(resetButton).not.toBeDisabled();
     expect(resetButton).toHaveAttribute(
       'title',
@@ -448,7 +473,7 @@ describe('HeroLaunchCommandSection', () => {
       canLaunchTrainer: false,
     });
 
-    const resetButton = screen.getByRole('button', { name: 'Reset' });
+    const resetButton = screen.getByRole('button', { name: 'Reset launch tracking for game and trainer' });
     expect(resetButton).not.toBeDisabled();
     await user.click(resetButton);
     expect(onReset).toHaveBeenCalledTimes(1);

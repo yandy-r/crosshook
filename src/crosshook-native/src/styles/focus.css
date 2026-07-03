@@ -135,8 +135,36 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
+:root[data-crosshook-motion='reduced'] .crosshook-focus-ring::after {
+  transition: none;
+}
+
+@media (forced-colors: active) {
   .crosshook-focus-ring::after {
-    transition: none;
+    forced-color-adjust: none;
   }
+}
+
+.crosshook-skip-link {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 40; /* above ControllerPrompts (z-index 35) */
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--crosshook-color-surface);
+  color: var(--crosshook-color-text);
+  border: 2px solid var(--crosshook-color-accent-strong);
+  font-weight: 600;
+  text-decoration: none;
+  transform: translateY(-150%);
+}
+
+.crosshook-skip-link:focus-visible {
+  transform: translateY(0);
+  outline: none;
+}
+
+:root[data-crosshook-motion='full'] .crosshook-skip-link {
+  transition: transform 120ms ease;
 }

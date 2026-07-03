@@ -14,3 +14,26 @@ export function getFocusableElements(container: HTMLElement): HTMLElement[] {
     (el) => !el.hasAttribute('disabled') && el.tabIndex >= 0 && el.getClientRects().length > 0
   );
 }
+
+function isVisible(element: HTMLElement): boolean {
+  const style = window.getComputedStyle(element);
+  return (
+    style.display !== 'none' &&
+    style.visibility !== 'hidden' &&
+    style.opacity !== '0' &&
+    element.getClientRects().length > 0
+  );
+}
+
+/** Enabled, not aria-hidden, visible — ignores tabindex (roving items are tabindex=-1 by design). */
+export function isRovingCandidate(element: HTMLElement): boolean {
+  if (element.hasAttribute('disabled') || element.getAttribute('aria-hidden') === 'true') {
+    return false;
+  }
+
+  return isVisible(element);
+}
+
+export function isFocusable(element: HTMLElement): boolean {
+  return isRovingCandidate(element) && element.getAttribute('tabindex') !== '-1';
+}

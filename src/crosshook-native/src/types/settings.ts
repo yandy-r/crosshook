@@ -6,6 +6,11 @@ export type { ExternalTrainerSourceSubscription } from './discovery';
 export type UmuPreference = 'auto' | 'umu' | 'proton';
 export type UmuDatabaseLookupPreference = 'disabled' | 'enabled';
 
+/** Mirrors Rust `crosshook_core::settings::HighContrastPreference`. Legacy bools normalize backend-side. */
+export type HighContrastPreference = 'auto' | 'on' | 'off';
+/** Mirrors Rust `crosshook_core::settings::ReducedMotionPreference`. */
+export type ReducedMotionPreference = 'auto' | 'reduced' | 'full';
+
 export interface CommunityTapSubscription {
   url: string;
   branch?: string;
@@ -23,8 +28,10 @@ export interface SettingsSaveRequest {
   community_taps: CommunityTapSubscription[];
   onboarding_completed: boolean;
   offline_mode: boolean;
-  /** High-contrast UI toggle for accessibility. */
-  high_contrast?: boolean;
+  /** Tri-state high-contrast preference. */
+  high_contrast?: HighContrastPreference;
+  /** Tri-state reduced-motion preference (`auto` follows the OS media query). */
+  reduced_motion?: ReducedMotionPreference;
   default_proton_path: string;
   default_launch_method: string;
   default_bundled_optimization_preset_id: string;
@@ -69,8 +76,10 @@ export interface AppSettingsData extends SettingsSaveRequest {
   resolved_profiles_directory: string;
   active_profiles_directory: string;
   profiles_directory_requires_restart: boolean;
-  /** High-contrast UI toggle for accessibility. */
-  high_contrast: boolean;
+  /** Tri-state high-contrast preference. */
+  high_contrast: HighContrastPreference;
+  /** Tri-state reduced-motion preference (`auto` follows the OS media query). */
+  reduced_motion: ReducedMotionPreference;
 }
 
 export function toSettingsSaveRequest(s: AppSettingsData): SettingsSaveRequest {
@@ -81,6 +90,7 @@ export function toSettingsSaveRequest(s: AppSettingsData): SettingsSaveRequest {
     onboarding_completed: s.onboarding_completed,
     offline_mode: s.offline_mode,
     high_contrast: s.high_contrast,
+    reduced_motion: s.reduced_motion,
     default_proton_path: s.default_proton_path,
     default_launch_method: s.default_launch_method,
     default_bundled_optimization_preset_id: s.default_bundled_optimization_preset_id,
@@ -123,7 +133,8 @@ export const DEFAULT_APP_SETTINGS: AppSettingsData = {
   community_taps: [],
   onboarding_completed: false,
   offline_mode: false,
-  high_contrast: false,
+  high_contrast: 'auto',
+  reduced_motion: 'auto',
   has_steamgriddb_api_key: false,
   default_proton_path: '',
   default_launch_method: '',

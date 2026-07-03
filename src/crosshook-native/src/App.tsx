@@ -5,7 +5,7 @@ import { HostReadinessProvider } from '@/context/HostReadinessContext';
 import { InspectorSelectionProvider } from '@/context/InspectorSelectionContext';
 import { ProfileProvider } from '@/context/ProfileContext';
 import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
-import { useAriaLabelHydration } from '@/hooks/useAccessibilityEnhancements';
+import { useAriaLabelAudit } from '@/hooks/useAccessibilityPreferences';
 import { useGamepadNav } from '@/hooks/useGamepadNav';
 import { useScrollEnhance } from '@/hooks/useScrollEnhance';
 import { DevModeBanner } from '@/lib/DevModeBanner';
@@ -24,7 +24,7 @@ export function App() {
   const gamepadOptions = useMemo(() => ({ onBack: handleGamepadBack }), []);
   const gamepadNav = useGamepadNav(gamepadOptions);
   useScrollEnhance();
-  useAriaLabelHydration();
+  useAriaLabelAudit();
 
   return (
     <main

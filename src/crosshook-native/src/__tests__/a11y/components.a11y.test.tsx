@@ -2,6 +2,7 @@ import { TooltipProvider } from '@radix-ui/react-tooltip';
 import { screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
+import { HealthBadge } from '@/components/HealthBadge';
 import { ContextRail } from '@/components/layout/ContextRail';
 import { Inspector } from '@/components/layout/Inspector';
 import { GameDetail } from '@/components/library/GameDetail';
@@ -9,6 +10,7 @@ import { HeroDetailHeader } from '@/components/library/HeroDetailHeader';
 import { HeroDetailTabs } from '@/components/library/HeroDetailTabs';
 import { LibraryListRow } from '@/components/library/LibraryListRow';
 import { CommandPalette } from '@/components/palette/CommandPalette';
+import { VersionRow } from '@/components/proton-manager/VersionRow';
 import { CollectionsProvider } from '@/context/CollectionsContext';
 import { HostReadinessProvider } from '@/context/HostReadinessContext';
 import { InspectorSelectionProvider } from '@/context/InspectorSelectionContext';
@@ -291,6 +293,54 @@ describe('HeroDetailTabs accessibility', () => {
       </HeroDetailTabsProviders>
     );
     expect(screen.getByTestId('hero-detail-launch-tab')).toBeInTheDocument();
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HealthBadge
+// ---------------------------------------------------------------------------
+
+describe('HealthBadge accessibility', () => {
+  it('interactive badge passes axe and has authored name', async () => {
+    const { container } = renderWithMocks(
+      <HealthBadge status="healthy" tooltip="Validated 2 hours ago" onClick={noop} />
+    );
+
+    // The accessible name is authored in JSX, not patched in after render.
+    expect(screen.getByRole('button', { name: /Health status:/ })).toHaveAttribute(
+      'aria-label',
+      'Health status: Healthy'
+    );
+
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// VersionRow (Proton manager)
+// ---------------------------------------------------------------------------
+
+describe('VersionRow accessibility', () => {
+  it('install button names the version', async () => {
+    const { container } = renderWithMocks(
+      <VersionRow
+        version="GE-Proton9-1"
+        provider="ge-proton"
+        installed={false}
+        installing={false}
+        canInstall={false}
+        onInstall={noop}
+        onUninstall={noop}
+      />
+    );
+
+    const install = screen.getByRole('button', { name: 'Install GE-Proton9-1' });
+    expect(install).toHaveAttribute('aria-label', 'Install GE-Proton9-1');
+    expect(install).toHaveAttribute('title', 'No writable install root available');
+
     const results = await axe(container);
     expect(results).toHaveNoViolations();
   });

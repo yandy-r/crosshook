@@ -132,6 +132,8 @@ export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps
               <button
                 type="button"
                 className="crosshook-sidebar__item crosshook-collections-sidebar__item"
+                data-roving-item=""
+                tabIndex={-1}
                 onClick={() => handleClickCollection(c.collection_id)}
                 title={c.name}
                 aria-label={c.name}
@@ -162,6 +164,8 @@ export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps
       <button
         type="button"
         className="crosshook-sidebar__item crosshook-collections-sidebar__cta"
+        data-roving-item=""
+        tabIndex={-1}
         aria-label="New Collection"
         onClick={() => {
           setCreateSessionError(null);
@@ -178,6 +182,8 @@ export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps
       <button
         type="button"
         className="crosshook-sidebar__item crosshook-collections-sidebar__cta"
+        data-roving-item=""
+        tabIndex={-1}
         aria-label="Import Preset"
         onClick={() => void handleImportPreset()}
         title="Import Preset"

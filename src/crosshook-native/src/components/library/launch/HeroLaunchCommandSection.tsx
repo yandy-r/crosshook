@@ -274,7 +274,13 @@ export function HeroLaunchCommandSection({
           {exportRequest ? (
             <ExportDesktopButton className={secondaryActionClass} />
           ) : (
-            <button type="button" className={secondaryActionClass} disabled title="Export .desktop launcher">
+            <button
+              type="button"
+              className={secondaryActionClass}
+              disabled
+              title="Export .desktop launcher"
+              aria-label="Export .desktop launcher"
+            >
               .desktop
             </button>
           )}
@@ -317,6 +323,7 @@ export function HeroLaunchCommandSection({
                   type="button"
                   className={secondaryActionClass}
                   title="Reset launch tracking for game and trainer — does not close a running game"
+                  aria-label="Reset launch tracking for game and trainer"
                   onClick={() => void onReset()}
                 >
                   Reset

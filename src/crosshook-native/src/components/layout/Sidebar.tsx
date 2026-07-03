@@ -1,5 +1,6 @@
 import * as Tabs from '@radix-ui/react-tabs';
 import type { ComponentType, SVGProps } from 'react';
+import { useRovingTabindex } from '@/hooks/useRovingTabindex';
 import type { LibraryFilterKey } from '@/types/library';
 import type { AppNavigateOptions } from '@/types/navigation';
 import { CollectionsSidebar } from '../collections/CollectionsSidebar';
@@ -60,50 +61,36 @@ interface SidebarLibraryFilterItem {
 interface SidebarRouteSection {
   key: string;
   label: string;
-  type: 'routes';
   items: SidebarRouteItem[];
 }
 
-interface SidebarCollectionsSection {
-  key: 'collections';
-  label: 'Collections';
-  type: 'collections';
-  items: SidebarLibraryFilterItem[];
-}
-
-type SidebarSection = SidebarRouteSection | SidebarCollectionsSection;
 type SidebarRouteTriggerProps = Omit<SidebarRouteItem, 'type'> & Pick<SidebarProps, 'activeRoute' | 'onNavigate'>;
 type SidebarLibraryFilterTriggerProps = Omit<SidebarLibraryFilterItem, 'type' | 'badge'> &
   Pick<SidebarProps, 'onNavigate' | 'activeRoute' | 'activeLibraryFilter'> & {
     badge: string | number | undefined;
   };
 
-const SIDEBAR_SECTIONS: SidebarSection[] = [
+// Rendered outside the Tabs.List: a tablist may only own tabs, so the
+// collections group (plain buttons) lives in a sibling section.
+const COLLECTIONS_SECTION_ITEMS: SidebarLibraryFilterItem[] = [
+  { type: 'library-filter', filterKey: 'favorites', label: 'Favorites', icon: HeartIcon },
+  { type: 'library-filter', filterKey: 'currentlyRunning', label: 'Currently Playing', icon: PlayIcon },
+];
+
+const SIDEBAR_SECTIONS: SidebarRouteSection[] = [
   {
     key: 'game',
     label: 'Game',
-    type: 'routes',
     items: [{ type: 'route', route: 'library', label: ROUTE_NAV_LABEL.library, icon: LibraryIcon }],
-  },
-  {
-    key: 'collections',
-    label: 'Collections',
-    type: 'collections',
-    items: [
-      { type: 'library-filter', filterKey: 'favorites', label: 'Favorites', icon: HeartIcon },
-      { type: 'library-filter', filterKey: 'currentlyRunning', label: 'Currently Playing', icon: PlayIcon },
-    ],
   },
   {
     key: 'setup',
     label: 'Setup',
-    type: 'routes',
     items: [{ type: 'route', route: 'install', label: ROUTE_NAV_LABEL.install, icon: InstallIcon }],
   },
   {
     key: 'dashboards',
     label: 'Dashboards',
-    type: 'routes',
     items: [
       { type: 'route', route: 'health', label: ROUTE_NAV_LABEL.health, icon: HealthIcon },
       { type: 'route', route: 'host-tools', label: ROUTE_NAV_LABEL['host-tools'], icon: HostToolsIcon },
@@ -113,7 +100,6 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
   {
     key: 'community',
     label: 'Community',
-    type: 'routes',
     items: [
       { type: 'route', route: 'community', label: ROUTE_NAV_LABEL.community, icon: BrowseIcon },
       { type: 'route', route: 'discover', label: ROUTE_NAV_LABEL.discover, icon: DiscoverIcon },
@@ -156,6 +142,8 @@ function SidebarLibraryFilterTrigger({
     <button
       type="button"
       className="crosshook-sidebar__item crosshook-collections-sidebar__item"
+      data-roving-item=""
+      tabIndex={-1}
       aria-pressed={isPressed}
       onClick={() => onNavigate('library', { libraryFilter: filterKey })}
       title={label}
@@ -178,56 +166,77 @@ function StatusRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function SidebarSectionBlock({
+function SidebarRouteSectionBlock({
   section,
+  activeRoute,
+  onNavigate,
+}: {
+  section: SidebarRouteSection;
+  activeRoute: AppRoute;
+  onNavigate: (route: AppRoute, options?: AppNavigateOptions) => void;
+}) {
+  return (
+    <div className="crosshook-sidebar__section">
+      {/* Decorative inside the tablist — a heading is not a permitted tablist child. */}
+      <div className="crosshook-sidebar__section-label" aria-hidden="true">
+        {section.label}
+      </div>
+      <div className="crosshook-sidebar__section-items">
+        {section.items.map((item) => (
+          <SidebarTrigger
+            key={item.route}
+            activeRoute={activeRoute}
+            onNavigate={onNavigate}
+            route={item.route}
+            label={item.label}
+            icon={item.icon}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SidebarCollectionsBlock({
   activeRoute,
   activeLibraryFilter,
   onNavigate,
   onOpenCollection,
   libraryFilterBadges,
 }: {
-  section: SidebarSection;
   activeRoute: AppRoute;
   activeLibraryFilter: LibraryFilterKey;
   onNavigate: (route: AppRoute, options?: AppNavigateOptions) => void;
   onOpenCollection: (id: string) => void;
   libraryFilterBadges: Partial<Record<LibraryFilterKey, string | number>> | undefined;
 }) {
+  const rovingRef = useRovingTabindex({ itemSelector: '[data-roving-item]' });
+
   return (
-    <div className="crosshook-sidebar__section" key={section.key}>
-      <h2 className="crosshook-sidebar__section-label">{section.label}</h2>
-      {section.type === 'routes' ? (
+    <div className="crosshook-sidebar__section">
+      <h2 className="crosshook-sidebar__section-label">Collections</h2>
+      <div
+        ref={rovingRef}
+        data-crosshook-roving="collections"
+        role="group"
+        aria-label="Library filters and collections"
+      >
         <div className="crosshook-sidebar__section-items">
-          {section.items.map((item) => (
-            <SidebarTrigger
-              key={item.route}
-              activeRoute={activeRoute}
+          {COLLECTIONS_SECTION_ITEMS.map((item) => (
+            <SidebarLibraryFilterTrigger
+              key={item.filterKey}
               onNavigate={onNavigate}
-              route={item.route}
+              activeRoute={activeRoute}
+              activeLibraryFilter={activeLibraryFilter}
+              filterKey={item.filterKey}
               label={item.label}
               icon={item.icon}
+              badge={libraryFilterBadges?.[item.filterKey] ?? item.badge}
             />
           ))}
         </div>
-      ) : (
-        <>
-          <div className="crosshook-sidebar__section-items">
-            {section.items.map((item) => (
-              <SidebarLibraryFilterTrigger
-                key={item.filterKey}
-                onNavigate={onNavigate}
-                activeRoute={activeRoute}
-                activeLibraryFilter={activeLibraryFilter}
-                filterKey={item.filterKey}
-                label={item.label}
-                icon={item.icon}
-                badge={libraryFilterBadges?.[item.filterKey] ?? item.badge}
-              />
-            ))}
-          </div>
-          <CollectionsSidebar onOpenCollection={onOpenCollection} />
-        </>
-      )}
+        <CollectionsSidebar onOpenCollection={onOpenCollection} />
+      </div>
     </div>
   );
 }
@@ -292,14 +301,11 @@ export function Sidebar({
 
       <Tabs.List className="crosshook-sidebar__nav crosshook-sidebar__nav--scroll" aria-label="CrossHook sections">
         {SIDEBAR_SECTIONS.map((section) => (
-          <SidebarSectionBlock
+          <SidebarRouteSectionBlock
             key={section.key}
             section={section}
             activeRoute={activeRoute}
-            activeLibraryFilter={activeLibraryFilter}
             onNavigate={onNavigate}
-            onOpenCollection={onOpenCollection}
-            libraryFilterBadges={libraryFilterBadges}
           />
         ))}
 
@@ -319,6 +325,14 @@ export function Sidebar({
           </div>
         </div>
       </Tabs.List>
+
+      <SidebarCollectionsBlock
+        activeRoute={activeRoute}
+        activeLibraryFilter={activeLibraryFilter}
+        onNavigate={onNavigate}
+        onOpenCollection={onOpenCollection}
+        libraryFilterBadges={libraryFilterBadges}
+      />
     </aside>
   );
 }

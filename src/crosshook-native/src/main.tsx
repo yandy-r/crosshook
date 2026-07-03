@@ -1,6 +1,15 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import '@/lib/plugin-stubs/convertFileSrc';
+import {
+  FORCED_COLORS_QUERY,
+  HIGH_CONTRAST_THEME,
+  PREFERS_CONTRAST_QUERY,
+  resolveHighContrast,
+  resolveMotion,
+  THEME_ATTRIBUTE,
+} from '@/hooks/useAccessibilityPreferences';
+import { MOTION_ATTRIBUTE, REDUCED_MOTION_QUERY } from '@/lib/motion';
 import App from './App';
 import './styles/theme.css';
 import './styles/utilities.css';
@@ -27,6 +36,14 @@ if (import.meta.env.DEV) {
   void import('./lib/ipc').then(({ callCommand }) => {
     window.__CROSSHOOK_DEV__ = { callCommand };
   });
+}
+
+// Pre-render bootstrap from OS preferences ('auto' until settings load);
+// AccessibilityPreferenceSync takes ownership once settings resolve.
+const matchesQuery = (query: string): boolean => !!window.matchMedia?.(query).matches;
+document.documentElement.setAttribute(MOTION_ATTRIBUTE, resolveMotion('auto', matchesQuery(REDUCED_MOTION_QUERY)));
+if (resolveHighContrast('auto', matchesQuery(PREFERS_CONTRAST_QUERY), matchesQuery(FORCED_COLORS_QUERY))) {
+  document.documentElement.setAttribute(THEME_ATTRIBUTE, HIGH_CONTRAST_THEME);
 }
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(

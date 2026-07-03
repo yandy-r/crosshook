@@ -17,6 +17,7 @@ import LibraryPage from '../pages/LibraryPage';
 import ProtonManagerPage from '../pages/ProtonManagerPage';
 import SettingsPage from '../pages/SettingsPage';
 import type { AppRoute } from './Sidebar';
+import { MAIN_CONTENT_ID } from './SkipToContentLink';
 
 export interface ContentAreaProps {
   route: AppRoute;
@@ -87,7 +88,7 @@ export function ContentArea({
   }
 
   return (
-    <div className="crosshook-content-area">
+    <div className="crosshook-content-area" id={MAIN_CONTENT_ID} tabIndex={-1}>
       <div className="crosshook-content-viewport">
         <div ref={scrollRef} className="crosshook-page-scroll-body" data-crosshook-page-scroll="true">
           <Tabs.Content key={route} {...contentProps}>

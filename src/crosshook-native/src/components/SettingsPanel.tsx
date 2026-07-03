@@ -1,4 +1,5 @@
 import { DashboardPanelSection } from './layout/DashboardPanelSection';
+import { AccessibilitySection } from './settings/AccessibilitySection';
 import { AdvancedSettingsSection } from './settings/AdvancedSettingsSection';
 import { DiagnosticExportSection } from './settings/DiagnosticExportSection';
 import { LoggingAndUiSection } from './settings/LoggingAndUiSection';
@@ -64,6 +65,8 @@ export function SettingsPanel({
           />
 
           <LoggingAndUiSection settings={settings} onPersistSettings={onPersistSettings} />
+
+          <AccessibilitySection settings={settings} onPersistSettings={onPersistSettings} />
 
           <PrefixDependenciesSection settings={settings} onPersistSettings={onPersistSettings} />
 

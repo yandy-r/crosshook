@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { isMotionReduced, scrollBehavior } from '@/lib/motion';
 
 // WebKitGTK (Tauri's webview) has sluggish native scroll velocity.
 // These constants compensate to make scrolling feel responsive.
@@ -107,6 +108,13 @@ export function useScrollEnhance(): void {
       const container = findEnhancedScrollContainer(e.target, e.deltaX, e.deltaY);
       if (!container) return;
 
+      if (isMotionReduced()) {
+        resetMomentum();
+        container.scrollTop += e.deltaY * WHEEL_MULTIPLIER;
+        container.scrollLeft += e.deltaX * WHEEL_MULTIPLIER;
+        return;
+      }
+
       if (activeContainer && activeContainer !== container) {
         resetMomentum();
       }
@@ -151,7 +159,7 @@ export function useScrollEnhance(): void {
       if (!container) return;
 
       e.preventDefault();
-      container.scrollBy({ top: dy, left: dx, behavior: 'smooth' });
+      container.scrollBy({ top: dy, left: dx, behavior: scrollBehavior() });
     }
 
     function onPointerDown(e: PointerEvent) {

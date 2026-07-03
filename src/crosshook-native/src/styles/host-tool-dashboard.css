@@ -794,14 +794,12 @@
   gap: 8px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .crosshook-host-tool-dashboard-skeleton,
-  .crosshook-host-tool-dashboard-skeleton--count,
-  .crosshook-host-tool-dashboard-skeleton--label,
-  .crosshook-host-tool-dashboard-skeleton--state,
-  .crosshook-host-tool-dashboard-skeleton--meta,
-  .crosshook-host-tool-dashboard-tile--skeleton {
-    animation: none;
-    opacity: 0.6;
-  }
+:root[data-crosshook-motion='reduced'] .crosshook-host-tool-dashboard-skeleton,
+:root[data-crosshook-motion='reduced'] .crosshook-host-tool-dashboard-skeleton--count,
+:root[data-crosshook-motion='reduced'] .crosshook-host-tool-dashboard-skeleton--label,
+:root[data-crosshook-motion='reduced'] .crosshook-host-tool-dashboard-skeleton--state,
+:root[data-crosshook-motion='reduced'] .crosshook-host-tool-dashboard-skeleton--meta,
+:root[data-crosshook-motion='reduced'] .crosshook-host-tool-dashboard-tile--skeleton {
+  animation: none;
+  opacity: 0.6;
 }

@@ -17,7 +17,7 @@ import { useInspectorSelection } from '@/context/InspectorSelectionContext';
 import { LaunchStateProvider } from '@/context/LaunchStateContext';
 import { PreferencesProvider, usePreferencesContext } from '@/context/PreferencesContext';
 import { useProfileContext } from '@/context/ProfileContext';
-import { useHighContrastTheme } from '@/hooks/useAccessibilityEnhancements';
+import { useHighContrastTheme, useMotionAttributeSync } from '@/hooks/useAccessibilityPreferences';
 import { useBreakpoint } from '@/hooks/useBreakpoint';
 import { useCollections } from '@/hooks/useCollections';
 import { useCommandPalette } from '@/hooks/useCommandPalette';
@@ -43,6 +43,7 @@ import { ContextRail } from './ContextRail';
 import { contextRailLayoutForShell } from './contextRailVariants';
 import { inspectorWidthForBreakpoint } from './inspectorVariants';
 import { ROUTE_METADATA } from './routeMetadata';
+import { SkipToContentLink } from './SkipToContentLink';
 import { sidebarVariantFromBreakpoint, sidebarWidthForVariant } from './sidebarVariants';
 
 const COMPACT_CONSOLE_MAX_HEIGHT = 720;
@@ -65,9 +66,10 @@ function ConsoleDock({ panelRef, mode }: { panelRef: RefObject<PanelImperativeHa
   return <ConsoleDrawer panelRef={panelRef} mode={mode} defaultCollapsed={defaultCollapsed} />;
 }
 
-function AccessibilityThemeSync() {
+function AccessibilityPreferenceSync() {
   const { settings } = usePreferencesContext();
   useHighContrastTheme(settings.high_contrast);
+  useMotionAttributeSync(settings.reduced_motion);
   return null;
 }
 
@@ -415,7 +417,7 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
   return (
     <Tooltip.Provider delayDuration={200}>
       <PreferencesProvider activeProfileName={lastProfile}>
-        <AccessibilityThemeSync />
+        <AccessibilityPreferenceSync />
         <LaunchStateProvider>
           <Tabs.Root
             orientation="vertical"
@@ -425,6 +427,7 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
             }}
           >
             <div className="crosshook-app-layout" ref={shellRef}>
+              <SkipToContentLink />
               <Group
                 className="crosshook-shell-group"
                 orientation="horizontal"

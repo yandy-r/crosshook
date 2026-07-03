@@ -73,7 +73,7 @@ fn offline_mode_defaults_false_when_absent() {
 }
 
 #[test]
-fn high_contrast_defaults_false_when_absent() {
+fn high_contrast_defaults_auto_when_absent() {
     let temp_dir = tempdir().unwrap();
     let store = SettingsStore::with_base_path(temp_dir.path().join("config").join("crosshook"));
 
@@ -85,10 +85,196 @@ fn high_contrast_defaults_false_when_absent() {
     .unwrap();
 
     let settings = store.load().unwrap();
-    assert!(
-        !settings.high_contrast,
-        "high_contrast should default to false when not present in settings.toml"
+    assert_eq!(
+        settings.high_contrast,
+        HighContrastPreference::Auto,
+        "high_contrast should default to auto when not present in settings.toml"
     );
+}
+
+#[test]
+fn high_contrast_legacy_true_maps_to_on() {
+    let temp_dir = tempdir().unwrap();
+    let store = SettingsStore::with_base_path(temp_dir.path().join("config").join("crosshook"));
+
+    fs::create_dir_all(&store.base_path).unwrap();
+    fs::write(store.settings_path(), "high_contrast = true\n").unwrap();
+
+    let settings = store.load().unwrap();
+    assert_eq!(settings.high_contrast, HighContrastPreference::On);
+}
+
+#[test]
+fn high_contrast_legacy_false_maps_to_auto() {
+    let temp_dir = tempdir().unwrap();
+    let store = SettingsStore::with_base_path(temp_dir.path().join("config").join("crosshook"));
+
+    fs::create_dir_all(&store.base_path).unwrap();
+    fs::write(store.settings_path(), "high_contrast = false\n").unwrap();
+
+    let settings = store.load().unwrap();
+    assert_eq!(
+        settings.high_contrast,
+        HighContrastPreference::Auto,
+        "legacy false carries no explicit-choice signal and must map to auto"
+    );
+}
+
+#[test]
+fn high_contrast_string_values_parse() {
+    for (raw, expected) in [
+        ("auto", HighContrastPreference::Auto),
+        ("on", HighContrastPreference::On),
+        ("off", HighContrastPreference::Off),
+    ] {
+        let parsed: AppSettingsData =
+            toml::from_str(&format!("high_contrast = \"{raw}\"\n")).unwrap();
+        assert_eq!(parsed.high_contrast, expected, "high_contrast = \"{raw}\"");
+    }
+}
+
+#[test]
+fn high_contrast_invalid_string_fails_load() {
+    for raw in ["yes", "true"] {
+        let temp_dir = tempdir().unwrap();
+        let store = SettingsStore::with_base_path(temp_dir.path().join("config").join("crosshook"));
+
+        fs::create_dir_all(&store.base_path).unwrap();
+        fs::write(
+            store.settings_path(),
+            format!("high_contrast = \"{raw}\"\n"),
+        )
+        .unwrap();
+
+        let result = store.load();
+        assert!(result.is_err(), "high_contrast = \"{raw}\" must fail load");
+        assert!(
+            matches!(result, Err(SettingsStoreError::TomlDe(_))),
+            "high_contrast = \"{raw}\" must fail with a TOML deserialize error"
+        );
+    }
+}
+
+#[test]
+fn reduced_motion_defaults_auto_when_absent() {
+    let temp_dir = tempdir().unwrap();
+    let store = SettingsStore::with_base_path(temp_dir.path().join("config").join("crosshook"));
+
+    fs::create_dir_all(&store.base_path).unwrap();
+    fs::write(
+        store.settings_path(),
+        "auto_load_last_profile = false\nlast_used_profile = \"\"\n",
+    )
+    .unwrap();
+
+    let settings = store.load().unwrap();
+    assert_eq!(settings.reduced_motion, ReducedMotionPreference::Auto);
+}
+
+#[test]
+fn reduced_motion_string_values_parse() {
+    for (raw, expected) in [
+        ("reduced", ReducedMotionPreference::Reduced),
+        ("full", ReducedMotionPreference::Full),
+        ("auto", ReducedMotionPreference::Auto),
+    ] {
+        let parsed: AppSettingsData =
+            toml::from_str(&format!("reduced_motion = \"{raw}\"\n")).unwrap();
+        assert_eq!(
+            parsed.reduced_motion, expected,
+            "reduced_motion = \"{raw}\""
+        );
+    }
+}
+
+#[test]
+fn reduced_motion_invalid_string_fails_load() {
+    let temp_dir = tempdir().unwrap();
+    let store = SettingsStore::with_base_path(temp_dir.path().join("config").join("crosshook"));
+
+    fs::create_dir_all(&store.base_path).unwrap();
+    fs::write(store.settings_path(), "reduced_motion = \"yes\"\n").unwrap();
+
+    let result = store.load();
+    assert!(matches!(result, Err(SettingsStoreError::TomlDe(_))));
+}
+
+#[test]
+fn reduced_motion_legacy_bool_fails_load() {
+    // This field never existed as a bool; fail fast instead of guessing intent.
+    let temp_dir = tempdir().unwrap();
+    let store = SettingsStore::with_base_path(temp_dir.path().join("config").join("crosshook"));
+
+    fs::create_dir_all(&store.base_path).unwrap();
+    fs::write(store.settings_path(), "reduced_motion = true\n").unwrap();
+
+    let result = store.load();
+    assert!(matches!(result, Err(SettingsStoreError::TomlDe(_))));
+}
+
+#[test]
+fn settings_round_trip_writes_string_forms() {
+    let temp_dir = tempdir().unwrap();
+    let store = SettingsStore::with_base_path(temp_dir.path().join("config").join("crosshook"));
+
+    store.save(&AppSettingsData::default()).unwrap();
+
+    let raw = fs::read_to_string(store.settings_path()).unwrap();
+    assert!(
+        raw.contains("high_contrast = \"auto\""),
+        "saved settings must serialize high_contrast as its string form: {raw}"
+    );
+    assert!(
+        raw.contains("reduced_motion = \"auto\""),
+        "saved settings must serialize reduced_motion as its string form: {raw}"
+    );
+
+    let loaded = store.load().unwrap();
+    assert_eq!(loaded.high_contrast, HighContrastPreference::Auto);
+    assert_eq!(loaded.reduced_motion, ReducedMotionPreference::Auto);
+}
+
+#[test]
+fn migrate_or_save_settings_backfills_reduced_motion() {
+    let temp_dir = tempdir().unwrap();
+    let store = SettingsStore::with_base_path(temp_dir.path().join("config").join("crosshook"));
+
+    fs::create_dir_all(&store.base_path).unwrap();
+    fs::write(
+        store.settings_path(),
+        "auto_load_last_profile = false\nlast_used_profile = \"\"\n",
+    )
+    .unwrap();
+
+    let settings = store.load().unwrap();
+    let changed = store.migrate_or_save_settings(&settings).unwrap();
+    assert!(changed, "backfilling new fields must rewrite the file");
+
+    let raw = fs::read_to_string(store.settings_path()).unwrap();
+    assert!(
+        raw.contains("reduced_motion = \"auto\""),
+        "migrated settings must contain reduced_motion: {raw}"
+    );
+}
+
+#[test]
+fn legacy_full_fixture_parses() {
+    let legacy_toml = r#"
+auto_load_last_profile = false
+last_used_profile = ""
+onboarding_completed = true
+offline_mode = false
+high_contrast = false
+default_proton_path = ""
+log_filter = "info"
+recent_files_limit = 10
+umu_preference = "auto"
+discovery_enabled = false
+"#;
+    let parsed: AppSettingsData =
+        toml::from_str(legacy_toml).expect("pre-tri-state settings.toml must keep parsing");
+    assert_eq!(parsed.high_contrast, HighContrastPreference::Auto);
+    assert_eq!(parsed.reduced_motion, ReducedMotionPreference::Auto);
 }
 
 #[test]

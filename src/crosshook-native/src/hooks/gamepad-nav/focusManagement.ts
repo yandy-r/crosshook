@@ -1,5 +1,6 @@
 import { type MutableRefObject, useCallback } from 'react';
 
+import { isFocusable } from '@/lib/focus-utils';
 import {
   focusElement,
   getCurrentIndex,
@@ -8,7 +9,6 @@ import {
   getFocusZoneRoot,
   getNavigationRoot,
   getRootElement,
-  isFocusable,
   isModalNavigationRoot,
 } from './dom';
 import type { FocusZone, GamepadNavOptions } from './types';

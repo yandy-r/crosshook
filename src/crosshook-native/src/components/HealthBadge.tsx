@@ -131,6 +131,7 @@ export function HealthBadge({
         type="button"
         style={{ ...wrapperStyle, background: 'none', border: 'none', padding: 0, font: 'inherit' }}
         title={tooltip ?? undefined}
+        aria-label={ariaLabel}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();

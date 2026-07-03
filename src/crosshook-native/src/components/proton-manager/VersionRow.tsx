@@ -68,6 +68,7 @@ export function VersionRow({
             disabled={installing || !canInstall}
             onClick={onInstall}
             title={!canInstall ? 'No writable install root available' : undefined}
+            aria-label={`Install ${version}`}
           >
             {installing ? 'Installing…' : 'Install'}
           </button>

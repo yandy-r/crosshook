@@ -139,6 +139,93 @@ impl FromStr for UmuDatabaseLookupPreference {
     }
 }
 
+/// Tri-state high-contrast preference.
+///
+/// Legacy boolean values deserialize as `true → On` and `false → Auto`: pre-tri-state
+/// files always serialized an explicit `high_contrast = false` regardless of user
+/// intent, so `false` carries no explicit-choice signal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum HighContrastPreference {
+    #[default]
+    Auto,
+    On,
+    Off,
+}
+
+impl HighContrastPreference {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::On => "on",
+            Self::Off => "off",
+        }
+    }
+}
+
+impl FromStr for HighContrastPreference {
+    type Err = String;
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.trim() {
+            "auto" => Ok(Self::Auto),
+            "on" => Ok(Self::On),
+            "off" => Ok(Self::Off),
+            other => Err(format!("unsupported high contrast preference: {other}")),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for HighContrastPreference {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(serde::Deserialize)]
+        #[serde(untagged)]
+        enum Raw {
+            Legacy(bool),
+            Mode(String),
+        }
+        match Raw::deserialize(deserializer)? {
+            Raw::Legacy(true) => Ok(Self::On),
+            Raw::Legacy(false) => Ok(Self::Auto),
+            Raw::Mode(s) => s.parse().map_err(serde::de::Error::custom),
+        }
+    }
+}
+
+/// Tri-state reduced-motion preference (`auto` follows the OS media query).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ReducedMotionPreference {
+    #[default]
+    Auto,
+    Reduced,
+    Full,
+}
+
+impl ReducedMotionPreference {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Reduced => "reduced",
+            Self::Full => "full",
+        }
+    }
+}
+
+impl FromStr for ReducedMotionPreference {
+    type Err = String;
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.trim() {
+            "auto" => Ok(Self::Auto),
+            "reduced" => Ok(Self::Reduced),
+            "full" => Ok(Self::Full),
+            other => Err(format!("unsupported reduced motion preference: {other}")),
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct AppSettingsData {
@@ -147,9 +234,12 @@ pub struct AppSettingsData {
     pub community_taps: Vec<CommunityTapSubscription>,
     pub onboarding_completed: bool,
     pub offline_mode: bool,
-    /// High-contrast UI toggle for accessibility. Defaults to false.
+    /// Tri-state high-contrast preference. Legacy bools: `true → on`, `false → auto`.
     #[serde(default)]
-    pub high_contrast: bool,
+    pub high_contrast: HighContrastPreference,
+    /// Tri-state reduced-motion preference (`auto` follows the OS media query).
+    #[serde(default)]
+    pub reduced_motion: ReducedMotionPreference,
     pub steamgriddb_api_key: Option<String>,
     /// Default Proton path applied to new profiles when `runtime.proton_path` is empty.
     pub default_proton_path: String,
@@ -234,7 +324,8 @@ impl Default for AppSettingsData {
             community_taps: Vec::new(),
             onboarding_completed: false,
             offline_mode: false,
-            high_contrast: false,
+            high_contrast: HighContrastPreference::Auto,
+            reduced_motion: ReducedMotionPreference::Auto,
             steamgriddb_api_key: None,
             default_proton_path: String::new(),
             default_launch_method: String::new(),
@@ -273,6 +364,7 @@ impl fmt::Debug for AppSettingsData {
             .field("onboarding_completed", &self.onboarding_completed)
             .field("offline_mode", &self.offline_mode)
             .field("high_contrast", &self.high_contrast)
+            .field("reduced_motion", &self.reduced_motion)
             .field(
                 "steamgriddb_api_key",
                 &self

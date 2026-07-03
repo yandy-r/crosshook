@@ -336,12 +336,11 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .crosshook-sidebar {
-    transition: none;
-  }
-  .crosshook-sidebar__item {
-    transition: none;
-    transform: none;
-  }
+:root[data-crosshook-motion='reduced'] .crosshook-sidebar {
+  transition: none;
+}
+
+:root[data-crosshook-motion='reduced'] .crosshook-sidebar__item {
+  transition: none;
+  transform: none;
 }

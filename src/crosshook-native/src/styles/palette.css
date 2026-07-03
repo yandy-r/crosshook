@@ -231,9 +231,7 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .crosshook-palette__row {
-    transition: none;
-    transform: none;
-  }
+:root[data-crosshook-motion='reduced'] .crosshook-palette__row {
+  transition: none;
+  transform: none;
 }

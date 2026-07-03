@@ -3,8 +3,9 @@ use crosshook_core::discovery::ExternalTrainerSourceSubscription;
 use crosshook_core::settings::{
     clamp_config_history_max_revisions, clamp_recent_files_limit,
     resolve_profiles_directory_from_config, AppSettingsData, ConfigHistorySettings,
-    RecentFilesData, RecentFilesStore, RecentFilesStoreError, SettingsStore, SettingsStoreError,
-    UmuDatabaseLookupPreference, UmuPreference,
+    HighContrastPreference, RecentFilesData, RecentFilesStore, RecentFilesStoreError,
+    ReducedMotionPreference, SettingsStore, SettingsStoreError, UmuDatabaseLookupPreference,
+    UmuPreference,
 };
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -30,7 +31,8 @@ pub struct AppSettingsIpcData {
     pub community_taps: Vec<CommunityTapSubscription>,
     pub onboarding_completed: bool,
     pub offline_mode: bool,
-    pub high_contrast: bool,
+    pub high_contrast: HighContrastPreference,
+    pub reduced_motion: ReducedMotionPreference,
     pub has_steamgriddb_api_key: bool,
     pub default_proton_path: String,
     pub default_launch_method: String,
@@ -82,6 +84,7 @@ impl AppSettingsIpcData {
             onboarding_completed: data.onboarding_completed,
             offline_mode: data.offline_mode,
             high_contrast: data.high_contrast,
+            reduced_motion: data.reduced_motion,
             has_steamgriddb_api_key: data
                 .steamgriddb_api_key
                 .as_deref()
@@ -152,7 +155,9 @@ pub struct SettingsSaveRequest {
     pub discovery_enabled: bool,
     pub external_trainer_sources: Option<Vec<ExternalTrainerSourceSubscription>>,
     #[serde(default)]
-    pub high_contrast: Option<bool>,
+    pub high_contrast: Option<HighContrastPreference>,
+    #[serde(default)]
+    pub reduced_motion: Option<ReducedMotionPreference>,
     #[serde(default)]
     pub protonup_auto_suggest: Option<bool>,
     #[serde(default)]
@@ -214,6 +219,7 @@ fn merge_settings_from_request(
             .external_trainer_sources
             .unwrap_or(current.external_trainer_sources),
         high_contrast: data.high_contrast.unwrap_or(current.high_contrast),
+        reduced_motion: data.reduced_motion.unwrap_or(current.reduced_motion),
         protonup_auto_suggest: data
             .protonup_auto_suggest
             .unwrap_or(current.protonup_auto_suggest),
@@ -389,6 +395,7 @@ mod tests {
             protonup_default_install_root: None,
             protonup_include_prereleases: None,
             high_contrast: None,
+            reduced_motion: None,
             config_history: None,
         }
     }
@@ -397,7 +404,7 @@ mod tests {
     fn merge_preserves_install_nag_dismissed_at_when_omitted() {
         let current = AppSettingsData {
             install_nag_dismissed_at: Some("2026-04-15T12:00:00Z".to_string()),
-            high_contrast: true,
+            high_contrast: HighContrastPreference::On,
             ..Default::default()
         };
         let request = make_save_request();
@@ -407,8 +414,9 @@ mod tests {
             Some("2026-04-15T12:00:00Z".to_string()),
             "absent field must preserve existing timestamp"
         );
-        assert!(
+        assert_eq!(
             merged.high_contrast,
+            HighContrastPreference::On,
             "absent field must preserve high_contrast preference"
         );
     }
@@ -416,15 +424,99 @@ mod tests {
     #[test]
     fn merge_sets_high_contrast_when_provided() {
         let current = AppSettingsData {
-            high_contrast: false,
+            high_contrast: HighContrastPreference::Off,
             ..Default::default()
         };
         let mut request = make_save_request();
-        request.high_contrast = Some(true);
+        request.high_contrast = Some(HighContrastPreference::On);
         let merged = merge_settings_from_request(request, current);
-        assert!(
+        assert_eq!(
             merged.high_contrast,
-            "explicit true must set high_contrast to enabled in merged settings"
+            HighContrastPreference::On,
+            "explicit value must set high_contrast in merged settings"
+        );
+    }
+
+    #[test]
+    fn merge_preserves_reduced_motion_when_absent() {
+        let current = AppSettingsData {
+            reduced_motion: ReducedMotionPreference::Reduced,
+            ..Default::default()
+        };
+        let request = make_save_request();
+        let merged = merge_settings_from_request(request, current);
+        assert_eq!(
+            merged.reduced_motion,
+            ReducedMotionPreference::Reduced,
+            "absent field must preserve reduced_motion preference"
+        );
+    }
+
+    #[test]
+    fn merge_sets_reduced_motion_when_provided() {
+        let current = AppSettingsData {
+            reduced_motion: ReducedMotionPreference::Reduced,
+            ..Default::default()
+        };
+        let mut request = make_save_request();
+        request.reduced_motion = Some(ReducedMotionPreference::Full);
+        let merged = merge_settings_from_request(request, current);
+        assert_eq!(
+            merged.reduced_motion,
+            ReducedMotionPreference::Full,
+            "explicit value must set reduced_motion in merged settings"
+        );
+    }
+
+    #[test]
+    fn save_request_deserializes_tri_state_strings() {
+        let mut body = serde_json::to_value(make_save_request()).expect("fixture must serialize");
+        let map = body.as_object_mut().expect("request body is a JSON object");
+        map.insert("high_contrast".to_string(), serde_json::json!("off"));
+        map.insert("reduced_motion".to_string(), serde_json::json!("reduced"));
+        let parsed: SettingsSaveRequest =
+            serde_json::from_value(body).expect("tri-state strings must deserialize");
+        assert_eq!(parsed.high_contrast, Some(HighContrastPreference::Off));
+        assert_eq!(
+            parsed.reduced_motion,
+            Some(ReducedMotionPreference::Reduced)
+        );
+
+        let mut body = serde_json::to_value(make_save_request()).expect("fixture must serialize");
+        let map = body.as_object_mut().expect("request body is a JSON object");
+        map.remove("high_contrast");
+        map.remove("reduced_motion");
+        let parsed: SettingsSaveRequest =
+            serde_json::from_value(body).expect("absent tri-state keys must deserialize");
+        assert_eq!(parsed.high_contrast, None);
+        assert_eq!(parsed.reduced_motion, None);
+    }
+
+    #[test]
+    fn save_request_rejects_unknown_tri_state_string() {
+        let mut body = serde_json::to_value(make_save_request()).expect("fixture must serialize");
+        let map = body.as_object_mut().expect("request body is a JSON object");
+        map.insert("high_contrast".to_string(), serde_json::json!("yes"));
+        let parsed = serde_json::from_value::<SettingsSaveRequest>(body);
+        assert!(
+            parsed.is_err(),
+            "unknown high_contrast string must fail deserialization"
+        );
+    }
+
+    #[test]
+    fn ipc_dto_reduced_motion_serializes_as_string() {
+        let data = AppSettingsData {
+            reduced_motion: ReducedMotionPreference::Reduced,
+            ..Default::default()
+        };
+        let resolved = PathBuf::from("/tmp/profiles");
+        let active = PathBuf::from("/tmp/profiles");
+        let ipc = AppSettingsIpcData::from_parts(data, &resolved, &active);
+        let json = serde_json::to_string(&ipc).expect("serialization must not fail");
+        assert!(
+            json.contains("\"reduced_motion\":\"reduced\""),
+            "serialized IPC DTO must carry the tri-state string form: {json}"
         );
     }
 
@@ -495,7 +587,7 @@ mod tests {
         let timestamp = "2026-04-15T10:00:00Z".to_string();
         let data = AppSettingsData {
             install_nag_dismissed_at: Some(timestamp.clone()),
-            high_contrast: true,
+            high_contrast: HighContrastPreference::On,
             ..Default::default()
         };
         let resolved = PathBuf::from("/tmp/profiles");
@@ -513,6 +605,10 @@ mod tests {
         assert!(
             json.contains("high_contrast"),
             "serialized IPC DTO must include the high_contrast key"
+        );
+        assert!(
+            json.contains("\"high_contrast\":\"on\""),
+            "serialized IPC DTO must carry the tri-state string form"
         );
     }
 

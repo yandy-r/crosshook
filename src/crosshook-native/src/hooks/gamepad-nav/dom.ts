@@ -1,5 +1,7 @@
 import type { MutableRefObject } from 'react';
 
+import { isFocusable } from '@/lib/focus-utils';
+import { isMotionReduced } from '@/lib/motion';
 import {
   CONTENT_FALLBACK_SELECTOR,
   FOCUS_ZONE_ATTRIBUTE,
@@ -8,29 +10,6 @@ import {
   SIDEBAR_FALLBACK_SELECTOR,
 } from './constants';
 import type { FocusZone } from './types';
-
-export function isVisible(element: HTMLElement): boolean {
-  const style = window.getComputedStyle(element);
-  return (
-    style.display !== 'none' &&
-    style.visibility !== 'hidden' &&
-    style.opacity !== '0' &&
-    element.getClientRects().length > 0
-  );
-}
-
-export function isFocusable(element: HTMLElement): boolean {
-  if (element.hasAttribute('disabled') || element.getAttribute('aria-hidden') === 'true') {
-    return false;
-  }
-
-  const tabIndex = element.getAttribute('tabindex');
-  if (tabIndex === '-1') {
-    return false;
-  }
-
-  return isVisible(element);
-}
 
 export function getRootElement(rootRef: MutableRefObject<HTMLElement | null>): HTMLElement | null {
   return rootRef.current;
@@ -105,6 +84,7 @@ export function focusElement(element: HTMLElement | null, scrollIntoView = true)
     element.scrollIntoView({
       block: 'nearest',
       inline: 'nearest',
+      behavior: isMotionReduced() ? 'auto' : undefined,
     });
   }
 }

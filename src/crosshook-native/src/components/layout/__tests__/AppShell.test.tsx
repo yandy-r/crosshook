@@ -122,7 +122,7 @@ describe('AppShell (integration)', () => {
     rectSpy.mockRestore();
   });
 
-  it('uses the full sidebar variant for desktop-sized shells and keeps Collections in declared order', async () => {
+  it('uses the full sidebar variant for desktop-sized shells with Collections after the tablist sections', async () => {
     setInnerWidth(1920);
     setInnerHeight(1080);
     const rectSpy = mockAppShellRect(1920, 1080);
@@ -139,7 +139,7 @@ describe('AppShell (integration)', () => {
     const sectionLabels = Array.from(document.querySelectorAll('.crosshook-sidebar__section-label')).map((node) =>
       node.textContent?.trim()
     );
-    expect(sectionLabels).toEqual(['Game', 'Collections', 'Setup', 'Dashboards', 'Community']);
+    expect(sectionLabels).toEqual(['Game', 'Setup', 'Dashboards', 'Community', 'Collections']);
     rectSpy.mockRestore();
   });
 

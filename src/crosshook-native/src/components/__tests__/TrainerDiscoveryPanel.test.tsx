@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { axe } from '@/test/setup';
 import { DEFAULT_APP_SETTINGS } from '@/types/settings';
 import { TrainerDiscoveryPanel } from '../TrainerDiscoveryPanel';
 
@@ -152,5 +153,40 @@ describe('TrainerDiscoveryPanel', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeInTheDocument();
     });
+  });
+
+  it('copy button names the game and passes axe button-name', async () => {
+    usePreferencesContextMock.mockReturnValue(buildPreferencesState({ discovery_enabled: true }));
+    useTrainerDiscoveryMock.mockReturnValue({
+      data: {
+        results: [
+          {
+            id: 1,
+            gameName: 'Elden Ring',
+            sourceName: 'Community',
+            sourceUrl: 'https://example.com',
+            sha256: 'a'.repeat(64),
+            relativePath: 'elden-ring',
+            tapUrl: 'https://tap.example.com',
+            tapLocalPath: '/tmp/tap',
+            relevanceScore: 1.0,
+          },
+        ],
+        totalCount: 1,
+      },
+      loading: false,
+      error: null,
+      refresh: vi.fn().mockResolvedValue(undefined),
+    });
+
+    const { container } = render(<TrainerDiscoveryPanel />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Expand details' }));
+
+    const copy = screen.getByRole('button', { name: 'Copy SHA-256 checksum for Elden Ring' });
+    expect(copy).toHaveAttribute('title', 'Copy full SHA-256');
+
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
   });
 });

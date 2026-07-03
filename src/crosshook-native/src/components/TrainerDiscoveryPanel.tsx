@@ -162,6 +162,7 @@ function TrainerResultCard({ result, onImport, importing }: TrainerResultCardPro
                 className="crosshook-button crosshook-button--compact crosshook-button--secondary"
                 onClick={handleCopySha}
                 title="Copy full SHA-256"
+                aria-label={`Copy SHA-256 checksum for ${result.gameName}`}
               >
                 {copied ? 'Copied' : 'Copy'}
               </button>
