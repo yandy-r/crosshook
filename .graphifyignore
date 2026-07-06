@@ -1,0 +1,43 @@
+# Keep the Graphify corpus focused on source code and tests.
+# Graphify also treats docs, media, and YAML as semantic inputs; exclude them
+# so repo-local graph builds stay AST/source-only.
+
+# Generated Graphify output
+graphify-out/
+
+# Documentation and prose
+*.md
+*.mdx
+*.qmd
+*.txt
+*.rst
+*.html
+docs/
+.docs/
+samples/
+tasks/
+
+# Semantic media inputs
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.svg
+*.docx
+*.xlsx
+*.mp3
+*.mp4
+*.mov
+*.webm
+*.mkv
+*.avi
+*.m4v
+*.wav
+*.m4a
+*.ogg
+
+# YAML is classified as a document by Graphify unless it is a package manifest.
+*.yml
+*.yaml

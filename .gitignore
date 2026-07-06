@@ -52,3 +52,6 @@ node_modules/
 
 # Test coverage output
 src/crosshook-native/coverage/
+
+# graphify knowledge-graph output (large, machine-local, regenerated via `graphify update .`)
+graphify-out/
