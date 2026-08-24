@@ -62,6 +62,9 @@ fi
         "TRAINER_HOST_PATH={}\n",
         shell_single_quoted(&request.trainer_path)
     ));
+    for (key, value) in &request.custom_env_vars {
+        content.push_str(&format!("export {key}={}\n", shell_single_quoted(value)));
+    }
     if request.gamescope.enabled {
         content.push_str(&build_gamescope_script_block(&request.gamescope));
     }

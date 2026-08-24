@@ -8,6 +8,18 @@ use super::models::{
 
 const FAILURE_PATTERN_DEFINITIONS: &[FailurePatternDef] = &[
     FailurePatternDef {
+        id: "dual_gpu_dri3_selection",
+        markers: &[
+            "failed to create dri3 screen",
+            "failed to load driver: nvidia-drm",
+        ],
+        failure_mode: FailureMode::Indeterminate,
+        severity: ValidationSeverity::Warning,
+        summary: "The trainer failed while selecting an NVIDIA DRI3 device in a multi-GPU session.",
+        suggestion: "Verify the intended adapter with `DRI_PRIME=<selector> glxinfo -B`. Numeric indices can change; prefer a stable PCI selector such as `DRI_PRIME=pci-0000_0a_00_0` (append `!` to expose only that Vulkan device), then save the verified value in the profile's custom environment variables.",
+        applies_to_methods: &["proton_run"],
+    },
+    FailurePatternDef {
         id: "wine_ntdll_missing",
         markers: &["ntdll.dll not found"],
         failure_mode: FailureMode::Indeterminate,
@@ -185,13 +197,31 @@ mod tests {
 
     #[test]
     fn definitions_have_required_fields() {
-        assert_eq!(FAILURE_PATTERN_DEFINITIONS.len(), 10);
+        assert_eq!(FAILURE_PATTERN_DEFINITIONS.len(), 11);
 
         for definition in FAILURE_PATTERN_DEFINITIONS {
             assert!(!definition.id.is_empty());
             assert!(!definition.markers.is_empty());
             assert!(!definition.suggestion.is_empty());
         }
+    }
+
+    #[test]
+    fn matches_dual_gpu_nvidia_dri3_failure() {
+        let log_tail = "\
+pci id for fd 61: 10de:2d18, driver (null)\n\
+glx: failed to create dri3 screen\n\
+failed to load driver: nvidia-drm\n";
+
+        let matches = scan_log_patterns(log_tail, "proton_run");
+
+        let dual_gpu = matches
+            .iter()
+            .find(|pattern_match| pattern_match.pattern_id == "dual_gpu_dri3_selection")
+            .expect("dual-GPU DRI3 pattern");
+        assert_eq!(dual_gpu.severity, ValidationSeverity::Warning);
+        assert!(dual_gpu.suggestion.contains("DRI_PRIME=pci-"));
+        assert!(dual_gpu.suggestion.contains("glxinfo -B"));
     }
 
     #[test]

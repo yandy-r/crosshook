@@ -73,5 +73,6 @@ export function buildLauncherExportRequest(
     umu_preference: profile.runtime.umu_preference ?? globalUmuPreference,
     network_isolation: profile.launch.network_isolation ?? true,
     gamescope: profile.launch?.trainer_gamescope,
+    custom_env_vars: { ...profile.launch.custom_env_vars },
   };
 }

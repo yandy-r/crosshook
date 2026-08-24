@@ -85,7 +85,10 @@ fn export_writes_expected_paths_and_content() {
             .permissions()
             .mode()
             & 0o777;
-        assert_eq!(script_mode, 0o755, "scripts should be executable");
+        assert_eq!(
+            script_mode, 0o700,
+            "scripts containing custom environment values must be owner-only"
+        );
 
         let desktop_mode = fs::metadata(&result.desktop_entry_path)
             .expect("desktop metadata")
@@ -181,6 +184,7 @@ fn steam_export_trainer_script_includes_gamescope_when_request_carries_effective
             fullscreen: true,
             ..Default::default()
         },
+        custom_env_vars: Default::default(),
     };
 
     let script_content = super::super::content::build_trainer_script_content(&request, "Hitman");

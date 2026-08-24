@@ -20,15 +20,14 @@ export function usePrefixDeps(profileName: string, prefixPath: string): UsePrefi
   const [deps, setDeps] = useState<PrefixDependencyStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [_reloadVersion, setReloadVersion] = useState(0);
 
-  useEffect(() => {
-    let active = true;
-
-    async function load() {
+  const load = useCallback(
+    async (isActive: () => boolean = () => true) => {
       if (!profileName) {
-        setDeps([]);
-        setLoading(false);
+        if (isActive()) {
+          setDeps([]);
+          setLoading(false);
+        }
         return;
       }
 
@@ -39,24 +38,28 @@ export function usePrefixDeps(profileName: string, prefixPath: string): UsePrefi
           prefixPath,
         });
 
-        if (!active) return;
+        if (!isActive()) return;
         setDeps(result);
         setError(null);
       } catch (loadError) {
-        if (!active) return;
+        if (!isActive()) return;
         setDeps([]);
         setError(normalizeError(loadError));
       } finally {
-        if (active) setLoading(false);
+        if (isActive()) setLoading(false);
       }
-    }
+    },
+    [profileName, prefixPath]
+  );
 
-    void load();
+  useEffect(() => {
+    let active = true;
+    void load(() => active);
 
     return () => {
       active = false;
     };
-  }, [profileName, prefixPath]);
+  }, [load]);
 
   const checkDeps = useCallback(
     async (packages: string[]) => {
@@ -97,8 +100,8 @@ export function usePrefixDeps(profileName: string, prefixPath: string): UsePrefi
   );
 
   const reload = useCallback(() => {
-    setReloadVersion((v) => v + 1);
-  }, []);
+    void load();
+  }, [load]);
 
   return { deps, loading, error, checkDeps, installDep, reload };
 }

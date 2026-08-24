@@ -75,7 +75,8 @@ export function PrefixDependenciesSection({ settings, onPersistSettings }: Prefi
         </div>
       </div>
       <p className="crosshook-muted crosshook-settings-note">
-        If left empty, CrossHook will auto-detect winetricks/protontricks from PATH.
+        If left empty, CrossHook auto-detects winetricks/protontricks on the host PATH, including when CrossHook runs as
+        a Flatpak.
       </p>
       {binaryDetection ? (
         <p

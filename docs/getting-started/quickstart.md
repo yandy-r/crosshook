@@ -19,27 +19,28 @@ If you want the deeper Steam-specific workflow details, jump to the [Steam / Pro
    8. [Create a Profile](#create-a-profile)
    9. [Custom environment variables](#custom-environment-variables)
    10. [Command arguments](#command-arguments)
-   11. [ProtonDB guidance](#protondb-guidance)
-   12. [Launch a Game with a Trainer](#launch-a-game-with-a-trainer)
-   13. [Dry Run / Preview Mode](#dry-run--preview-mode)
-   14. [Launch Modes](#launch-modes)
+   11. [Trainer prefix dependencies](#trainer-prefix-dependencies)
+   12. [ProtonDB guidance](#protondb-guidance)
+   13. [Launch a Game with a Trainer](#launch-a-game-with-a-trainer)
+   14. [Dry Run / Preview Mode](#dry-run--preview-mode)
+   15. [Launch Modes](#launch-modes)
        1. [Steam App Launch (`steam_applaunch`)](#steam-app-launch-steam_applaunch)
        2. [Proton Run (`proton_run`)](#proton-run-proton_run)
        3. [Native (`native`)](#native-native)
-   15. [External Launcher Export](#external-launcher-export)
-   16. [Community Profiles](#community-profiles)
-   17. [Pinned Profiles](#pinned-profiles)
-   18. [Health Dashboard](#health-dashboard)
-   19. [Diagnostic Export](#diagnostic-export)
-   20. [Using the CLI](#using-the-cli)
+   16. [External Launcher Export](#external-launcher-export)
+   17. [Community Profiles](#community-profiles)
+   18. [Pinned Profiles](#pinned-profiles)
+   19. [Health Dashboard](#health-dashboard)
+   20. [Diagnostic Export](#diagnostic-export)
+   21. [Using the CLI](#using-the-cli)
        1. [Check system status](#check-system-status)
        2. [Manage profiles](#manage-profiles)
        3. [Steam discovery](#steam-discovery)
        4. [Launch a game](#launch-a-game)
        5. [Generate shell completions](#generate-shell-completions)
        6. [Export diagnostics](#export-diagnostics)
-   21. [Troubleshooting](#troubleshooting)
-   22. [Related Guides](#related-guides)
+   22. [Troubleshooting](#troubleshooting)
+   23. [Related Guides](#related-guides)
 
 ## Supported Environments
 
@@ -164,11 +165,17 @@ In the Profile editor and in the **Profile Setup Wizard** (New Profile / Edit in
 - For **Steam App Launch** and **Proton Run**, effective environment is built as: base/method and optimization-derived variables first, then your custom map. If the same key appears in both **Launch Optimizations** and **Custom Environment Variables**, the **custom** value wins.
 - For **Native** launches, CrossHook starts from the host environment and applies your custom map on top (there are no launch optimizations in that mode).
 
+Trainer-only Proton launches receive the same custom map, including through the Flatpak host boundary. Game-only command arguments and curated optimization wrappers remain game-only.
+
+For multi-GPU systems, prefer a stable PCI selector over a numeric index. Verify the adapter with `DRI_PRIME=pci-0000_0a_00_0 glxinfo -B`; append `!` when Vulkan applications should see only that device. Replace the example PCI address with the target adapter reported by `lspci`.
+
 **Steam App Launch:** CrossHook does not write into Steam. Custom variables are included in the **Steam launch options** copy/paste line (after optimization env assignments, before wrappers), consistent with [Dry run / preview mode](#dry-run--preview-mode).
 
 **Reserved keys:** You cannot override runtime-managed variables through custom env. CrossHook rejects `WINEPREFIX`, `STEAM_COMPAT_DATA_PATH`, and `STEAM_COMPAT_CLIENT_INSTALL_PATH` so prefix and Steam paths stay under CrossHook’s control.
 
 **Syntax rules:** Keys must be non-empty, must not contain `=`, and neither keys nor values may contain NUL bytes. Duplicate keys are avoided by the editor shape; invalid entries are surfaced in validation.
+
+Standalone launcher export additionally requires shell-compatible names: a letter or underscore followed by letters, digits, or underscores.
 
 **Troubleshooting:** If a variable does not appear to take effect, use dry run and check the environment list — entries sourced from the profile show as **Profile custom**. For Steam games, confirm you pasted an updated launch options line after changing custom vars. For more Steam-specific detail, see the [Steam / Proton feature guide](../features/steam-proton-trainer-launch.doc.md#custom-environment-variables).
 
@@ -193,6 +200,10 @@ For **`proton_run`** and **`steam_applaunch`** profiles, **Command Arguments** l
 - **`native`** profiles do not support command arguments today.
 
 **Troubleshooting:** Use dry run to confirm argument placement in the effective command or Steam line. For full behavior and TOML examples, see the [Steam / Proton feature guide](../features/steam-proton-trainer-launch.doc.md#command-arguments).
+
+## Trainer prefix dependencies
+
+Use **Trainer → Prefix dependencies** to declare Windows components required by a trainer, such as `dotnet48`, `vcrun2022`, or `corefonts`. After saving, open **Prefix Dependencies** in the profile to check and install missing verbs. CrossHook uses host Winetricks/Protontricks even when the application itself runs inside Flatpak.
 
 ## ProtonDB guidance
 
@@ -269,6 +280,8 @@ export STEAM_COMPAT_CLIENT_INSTALL_PATH='...'
 export WINEPREFIX="$STEAM_COMPAT_DATA_PATH/pfx"
 exec "$PROTON" run "$TRAINER_HOST_PATH"
 ```
+
+It also exports the profile's custom environment variables before Gamescope, UMU, or Proton starts. Because those values may be sensitive, CrossHook writes trainer scripts with owner-only `0700` permissions.
 
 The `.desktop` entry runs the script with `/bin/bash`, making the trainer launchable from your desktop's application menu.
 

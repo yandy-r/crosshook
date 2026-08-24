@@ -4,7 +4,7 @@ use std::path::Path;
 
 use crate::export::launcher::{
     build_desktop_entry_content, build_trainer_script_content, combine_host_unix_path,
-    resolve_target_home_path, sanitize_launcher_slug, write_host_text_file,
+    resolve_target_home_path, sanitize_launcher_slug, validate, write_host_text_file,
     SteamExternalLauncherExportRequest,
 };
 use crate::profile::GameProfile;
@@ -126,6 +126,9 @@ pub fn rename_launcher_files(
     steam_client_install_path: &str,
     request: &SteamExternalLauncherExportRequest,
 ) -> Result<LauncherRenameResult, LauncherStoreError> {
+    validate(request).map_err(|error| {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, error.to_string())
+    })?;
     let new_slug = sanitize_launcher_slug(new_display_name);
     let home = resolve_target_home_path(target_home_path, steam_client_install_path);
 
@@ -221,7 +224,7 @@ pub fn rename_launcher_files(
     // Write new files
     let mut script_renamed = false;
     if old_script_exists {
-        write_host_text_file(&new_script_path, &new_script_content, 0o755)?;
+        write_host_text_file(&new_script_path, &new_script_content, 0o700)?;
         script_renamed = true;
     }
 

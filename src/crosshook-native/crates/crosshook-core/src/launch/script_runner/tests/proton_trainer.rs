@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fs;
 
 use super::support::{command_env_value, write_executable_file};
@@ -7,7 +8,7 @@ use crate::launch::script_runner::{
 use crate::launch::LaunchRequest;
 
 #[test]
-fn proton_trainer_command_ignores_game_optimization_wrappers_and_env() {
+fn proton_trainer_command_preserves_custom_env_while_ignoring_game_optimizations() {
     let temp_dir = tempfile::tempdir().expect("temp dir");
     let wrapper_dir = temp_dir.path().join("wrappers");
     let prefix_path = temp_dir.path().join("prefix");
@@ -58,6 +59,10 @@ fn proton_trainer_command_ignores_game_optimization_wrappers_and_env() {
                 "use_gamemode".to_string(),
             ],
         },
+        custom_env_vars: BTreeMap::from([(
+            "DRI_PRIME".to_string(),
+            "pci-0000_0a_00_0!".to_string(),
+        )]),
         launch_trainer_only: true,
         launch_game_only: false,
         profile_name: None,
@@ -102,6 +107,10 @@ fn proton_trainer_command_ignores_game_optimization_wrappers_and_env() {
     assert_eq!(command_env_value(&command, "PROTON_NO_STEAMINPUT"), None);
     assert_eq!(command_env_value(&command, "DXVK_ASYNC"), None);
     assert_eq!(command_env_value(&command, "MANGOHUD_CONFIGFILE"), None);
+    assert_eq!(
+        command_env_value(&command, "DRI_PRIME"),
+        Some("pci-0000_0a_00_0!".to_string())
+    );
     assert!(wine_prefix_path
         .join("drive_c/CrossHook/StagedTrainers/sample/sample.ini")
         .exists());

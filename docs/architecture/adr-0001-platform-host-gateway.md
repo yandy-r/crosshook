@@ -101,7 +101,7 @@ The following patterns are explicitly allowed, because they pair every non-gatew
    - `settings/mod.rs` `resolve_user_home()` (lines 68–77): Under Flatpak calls `platform::host_std_command("getent")`. Native uses `Command::new("getent")`.
    - `export/diagnostics.rs` GPU section (lines 249–253): Under Flatpak calls `platform::host_std_command("lspci")`. Native uses `Command::new("lspci")`.
    - `launch/runtime_helpers.rs` `is_unshare_net_available()` (lines 816–830): Under Flatpak calls `platform::host_std_command("unshare")`. Native uses `std::process::Command::new("unshare")`.
-   - `prefix_deps/runner.rs` `check_installed` / `install_packages` (lines 85–180): `binary_path` is a user-configured winetricks or protontricks path — a variable, not a literal — and `apply_host_environment` is called to thread the environment correctly.
+   - Prefix dependency tools are not an escape hatch: `prefix_deps/detection.rs` probes Winetricks/Protontricks on the host, and `prefix_deps/runner.rs` executes them through `host_command_with_env` so Flatpak uses `flatpak-spawn --host` with the resolved `WINEPREFIX`.
 
 4. **Test code** under `#[cfg(test)]` or `tests/` is unconditionally exempt.
 

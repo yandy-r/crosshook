@@ -15,7 +15,7 @@ pub fn export_launchers(
     write_host_text_file(
         &resolved.script_path,
         &build_trainer_script_content(request, &resolved.display_name),
-        0o755,
+        0o700,
     )?;
     write_host_text_file(
         &resolved.desktop_entry_path,

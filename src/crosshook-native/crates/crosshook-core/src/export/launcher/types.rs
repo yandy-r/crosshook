@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::env;
 use std::error::Error;
 use std::fmt;
@@ -35,6 +36,8 @@ pub struct SteamExternalLauncherExportRequest {
     pub network_isolation: bool,
     #[serde(default)]
     pub gamescope: GamescopeConfig,
+    #[serde(default)]
+    pub custom_env_vars: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -55,6 +58,7 @@ pub enum SteamExternalLauncherExportValidationError {
     LauncherIconPathNotFound,
     LauncherIconPathInvalidExtension,
     UnsupportedMethod(String),
+    InvalidCustomEnvironmentVariable(String),
 }
 
 impl SteamExternalLauncherExportValidationError {
@@ -72,6 +76,9 @@ impl SteamExternalLauncherExportValidationError {
             Self::UnsupportedMethod(_) => {
                 "External launcher export only supports steam_applaunch and proton_run."
             }
+            Self::InvalidCustomEnvironmentVariable(_) => {
+                "External launcher export requires shell-compatible custom environment variables."
+            }
         }
     }
 }
@@ -82,6 +89,10 @@ impl fmt::Display for SteamExternalLauncherExportValidationError {
             Self::UnsupportedMethod(method) => write!(
                 f,
                 "External launcher export only supports steam_applaunch and proton_run, not '{method}'."
+            ),
+            Self::InvalidCustomEnvironmentVariable(key) => write!(
+                f,
+                "External launcher export cannot emit custom environment variable '{key}'; use letters, digits, and underscores, starting with a letter or underscore."
             ),
             _ => f.write_str(self.message()),
         }
@@ -156,6 +167,22 @@ pub fn validate(
 
     if request.method.trim() == "steam_applaunch" && request.steam_app_id.trim().is_empty() {
         return Err(SteamExternalLauncherExportValidationError::SteamAppIdRequired);
+    }
+
+    for (key, value) in &request.custom_env_vars {
+        let mut characters = key.chars();
+        let valid_start = characters
+            .next()
+            .is_some_and(|character| character.is_ascii_alphabetic() || character == '_');
+        let valid_rest =
+            characters.all(|character| character.is_ascii_alphanumeric() || character == '_');
+        if !valid_start || !valid_rest || value.contains('\0') {
+            return Err(
+                SteamExternalLauncherExportValidationError::InvalidCustomEnvironmentVariable(
+                    key.clone(),
+                ),
+            );
+        }
     }
 
     if !request.launcher_icon_path.trim().is_empty() {

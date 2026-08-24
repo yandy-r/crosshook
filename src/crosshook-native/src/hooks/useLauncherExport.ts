@@ -26,6 +26,7 @@ export interface SteamExternalLauncherExportRequest {
   umu_preference: UmuPreference;
   network_isolation: boolean;
   gamescope?: GamescopeConfig;
+  custom_env_vars: Record<string, string>;
 }
 
 export interface SteamExternalLauncherExportResult {

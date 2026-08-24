@@ -2,6 +2,7 @@ use super::super::content::build_trainer_script_content;
 use super::fixtures::make_gamescope_request;
 use crate::profile::{GamescopeConfig, TrainerLoadingMode};
 use crate::settings::UmuPreference;
+use serde_json::json;
 
 #[test]
 fn gamescope_disabled_script_unchanged() {
@@ -15,6 +16,47 @@ fn gamescope_disabled_script_unchanged() {
     assert!(!content.contains("gamescope"));
     assert!(content.contains(r#"exec "$PROTON" run "$trainer_host_path""#));
     assert!(content.contains(r#"exec umu-run "$trainer_host_path""#));
+}
+
+#[test]
+fn custom_environment_is_exported_before_gamescope_and_proton() {
+    let request = make_gamescope_request(
+        GamescopeConfig {
+            enabled: true,
+            fullscreen: true,
+            ..Default::default()
+        },
+        TrainerLoadingMode::SourceDirectory,
+    );
+    let mut serialized = serde_json::to_value(request).expect("serialize request");
+    serialized["custom_env_vars"] = json!({
+        "DRI_PRIME": "pci-0000_0a_00_0!",
+        "TRAINER_NOTE": "owner's eGPU",
+    });
+    let request = serde_json::from_value(serialized).expect("deserialize request");
+
+    let content = build_trainer_script_content(&request, "Test Game");
+
+    assert!(content.contains("export DRI_PRIME='pci-0000_0a_00_0!'"));
+    assert!(content.contains("export TRAINER_NOTE='owner'\"'\"'s eGPU'"));
+    let custom_env_offset = content
+        .find("export DRI_PRIME=")
+        .expect("custom env export");
+    let gamescope_offset = content.find("_GAMESCOPE_ARGS=(").expect("gamescope setup");
+    assert!(custom_env_offset < gamescope_offset);
+}
+
+#[test]
+fn launcher_export_rejects_custom_environment_keys_that_bash_cannot_export() {
+    let request = make_gamescope_request(
+        GamescopeConfig::default(),
+        TrainerLoadingMode::SourceDirectory,
+    );
+    let mut serialized = serde_json::to_value(request).expect("serialize request");
+    serialized["custom_env_vars"] = json!({ "NOT-A-SHELL-NAME": "value" });
+    let request = serde_json::from_value(serialized).expect("deserialize request");
+
+    assert!(super::super::types::validate(&request).is_err());
 }
 
 #[test]

@@ -213,8 +213,7 @@ export function HeroProfileEditorSections({
         </DashboardPanelSection>
       ) : null}
 
-      {/* 9. PrefixDeps — only shown when required_protontricks is non-empty.
-           Mirrors ProfilesPage.tsx:163-171. */}
+      {/* 9. PrefixDeps — checks and installs declared trainer requirements. */}
       {requiredProtontricks.length > 0 ? (
         <CollapsibleSection title="Prefix Dependencies" className="crosshook-panel">
           <PrefixDepsPanel profileName={profileName} prefixPath={prefixPath} requiredPackages={requiredProtontricks} />

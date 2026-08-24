@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::process::Stdio;
 use std::time::Duration;
@@ -7,7 +8,39 @@ use tokio::process::Command;
 use super::models::PrefixDepsError;
 use super::validation::validate_protontricks_verbs;
 use super::PrefixDepsTool;
-use crate::launch::runtime_helpers::{apply_host_environment, resolve_wine_prefix_path};
+use crate::launch::runtime_helpers::{host_environment_map, resolve_wine_prefix_path};
+use crate::platform::{
+    host_command_with_env_and_directory_inner, is_flatpak, normalize_flatpak_host_path,
+};
+
+fn build_prefix_dep_command(binary_path: &str, prefix_path: &str) -> (Command, std::path::PathBuf) {
+    build_prefix_dep_command_with_platform(binary_path, prefix_path, is_flatpak())
+}
+
+fn build_prefix_dep_command_with_platform(
+    binary_path: &str,
+    prefix_path: &str,
+    flatpak: bool,
+) -> (Command, std::path::PathBuf) {
+    let normalized_prefix = normalize_flatpak_host_path(prefix_path);
+    let resolved_prefix = resolve_wine_prefix_path(Path::new(&normalized_prefix));
+    let normalized_binary = normalize_flatpak_host_path(binary_path);
+    let mut environment = host_environment_map();
+    environment.insert(
+        "WINEPREFIX".to_string(),
+        resolved_prefix.to_string_lossy().into_owned(),
+    );
+    (
+        host_command_with_env_and_directory_inner(
+            &normalized_binary,
+            &environment,
+            None,
+            flatpak,
+            &BTreeMap::new(),
+        ),
+        resolved_prefix,
+    )
+}
 
 /// Default timeout for check operations (seconds).
 const CHECK_TIMEOUT_SECS: u64 = 30;
@@ -84,9 +117,7 @@ pub async fn check_installed(
     tool_type: PrefixDepsTool,
     steam_app_id: Option<&str>,
 ) -> Result<Vec<String>, PrefixDepsError> {
-    let resolved_prefix = resolve_wine_prefix_path(Path::new(prefix_path));
-
-    let mut cmd = Command::new(binary_path);
+    let (mut cmd, _resolved_prefix) = build_prefix_dep_command(binary_path, prefix_path);
     if matches!(tool_type, PrefixDepsTool::Protontricks) {
         let app_id = steam_app_id.ok_or_else(|| {
             PrefixDepsError::ValidationError(
@@ -96,8 +127,6 @@ pub async fn check_installed(
         cmd.arg(app_id);
     }
     cmd.arg("list-installed");
-    cmd.env("WINEPREFIX", &resolved_prefix);
-    apply_host_environment(&mut cmd);
     cmd.kill_on_drop(true);
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
@@ -146,7 +175,7 @@ pub async fn check_installed(
 /// Security checklist:
 /// - validate_protontricks_verbs() called first
 /// - Per-verb .arg() calls (never joined)
-/// - cmd.arg("--") before first verb
+/// - Flag-like and malformed verbs rejected before argv construction
 /// - apply_host_environment() used (NOT env_clear())
 /// - .kill_on_drop(true)
 /// - Prefix path normalized via resolve_wine_prefix_path()
@@ -161,7 +190,7 @@ pub async fn install_packages(
     // Validate verbs first (security gate).
     validate_protontricks_verbs(verbs)?;
 
-    let resolved_prefix = resolve_wine_prefix_path(Path::new(prefix_path));
+    let (mut cmd, resolved_prefix) = build_prefix_dep_command(binary_path, prefix_path);
 
     // Check prefix is initialized: the resolved path (pfx/ or prefix itself) must exist as a dir.
     if !resolved_prefix.exists() || !resolved_prefix.is_dir() {
@@ -169,8 +198,6 @@ pub async fn install_packages(
             path: resolved_prefix.to_string_lossy().into_owned(),
         });
     }
-
-    let mut cmd = Command::new(binary_path);
 
     // Protontricks takes app_id first, then -q.
     if matches!(tool_type, PrefixDepsTool::Protontricks) {
@@ -185,16 +212,13 @@ pub async fn install_packages(
     // Quiet mode.
     cmd.arg("-q");
 
-    // CRITICAL: argument separator before verbs (S-06 -- prevents flag injection).
-    cmd.arg("--");
-
-    // CRITICAL: each verb as individual .arg() -- NEVER join into single string.
+    // Each validated verb is passed as an individual argument. Winetricks does
+    // not support a `--` option separator, so structural validation above is
+    // the flag-injection boundary.
     for verb in verbs {
         cmd.arg(verb);
     }
 
-    cmd.env("WINEPREFIX", &resolved_prefix);
-    apply_host_environment(&mut cmd);
     cmd.kill_on_drop(true);
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
@@ -276,6 +300,36 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn install_packages_uses_winetricks_compatible_arguments() {
+        let tmp = tempdir().unwrap();
+        let captured_args = tmp.path().join("args.txt");
+        let binary = make_fake_binary(
+            tmp.path(),
+            "winetricks",
+            &format!(
+                "#!/bin/sh\nprintf '%s\\n' \"$@\" > '{}'\nexit 0\n",
+                captured_args.display()
+            ),
+        );
+        let pfx = tmp.path().join("pfx");
+        fs::create_dir_all(&pfx).unwrap();
+
+        let mut child = install_packages(
+            &binary,
+            tmp.path().to_str().unwrap(),
+            &["dotnet48".to_string()],
+            PrefixDepsTool::Winetricks,
+            None,
+        )
+        .await
+        .unwrap();
+        assert!(child.wait().await.unwrap().success());
+
+        let args = fs::read_to_string(captured_args).unwrap();
+        assert_eq!(args, "-q\ndotnet48\n");
+    }
+
+    #[tokio::test]
     async fn install_rejects_uninitialized_prefix() {
         let tmp = tempdir().unwrap();
         let binary = make_fake_binary(tmp.path(), "winetricks", "#!/bin/sh\n");
@@ -315,5 +369,29 @@ mod tests {
         let sanitized = sanitize_stderr(&long);
         assert!(sanitized.ends_with("...(truncated)"));
         assert!(sanitized.len() <= 515); // 500 chars + "...(truncated)"
+    }
+
+    #[test]
+    fn flatpak_install_delegates_to_host_with_wineprefix() {
+        let tmp = tempdir().unwrap();
+        let prefix = tmp.path().join("prefix");
+        fs::create_dir_all(prefix.join("pfx")).unwrap();
+        let (command, _resolved_prefix) =
+            build_prefix_dep_command_with_platform("winetricks", prefix.to_str().unwrap(), true);
+
+        let program = command.as_std().get_program().to_string_lossy();
+        let args = command
+            .as_std()
+            .get_args()
+            .map(|argument| argument.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(program, "flatpak-spawn");
+        assert_eq!(args[0], "--host");
+        assert_eq!(args[1], "--clear-env");
+        assert!(args.contains(&format!(
+            "--env=WINEPREFIX={}",
+            prefix.join("pfx").display()
+        )));
+        assert_eq!(args.last().map(String::as_str), Some("winetricks"));
     }
 }

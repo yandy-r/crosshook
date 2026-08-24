@@ -10,7 +10,7 @@ use crosshook_core::export::{
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::{resolve_launch_method, GameProfile, GamescopeConfig, ProfileStore};
 use crosshook_core::settings::{SettingsStore, UmuPreference};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use tauri::State;
 
 fn build_export_request_for_profile(
@@ -56,6 +56,7 @@ fn build_export_request_for_profile(
             .unwrap_or(global_umu_preference),
         network_isolation: profile.launch.network_isolation,
         gamescope: profile.launch.resolved_trainer_gamescope(),
+        custom_env_vars: profile.launch.custom_env_vars.clone(),
     })
 }
 
@@ -301,6 +302,7 @@ pub fn rename_launcher(
     launcher_name: String,
     network_isolation: bool,
     gamescope: GamescopeConfig,
+    custom_env_vars: BTreeMap<String, String>,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<LauncherRenameResult, String> {
     let request = SteamExternalLauncherExportRequest {
@@ -322,6 +324,7 @@ pub fn rename_launcher(
         umu_preference: UmuPreference::Auto,
         network_isolation,
         gamescope,
+        custom_env_vars,
     };
     let result = crosshook_core::export::rename_launcher_files(
         &old_launcher_slug,
@@ -510,6 +513,7 @@ mod tests {
                 String,
                 bool,
                 GamescopeConfig,
+                BTreeMap<String, String>,
                 State<'_, MetadataStore>,
             ) -> Result<LauncherRenameResult, String>;
         let _ = list_launchers

@@ -44,4 +44,3 @@ pub use proton_command::{
 
 // `pub(crate)` items — re-export with the same visibility
 pub(crate) use environment::env_value;
-pub(crate) use platform::is_executable_file;

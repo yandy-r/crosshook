@@ -7,6 +7,7 @@ import { OfflineTrainerInfoModal, type TrainerInfoModalKey } from '../OfflineTra
 import { FieldRow, OptionalSection, TrainerVersionSetField } from '../ProfileFormSections';
 import { InfoTooltip } from '../ui/InfoTooltip';
 import { ThemedSelect } from '../ui/ThemedSelect';
+import { PrefixDependencyEditor } from './PrefixDependencyEditor';
 
 function isSupportedTrainerInfoModal(value: string | undefined | null): value is TrainerInfoModalKey {
   return value === 'aurora_offline_setup' || value === 'wemod_offline_info';
@@ -57,6 +58,7 @@ export function TrainerSection({
   const trainerRequiresNetwork = selectedTrainerTypeEntry?.requires_network === true;
   const networkIsolation = profile.launch.network_isolation ?? true;
   const trainerCollapsed = reviewMode && profile.trainer.path.trim().length === 0;
+  const requiredDependencies = profile.trainer.required_protontricks ?? [];
 
   return (
     <DashboardPanelSection titleAs="h3" eyebrow="Profile" title="Trainer">
@@ -164,6 +166,16 @@ export function TrainerSection({
               Switch to copy mode only when a trainer requires prefix-local files.
             </p>
           </div>
+
+          <PrefixDependencyEditor
+            dependencies={requiredDependencies}
+            onChange={(dependencies) =>
+              onUpdateProfile((current) => ({
+                ...current,
+                trainer: { ...current.trainer, required_protontricks: dependencies },
+              }))
+            }
+          />
 
           <div className="crosshook-field">
             <label className="crosshook-settings-checkbox-row">

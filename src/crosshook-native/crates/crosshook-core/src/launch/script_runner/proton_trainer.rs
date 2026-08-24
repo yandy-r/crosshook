@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::path::Path;
 
 use tokio::process::Command;
@@ -146,7 +145,7 @@ pub(super) fn build_proton_trainer_command_with_umu_override(
             &gamescope_args,
             &env,
             effective_working_directory.as_deref(),
-            &BTreeMap::new(),
+            &request.custom_env_vars,
             use_umu,
         )
     } else {
@@ -155,7 +154,7 @@ pub(super) fn build_proton_trainer_command_with_umu_override(
             &effective_wrappers,
             &env,
             effective_working_directory.as_deref(),
-            &BTreeMap::new(),
+            &request.custom_env_vars,
             use_umu,
         )
     };

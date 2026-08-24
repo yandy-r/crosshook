@@ -139,6 +139,7 @@ pub fn check_launcher_for_profile(
                 .unwrap_or(global_umu_preference),
             network_isolation: profile.launch.network_isolation,
             gamescope: profile.launch.resolved_trainer_gamescope(),
+            custom_env_vars: profile.launch.custom_env_vars.clone(),
         },
     )
 }

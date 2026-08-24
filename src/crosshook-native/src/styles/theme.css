@@ -5234,6 +5234,52 @@ textarea {
 
 /* ── Prefix Dependencies Panel ── */
 
+.crosshook-prefix-dependency-editor {
+  grid-column: 1 / -1;
+}
+
+.crosshook-prefix-dependency-editor__entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.crosshook-prefix-dependency-editor__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.crosshook-prefix-dependency-editor__chip {
+  display: inline-flex;
+  align-items: center;
+}
+
+.crosshook-prefix-dependency-editor__remove {
+  margin-left: 6px;
+  border: 0;
+  padding: 0 2px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+}
+
+.crosshook-prefix-dependency-editor__remove:hover {
+  color: var(--crosshook-color-text);
+}
+
+@media (max-width: 640px) {
+  .crosshook-prefix-dependency-editor__entry {
+    grid-template-columns: 1fr;
+  }
+}
+
 .crosshook-prefix-deps__list {
   display: flex;
   flex-wrap: wrap;

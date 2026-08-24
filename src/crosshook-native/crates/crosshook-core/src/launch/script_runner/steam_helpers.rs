@@ -159,7 +159,15 @@ pub fn build_trainer_command(
 ) -> std::io::Result<Command> {
     let mut env = host_environment_map();
     merge_steam_helper_env_into(&mut env, request);
-    let base_for_flatpak = env.clone();
+    insert_sorted_env_key_list(
+        &mut env,
+        "CROSSHOOK_TRAINER_CUSTOM_ENV_KEYS",
+        request.custom_env_vars.keys().cloned(),
+    );
+    let mut base_for_flatpak = env.clone();
+    for key in request.custom_env_vars.keys() {
+        base_for_flatpak.remove(key);
+    }
     let resolved_proton_path = resolve_launch_proton_path(
         request.steam.proton_path.as_str(),
         request.steam.steam_client_install_path.as_str(),
@@ -179,10 +187,15 @@ pub fn build_trainer_command(
 
     let mut command = if request.network_isolation && is_unshare_net_available() {
         if platform::is_flatpak() {
-            build_flatpak_unshare_bash_command(script_path, &base_for_flatpak, &BTreeMap::new())?
+            build_flatpak_unshare_bash_command(
+                script_path,
+                &base_for_flatpak,
+                &request.custom_env_vars,
+            )?
         } else {
             let mut cmd = Command::new("unshare");
             cmd.envs(&env);
+            cmd.envs(&request.custom_env_vars);
             cmd.args(["--net", BASH_EXECUTABLE]);
             cmd.arg(script_path);
             cmd
@@ -191,6 +204,7 @@ pub fn build_trainer_command(
         let mut cmd = Command::new(BASH_EXECUTABLE);
         cmd.arg(script_path);
         cmd.envs(&env);
+        cmd.envs(&request.custom_env_vars);
         cmd
     };
     command.args(trainer_arguments(

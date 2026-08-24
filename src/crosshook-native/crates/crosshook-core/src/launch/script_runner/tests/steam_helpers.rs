@@ -1,5 +1,6 @@
 use super::support::{command_env_value, steam_request};
 use crate::launch::script_runner::{build_helper_command, build_trainer_command};
+use std::collections::BTreeMap;
 
 #[test]
 fn helper_command_includes_expected_script_arguments() {
@@ -107,7 +108,7 @@ fn trainer_command_includes_steam_app_id_and_trainer_arguments() {
 }
 
 #[test]
-fn trainer_command_ignores_launch_optimization_env() {
+fn trainer_command_preserves_custom_env_while_ignoring_launch_optimization_env() {
     let temp_dir = tempfile::tempdir().expect("temp dir");
     let script_path = temp_dir.path().join("steam-launch-trainer.sh");
     let log_path = temp_dir.path().join("trainer.log");
@@ -116,6 +117,8 @@ fn trainer_command_ignores_launch_optimization_env() {
         "disable_steam_input".to_string(),
         "enable_dxvk_async".to_string(),
     ];
+    request.custom_env_vars =
+        BTreeMap::from([("DRI_PRIME".to_string(), "pci-0000_0a_00_0!".to_string())]);
 
     let command =
         build_trainer_command(&request, &script_path, &log_path).expect("trainer command");
@@ -123,12 +126,16 @@ fn trainer_command_ignores_launch_optimization_env() {
     assert_eq!(command_env_value(&command, "PROTON_NO_STEAMINPUT"), None);
     assert_eq!(command_env_value(&command, "DXVK_ASYNC"), None);
     assert_eq!(
+        command_env_value(&command, "DRI_PRIME"),
+        Some("pci-0000_0a_00_0!".to_string())
+    );
+    assert_eq!(
         command_env_value(&command, "CROSSHOOK_TRAINER_BUILTIN_ENV_KEYS"),
         None
     );
     assert_eq!(
         command_env_value(&command, "CROSSHOOK_TRAINER_CUSTOM_ENV_KEYS"),
-        None
+        Some("DRI_PRIME".to_string())
     );
     assert_eq!(
         command_env_value(&command, "STEAM_COMPAT_DATA_PATH"),

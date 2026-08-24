@@ -70,6 +70,17 @@ fn rename_when_old_exists() {
         new_script_content.contains("# New Game - Trainer launcher"),
         "new script should contain updated display name"
     );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        let script_mode = fs::metadata(&result.new_script_path)
+            .expect("new script metadata")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(script_mode, 0o700, "renamed scripts must remain owner-only");
+    }
 
     let new_desktop_content =
         fs::read_to_string(&result.new_desktop_entry_path).expect("read new desktop");
@@ -77,6 +88,27 @@ fn rename_when_old_exists() {
         new_desktop_content.contains("Name=New Game - Trainer"),
         "new desktop should contain updated display name"
     );
+}
+
+#[test]
+fn rename_rejects_custom_environment_names_that_cannot_be_exported() {
+    let temp = tempdir().expect("temp dir");
+    let home = temp.path().to_string_lossy().into_owned();
+    let mut request = make_test_request();
+    request
+        .custom_env_vars
+        .insert("NOT-A-SHELL-NAME".to_string(), "value".to_string());
+    let old_slug = "old-game";
+    let old_script = combine_host_unix_path(
+        &home,
+        ".local/share/crosshook/launchers",
+        &format!("{old_slug}-trainer.sh"),
+    );
+    create_watermarked_script(&old_script);
+
+    let result = rename_launcher_files(old_slug, "New Game", "", &home, "", &request);
+
+    assert!(result.is_err());
 }
 
 #[test]

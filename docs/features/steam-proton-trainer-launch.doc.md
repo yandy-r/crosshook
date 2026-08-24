@@ -13,6 +13,7 @@ This guide covers the three launch methods, auto-discovery, launcher export, and
 - [Launch Optimizations](#launch-optimizations)
 - [Command arguments](#command-arguments)
 - [Custom environment variables](#custom-environment-variables)
+- [Prefix dependencies](#prefix-dependencies)
 - [ProtonDB guidance](#protondb-guidance)
 - [Auto-populate and Steam discovery](#auto-populate-and-steam-discovery)
 - [Workflow in CrossHook](#workflow-in-crosshook)
@@ -132,7 +133,21 @@ Saved profiles autosave this section after a short debounce, like launch optimiz
 
 Per-profile custom env vars are edited in the Profile panel alongside launch settings. They apply after **Launch Optimizations** on the same key, so user-defined values override optimization-derived ones. For **`steam_applaunch`**, they appear in the generated Steam Launch Options string (not applied automatically to `steam -applaunch` — you must paste/update the line in Steam). **`proton_run`** applies them directly to CrossHook-built `proton run` commands.
 
+Trainer-only Proton commands also receive the profile custom map. This includes direct Proton, UMU, Steam trainer-helper, and Flatpak Steam trainer paths. Curated game optimization wrappers and game command arguments remain excluded from trainer-only commands.
+
+On multi-GPU systems, numeric `DRI_PRIME` indices are enumeration-dependent. Verify the selected adapter with `DRI_PRIME=<selector> glxinfo -B` and prefer Mesa's stable PCI form, such as `DRI_PRIME=pci-0000_0a_00_0`. Add `!` when Vulkan should expose only that selected device.
+
 CrossHook blocks custom overrides for `WINEPREFIX`, `STEAM_COMPAT_DATA_PATH`, and `STEAM_COMPAT_CLIENT_INSTALL_PATH`. For precedence, syntax, and preview behavior, see the [quickstart § Custom environment variables](../getting-started/quickstart.md#custom-environment-variables).
+
+Standalone launcher export requires shell-compatible variable names: a letter or underscore followed by letters, digits, or underscores.
+
+## Prefix dependencies
+
+Some trainers require Windows components such as `dotnet48`, `vcrun2022`, or `corefonts`. Add those Winetricks/Protontricks verbs in the profile's **Trainer → Prefix dependencies** field. CrossHook validates and saves the list in `trainer.required_protontricks`; no manual TOML edit is required.
+
+After adding a dependency, use the profile's **Prefix Dependencies** panel to run **Check Now** and install missing components. The launch gate can also install declared dependencies automatically when **Settings → Prefix Dependencies → Auto-install prefix dependencies on first launch** is enabled.
+
+CrossHook discovers and runs Winetricks/Protontricks on the host. In Flatpak builds, detection and installation cross the sandbox through `flatpak-spawn --host` while retaining the selected profile's resolved `WINEPREFIX`.
 
 ## ProtonDB guidance
 
@@ -199,7 +214,7 @@ Custom Proton versions are searched in:
    - Runs the trainer directly from its source directory by default.
    - Optionally stages the trainer bundle into the compatdata prefix when `Copy into prefix` is selected.
    - Strips all WINE/Proton environment variables (~30 variables) to prevent conflicts.
-   - Sets only `STEAM_COMPAT_DATA_PATH`, `STEAM_COMPAT_CLIENT_INSTALL_PATH`, and `WINEPREFIX`.
+   - Sets `STEAM_COMPAT_DATA_PATH`, `STEAM_COMPAT_CLIENT_INSTALL_PATH`, and `WINEPREFIX`, then restores the profile's custom environment variables.
    - Runs `proton run <trainer>` in a clean session via `setsid`.
 6. The trainer starts inside the game's WINE prefix and can modify the running game.
 
@@ -246,6 +261,8 @@ export WINEPREFIX="$STEAM_COMPAT_DATA_PATH/pfx"
 exec "$PROTON" run "$TRAINER_HOST_PATH"
 ```
 
+The script exports the profile's custom environment variables before any Gamescope, UMU, or Proton process starts. CrossHook writes the script with owner-only `0700` permissions so those persisted values are not readable by other local users.
+
 The `.desktop` entry runs the script with `/bin/bash`, making the trainer launchable from your desktop's application menu or a file manager.
 
 ### Using exported launchers
@@ -253,6 +270,7 @@ The `.desktop` entry runs the script with `/bin/bash`, making the trainer launch
 1. Start the game through Steam first and wait for the in-game menu.
 2. Run the exported trainer launcher from your desktop menu or the terminal.
 3. The launcher uses the same Proton environment and compatdata prefix as CrossHook itself.
+4. Re-export the launcher after changing custom environment variables; stale detection includes those values.
 
 ## Launcher Lifecycle Management
 
@@ -387,6 +405,7 @@ The Health Dashboard uses the SQLite metadata layer for persistent tracking acro
 - **Auto-populate does not find the game.** Make sure the game has been installed through Steam and that its library folder is discoverable. If the game is on a secondary drive, verify that `libraryfolders.vdf` includes that library path.
 - **Auto-populate finds the game but not the Proton version.** The Proton version may not be mapped in Steam's config files yet. Launch the game once from Steam to ensure the compat tool mapping is written, then try auto-populate again.
 - **The game starts but the trainer does not.** Wait until the game has fully reached the in-game menu before launching the trainer. Some trainers require the game to be fully initialized.
+- **A dual-GPU trainer log reports `failed to create dri3 screen` and `failed to load driver: nvidia-drm`.** Confirm the intended GPU with `DRI_PRIME=<selector> glxinfo -B`. Numeric indices can select a different adapter across OpenGL and Vulkan stacks; use the target GPU's PCI selector and append `!` when the trainer should not enumerate the other Vulkan device.
 - **The trainer starts but has no effect.** The trainer may be incompatible with the Proton version. Try a different Proton or GE-Proton version. Also confirm the trainer version matches the game version.
 - **Exported launcher produces an error.** Run the generated `.sh` script manually from a terminal to see the full error output. Common causes: the Proton path has changed, the compatdata was deleted, or the trainer file was moved.
 - **Launcher shows "Stale" status.** The profile's display name has changed since the launcher was last exported. Click "Re-export Launcher" to regenerate the files with the current profile data.
