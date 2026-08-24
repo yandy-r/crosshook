@@ -1,9 +1,50 @@
-use super::{prefix_deps_store, prefix_storage_store, MetadataStore, MetadataStoreError};
+use super::{
+    prefix_deps_store, prefix_storage_store, prefix_version_restore_store, MetadataStore,
+    MetadataStoreError,
+};
 use crate::metadata::models::{
     PrefixDependencyStateRow, PrefixStorageCleanupAuditRow, PrefixStorageSnapshotRow,
+    PrefixVersionRestoreJournalRow,
 };
 
 impl MetadataStore {
+    pub fn upsert_prefix_version_restore(
+        &self,
+        record: &PrefixVersionRestoreJournalRow,
+    ) -> Result<(), MetadataStoreError> {
+        self.with_conn_mut("upsert prefix version restore", |conn| {
+            prefix_version_restore_store::upsert_restore(conn, record)
+        })
+    }
+
+    pub fn load_prefix_version_restore(
+        &self,
+        prefix_path: &str,
+    ) -> Result<Option<PrefixVersionRestoreJournalRow>, MetadataStoreError> {
+        self.with_conn("load prefix version restore", |conn| {
+            prefix_version_restore_store::load_restore(conn, prefix_path)
+        })
+    }
+
+    pub fn mark_prefix_version_restore_failed(
+        &self,
+        prefix_path: &str,
+        error: &str,
+    ) -> Result<(), MetadataStoreError> {
+        self.with_conn_mut("mark prefix version restore failed", |conn| {
+            prefix_version_restore_store::mark_restore_failed(conn, prefix_path, error)
+        })
+    }
+
+    pub fn delete_prefix_version_restore(
+        &self,
+        prefix_path: &str,
+    ) -> Result<(), MetadataStoreError> {
+        self.with_conn_mut("delete prefix version restore", |conn| {
+            prefix_version_restore_store::delete_restore(conn, prefix_path)
+        })
+    }
+
     pub fn upsert_prefix_dep_state(
         &self,
         profile_id: &str,

@@ -16,7 +16,7 @@
 //! - [`store`] — `MetadataStore` struct, constructors, `with_conn*` helpers
 //! - [`util`] — shared utilities (`in_clause_placeholders`)
 //! - [`db`] — SQLite connection opening (permissions, symlink guard)
-//! - [`migrations`] — schema migrations (current: **v26**)
+//! - [`migrations`] — schema migrations (current: **v27**)
 //! - [`models`] — shared row types, error type, size limits
 //!
 //! ## Per-domain operations (`*_ops.rs` → delegates to `*_store.rs`)
@@ -81,6 +81,7 @@ mod optimization_catalog_store;
 mod prefix_deps_store;
 mod prefix_ops;
 mod prefix_storage_store;
+mod prefix_version_restore_store;
 mod preset_ops;
 mod preset_store;
 mod profile_ops;
@@ -135,10 +136,11 @@ pub use models::{
     BundledOptimizationPresetRow, CacheEntryStatus, CollectionRow, CommunityProfileRow,
     CommunityTapRow, ConfigRevisionRow, ConfigRevisionSource, DriftState, FailureTrendRow,
     LaunchHistoryEntry, LaunchOutcome, MetadataStoreError, PrefixDependencyStateRow,
-    PrefixStorageCleanupAuditRow, PrefixStorageSnapshotRow, ProfileLaunchPresetOrigin, SyncReport,
-    SyncSource, VersionCorrelationStatus, VersionSnapshotRow, MAX_CACHE_PAYLOAD_BYTES,
-    MAX_CONFIG_REVISIONS_PER_PROFILE, MAX_DIAGNOSTIC_JSON_BYTES, MAX_HISTORY_LIST_LIMIT,
-    MAX_SNAPSHOT_TOML_BYTES, MAX_VERSION_SNAPSHOTS_PER_PROFILE,
+    PrefixStorageCleanupAuditRow, PrefixStorageSnapshotRow, PrefixVersionRestoreJournalRow,
+    ProfileLaunchPresetOrigin, SyncReport, SyncSource, VersionCorrelationStatus,
+    VersionSnapshotRow, MAX_CACHE_PAYLOAD_BYTES, MAX_CONFIG_REVISIONS_PER_PROFILE,
+    MAX_DIAGNOSTIC_JSON_BYTES, MAX_HISTORY_LIST_LIMIT, MAX_SNAPSHOT_TOML_BYTES,
+    MAX_VERSION_SNAPSHOTS_PER_PROFILE,
 };
 pub use offline_store::{CommunityTapOfflineRow, OfflineReadinessRow, TrainerHashCacheRow};
 pub use profile_sync::sha256_hex;

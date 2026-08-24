@@ -462,6 +462,22 @@ pub struct PrefixDependencyStateRow {
     pub updated_at: String,
 }
 
+/// Maps to the single authoritative repair row for a prefix whose Windows
+/// compatibility version must be restored after dependency installation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PrefixVersionRestoreJournalRow {
+    pub prefix_path: String,
+    pub profile_id: String,
+    pub binary_path: String,
+    pub tool_type: String,
+    pub steam_app_id: Option<String>,
+    pub restore_verb: String,
+    pub state: String,
+    pub last_error: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
 /// Maps to a row in the `config_revisions` append-only history table.
 #[derive(Debug, Clone)]
 pub struct ConfigRevisionRow {
