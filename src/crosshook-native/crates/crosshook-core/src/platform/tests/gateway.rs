@@ -3,8 +3,8 @@ use std::path::PathBuf;
 
 use super::super::gateway::{
     flatpak_custom_env_directory_with, host_command_with,
-    host_command_with_env_and_directory_inner, host_command_with_env_inner, host_std_command_with,
-    host_std_command_with_env_inner,
+    host_command_with_env_and_directory_inner, host_command_with_env_and_directory_lifecycle_inner,
+    host_command_with_env_inner, host_std_command_with, host_std_command_with_env_inner,
 };
 
 #[test]
@@ -68,6 +68,28 @@ fn host_command_with_env_and_directory_threads_directory_in_flatpak() {
         .iter()
         .any(|arg| *arg == std::ffi::OsStr::new("--env=DXVK_ASYNC=1")));
     assert_eq!(*args.last().unwrap(), std::ffi::OsStr::new("wine"));
+}
+
+#[test]
+fn lifecycle_bound_host_command_watches_flatpak_bus() {
+    let envs = BTreeMap::from([("WINEPREFIX".to_string(), "/games/pfx".to_string())]);
+    let cmd = host_command_with_env_and_directory_lifecycle_inner(
+        "winetricks",
+        &envs,
+        None,
+        true,
+        &BTreeMap::new(),
+    );
+    let args = cmd
+        .as_std()
+        .get_args()
+        .map(|arg| arg.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+
+    assert_eq!(args[0], "--host");
+    assert_eq!(args[1], "--watch-bus");
+    assert!(args.contains(&"--clear-env".to_string()));
+    assert_eq!(args.last().map(String::as_str), Some("winetricks"));
 }
 
 #[test]

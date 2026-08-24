@@ -8,7 +8,7 @@ pub(super) fn migrate_26_to_27(conn: &Connection) -> Result<(), MetadataStoreErr
         "
         CREATE TABLE prefix_version_restore_journal (
             prefix_path TEXT PRIMARY KEY,
-            profile_id TEXT NOT NULL REFERENCES profiles(profile_id) ON DELETE CASCADE,
+            profile_id TEXT REFERENCES profiles(profile_id) ON DELETE SET NULL,
             binary_path TEXT NOT NULL,
             tool_type TEXT NOT NULL CHECK (tool_type IN ('winetricks','protontricks')),
             steam_app_id TEXT,

@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 import type { CapabilityState } from '../types/onboarding';
-import type { PrefixDependencyStatus } from '../types/prefix-deps';
+import type { PrefixDependencyStatus, PrefixVersionRepairStatus } from '../types/prefix-deps';
 import { useCapabilityGate } from './useCapabilityGate';
 
 export interface UseLaunchPrefixDependencyGateResult {
   getDependencyStatus: (profileName: string, prefixPath: string) => Promise<PrefixDependencyStatus[]>;
+  getPrefixVersionRepairStatus: (profileName: string, prefixPath: string) => Promise<PrefixVersionRepairStatus>;
   installPrefixDependency: (profileName: string, prefixPath: string, packages: string[]) => Promise<void>;
+  repairPrefixWindowsVersion: (profileName: string, prefixPath: string) => Promise<PrefixVersionRepairStatus>;
   /** True when the app is running inside an active Gamescope session (from `check_gamescope_session`). */
   isGamescopeRunning: boolean;
   prefixToolsCapabilityState: CapabilityState;
@@ -49,9 +51,25 @@ export function useLaunchPrefixDependencyGate(): UseLaunchPrefixDependencyGateRe
     });
   }, []);
 
+  const getPrefixVersionRepairStatus = useCallback(async (profileName: string, prefixPath: string) => {
+    return callCommand<PrefixVersionRepairStatus>('get_prefix_version_repair_status', {
+      profileName,
+      prefixPath,
+    });
+  }, []);
+
+  const repairPrefixWindowsVersion = useCallback(async (profileName: string, prefixPath: string) => {
+    return callCommand<PrefixVersionRepairStatus>('repair_prefix_windows_version', {
+      profileName,
+      prefixPath,
+    });
+  }, []);
+
   return {
     getDependencyStatus,
+    getPrefixVersionRepairStatus,
     installPrefixDependency,
+    repairPrefixWindowsVersion,
     isGamescopeRunning,
     prefixToolsCapabilityState,
     prefixToolsRationale,

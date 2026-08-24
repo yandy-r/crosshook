@@ -41,6 +41,43 @@ pub enum PrefixDepsTool {
     Protontricks,
 }
 
+/// Lifecycle state for restoring a prefix's captured Windows compatibility tier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PrefixVersionRestoreState {
+    NotRequired,
+    Pending,
+    Succeeded,
+    Failed,
+}
+
+/// Durable information needed to restore a prefix Windows compatibility tier.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PrefixVersionRestorePlan {
+    pub binary_path: String,
+    pub prefix_path: String,
+    pub tool_type: PrefixDepsTool,
+    pub steam_app_id: Option<String>,
+    pub restore_verb: String,
+}
+
+/// Result of a compatibility-tier restoration attempt.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PrefixVersionRestoreOutcome {
+    pub state: PrefixVersionRestoreState,
+    pub error: Option<String>,
+}
+
+/// Separate dependency-install and compatibility-restore results.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PrefixDependencyInstallOutcome {
+    pub install_succeeded: bool,
+    pub install_exit_code: Option<i32>,
+    pub install_error: Option<String>,
+    pub restore_state: PrefixVersionRestoreState,
+    pub restore_error: Option<String>,
+}
+
 /// Errors specific to prefix dependency operations.
 #[derive(Debug)]
 pub enum PrefixDepsError {

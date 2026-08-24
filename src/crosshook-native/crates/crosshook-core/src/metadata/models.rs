@@ -467,7 +467,7 @@ pub struct PrefixDependencyStateRow {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PrefixVersionRestoreJournalRow {
     pub prefix_path: String,
-    pub profile_id: String,
+    pub profile_id: Option<String>,
     pub binary_path: String,
     pub tool_type: String,
     pub steam_app_id: Option<String>,

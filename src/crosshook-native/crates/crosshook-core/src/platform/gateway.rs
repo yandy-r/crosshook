@@ -101,6 +101,45 @@ pub(crate) fn host_command_with_env_and_directory_inner(
     flatpak: bool,
     custom_env_vars: &BTreeMap<String, String>,
 ) -> Command {
+    host_command_with_env_and_directory_mode_inner(
+        program,
+        envs,
+        directory,
+        flatpak,
+        custom_env_vars,
+        false,
+    )
+}
+
+/// Build a host command whose lifetime is bound to the `flatpak-spawn` proxy.
+///
+/// `--watch-bus` ensures Flatpak terminates the host process if CrossHook kills
+/// or drops the proxy during timeout, cancellation, or application shutdown.
+pub(crate) fn host_command_with_env_and_directory_lifecycle_inner(
+    program: &str,
+    envs: &BTreeMap<String, String>,
+    directory: Option<&str>,
+    flatpak: bool,
+    custom_env_vars: &BTreeMap<String, String>,
+) -> Command {
+    host_command_with_env_and_directory_mode_inner(
+        program,
+        envs,
+        directory,
+        flatpak,
+        custom_env_vars,
+        true,
+    )
+}
+
+fn host_command_with_env_and_directory_mode_inner(
+    program: &str,
+    envs: &BTreeMap<String, String>,
+    directory: Option<&str>,
+    flatpak: bool,
+    custom_env_vars: &BTreeMap<String, String>,
+    lifecycle_bound: bool,
+) -> Command {
     let normalized_directory = normalize_host_working_directory(directory);
     if flatpak {
         tracing::debug!(
@@ -108,7 +147,11 @@ pub(crate) fn host_command_with_env_and_directory_inner(
             "wrapping command with flatpak-spawn --host (with env)"
         );
         let mut cmd = Command::new("flatpak-spawn");
-        cmd.arg("--host").arg("--clear-env");
+        cmd.arg("--host");
+        if lifecycle_bound {
+            cmd.arg("--watch-bus");
+        }
+        cmd.arg("--clear-env");
         if let Some(directory) = normalized_directory.as_deref() {
             cmd.arg(format!("--directory={directory}"));
         }

@@ -11,7 +11,7 @@
  *   6. Media
  *   7. Trainer (hidden for native launch)
  *   8. Trainer-Gamescope (hidden for native launch; supports derivation notice)
- *   9. PrefixDeps (shown when required_protontricks non-empty)
+ *   9. PrefixDeps (shown for declared packages or an available prefix repair target)
  *  10. Runtime suggestion banner (community-recommended Proton version)
  *  11. Health section (badges, stale note, issues list)
  *  12. LauncherExport slot (Task 3.2)
@@ -29,6 +29,7 @@ import type { GameProfile, LaunchMethod } from '@/types/profile';
 import type { ProtonInstallOption } from '@/types/proton';
 import type { ProtonUpSuggestion } from '@/types/protonup';
 import type { VersionCorrelationStatus } from '@/types/version';
+import { resolveEffectivePrefixPath } from '@/utils/prefixPath';
 import { resolveTrainerGamescopeForDisplay } from '@/utils/trainerGamescope';
 import { GamescopeConfigPanel } from '../../GamescopeConfigPanel';
 import { DashboardPanelSection } from '../../layout/DashboardPanelSection';
@@ -135,7 +136,7 @@ export function HeroProfileEditorSections({
 
   // Prefix deps: guard sparse profiles
   const requiredProtontricks = profile.trainer?.required_protontricks ?? [];
-  const prefixPath = profile.runtime?.prefix_path ?? profile.steam?.compatdata_path ?? '';
+  const prefixPath = resolveEffectivePrefixPath(profile);
 
   return (
     <>
@@ -213,8 +214,8 @@ export function HeroProfileEditorSections({
         </DashboardPanelSection>
       ) : null}
 
-      {/* 9. PrefixDeps — checks and installs declared trainer requirements. */}
-      {requiredProtontricks.length > 0 ? (
+      {/* 9. PrefixDeps — checks requirements and discovers persisted repair state. */}
+      {requiredProtontricks.length > 0 || prefixPath.trim().length > 0 ? (
         <CollapsibleSection title="Prefix Dependencies" className="crosshook-panel">
           <PrefixDepsPanel profileName={profileName} prefixPath={prefixPath} requiredPackages={requiredProtontricks} />
         </CollapsibleSection>

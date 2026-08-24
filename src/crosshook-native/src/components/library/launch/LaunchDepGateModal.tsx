@@ -1,5 +1,6 @@
 import { useLaunchStateContext } from '@/context/LaunchStateContext';
 import type { GameProfile } from '@/types/profile';
+import { resolveEffectivePrefixPath } from '@/utils/prefixPath';
 import type { DepGateState } from './useLaunchDepGate';
 
 interface LaunchDepGateModalProps {
@@ -12,13 +13,70 @@ export function LaunchDepGateModal({ depGate, profile, selectedName }: LaunchDep
   const { launchGame, launchTrainer } = useLaunchStateContext();
 
   const depGatePackages = depGate.depGatePackages;
+  const repair = depGate.depGateRepair;
+
+  if (repair?.required) {
+    return (
+      <div
+        className="crosshook-modal-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dep-gate-repair-title"
+        aria-busy={depGate.depGateRepairing}
+      >
+        <div className="crosshook-modal crosshook-prefix-deps__confirm crosshook-panel">
+          <h3 id="dep-gate-repair-title">Prefix Repair Required</h3>
+          <p>
+            CrossHook must restore this prefix&apos;s Windows compatibility version before the game or trainer can
+            launch.
+          </p>
+          {repair.last_error ? <p className="crosshook-danger">Last repair attempt: {repair.last_error}</p> : null}
+          {depGate.depGateRepairing ? (
+            <p className="crosshook-muted" role="status" aria-live="polite">
+              Repairing prefix...
+            </p>
+          ) : null}
+          <div className="crosshook-modal__actions">
+            <button
+              type="button"
+              className="crosshook-button crosshook-button--danger"
+              disabled={depGate.depGateRepairing}
+              onClick={() => {
+                void depGate.repairPrefixVersion();
+              }}
+            >
+              {depGate.depGateRepairing ? 'Repairing...' : 'Repair + Launch'}
+            </button>
+            <button
+              type="button"
+              className="crosshook-button crosshook-button--secondary"
+              disabled={depGate.depGateRepairing}
+              onClick={() => {
+                depGate.setDepGateRepair(null);
+                depGate.setDepGatePendingAction(null);
+                depGate.setDepGateRepairing(false);
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (depGatePackages === null) {
     return null;
   }
 
   return (
-    <div className="crosshook-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="dep-gate-title">
+    <div
+      className="crosshook-modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="dep-gate-title"
+      aria-busy={depGate.depGateInstalling || depGate.depGateVerifying}
+    >
       <div className="crosshook-modal crosshook-prefix-deps__confirm crosshook-panel">
         <h3 id="dep-gate-title">Missing Prefix Dependencies</h3>
         <p>
@@ -32,7 +90,15 @@ export function LaunchDepGateModal({ depGate, profile, selectedName }: LaunchDep
             </li>
           ))}
         </ul>
-        {depGate.depGateInstalling ? <p className="crosshook-muted">Installing dependencies...</p> : null}
+        {depGate.depGateVerifying ? (
+          <p className="crosshook-muted" role="status" aria-live="polite">
+            Verifying prefix repair...
+          </p>
+        ) : depGate.depGateInstalling ? (
+          <p className="crosshook-muted" role="status" aria-live="polite">
+            Installing dependencies...
+          </p>
+        ) : null}
         <div className="crosshook-modal__actions">
           <button
             type="button"
@@ -40,7 +106,7 @@ export function LaunchDepGateModal({ depGate, profile, selectedName }: LaunchDep
             disabled={depGate.depGateInstalling}
             onClick={() => {
               void (async () => {
-                const prefixPath = profile.runtime?.prefix_path ?? profile.steam?.compatdata_path ?? '';
+                const prefixPath = resolveEffectivePrefixPath(profile);
                 depGate.setDepGateInstalling(true);
                 try {
                   await depGate.installPrefixDependency(selectedName, prefixPath, depGatePackages);

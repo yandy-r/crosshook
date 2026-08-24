@@ -4,7 +4,7 @@
 
 **Goal:** Make trainer dependency installation preserve Wine prefix compatibility across success, failure, cancellation, application shutdown, and machine restart.
 
-**Architecture:** Add a v27 SQLite repair journal written before Winetricks starts, refactor the runner into prepare/spawn/restore phases with a structured outcome and 90-second timeout, and expose repair state through thin Tauri commands. The existing Prefix Dependencies panel and launch gate surface pending repair and prevent UI launches until recovery succeeds.
+**Architecture:** Add a v27 SQLite repair journal written before Winetricks starts and keyed by the canonical physical `pfx`, refactor the runner into prepare/spawn/restore phases with a structured outcome and 90-second timeout, and expose repair state through thin Tauri commands. The existing Prefix Dependencies panel and launch gate surface pending repair and prevent UI launches until recovery succeeds.
 
 **Tech Stack:** Rust, Tokio, rusqlite, Tauri v2 IPC/events, React 18, TypeScript, Vitest, Flatpak host-command gateway.
 
@@ -16,7 +16,11 @@
 - Route Winetricks/Protontricks through `crosshook-core/src/platform.rs` host-command helpers.
 - Treat repair journal rows as SQLite operational metadata; no TOML setting changes.
 - Persist the repair row before spawning the dependency process and clear it only after verified restoration.
+- Preserve repair rows independently of profile lifetime; `profile_id` is nullable informational context.
 - Bound restore attempts to 90 seconds.
+- Bind Flatpak dependency mutations to the proxy lifecycle with `flatpak-spawn --host --watch-bus`.
+- Treat journal cleanup failure as unsafe, even after successful registry verification.
+- Require a positive decimal Steam App ID for Protontricks install and recovery plans.
 - Explicit Windows-version verbs are intentional and create no repair journal.
 - Keep Tauri commands thin and use snake_case command names matching frontend calls.
 - Do not launch games or GPU-heavy GUI verification after the observed AMD pageflip lockup; the user performs the final game/trainer smoke test.
@@ -41,9 +45,9 @@
 - Produces: `PrefixVersionRestoreJournalRow` with profile/tool/restore/state/error/timestamp fields.
 - Produces: `MetadataStore::{upsert_prefix_version_restore, load_prefix_version_restore, mark_prefix_version_restore_failed, delete_prefix_version_restore}`.
 
-- [ ] **Step 1: Write failing migration and store tests**
+- [x] **Step 1: Write failing migration and store tests**
 
-Create v27 tests that assert `user_version = 27`, the table constraints, one row per `prefix_path`, profile cascade deletion, and round-trip store behavior:
+Create v27 tests that assert `user_version = 27`, the table constraints, one row per canonical physical `pfx`, preservation with a null owner after profile deletion, and round-trip store behavior:
 
 ```rust
 assert_eq!(version, 27);
@@ -64,14 +68,14 @@ cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core pre
 
 Expected: compilation/test failure because schema v27 and store APIs do not exist.
 
-- [ ] **Step 3: Implement migration and metadata facade**
+- [x] **Step 3: Implement migration and metadata facade**
 
 Create the additive table:
 
 ```sql
 CREATE TABLE prefix_version_restore_journal (
     prefix_path TEXT PRIMARY KEY,
-    profile_id TEXT NOT NULL REFERENCES profiles(profile_id) ON DELETE CASCADE,
+    profile_id TEXT REFERENCES profiles(profile_id) ON DELETE SET NULL,
     binary_path TEXT NOT NULL,
     tool_type TEXT NOT NULL CHECK (tool_type IN ('winetricks','protontricks')),
     steam_app_id TEXT,
@@ -84,7 +88,7 @@ CREATE TABLE prefix_version_restore_journal (
 CREATE INDEX idx_prefix_version_restore_profile ON prefix_version_restore_journal(profile_id);
 ```
 
-Use `INSERT ... ON CONFLICT(prefix_path) DO UPDATE` so a retry preserves one authoritative row while refreshing tool details and state.
+Use `INSERT ... ON CONFLICT(prefix_path) DO UPDATE` so a retry preserves one authoritative row while refreshing tool details and state. The key is the canonical resolved `pfx`, not a user-entered alias.
 
 - [ ] **Step 4: Run focused metadata tests and verify GREEN**
 
@@ -105,7 +109,7 @@ Run the two commands from Step 2. Expected: PASS.
 - Produces: `PrefixDependencyInstall::wait_and_restore() -> PrefixDependencyInstallOutcome`.
 - Produces: `restore_prefix_windows_version(&PrefixVersionRestorePlan) -> PrefixVersionRestoreOutcome` for restart recovery.
 
-- [ ] **Step 1: Write failing registry parser tests**
+- [x] **Step 1: Write failing registry parser tests**
 
 Add literal `system.reg` fixtures asserting:
 
@@ -128,11 +132,11 @@ cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core pre
 
 Expected: Windows 11 and ambiguous cases fail against ProductName-only detection.
 
-- [ ] **Step 3: Implement build-aware compatibility parsing**
+- [x] **Step 3: Implement build-aware compatibility parsing**
 
 Parse the target registry section into a small field struct and map build thresholds before product/version fallbacks. Return `PrefixDepsError::ValidationError` when no supported restore verb can be derived.
 
-- [ ] **Step 4: Write failing lifecycle/outcome tests**
+- [x] **Step 4: Write failing lifecycle/outcome tests**
 
 Use fake executable scripts to assert separate calls and outcomes:
 
@@ -161,9 +165,9 @@ cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core pre
 
 Expected: failure because prepared install, structured outcome, timeout, and verification do not exist.
 
-- [ ] **Step 6: Implement prepared install and bounded restoration**
+- [x] **Step 6: Implement prepared install and bounded restoration**
 
-Move command spawn out of preparation. Preserve validated per-argument construction and `kill_on_drop(true)`. Use `tokio::time::timeout(Duration::from_secs(90), child.wait_with_output())`, terminate on timeout, sanitize stderr, then re-read the registry and require the expected compatibility verb.
+Move command spawn out of preparation. Preserve validated per-argument construction and `kill_on_drop(true)`. Resolve the canonical physical `pfx`, require a positive nonzero decimal App ID for Protontricks paths, and use `--watch-bus` for Flatpak mutation commands. Use `tokio::time::timeout(Duration::from_secs(90), child.wait())`, terminate on timeout, sanitize stderr, then re-read the registry and require the expected compatibility verb.
 
 - [ ] **Step 7: Run runner tests and verify GREEN**
 
@@ -183,7 +187,7 @@ Run the command from Step 5. Expected: PASS.
 - Produces IPC: `repair_prefix_windows_version(profile_name, prefix_path) -> PrefixVersionRepairStatus`.
 - Extends event: `prefix-dep-complete` with `install_succeeded`, `install_exit_code`, `restore_state`, and `restore_error` while retaining `succeeded` for compatibility.
 
-- [ ] **Step 1: Write failing Tauri command-contract and outcome tests**
+- [x] **Step 1: Write failing Tauri command-contract and outcome tests**
 
 Add tests for snake_case command names and pure outcome-to-persistence decisions:
 
@@ -204,13 +208,13 @@ cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-native c
 
 Expected: compilation failure because repair commands and structured completion mapping do not exist.
 
-- [ ] **Step 3: Implement journal-first install orchestration**
+- [x] **Step 3: Implement journal-first install orchestration**
 
-Prepare the install, persist `pending`, then spawn. In the background task, persist package status from `install_succeeded`; delete the journal only for verified restoration, otherwise mark it failed with the sanitized restore error. A spawn failure leaves the pending row recoverable.
+Prepare the install, persist `pending`, then spawn. In the background task, persist package status from `install_succeeded`; delete the journal only for verified restoration, otherwise mark it failed with the sanitized restore error. A spawn failure leaves the pending row recoverable. A failed journal deletion changes the completion outcome back to unsafe so the UI cannot treat restoration as complete.
 
-- [ ] **Step 4: Implement synchronous repair commands**
+- [x] **Step 4: Implement synchronous repair commands**
 
-Load the row by normalized prefix, acquire the existing prefix lock, reconstruct `PrefixVersionRestorePlan`, run bounded restoration, delete on success, and return current status. Missing rows return `required: false` idempotently.
+Load the row by canonical physical prefix identity, acquire the existing prefix lock, reconstruct `PrefixVersionRestorePlan`, validate any Protontricks App ID as a positive decimal value, run bounded restoration, delete on success, and return current status. Missing rows return `required: false` idempotently; cleanup failure remains repair-required.
 
 - [ ] **Step 5: Register commands and run Tauri tests**
 
@@ -229,6 +233,9 @@ Run the command from Step 2. Expected: PASS.
 - Modify: `src/crosshook-native/src/lib/mocks/handlers/system.ts`
 - Test: `src/crosshook-native/src/components/__tests__/PrefixDepsPanel.test.tsx`
 - Test: `src/crosshook-native/src/components/library/__tests__/useLaunchDepGate.test.tsx`
+- Test: `src/crosshook-native/src/components/library/__tests__/LaunchDepGateModal.test.tsx`
+- Create: `src/crosshook-native/src/utils/prefixPath.ts`
+- Test: `src/crosshook-native/src/utils/__tests__/prefixPath.test.ts`
 
 **Interfaces:**
 
@@ -236,7 +243,7 @@ Run the command from Step 2. Expected: PASS.
 - Produces `PrefixVersionRepairStatus` TypeScript type and repair methods in both hooks.
 - Produces launch-gate state `depGateRepair` and `repairPrefixVersion`.
 
-- [ ] **Step 1: Write failing panel and launch-gate tests**
+- [x] **Step 1: Write failing panel and launch-gate tests**
 
 Assert the real UI behavior:
 
@@ -258,9 +265,9 @@ npm test -- src/components/__tests__/PrefixDepsPanel.test.tsx src/components/lib
 
 from `src/crosshook-native`. Expected: FAIL because repair state and actions are absent.
 
-- [ ] **Step 3: Implement types, hooks, mocks, panel state, and gate**
+- [x] **Step 3: Implement types, hooks, mocks, panel state, and gate**
 
-Load repair state alongside package state. Render a danger-status repair card with sanitized details and an explicit retry. Check repair before packages in `handleBeforeLaunch`; unlike missing dependencies, repair cannot be skipped.
+Load repair state alongside package state. Render a danger-status repair card with sanitized details and an explicit retry. Keep dependency mutations disabled until repair status is known. Check repair before packages in `handleBeforeLaunch`; unlike missing dependencies, repair cannot be skipped. Scope async checks and completion events with generation tokens so stale responses cannot launch an old profile/action or trigger a duplicate launch.
 
 - [ ] **Step 4: Run focused frontend tests and typecheck**
 
@@ -287,7 +294,7 @@ Expected: PASS.
 - Consumes all completed behavior.
 - Produces current schema-v27 and recovery documentation.
 
-- [ ] **Step 1: Update documentation and schema inventory**
+- [x] **Step 1: Update documentation and schema inventory**
 
 Document the v27 table, fail-closed journal establishment, non-skippable repair gate, offline recovery, and explicit Windows-version verb exception.
 

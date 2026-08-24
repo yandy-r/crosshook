@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { subscribeEvent } from '@/lib/events';
 import { usePrefixDeps } from '../hooks/usePrefixDeps';
-import type { DepState, PrefixDependencyStatus } from '../types/prefix-deps';
+import type { DepState, PrefixDepCompletePayload, PrefixDependencyStatus } from '../types/prefix-deps';
 
 interface PrefixDepsPanelProps {
   profileName: string;
@@ -56,7 +56,19 @@ function DependencyStatusBadge({ dep }: { dep: PrefixDependencyStatus }) {
 }
 
 export function PrefixDepsPanel({ profileName, prefixPath, requiredPackages }: PrefixDepsPanelProps) {
-  const { deps, loading, error, checkDeps, installDep, reload } = usePrefixDeps(profileName, prefixPath);
+  const {
+    deps,
+    repairStatus,
+    repairStatusKnown,
+    repairStatusError,
+    loading,
+    repairing,
+    error,
+    checkDeps,
+    installDep,
+    repairPrefixVersion,
+    reload,
+  } = usePrefixDeps(profileName, prefixPath);
   const [installing, setInstalling] = useState(false);
   const [confirmInstall, setConfirmInstall] = useState<string[] | null>(null);
   const [logLines, setLogLines] = useState<string[]>([]);
@@ -78,6 +90,8 @@ export function PrefixDepsPanel({ profileName, prefixPath, requiredPackages }: P
   const missingPackages = packageStatuses
     .filter((d) => d.state === 'missing' || d.state === 'install_failed')
     .map((d) => d.package_name);
+  const dependencyActionsBlocked =
+    repairStatus.required || repairing || !repairStatusKnown || repairStatusError !== null;
 
   // Listen for install events
   useEffect(() => {
@@ -91,19 +105,12 @@ export function PrefixDepsPanel({ profileName, prefixPath, requiredPackages }: P
       }
     );
 
-    const unlistenComplete = subscribeEvent<{
-      profile_name: string;
-      prefix_path: string;
-      succeeded: boolean;
-      exit_code: number | null;
-    }>('prefix-dep-complete', (event) => {
+    const unlistenComplete = subscribeEvent<PrefixDepCompletePayload>('prefix-dep-complete', (event) => {
       if (event.payload.profile_name !== profileName || event.payload.prefix_path !== prefixPath) {
         return;
       }
       setInstalling(false);
-      if (event.payload.succeeded) {
-        reload();
-      }
+      void reload();
     });
 
     return () => {
@@ -113,11 +120,14 @@ export function PrefixDepsPanel({ profileName, prefixPath, requiredPackages }: P
   }, [profileName, prefixPath, reload]);
 
   const handleCheck = useCallback(() => {
-    void checkDeps(requiredPackages);
-  }, [checkDeps, requiredPackages]);
+    void (async () => {
+      await checkDeps(requiredPackages);
+      await reload();
+    })();
+  }, [checkDeps, reload, requiredPackages]);
 
   const handleInstallConfirm = useCallback(async () => {
-    if (!confirmInstall) return;
+    if (!confirmInstall || dependencyActionsBlocked) return;
     setInstalling(true);
     setLogLines([]);
     let installStarted = false;
@@ -132,7 +142,7 @@ export function PrefixDepsPanel({ profileName, prefixPath, requiredPackages }: P
       }
       setConfirmInstall(null);
     }
-  }, [confirmInstall, installDep]);
+  }, [confirmInstall, dependencyActionsBlocked, installDep]);
 
   const handleInstallAll = useCallback(() => {
     if (missingPackages.length === 0) return;
@@ -143,10 +153,52 @@ export function PrefixDepsPanel({ profileName, prefixPath, requiredPackages }: P
     setConfirmInstall([pkg]);
   }, []);
 
-  if (requiredPackages.length === 0) return null;
+  const handleRepair = useCallback(async () => {
+    try {
+      await repairPrefixVersion();
+    } catch {
+      // usePrefixDeps stores the user-facing error and keeps repair required.
+    }
+  }, [repairPrefixVersion]);
+
+  if (requiredPackages.length === 0 && !repairStatus.required) {
+    return (
+      <section aria-label="Prefix dependencies" className="crosshook-prefix-deps">
+        <p className="crosshook-help-text" role="status">
+          No prefix dependencies are declared for this profile.
+        </p>
+        {error ? (
+          <p className="crosshook-danger" role="alert" aria-live="assertive">
+            {error}
+          </p>
+        ) : null}
+      </section>
+    );
+  }
 
   return (
     <section aria-label="Prefix dependencies" className="crosshook-prefix-deps">
+      {repairStatus.required ? (
+        <div className="crosshook-error-banner" role="alert" aria-live="assertive">
+          <strong>Prefix repair required</strong>
+          <p>
+            CrossHook must restore this prefix&apos;s Windows compatibility version before the game or trainer can
+            launch.
+          </p>
+          {repairStatus.last_error ? <p>Last repair attempt: {repairStatus.last_error}</p> : null}
+          <button
+            type="button"
+            className="crosshook-button crosshook-button--danger"
+            onClick={() => {
+              void handleRepair();
+            }}
+            disabled={repairing}
+          >
+            {repairing ? 'Repairing...' : 'Repair Prefix'}
+          </button>
+        </div>
+      ) : null}
+
       {/* Package list */}
       <div className="crosshook-prefix-deps__list" aria-live="polite">
         {packageStatuses.map((dep) => (
@@ -157,6 +209,7 @@ export function PrefixDepsPanel({ profileName, prefixPath, requiredPackages }: P
                 type="button"
                 className="crosshook-button crosshook-button--small"
                 onClick={() => handleInstallSingle(dep.package_name)}
+                disabled={dependencyActionsBlocked}
               >
                 {dep.state === 'install_failed' ? 'Retry' : 'Install'}
               </button>
@@ -171,8 +224,8 @@ export function PrefixDepsPanel({ profileName, prefixPath, requiredPackages }: P
           type="button"
           className="crosshook-button crosshook-button--secondary"
           onClick={handleCheck}
-          disabled={loading || installing}
-          aria-disabled={loading || installing}
+          disabled={loading || installing || repairing || repairStatus.required}
+          aria-disabled={loading || installing || repairing || repairStatus.required}
         >
           {loading ? 'Checking...' : 'Check Now'}
         </button>
@@ -181,8 +234,8 @@ export function PrefixDepsPanel({ profileName, prefixPath, requiredPackages }: P
             type="button"
             className="crosshook-button"
             onClick={handleInstallAll}
-            disabled={installing}
-            aria-disabled={installing}
+            disabled={installing || dependencyActionsBlocked}
+            aria-disabled={installing || dependencyActionsBlocked}
           >
             Install All Missing ({missingPackages.length})
           </button>
@@ -238,6 +291,7 @@ export function PrefixDepsPanel({ profileName, prefixPath, requiredPackages }: P
                 onClick={() => {
                   void handleInstallConfirm();
                 }}
+                disabled={dependencyActionsBlocked}
               >
                 Install
               </button>

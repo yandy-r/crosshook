@@ -205,6 +205,10 @@ For **`proton_run`** and **`steam_applaunch`** profiles, **Command Arguments** l
 
 Use **Trainer → Prefix dependencies** to declare Windows components required by a trainer, such as `dotnet48`, `vcrun2022`, or `corefonts`. After saving, open **Prefix Dependencies** in the profile to check and install missing verbs. CrossHook uses host Winetricks/Protontricks even when the application itself runs inside Flatpak.
 
+CrossHook resolves the effective physical `pfx`, snapshots its Windows compatibility version, and saves a repair journal before a dependency tool can change it. Aliases of the same prefix therefore share one repair state. CrossHook restores the captured version after either a successful or failed install. If CrossHook, Flatpak, or the computer stops first, the pending repair survives restart and appears as a non-skippable **Repair required** step before the next game or trainer launch from the UI.
+
+Select **Repair Prefix** in the **Prefix Dependencies** panel to retry the repair. Each repair attempt is limited to 90 seconds, needs no network connection, and clears the journal only after CrossHook verifies the restored version. If journal cleanup fails, the prefix remains repair-required even though its version may already be restored. Explicit version verbs such as `win10` or `win11` remain intentional changes and do not create a repair journal. Dependency installation remains disabled while repair status is unknown, and CrossHook refuses to begin when it cannot save the journal. Protontricks requires a positive, nonzero decimal Steam App ID; CrossHook uses Winetricks instead when it is available.
+
 ## ProtonDB guidance
 
 The **ProtonDB Guidance** card appears in the Profile editor whenever the profile has a meaningful Steam App ID. CrossHook keeps this feature advisory:

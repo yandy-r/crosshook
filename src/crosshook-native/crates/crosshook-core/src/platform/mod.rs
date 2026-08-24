@@ -31,7 +31,8 @@ pub use xdg::override_xdg_for_flatpak_host_access;
 
 pub(crate) use env::{EnvSink, SystemEnv};
 pub(crate) use gateway::{
-    host_command_with_env_and_directory_inner, is_safe_host_path_lookup_name,
+    host_command_with_env_and_directory_inner, host_command_with_env_and_directory_lifecycle_inner,
+    is_safe_host_path_lookup_name,
 };
 pub(crate) use steam_deck::read_host_os_release_body;
 

@@ -307,7 +307,7 @@ describe('HeroProfileEditorSections', () => {
       expect(panel).toHaveTextContent('d3dx11_43');
     });
 
-    it('does not render PrefixDepsPanel when required_protontricks is empty', () => {
+    it('keeps PrefixDepsPanel mounted for repair discovery when a prefix exists', () => {
       const profile = makeProfileDraft({
         trainer: {
           path: '/trainers/game/trainer.exe',
@@ -316,11 +316,24 @@ describe('HeroProfileEditorSections', () => {
           loading_mode: 'source_directory',
           required_protontricks: [],
         },
+        runtime: { prefix_path: '/prefixes/game' },
       });
 
       render(<HeroProfileEditorSections {...buildBaseProps({ profile })} />);
 
-      expect(screen.queryByTestId('prefix-deps-panel')).not.toBeInTheDocument();
+      expect(screen.getByTestId('prefix-deps-panel')).toBeInTheDocument();
+    });
+
+    it('keeps PrefixDepsPanel mounted for a Steam-only compatdata prefix', () => {
+      const profile = makeProfileDraft({
+        runtime: { prefix_path: '' },
+        steam: { compatdata_path: '/steam/compatdata/123/pfx' },
+        trainer: { required_protontricks: [] },
+      });
+
+      render(<HeroProfileEditorSections {...buildBaseProps({ profile })} />);
+
+      expect(screen.getByTestId('prefix-deps-panel')).toBeInTheDocument();
     });
 
     it('does not render PrefixDepsPanel when required_protontricks is absent', () => {

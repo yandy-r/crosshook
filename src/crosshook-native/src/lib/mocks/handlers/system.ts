@@ -11,7 +11,11 @@ import type {
 } from '../../../types/discovery';
 import type { CommandArgumentCatalogPayload, CommandArgumentEntry } from '../../../types/launch-command-arguments';
 import type { HashVerifyResult, OfflineReadinessReport, TrainerTypeEntry } from '../../../types/offline';
-import type { BinaryDetectionResult, PrefixDependencyStatus } from '../../../types/prefix-deps';
+import type {
+  BinaryDetectionResult,
+  PrefixDependencyStatus,
+  PrefixVersionRepairStatus,
+} from '../../../types/prefix-deps';
 import type {
   PrefixCleanupResult,
   PrefixCleanupTarget,
@@ -305,6 +309,12 @@ const MOCK_BINARY_DETECTION: BinaryDetectionResult = {
   binary_name: 'winetricks',
   tool_type: 'winetricks',
   source: 'PATH',
+};
+
+const MOCK_PREFIX_VERSION_REPAIR_STATUS: PrefixVersionRepairStatus = {
+  required: false,
+  state: null,
+  last_error: null,
 };
 
 // --- optimization catalog ---
@@ -618,6 +628,15 @@ export function registerSystem(map: Map<string, Handler>): void {
 
   map.set('get_dependency_status', async (_args): Promise<PrefixDependencyStatus[]> => {
     return [];
+  });
+
+  map.set('get_prefix_version_repair_status', async (_args): Promise<PrefixVersionRepairStatus> => {
+    return structuredClone(MOCK_PREFIX_VERSION_REPAIR_STATUS);
+  });
+
+  map.set('repair_prefix_windows_version', async (_args): Promise<PrefixVersionRepairStatus> => {
+    console.warn('[dev-mock] repair_prefix_windows_version: no repair required in browser mode');
+    return structuredClone(MOCK_PREFIX_VERSION_REPAIR_STATUS);
   });
 
   // --- diagnostics ---

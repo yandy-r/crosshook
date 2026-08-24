@@ -54,11 +54,13 @@ fn migration_24_to_25_resets_tap_watermarks() {
     run_migrations(&conn).unwrap();
 
     // Rebuild the v24 steady state: no trainer_loading_mode column, no
-    // profile_mods table (added in v26), a stored watermark, and user_version
-    // pinned at 24 so run_migrations replays 24→25 (and 25→26).
+    // profile_mods and prefix-version journal tables (added in v26 and v27),
+    // a stored watermark, and user_version pinned at 24 so run_migrations
+    // replays every later migration exactly once.
     conn.execute_batch(
         "ALTER TABLE community_profiles DROP COLUMN trainer_loading_mode;
-         DROP TABLE profile_mods;",
+         DROP TABLE profile_mods;
+         DROP TABLE prefix_version_restore_journal;",
     )
     .unwrap();
     conn.pragma_update(None, "user_version", 24_u32).unwrap();

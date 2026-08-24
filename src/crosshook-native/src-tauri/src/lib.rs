@@ -540,6 +540,8 @@ pub fn run() {
             commands::prefix_deps::check_prefix_dependencies,
             commands::prefix_deps::install_prefix_dependency,
             commands::prefix_deps::get_dependency_status,
+            commands::prefix_deps::get_prefix_version_repair_status,
+            commands::prefix_deps::repair_prefix_windows_version,
             // Trainer discovery
             commands::discovery::discovery_catalog,
             commands::discovery::discovery_search_external,

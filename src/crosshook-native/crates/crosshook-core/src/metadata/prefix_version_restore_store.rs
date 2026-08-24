@@ -76,28 +76,40 @@ pub fn mark_restore_failed(
     error: &str,
 ) -> Result<(), MetadataStoreError> {
     let now = Utc::now().to_rfc3339();
-    conn.execute(
-        "UPDATE prefix_version_restore_journal
+    let affected = conn
+        .execute(
+            "UPDATE prefix_version_restore_journal
          SET state = 'failed', last_error = ?2, updated_at = ?3
          WHERE prefix_path = ?1",
-        params![prefix_path, error, now],
-    )
-    .map_err(|source| MetadataStoreError::Database {
-        action: "mark prefix version restore failed",
-        source,
-    })?;
+            params![prefix_path, error, now],
+        )
+        .map_err(|source| MetadataStoreError::Database {
+            action: "mark prefix version restore failed",
+            source,
+        })?;
+    if affected != 1 {
+        return Err(MetadataStoreError::Validation(
+            "cannot mark prefix repair failed because no journal row exists".to_string(),
+        ));
+    }
     Ok(())
 }
 
 pub fn delete_restore(conn: &Connection, prefix_path: &str) -> Result<(), MetadataStoreError> {
-    conn.execute(
-        "DELETE FROM prefix_version_restore_journal WHERE prefix_path = ?1",
-        params![prefix_path],
-    )
-    .map_err(|source| MetadataStoreError::Database {
-        action: "delete prefix version restore journal",
-        source,
-    })?;
+    let affected = conn
+        .execute(
+            "DELETE FROM prefix_version_restore_journal WHERE prefix_path = ?1",
+            params![prefix_path],
+        )
+        .map_err(|source| MetadataStoreError::Database {
+            action: "delete prefix version restore journal",
+            source,
+        })?;
+    if affected != 1 {
+        return Err(MetadataStoreError::Validation(
+            "cannot delete prefix repair because no journal row exists".to_string(),
+        ));
+    }
     Ok(())
 }
 
@@ -115,7 +127,7 @@ mod tests {
         insert_test_profile_row(&conn, "profile-1");
         let record = PrefixVersionRestoreJournalRow {
             prefix_path: "/games/pfx".to_string(),
-            profile_id: "profile-1".to_string(),
+            profile_id: Some("profile-1".to_string()),
             binary_path: "winetricks".to_string(),
             tool_type: "winetricks".to_string(),
             steam_app_id: None,
@@ -138,5 +150,17 @@ mod tests {
 
         delete_restore(&conn, "/games/pfx").unwrap();
         assert!(load_restore(&conn, "/games/pfx").unwrap().is_none());
+    }
+
+    #[test]
+    fn missing_restore_row_rejects_unsafe_mutations() {
+        let conn = db::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let mark = mark_restore_failed(&conn, "/games/missing/pfx", "restore failed");
+        assert!(mark.unwrap_err().to_string().contains("no journal row"));
+
+        let delete = delete_restore(&conn, "/games/missing/pfx");
+        assert!(delete.unwrap_err().to_string().contains("no journal row"));
     }
 }
