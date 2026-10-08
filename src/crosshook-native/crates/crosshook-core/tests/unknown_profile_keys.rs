@@ -24,8 +24,12 @@ future = 2026-10-08
 [local_override.trainer]
 path = "/local/trainer.exe"
 future = "local"
-[[launch.pre_launch_hooks]]
+[[pre_launch_hooks]]
 id = "hook"
+name = "Pre-launch hook"
+path = "/scripts/pre-launch.sh"
+stage = "pre-launch"
+enabled = false
 future = true
 "#;
 
@@ -49,6 +53,10 @@ fn profile_store_partial_updates_keep_nested_and_root_extras() {
         toml::from_str(&fs::read_to_string(store.base_path.join("game.toml")).unwrap()).unwrap();
     let original: toml::Value = toml::from_str(PROFILE).unwrap();
     assert_eq!(saved["root_future"], original["root_future"]);
+    assert_eq!(
+        saved["pre_launch_hooks"][0]["future"],
+        original["pre_launch_hooks"][0]["future"]
+    );
     assert_eq!(saved["game"]["future"], original["game"]["future"]);
     assert_eq!(
         saved["steam"]["launcher"]["future"],
@@ -82,6 +90,12 @@ fn ipc_profile_merge_ignores_incoming_extras_and_restores_disk_extras() {
     assert!(saved.contains("Edited"));
     assert!(saved.contains("root_future = 2026-10-08T12:30:00Z"));
     assert!(!saved.contains("injected"));
+    let saved: toml::Value = toml::from_str(&saved).unwrap();
+    let original: toml::Value = toml::from_str(PROFILE).unwrap();
+    assert_eq!(
+        saved["pre_launch_hooks"][0]["future"],
+        original["pre_launch_hooks"][0]["future"]
+    );
 }
 
 #[test]
