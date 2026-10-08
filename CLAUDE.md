@@ -125,3 +125,9 @@ npm run typecheck
 ```
 
 Primary source root: `src/crosshook-native/`. CI workflows: `.github/workflows/` (release: `.github/workflows/release.yml`). See [`AGENTS.md`](AGENTS.md) § _Browser Dev Mode_ for the mock layer, loopback-only binding, and the `verify:no-mocks` CI sentinel.
+
+## Branching & releases
+
+[`RELEASING.md`](RELEASING.md) is the source of truth for branches and releases. Branch
+off `main` and PR back into it; every release is tagged from `main`. Never merge one
+long-lived branch into another to sync it.
