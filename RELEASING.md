@@ -17,7 +17,8 @@ model: trunk-only
 trunk: main
 support: latest-minor
 backport_label: backport:{X.Y}
-tracker: none
+tracker: linear-labels
+tracker_ref: crosshook release
 -->
 
 <!-- ycc-release-state:table:begin -->
@@ -81,4 +82,4 @@ Tags follow `vX.Y.Z`. Version files: `src/crosshook-native/Cargo.toml` (workspac
 
 ## Planning
 
-Targets are decided in the PR description: say which release a change is for.
+Every issue in the [crosshook -- Native UI migration project](https://linear.app/yandy-r/project/crosshook-native-ui-migration-71312905cbd7) gets a target release at triage as a label from the single-select **crosshook release** label group (`v0.6.1` for the first milestone, up to `v0.8.1` for the last). Add a label to the group when a new version is planned.
