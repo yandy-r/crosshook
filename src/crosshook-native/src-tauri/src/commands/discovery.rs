@@ -74,16 +74,18 @@ pub fn discovery_check_version_compatibility(
 pub fn discovery_list_external_sources(
     settings_store: State<'_, SettingsStore>,
 ) -> Result<Vec<ExternalTrainerSourceSubscription>, String> {
-    let settings = settings_store.load().map_err(|e| e.to_string())?;
+    let mut settings = settings_store.load().map_err(|e| e.to_string())?;
+    settings.clear_extra();
     Ok(settings.external_trainer_sources)
 }
 
 #[tauri::command]
 pub fn discovery_add_external_source(
-    source: ExternalTrainerSourceSubscription,
+    mut source: ExternalTrainerSourceSubscription,
     settings_store: State<'_, SettingsStore>,
 ) -> Result<Vec<ExternalTrainerSourceSubscription>, String> {
     validate_external_source(&source)?;
+    source.extra.clear();
     settings_store
         .update(|settings| {
             if settings
@@ -98,7 +100,11 @@ pub fn discovery_add_external_source(
             }
 
             settings.external_trainer_sources.push(source);
-            Ok(settings.external_trainer_sources.clone())
+            let mut result = settings.external_trainer_sources.clone();
+            for source in &mut result {
+                source.extra.clear();
+            }
+            Ok(result)
         })
         .map_err(|e| e.to_string())?
 }
@@ -119,7 +125,11 @@ pub fn discovery_remove_external_source(
                 return Err(format!("no source with id {source_id:?} found"));
             }
 
-            Ok(settings.external_trainer_sources.clone())
+            let mut result = settings.external_trainer_sources.clone();
+            for source in &mut result {
+                source.extra.clear();
+            }
+            Ok(result)
         })
         .map_err(|e| e.to_string())?
 }

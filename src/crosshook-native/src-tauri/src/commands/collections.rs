@@ -105,17 +105,30 @@ pub fn collection_get_defaults(
     collection_id: String,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<Option<CollectionDefaultsSection>, String> {
-    metadata_store
+    let mut defaults = metadata_store
         .get_collection_defaults(&collection_id)
-        .map_err(map_error)
+        .map_err(map_error)?;
+    if let Some(defaults) = &mut defaults {
+        defaults.clear_extra();
+    }
+    Ok(defaults)
 }
 
 #[tauri::command]
 pub fn collection_set_defaults(
     collection_id: String,
-    defaults: Option<CollectionDefaultsSection>,
+    mut defaults: Option<CollectionDefaultsSection>,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<(), String> {
+    if let Some(defaults) = &mut defaults {
+        defaults.clear_extra();
+        if let Some(existing) = metadata_store
+            .get_collection_defaults(&collection_id)
+            .map_err(map_error)?
+        {
+            defaults.preserve_extra_from(&existing);
+        }
+    }
     metadata_store
         .set_collection_defaults(&collection_id, defaults.as_ref())
         .map_err(map_error)

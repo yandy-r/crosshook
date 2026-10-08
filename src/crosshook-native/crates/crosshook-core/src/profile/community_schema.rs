@@ -44,7 +44,7 @@ pub struct CommunityProfileMetadata {
     pub trainer_sha256: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CommunityProfileManifest {
     #[serde(
         default = "default_schema_version",

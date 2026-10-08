@@ -86,6 +86,7 @@ fn parse_rss_items_handles_empty_feed() {
 #[test]
 fn build_response_uses_source_fields() {
     let source = ExternalTrainerSourceSubscription {
+        extra: toml::Table::new(),
         source_id: "my_source".to_string(),
         display_name: "My Source".to_string(),
         base_url: "https://example.com/".to_string(),

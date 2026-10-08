@@ -341,6 +341,7 @@ mod launch_preset_metadata_tests {
         presets.insert(
             "p".to_string(),
             LaunchOptimizationsSection {
+                extra: toml::Table::new(),
                 enabled_option_ids: vec![],
             },
         );

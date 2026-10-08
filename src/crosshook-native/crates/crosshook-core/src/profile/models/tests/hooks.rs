@@ -10,6 +10,7 @@ fn sample_hook(id: &str, stage: HookStage) -> LaunchHook {
         path: format!("/usr/local/bin/{id}.sh"),
         stage,
         enabled: true,
+        ..LaunchHook::default()
     }
 }
 

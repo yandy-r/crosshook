@@ -18,7 +18,7 @@ fn default_network_isolation() -> bool {
     true
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct LaunchRequest {
     #[serde(default)]
     pub method: String,

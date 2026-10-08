@@ -69,6 +69,7 @@ fn local_override_trainer_section_with_extra_protontricks() {
     let section = LocalOverrideTrainerSection {
         path: String::new(),
         extra_protontricks: vec!["xact".to_string()],
+        ..LocalOverrideTrainerSection::default()
     };
     assert!(!section.is_empty());
     let toml_str = toml::to_string_pretty(&section).unwrap();

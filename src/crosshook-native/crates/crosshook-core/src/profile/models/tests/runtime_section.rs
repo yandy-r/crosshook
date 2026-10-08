@@ -54,6 +54,7 @@ fn runtime_section_umu_game_id_roundtrip() {
         umu_store: String::new(),
         umu_codename: String::new(),
         umu_preference: None,
+        ..RuntimeSection::default()
     };
     let toml = toml::to_string(&section).unwrap();
     assert!(toml.contains("umu_game_id = \"custom-42\""));

@@ -74,6 +74,7 @@ pub(crate) fn normalize_subscription(
     }
 
     Ok(CommunityTapSubscription {
+        extra: toml::Table::new(),
         url: url.to_string(),
         branch,
         pinned_commit: subscription

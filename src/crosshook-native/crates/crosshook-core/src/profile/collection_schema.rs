@@ -19,7 +19,7 @@ pub struct CollectionPresetProfileDescriptor {
 }
 
 /// Top-level manifest serialized to TOML for collection presets.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CollectionPresetManifest {
     pub schema_version: String,
     pub name: String,

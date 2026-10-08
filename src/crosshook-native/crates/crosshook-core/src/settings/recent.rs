@@ -12,12 +12,15 @@ pub struct RecentFilesStore {
     pub path: PathBuf,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct RecentFilesData {
     pub game_paths: Vec<String>,
     pub trainer_paths: Vec<String>,
     pub dll_paths: Vec<String>,
+    /// Unknown TOML fields retained for forward-compatible local persistence.
+    #[serde(default, flatten)]
+    pub extra: toml::Table,
 }
 
 #[derive(Debug)]
@@ -94,6 +97,18 @@ impl RecentFilesStore {
         Ok(recent_files)
     }
 
+    /// Saves IPC-known fields while retaining unknown fields from disk, never JSON.
+    pub fn save_from_ipc(
+        &self,
+        incoming: &RecentFilesData,
+        max_entries: usize,
+    ) -> Result<(), RecentFilesStoreError> {
+        let current = self.load(max_entries)?;
+        let mut merged = incoming.clone();
+        merged.extra = current.extra;
+        self.save(&merged, max_entries)
+    }
+
     pub fn save(
         &self,
         recent_files: &RecentFilesData,
@@ -108,7 +123,10 @@ impl RecentFilesStore {
         cap_recent_paths(&mut recent_files.trainer_paths, max_entries);
         cap_recent_paths(&mut recent_files.dll_paths, max_entries);
 
-        fs::write(&self.path, toml::to_string_pretty(&recent_files)?)?;
+        crate::fs_util::write_atomic(
+            &self.path,
+            toml::to_string_pretty(&recent_files)?.as_bytes(),
+        )?;
         Ok(())
     }
 }
@@ -146,6 +164,7 @@ mod tests {
         create_file(&dll_a);
 
         let recent_files = RecentFilesData {
+            extra: toml::Table::new(),
             game_paths: vec![game_a.display().to_string()],
             trainer_paths: vec![trainer_a.display().to_string()],
             dll_paths: vec![dll_a.display().to_string()],
@@ -206,6 +225,7 @@ mod tests {
         .collect();
 
         let recent_files = RecentFilesData {
+            extra: toml::Table::new(),
             game_paths,
             trainer_paths,
             dll_paths,

@@ -46,10 +46,18 @@ fn save_community_taps(
     mut settings: AppSettingsData,
     taps: Vec<CommunityTapSubscription>,
 ) -> Result<Vec<CommunityTapSubscription>, String> {
-    let deduped = dedupe_taps(taps);
-    settings.community_taps = deduped.clone();
-    settings_store.save(&settings).map_err(map_error)?;
-    Ok(deduped)
+    settings_store
+        .update(|current| {
+            settings.community_taps = dedupe_taps(taps);
+            settings.preserve_extra_from(current);
+            current.community_taps = settings.community_taps;
+            let mut result = current.community_taps.clone();
+            for tap in &mut result {
+                tap.extra.clear();
+            }
+            Ok::<_, String>(result)
+        })
+        .map_err(map_error)?
 }
 
 fn current_workspaces(
@@ -295,6 +303,9 @@ pub fn community_sync(
         }
     }
 
+    for result in &mut results {
+        result.workspace.subscription.extra.clear();
+    }
     Ok(results)
 }
 
@@ -356,21 +367,25 @@ mod tests {
     fn dedupes_taps_by_url_and_branch() {
         let taps = dedupe_taps(vec![
             CommunityTapSubscription {
+                extra: toml::Table::new(),
                 url: "https://example.invalid/community.git".to_string(),
                 branch: Some("main".to_string()),
                 pinned_commit: None,
             },
             CommunityTapSubscription {
+                extra: toml::Table::new(),
                 url: "https://example.invalid/community.git".to_string(),
                 branch: Some("main".to_string()),
                 pinned_commit: None,
             },
             CommunityTapSubscription {
+                extra: toml::Table::new(),
                 url: "https://example.invalid/community.git".to_string(),
                 branch: Some("beta".to_string()),
                 pinned_commit: None,
             },
             CommunityTapSubscription {
+                extra: toml::Table::new(),
                 url: "https://example.invalid/community.git".to_string(),
                 branch: Some("main".to_string()),
                 pinned_commit: Some("abc123".to_string()),

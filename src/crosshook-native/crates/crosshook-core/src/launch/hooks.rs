@@ -328,6 +328,7 @@ mod tests {
 
         let hooks = vec![
             LaunchHook {
+                extra: toml::Table::new(),
                 id: "a".to_string(),
                 name: "A".to_string(),
                 path: hook_a.to_string_lossy().into_owned(),
@@ -335,6 +336,7 @@ mod tests {
                 enabled: true,
             },
             LaunchHook {
+                extra: toml::Table::new(),
                 id: "b".to_string(),
                 name: "B".to_string(),
                 path: hook_b.to_string_lossy().into_owned(),
@@ -353,6 +355,7 @@ mod tests {
     fn disabled_and_missing_hooks_warn_without_running() {
         let _guard = env_test_lock();
         let hooks = vec![LaunchHook {
+            extra: toml::Table::new(),
             id: "missing".to_string(),
             name: "Missing".to_string(),
             path: "/no/such/hook.sh".to_string(),

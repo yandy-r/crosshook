@@ -32,7 +32,7 @@ pub enum HookStage {
 ///   re-derives `stage` from the container on every load/import so a mismatched
 ///   serialized value can never persist. The same step drops entries with an
 ///   empty `id` (identity-less hooks are unusable).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(default)]
 #[cfg_attr(feature = "ts-rs", derive(TS))]
 #[cfg_attr(feature = "ts-rs", ts(export, export_to = "generated/launch_hooks.ts"))]
@@ -42,4 +42,8 @@ pub struct LaunchHook {
     pub path: String,
     pub stage: HookStage,
     pub enabled: bool,
+    /// Unknown TOML keys retained across read-modify-write operations.
+    #[serde(default, flatten)]
+    #[cfg_attr(feature = "ts-rs", ts(skip))]
+    pub extra: toml::Table,
 }

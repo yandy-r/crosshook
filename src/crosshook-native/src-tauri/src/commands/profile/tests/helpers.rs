@@ -6,6 +6,7 @@ use crosshook_core::profile::{
 pub(super) fn steam_profile(home: &str) -> GameProfile {
     GameProfile {
         game: GameSection {
+            extra: toml::Table::new(),
             name: "Test Game".to_string(),
             executable_path: String::new(),
             custom_cover_art_path: String::new(),
@@ -13,6 +14,7 @@ pub(super) fn steam_profile(home: &str) -> GameProfile {
             custom_background_art_path: String::new(),
         },
         trainer: TrainerSection {
+            extra: toml::Table::new(),
             path: "/tmp/trainers/test.exe".to_string(),
             kind: String::new(),
             loading_mode: TrainerLoadingMode::SourceDirectory,
@@ -24,6 +26,7 @@ pub(super) fn steam_profile(home: &str) -> GameProfile {
             app_id: "12345".to_string(),
             compatdata_path: format!("{home}/.local/share/Steam/steamapps/compatdata/12345"),
             launcher: LauncherSection {
+                extra: toml::Table::new(),
                 display_name: "Test Game".to_string(),
                 icon_path: String::new(),
             },

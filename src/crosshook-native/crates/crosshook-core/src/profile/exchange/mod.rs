@@ -25,7 +25,9 @@ mod tests {
 
     fn sample_profile() -> GameProfile {
         GameProfile {
+            extra: toml::Table::new(),
             game: crate::profile::GameSection {
+                extra: toml::Table::new(),
                 name: "Elden Ring".to_string(),
                 executable_path: "/games/elden-ring/eldenring.exe".to_string(),
                 custom_cover_art_path: String::new(),
@@ -33,6 +35,7 @@ mod tests {
                 custom_background_art_path: String::new(),
             },
             trainer: crate::profile::TrainerSection {
+                extra: toml::Table::new(),
                 path: "/trainers/elden-ring.exe".to_string(),
                 kind: "fling".to_string(),
                 loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
@@ -46,16 +49,19 @@ mod tests {
                 ..Default::default()
             },
             steam: crate::profile::SteamSection {
+                extra: toml::Table::new(),
                 enabled: true,
                 app_id: "1245620".to_string(),
                 compatdata_path: "/steam/compatdata/1245620".to_string(),
                 proton_path: "/steam/proton/proton".to_string(),
                 launcher: crate::profile::LauncherSection {
+                    extra: toml::Table::new(),
                     icon_path: "/icons/elden-ring.png".to_string(),
                     display_name: "Elden Ring".to_string(),
                 },
             },
             runtime: crate::profile::RuntimeSection {
+                extra: toml::Table::new(),
                 prefix_path: String::new(),
                 proton_path: String::new(),
                 working_directory: String::new(),
@@ -274,6 +280,7 @@ mod tests {
 
     fn sample_hook_enabled(id: &str, stage: HookStage) -> LaunchHook {
         LaunchHook {
+            extra: toml::Table::new(),
             id: id.to_string(),
             name: format!("Hook {id}"),
             path: format!("/scripts/{id}.sh"),
@@ -320,6 +327,36 @@ mod tests {
             !json.contains("/scripts/post-a.sh"),
             "hook path must not appear in exported JSON: {json}"
         );
+    }
+
+    #[test]
+    fn community_import_strips_recursive_unknown_fields_from_local_profile() {
+        let dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(dir.path().join("profiles"));
+        store.save("game", &sample_profile()).unwrap();
+        let path = dir.path().join("game.json");
+        export_community_profile(&store.base_path, "game", &path).unwrap();
+        let mut manifest: Value =
+            serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        let profile = &mut manifest["profile"];
+        profile["unknown_root"] = serde_json::json!({ "private": "root" });
+        profile["game"]["unknown_nested"] = serde_json::json!({ "private": "nested" });
+        profile["launch"]["presets"] = serde_json::json!({
+            "custom": { "enabled_option_ids": [], "unknown_preset": 1.25 }
+        });
+        profile["local_override"] = serde_json::json!({
+            "unknown_override": "local",
+            "runtime": { "unknown_runtime": true }
+        });
+        fs::write(&path, serde_json::to_string(&manifest).unwrap()).unwrap();
+        let imported = import_community_profile(&path, &dir.path().join("imported")).unwrap();
+        let saved = fs::read_to_string(&imported.profile_path).unwrap();
+        assert!(!saved.contains("unknown_"));
+        assert!(!toml::to_string(&imported.profile)
+            .unwrap()
+            .contains("unknown_"));
+        assert!(imported.profile.launch.presets.contains_key("custom"));
+        assert_eq!(imported.profile.game.name, sample_profile().game.name);
     }
 
     #[test]

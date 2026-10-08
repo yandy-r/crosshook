@@ -10,6 +10,7 @@ pub(super) fn sample_profile() -> GameProfile {
             custom_cover_art_path: String::new(),
             custom_portrait_art_path: String::new(),
             custom_background_art_path: String::new(),
+            ..GameSection::default()
         },
         trainer: TrainerSection::default(),
         injection: InjectionSection::default(),
@@ -19,5 +20,6 @@ pub(super) fn sample_profile() -> GameProfile {
         local_override: LocalOverrideSection::default(),
         pre_launch_hooks: Vec::new(),
         post_exit_hooks: Vec::new(),
+        ..GameProfile::default()
     }
 }

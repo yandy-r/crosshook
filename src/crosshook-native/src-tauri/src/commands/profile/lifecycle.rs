@@ -47,8 +47,11 @@ pub fn profile_load(
     // into the profile via `effective_profile_with`. The returned profile still
     // reflects the machine-specific `local_override` layer that `ProfileStore::load`
     // baked into layer 1, so collection defaults can never clobber portable paths.
-    apply_collection_defaults(profile, metadata_store.inner(), collection_id.as_deref())
-        .map_err(|e| e.to_string())
+    let mut profile =
+        apply_collection_defaults(profile, metadata_store.inner(), collection_id.as_deref())
+            .map_err(|e| e.to_string())?;
+    profile.clear_extra();
+    Ok(profile)
 }
 
 #[tauri::command]
@@ -110,7 +113,12 @@ pub fn profile_save(
         return Err(format!("Invalid Steam App ID in runtime section: {e}"));
     }
 
+    data.clear_extra();
     let is_new = !store.profile_exists(&name);
+    if !is_new {
+        let existing = store.load(&name).map_err(map_error)?;
+        data.preserve_extra_from(&existing);
+    }
     if is_new {
         let app_settings = settings_store.load().map_err(|e| e.to_string())?;
         apply_profile_creation_defaults_from_settings(&mut data, &app_settings);
@@ -131,11 +139,15 @@ pub fn profile_save(
                     data.launch.presets.insert(
                         toml_key.clone(),
                         LaunchOptimizationsSection {
+                            extra: toml::Table::new(),
                             enabled_option_ids: enabled_option_ids.clone(),
                         },
                     );
                     data.launch.active_preset = toml_key;
-                    data.launch.optimizations = LaunchOptimizationsSection { enabled_option_ids };
+                    data.launch.optimizations = LaunchOptimizationsSection {
+                        extra: toml::Table::new(),
+                        enabled_option_ids,
+                    };
                 }
                 Ok(None) => {
                     tracing::debug!(
@@ -260,7 +272,7 @@ pub fn profile_duplicate(
 ) -> Result<DuplicateProfileResult, String> {
     let source_profile_id = metadata_store.lookup_profile_id(&name).ok().flatten();
 
-    let result = store.duplicate(&name).map_err(map_error)?;
+    let mut result = store.duplicate(&name).map_err(map_error)?;
 
     let copy_path = store.base_path.join(format!("{}.toml", result.name));
     if let Err(e) = metadata_store.observe_profile_write(
@@ -273,6 +285,7 @@ pub fn profile_duplicate(
         tracing::warn!(%e, name = %result.name, "metadata sync after profile_duplicate failed");
     }
 
+    result.profile.clear_extra();
     Ok(result)
 }
 
@@ -365,6 +378,8 @@ pub fn profile_import_legacy(
     );
 
     emit_profiles_changed(&app, "imported-legacy");
+    let mut profile = profile;
+    profile.clear_extra();
     Ok(profile)
 }
 

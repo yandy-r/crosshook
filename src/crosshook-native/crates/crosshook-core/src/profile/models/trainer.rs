@@ -38,7 +38,7 @@ fn is_default_trainer_type(s: &String) -> bool {
     s == "unknown"
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TrainerSection {
     #[serde(default)]
     pub path: String,
@@ -60,6 +60,9 @@ pub struct TrainerSection {
         skip_serializing_if = "String::is_empty"
     )]
     pub community_trainer_sha256: String,
+    /// Unknown TOML keys retained across read-modify-write operations.
+    #[serde(default, flatten)]
+    pub extra: toml::Table,
 }
 
 impl Default for TrainerSection {
@@ -71,6 +74,7 @@ impl Default for TrainerSection {
             trainer_type: default_trainer_type(),
             required_protontricks: Vec::new(),
             community_trainer_sha256: String::new(),
+            extra: toml::Table::new(),
         }
     }
 }

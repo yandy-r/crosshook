@@ -89,7 +89,10 @@ impl SettingsStore {
     }
 
     fn save_unlocked(&self, settings: &AppSettingsData) -> Result<(), SettingsStoreError> {
-        fs::write(self.settings_path(), toml::to_string_pretty(settings)?)?;
+        crate::fs_util::write_atomic(
+            &self.settings_path(),
+            toml::to_string_pretty(settings)?.as_bytes(),
+        )?;
         Ok(())
     }
 
@@ -123,7 +126,7 @@ impl SettingsStore {
         };
 
         if should_write {
-            fs::write(path, serialized)?;
+            crate::fs_util::write_atomic(&path, serialized.as_bytes())?;
         }
 
         Ok(should_write)

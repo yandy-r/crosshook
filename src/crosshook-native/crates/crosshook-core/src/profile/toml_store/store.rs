@@ -11,7 +11,6 @@ use crate::launch::is_known_launch_optimization_id;
 use crate::launch::request::{
     ValidationError, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };
-use crate::profile::models::{LaunchOptimizationsSection, LocalOverrideSection};
 use crate::profile::{legacy, resolve_launch_method, GameProfile};
 use crate::settings::{resolve_profiles_directory_from_config, AppSettingsData};
 
@@ -87,7 +86,7 @@ impl ProfileStore {
         let content = fs::read_to_string(&path)?;
         let profile: GameProfile = toml::from_str(&content)?;
         let mut effective = profile.effective_profile();
-        effective.local_override = LocalOverrideSection::default();
+        effective.local_override = profile.portable_profile().local_override;
         effective.launch.normalize_preset_selection();
         effective.normalize_hooks();
         effective.normalize_injection();
@@ -110,7 +109,7 @@ impl ProfileStore {
             path = %path.display(),
             "profile_store: full save"
         );
-        fs::write(path, toml::to_string_pretty(&storage_profile)?)?;
+        crate::fs_util::write_atomic(&path, toml::to_string_pretty(&storage_profile)?.as_bytes())?;
 
         if let Err(err) =
             mangohud::write_mangohud_conf(&self.base_path, name, &profile.launch.mangohud)
@@ -156,7 +155,10 @@ impl ProfileStore {
             }
 
             profile.launch.active_preset = key.to_string();
+            let extra = std::mem::take(&mut profile.launch.optimizations.extra);
             profile.launch.optimizations = section;
+            // Preset unknowns stay in the preset table, matching load normalization.
+            profile.launch.optimizations.extra = extra;
         } else {
             let enabled_option_ids: Vec<String> = enabled_option_ids
                 .into_iter()
@@ -172,7 +174,7 @@ impl ProfileStore {
                 }
             }
 
-            profile.launch.optimizations = LaunchOptimizationsSection { enabled_option_ids };
+            profile.launch.optimizations.enabled_option_ids = enabled_option_ids;
 
             let ap = profile.launch.active_preset.trim();
             if !ap.is_empty() {
@@ -262,16 +264,16 @@ impl ProfileStore {
         }
 
         let mut profile = self.load(profile_name)?;
-        profile.launch.presets.insert(
-            key.to_string(),
-            LaunchOptimizationsSection {
-                enabled_option_ids: enabled_option_ids.clone(),
-            },
-        );
+        profile
+            .launch
+            .presets
+            .entry(key.to_string())
+            .or_default()
+            .enabled_option_ids = enabled_option_ids.clone();
 
         if set_as_active {
             profile.launch.active_preset = key.to_string();
-            profile.launch.optimizations = LaunchOptimizationsSection { enabled_option_ids };
+            profile.launch.optimizations.enabled_option_ids = enabled_option_ids;
         }
 
         self.save(profile_name, &profile)

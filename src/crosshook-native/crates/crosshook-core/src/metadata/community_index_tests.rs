@@ -16,6 +16,7 @@ use crate::profile::GameProfile;
 fn sample_tap_workspace(url: &str) -> CommunityTapWorkspace {
     CommunityTapWorkspace {
         subscription: CommunityTapSubscription {
+            extra: toml::Table::new(),
             url: url.to_string(),
             branch: None,
             pinned_commit: None,

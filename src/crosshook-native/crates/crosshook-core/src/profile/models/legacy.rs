@@ -45,6 +45,7 @@ impl From<LegacyProfileData> for GameProfile {
                 custom_cover_art_path: String::new(),
                 custom_portrait_art_path: String::new(),
                 custom_background_art_path: String::new(),
+                extra: toml::Table::new(),
             },
             trainer: TrainerSection {
                 path: value.trainer_path,
@@ -53,6 +54,7 @@ impl From<LegacyProfileData> for GameProfile {
                 trainer_type: default_trainer_type(),
                 required_protontricks: Vec::new(),
                 community_trainer_sha256: String::new(),
+                extra: toml::Table::new(),
             },
             injection: InjectionSection {
                 dll_paths: vec![value.dll1_path, value.dll2_path],
@@ -67,7 +69,9 @@ impl From<LegacyProfileData> for GameProfile {
                 launcher: LauncherSection {
                     icon_path: value.steam_launcher_icon_path,
                     display_name: String::default(),
+                    extra: toml::Table::new(),
                 },
+                extra: toml::Table::new(),
             },
             runtime: RuntimeSection::default(),
             launch: LaunchSection {
@@ -77,6 +81,7 @@ impl From<LegacyProfileData> for GameProfile {
             local_override: LocalOverrideSection::default(),
             pre_launch_hooks: Vec::new(),
             post_exit_hooks: Vec::new(),
+            extra: toml::Table::new(),
         }
     }
 }

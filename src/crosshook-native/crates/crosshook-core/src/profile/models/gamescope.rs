@@ -10,7 +10,7 @@ pub enum GamescopeFilter {
     Pixel,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct GamescopeConfig {
     #[serde(default)]
     pub enabled: bool,
@@ -44,6 +44,9 @@ pub struct GamescopeConfig {
     /// Extra CLI arguments passed verbatim to gamescope.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub extra_args: Vec<String>,
+    /// Unknown TOML keys retained across read-modify-write operations.
+    #[serde(default, flatten)]
+    pub extra: toml::Table,
 }
 
 impl GamescopeConfig {

@@ -67,12 +67,14 @@ fn canonical_loaded_hooks_refresh_legacy_mirrors() {
             name: "Overlay".to_string(),
             path: "/dlls/overlay.dll".to_string(),
             enabled: true,
+            ..LoadedDllHook::default()
         },
         LoadedDllHook {
             id: "dll-b".to_string(),
             name: "Metrics".to_string(),
             path: "/dlls/metrics.dll".to_string(),
             enabled: false,
+            ..LoadedDllHook::default()
         },
     ];
     profile.injection.dll_paths = vec!["/legacy/old.dll".to_string()];

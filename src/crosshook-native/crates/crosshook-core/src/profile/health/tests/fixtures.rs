@@ -35,7 +35,9 @@ pub(super) fn healthy_steam_profile(tmp: &Path) -> GameProfile {
     make_executable(&proton);
 
     GameProfile {
+        extra: toml::Table::new(),
         game: GameSection {
+            extra: toml::Table::new(),
             name: "Test Game".to_string(),
             executable_path: game_exe.to_string_lossy().to_string(),
             custom_cover_art_path: String::new(),
@@ -43,6 +45,7 @@ pub(super) fn healthy_steam_profile(tmp: &Path) -> GameProfile {
             custom_background_art_path: String::new(),
         },
         trainer: TrainerSection {
+            extra: toml::Table::new(),
             path: trainer.to_string_lossy().to_string(),
             kind: "fling".to_string(),
             loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
@@ -56,11 +59,13 @@ pub(super) fn healthy_steam_profile(tmp: &Path) -> GameProfile {
             ..Default::default()
         },
         steam: SteamSection {
+            extra: toml::Table::new(),
             enabled: true,
             app_id: "12345".to_string(),
             compatdata_path: compatdata.to_string_lossy().to_string(),
             proton_path: proton.to_string_lossy().to_string(),
             launcher: LauncherSection {
+                extra: toml::Table::new(),
                 icon_path: String::new(),
                 display_name: String::new(),
             },
@@ -78,7 +83,9 @@ pub(super) fn healthy_steam_profile(tmp: &Path) -> GameProfile {
 
 pub(super) fn make_proton_run_profile(game_exe: &str, prefix: &str, proton: &str) -> GameProfile {
     GameProfile {
+        extra: toml::Table::new(),
         game: GameSection {
+            extra: toml::Table::new(),
             name: "Proton Game".to_string(),
             executable_path: game_exe.to_string(),
             custom_cover_art_path: String::new(),
@@ -89,6 +96,7 @@ pub(super) fn make_proton_run_profile(game_exe: &str, prefix: &str, proton: &str
         injection: InjectionSection::default(),
         steam: SteamSection::default(),
         runtime: RuntimeSection {
+            extra: toml::Table::new(),
             prefix_path: prefix.to_string(),
             proton_path: proton.to_string(),
             working_directory: String::new(),

@@ -14,7 +14,9 @@ use crate::profile::{
 
 pub(super) fn sample_profile() -> GameProfile {
     GameProfile {
+        extra: toml::Table::new(),
         game: GameSection {
+            extra: toml::Table::new(),
             name: "Elden Ring".to_string(),
             executable_path: "/games/elden-ring/eldenring.exe".to_string(),
             custom_cover_art_path: String::new(),
@@ -22,6 +24,7 @@ pub(super) fn sample_profile() -> GameProfile {
             custom_background_art_path: String::new(),
         },
         trainer: TrainerSection {
+            extra: toml::Table::new(),
             path: "/trainers/elden-ring.exe".to_string(),
             kind: "fling".to_string(),
             loading_mode: TrainerLoadingMode::SourceDirectory,
@@ -35,16 +38,19 @@ pub(super) fn sample_profile() -> GameProfile {
             ..Default::default()
         },
         steam: SteamSection {
+            extra: toml::Table::new(),
             enabled: true,
             app_id: "1245620".to_string(),
             compatdata_path: "/steam/compatdata/1245620".to_string(),
             proton_path: "/steam/proton/proton".to_string(),
             launcher: LauncherSection {
+                extra: toml::Table::new(),
                 icon_path: "/icons/elden-ring.png".to_string(),
                 display_name: "Elden Ring".to_string(),
             },
         },
         runtime: RuntimeSection {
+            extra: toml::Table::new(),
             prefix_path: String::new(),
             proton_path: String::new(),
             working_directory: String::new(),

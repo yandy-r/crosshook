@@ -8,7 +8,7 @@ use crate::profile::collection_schema::{
     CollectionPresetManifest, CollectionPresetProfileDescriptor,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CollectionExportResult {
     pub collection_id: String,
     pub output_path: PathBuf,
@@ -34,7 +34,7 @@ pub struct CollectionPresetAmbiguousEntry {
     pub candidates: Vec<CollectionPresetMatchCandidate>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CollectionImportPreview {
     pub source_path: PathBuf,
     pub manifest: CollectionPresetManifest,

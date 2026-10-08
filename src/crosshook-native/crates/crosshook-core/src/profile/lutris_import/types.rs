@@ -2,14 +2,14 @@ use crate::profile::GameProfile;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LutrisImportPreview {
     pub entries: Vec<LutrisImportEntry>,
     pub lutris_root: Option<PathBuf>,
     pub diagnostics: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LutrisImportEntry {
     pub source_path: PathBuf,
     pub suggested_name: String,
@@ -28,7 +28,7 @@ pub enum LutrisImportOutcome {
     Failed,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LutrisImportEntryResult {
     pub entry: LutrisImportEntry,
     pub outcome: LutrisImportOutcome,
@@ -37,7 +37,7 @@ pub struct LutrisImportEntryResult {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LutrisImportResult {
     pub results: Vec<LutrisImportEntryResult>,
     pub imported_count: usize,

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::settings::UmuPreference;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct RuntimeSection {
     #[serde(rename = "prefix_path", default)]
     pub prefix_path: String,
@@ -49,6 +49,9 @@ pub struct RuntimeSection {
         skip_serializing_if = "Option::is_none"
     )]
     pub umu_preference: Option<UmuPreference>,
+    /// Unknown TOML keys retained across read-modify-write operations.
+    #[serde(default, flatten)]
+    pub extra: toml::Table,
 }
 
 impl RuntimeSection {
@@ -61,5 +64,6 @@ impl RuntimeSection {
             && self.umu_store.trim().is_empty()
             && self.umu_codename.trim().is_empty()
             && self.umu_preference.is_none()
+            && self.extra.is_empty()
     }
 }

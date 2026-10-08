@@ -17,6 +17,7 @@ fn save_launch_optimizations_merges_only_launch_section() {
     store.save("elden-ring", &profile).unwrap();
 
     let optimizations = LaunchOptimizationsSection {
+        extra: toml::Table::new(),
         enabled_option_ids: vec![
             "disable_steam_input".to_string(),
             "use_gamemode".to_string(),
@@ -129,6 +130,7 @@ enabled_option_ids = ["enable_hdr"]
     expected.insert(
         "performance".to_string(),
         LaunchOptimizationsSection {
+            extra: toml::Table::new(),
             enabled_option_ids: vec![
                 "use_gamemode".to_string(),
                 "disable_steam_input".to_string(),
@@ -138,6 +140,7 @@ enabled_option_ids = ["enable_hdr"]
     expected.insert(
         "quality".to_string(),
         LaunchOptimizationsSection {
+            extra: toml::Table::new(),
             enabled_option_ids: vec!["enable_hdr".to_string()],
         },
     );
@@ -154,6 +157,7 @@ fn save_launch_optimizations_updates_active_preset_entry() {
     presets.insert(
         "a".to_string(),
         LaunchOptimizationsSection {
+            extra: toml::Table::new(),
             enabled_option_ids: vec!["use_gamemode".to_string()],
         },
     );
@@ -224,12 +228,14 @@ fn save_launch_optimizations_switch_active_preset() {
     presets.insert(
         "a".to_string(),
         LaunchOptimizationsSection {
+            extra: toml::Table::new(),
             enabled_option_ids: vec!["use_gamemode".to_string()],
         },
     );
     presets.insert(
         "b".to_string(),
         LaunchOptimizationsSection {
+            extra: toml::Table::new(),
             enabled_option_ids: vec!["enable_hdr".to_string()],
         },
     );
@@ -263,4 +269,48 @@ fn save_launch_optimizations_rejects_missing_preset_name() {
         result,
         Err(ProfileStoreError::LaunchPresetNotFound(name)) if name == "nope"
     ));
+}
+
+#[test]
+fn switch_preset_preserves_active_and_preset_extras_after_reload() {
+    let dir = tempdir().unwrap();
+    let store = ProfileStore::with_base_path(dir.path().join("profiles"));
+    let mut profile = sample_profile();
+    profile.launch.optimizations.extra = toml::Table::from_iter([
+        ("future_active".into(), 1.25.into()),
+        ("shared".into(), "active".into()),
+    ]);
+    profile.launch.presets.insert(
+        "other".into(),
+        LaunchOptimizationsSection {
+            enabled_option_ids: vec!["use_gamemode".into()],
+            extra: toml::Table::from_iter([
+                ("future_preset".into(), true.into()),
+                ("shared".into(), "preset".into()),
+            ]),
+        },
+    );
+    store.save("game", &profile).unwrap();
+    store
+        .save_launch_optimizations("game", vec![], Some("other".into()))
+        .unwrap();
+
+    let loaded = store.load("game").unwrap();
+    assert_eq!(
+        loaded.launch.optimizations.extra["future_active"].as_float(),
+        Some(1.25)
+    );
+    assert!(!loaded
+        .launch
+        .optimizations
+        .extra
+        .contains_key("future_preset"));
+    assert_eq!(
+        loaded.launch.optimizations.extra["shared"].as_str(),
+        Some("active")
+    );
+    assert_eq!(
+        loaded.launch.presets["other"],
+        profile.launch.presets["other"]
+    );
 }

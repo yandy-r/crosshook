@@ -214,12 +214,14 @@ fn save_persists_canonical_injection_hooks_and_legacy_mirrors() {
     let mut profile = sample_profile();
     profile.injection.loaded_hooks = vec![
         LoadedDllHook {
+            extra: toml::Table::new(),
             id: "dll-overlay".to_string(),
             name: "Overlay".to_string(),
             path: "/dlls/overlay.dll".to_string(),
             enabled: true,
         },
         LoadedDllHook {
+            extra: toml::Table::new(),
             id: "dll-metrics".to_string(),
             name: "Metrics".to_string(),
             path: "/dlls/metrics.dll".to_string(),

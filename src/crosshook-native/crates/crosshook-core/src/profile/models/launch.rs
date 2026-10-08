@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use super::gamescope::GamescopeConfig;
 use super::mangohud::MangoHudConfig;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct LaunchOptimizationsSection {
     #[serde(
         rename = "enabled_option_ids",
@@ -12,15 +12,18 @@ pub struct LaunchOptimizationsSection {
         skip_serializing_if = "Vec::is_empty"
     )]
     pub enabled_option_ids: Vec<String>,
+    /// Unknown TOML keys retained across read-modify-write operations.
+    #[serde(default, flatten)]
+    pub extra: toml::Table,
 }
 
 impl LaunchOptimizationsSection {
     pub fn is_empty(&self) -> bool {
-        self.enabled_option_ids.is_empty()
+        self.enabled_option_ids.is_empty() && self.extra.is_empty()
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct LaunchCommandArgumentsSection {
     #[serde(
         rename = "enabled_argument_ids",
@@ -30,11 +33,14 @@ pub struct LaunchCommandArgumentsSection {
     pub enabled_argument_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub custom_args: Vec<String>,
+    /// Unknown TOML keys retained across read-modify-write operations.
+    #[serde(default, flatten)]
+    pub extra: toml::Table,
 }
 
 impl LaunchCommandArgumentsSection {
     pub fn is_empty(&self) -> bool {
-        self.enabled_argument_ids.is_empty() && self.custom_args.is_empty()
+        self.enabled_argument_ids.is_empty() && self.custom_args.is_empty() && self.extra.is_empty()
     }
 }
 
@@ -46,7 +52,7 @@ fn is_default_network_isolation(v: &bool) -> bool {
     *v
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LaunchSection {
     #[serde(default)]
     pub method: String,
@@ -94,6 +100,9 @@ pub struct LaunchSection {
     /// Per-profile MangoHud overlay configuration.
     #[serde(default, skip_serializing_if = "MangoHudConfig::is_default")]
     pub mangohud: MangoHudConfig,
+    /// Unknown TOML keys retained across read-modify-write operations.
+    #[serde(default, flatten)]
+    pub extra: toml::Table,
 }
 
 impl Default for LaunchSection {
@@ -109,6 +118,7 @@ impl Default for LaunchSection {
             gamescope: GamescopeConfig::default(),
             trainer_gamescope: GamescopeConfig::default(),
             mangohud: MangoHudConfig::default(),
+            extra: toml::Table::new(),
         }
     }
 }
@@ -123,7 +133,10 @@ impl LaunchSection {
         }
 
         if let Some(section) = self.presets.get(key) {
+            let extra = std::mem::take(&mut self.optimizations.extra);
             self.optimizations = section.clone();
+            // Preset unknowns belong to the preset table, not the active table.
+            self.optimizations.extra = extra;
         } else {
             self.active_preset.clear();
         }
@@ -149,7 +162,7 @@ impl LaunchSection {
 /// Excluded fields (per PRD): `presets`, `active_preset` — preset coupling is too complex
 /// to override at the collection level. Users wanting per-collection preset overrides go
 /// through the profile-level editor via the modal's "Open in Profiles page →" link.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct CollectionDefaultsSection {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub method: Option<String>,
@@ -165,6 +178,9 @@ pub struct CollectionDefaultsSection {
     pub trainer_gamescope: Option<GamescopeConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mangohud: Option<MangoHudConfig>,
+    /// Unknown TOML keys retained across read-modify-write operations.
+    #[serde(default, flatten)]
+    pub extra: toml::Table,
 }
 
 impl CollectionDefaultsSection {
@@ -177,5 +193,6 @@ impl CollectionDefaultsSection {
             && self.gamescope.is_none()
             && self.trainer_gamescope.is_none()
             && self.mangohud.is_none()
+            && self.extra.is_empty()
     }
 }

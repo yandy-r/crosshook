@@ -157,6 +157,7 @@ fn check_launcher_for_profile_delegates_correctly() {
 
     let profile = GameProfile {
         game: GameSection {
+            extra: toml::Table::new(),
             name: "Test Game".to_string(),
             executable_path: String::new(),
             custom_cover_art_path: String::new(),
@@ -164,6 +165,7 @@ fn check_launcher_for_profile_delegates_correctly() {
             custom_background_art_path: String::new(),
         },
         trainer: TrainerSection {
+            extra: toml::Table::new(),
             path: "/mnt/trainers/test.exe".to_string(),
             kind: String::new(),
             loading_mode: TrainerLoadingMode::SourceDirectory,
@@ -174,6 +176,7 @@ fn check_launcher_for_profile_delegates_correctly() {
         steam: SteamSection {
             app_id: "12345".to_string(),
             launcher: LauncherSection {
+                extra: toml::Table::new(),
                 display_name: "Test Game".to_string(),
                 icon_path: String::new(),
             },
@@ -207,6 +210,7 @@ fn check_launcher_for_profile_resolves_legacy_empty_method_as_steam() {
 
     let profile = GameProfile {
         game: GameSection {
+            extra: toml::Table::new(),
             name: "Legacy Steam Game".to_string(),
             executable_path: "/games/legacy/launcher.exe".to_string(),
             custom_cover_art_path: String::new(),
@@ -214,6 +218,7 @@ fn check_launcher_for_profile_resolves_legacy_empty_method_as_steam() {
             custom_background_art_path: String::new(),
         },
         trainer: TrainerSection {
+            extra: toml::Table::new(),
             path: "/mnt/trainers/legacy.exe".to_string(),
             kind: String::new(),
             loading_mode: TrainerLoadingMode::SourceDirectory,
@@ -222,16 +227,19 @@ fn check_launcher_for_profile_resolves_legacy_empty_method_as_steam() {
             community_trainer_sha256: String::new(),
         },
         steam: SteamSection {
+            extra: toml::Table::new(),
             enabled: true,
             app_id: "12345".to_string(),
             compatdata_path: "/steam/compatdata/12345".to_string(),
             proton_path: "/steam/proton/proton".to_string(),
             launcher: LauncherSection {
+                extra: toml::Table::new(),
                 display_name: "Legacy Steam Game".to_string(),
                 icon_path: String::new(),
             },
         },
         runtime: RuntimeSection {
+            extra: toml::Table::new(),
             prefix_path: "/wrong/runtime/prefix".to_string(),
             proton_path: "/wrong/runtime/proton".to_string(),
             working_directory: String::new(),

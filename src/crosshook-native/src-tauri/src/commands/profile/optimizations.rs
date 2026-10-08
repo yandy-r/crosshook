@@ -264,6 +264,8 @@ pub fn profile_apply_bundled_optimization_preset(
     }
 
     emit_profiles_changed(&app, "bundled-optimization-preset");
+    let mut updated = updated;
+    updated.clear_extra();
     Ok(updated)
 }
 
@@ -336,5 +338,7 @@ pub fn profile_save_manual_optimization_preset(
     }
 
     emit_profiles_changed(&app, "manual-optimization-preset");
+    let mut updated = updated;
+    updated.clear_extra();
     Ok(updated)
 }

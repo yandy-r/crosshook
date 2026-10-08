@@ -45,7 +45,7 @@ pub struct InstallGameRequest {
     pub working_directory: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct InstallGameResult {
     #[serde(default)]
     pub succeeded: bool,
@@ -142,11 +142,13 @@ impl InstallGameRequest {
 
         let steam = if method == "steam_applaunch" {
             SteamSection {
+                extra: toml::Table::new(),
                 enabled: true,
                 app_id: self.steam_app_id.trim().to_string(),
                 compatdata_path: prefix_owned.clone(),
                 proton_path: proton.clone(),
                 launcher: LauncherSection {
+                    extra: toml::Table::new(),
                     icon_path,
                     display_name: String::new(),
                 },
@@ -154,6 +156,7 @@ impl InstallGameRequest {
         } else {
             SteamSection {
                 launcher: LauncherSection {
+                    extra: toml::Table::new(),
                     icon_path,
                     display_name: String::new(),
                 },
@@ -163,6 +166,7 @@ impl InstallGameRequest {
 
         let runtime = if method == "steam_applaunch" {
             RuntimeSection {
+                extra: toml::Table::new(),
                 prefix_path: String::new(),
                 proton_path: String::new(),
                 working_directory: String::new(),
@@ -174,6 +178,7 @@ impl InstallGameRequest {
             }
         } else if method == "native" {
             RuntimeSection {
+                extra: toml::Table::new(),
                 prefix_path: prefix_owned.clone(),
                 proton_path: String::new(),
                 working_directory: working_directory.trim().to_string(),
@@ -185,6 +190,7 @@ impl InstallGameRequest {
             }
         } else {
             RuntimeSection {
+                extra: toml::Table::new(),
                 prefix_path: prefix_owned.clone(),
                 proton_path: proton.clone(),
                 working_directory: working_directory.trim().to_string(),
@@ -197,7 +203,9 @@ impl InstallGameRequest {
         };
 
         GameProfile {
+            extra: toml::Table::new(),
             game: GameSection {
+                extra: toml::Table::new(),
                 name: self.resolved_display_name().to_string(),
                 executable_path: String::new(),
                 custom_cover_art_path: custom_cover_art_path.trim().to_string(),
@@ -205,6 +213,7 @@ impl InstallGameRequest {
                 custom_background_art_path: custom_background_art_path.trim().to_string(),
             },
             trainer: TrainerSection {
+                extra: toml::Table::new(),
                 path: trainer_path.trim().to_string(),
                 kind: String::new(),
                 loading_mode: TrainerLoadingMode::SourceDirectory,

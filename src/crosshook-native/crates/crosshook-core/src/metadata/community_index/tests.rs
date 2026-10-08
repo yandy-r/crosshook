@@ -348,6 +348,7 @@ fn index_backfills_trainer_loading_mode() {
     let result = CommunityTapSyncResult {
         workspace: CommunityTapWorkspace {
             subscription: CommunityTapSubscription {
+                extra: toml::Table::new(),
                 url: entry.tap_url.clone(),
                 branch: None,
                 pinned_commit: None,
