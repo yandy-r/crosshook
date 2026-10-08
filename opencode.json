@@ -1,0 +1,53 @@
+{
+  "mcp": {
+    "servers": {
+      "github": {
+        "type": "local",
+        "command": [
+          "npx",
+          "-y",
+          "@modelcontextprotocol/server-github"
+        ],
+        "environment": {
+          "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GITHUB_API_TOKEN}"
+        }
+      },
+      "stripe": {
+        "type": "remote",
+        "url": "https://mcp.stripe.com"
+      },
+      "xero": {
+        "type": "local",
+        "command": [
+          "npx",
+          "-y",
+          "@xeroapi/xero-mcp-server@latest"
+        ],
+        "environment": {
+          "XERO_CLIENT_ID": "{env:XERO_CLIENT_ID}",
+          "XERO_CLIENT_SECRET": "{env:XERO_CLIENT_SECRET}"
+        }
+      },
+      "linear": {
+        "type": "remote",
+        "url": "https://mcp.linear.app/mcp"
+      },
+      "vercel": {
+        "type": "remote",
+        "url": "https://mcp.vercel.com"
+      },
+      "railway": {
+        "type": "remote",
+        "url": "https://mcp.railway.com"
+      },
+      "playwright": {
+        "type": "local",
+        "command": [
+          "npx",
+          "-y",
+          "@playwright/mcp@latest"
+        ]
+      }
+    }
+  }
+}
