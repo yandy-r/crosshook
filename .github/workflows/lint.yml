@@ -94,6 +94,12 @@ jobs:
       - name: Check legacy palette
         run: ./scripts/check-legacy-palette.sh
 
+      - name: Check schema-version drift
+        run: ./scripts/check-schema-version.sh
+
+      - name: Schema-version check selftest
+        run: ./scripts/check-schema-version.sh --selftest
+
       - name: Mock coverage contract gate
         run: ./scripts/check-mock-coverage.sh
 

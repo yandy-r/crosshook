@@ -1,7 +1,7 @@
 use super::{db, MetadataStoreError, SyncReport, SyncSource};
 use crate::profile::{validate_name, GameProfile, ProfileStore};
 use chrono::{DateTime, Utc};
-use rusqlite::{params, Connection, OptionalExtension, Row, Transaction, TransactionBehavior};
+use rusqlite::{params, Connection, OptionalExtension, Row};
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::fmt::Write as _;
@@ -95,13 +95,10 @@ pub fn observe_profile_rename(
     validate_profile_name(old_name)?;
     validate_profile_name(new_name)?;
 
-    let tx =
-        Transaction::new_unchecked(conn, TransactionBehavior::Immediate).map_err(|source| {
-            MetadataStoreError::Database {
-                action: "start a profile rename transaction",
-                source,
-            }
-        })?;
+    let tx = super::util::write_savepoint(conn).map_err(|source| MetadataStoreError::Database {
+        action: "start a profile rename transaction",
+        source,
+    })?;
 
     let profile_id = tx
         .query_row(

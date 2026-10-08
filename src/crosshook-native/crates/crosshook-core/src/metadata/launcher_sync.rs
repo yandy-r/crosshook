@@ -1,6 +1,6 @@
 use super::{db, models::DriftState, profile_sync::lookup_profile_id, MetadataStoreError};
 use chrono::Utc;
-use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
+use rusqlite::{params, Connection, OptionalExtension};
 
 pub fn observe_launcher_exported(
     conn: &Connection,
@@ -73,11 +73,9 @@ pub fn observe_launcher_renamed(
     new_script_path: &str,
     new_desktop_entry_path: &str,
 ) -> Result<(), MetadataStoreError> {
-    let tx = Transaction::new(conn, TransactionBehavior::Immediate).map_err(|source| {
-        MetadataStoreError::Database {
-            action: "start a launcher rename transaction",
-            source,
-        }
+    let tx = super::util::write_savepoint(conn).map_err(|source| MetadataStoreError::Database {
+        action: "start a launcher rename transaction",
+        source,
     })?;
 
     let now = Utc::now().to_rfc3339();

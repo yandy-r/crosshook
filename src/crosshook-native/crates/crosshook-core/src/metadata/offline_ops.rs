@@ -62,18 +62,9 @@ impl MetadataStore {
         profile_id: &str,
         trainer_path: &Path,
     ) -> Result<Option<crate::offline::HashVerifyResult>, MetadataStoreError> {
-        if !self.available {
-            return Ok(None);
-        }
-        let Some(conn) = &self.conn else {
-            return Ok(None);
-        };
-        let guard = conn.lock().map_err(|_| {
-            MetadataStoreError::Corrupt(
-                "metadata store mutex poisoned while verify trainer hash".to_string(),
-            )
-        })?;
-        crate::offline::verify_and_cache_trainer_hash(&guard, profile_id, trainer_path)
+        self.with_conn("verify trainer hash", |conn| {
+            crate::offline::verify_and_cache_trainer_hash(conn, profile_id, trainer_path)
+        })
     }
 
     #[allow(clippy::too_many_arguments)]

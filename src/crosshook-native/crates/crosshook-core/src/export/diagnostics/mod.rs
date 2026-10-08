@@ -4,6 +4,7 @@
 mod crosshook_info;
 mod health;
 mod logs;
+mod metadata_status;
 mod profiles;
 mod steam_diagnostics;
 mod system_info;
@@ -21,12 +22,14 @@ use flate2::Compression;
 use serde::{Deserialize, Serialize};
 use tar::Builder;
 
+use crate::metadata::MetadataStatus;
 use crate::profile::ProfileStore;
 use crate::settings::SettingsStore;
 
 use self::crosshook_info::collect_crosshook_info;
 use self::health::collect_health_summary;
 use self::logs::{collect_app_logs, collect_launch_logs};
+use self::metadata_status::collect_metadata_status;
 use self::profiles::{collect_profiles, collect_settings};
 use self::steam_diagnostics::collect_steam_diagnostics;
 use self::system_info::collect_system_info;
@@ -39,6 +42,11 @@ pub struct DiagnosticBundleOptions {
     pub redact_paths: bool,
     /// Override the output directory. Defaults to the system temp directory.
     pub output_dir: Option<PathBuf>,
+    /// Metadata store health. When `Some`, the bundle includes
+    /// `metadata-status.json`.
+    pub metadata_status: Option<MetadataStatus>,
+    /// Owned metadata backup files to list in `metadata-status.json`.
+    pub metadata_backup_files: Vec<PathBuf>,
 }
 
 /// Result returned after successful bundle creation.
@@ -137,6 +145,12 @@ pub fn export_diagnostic_bundle(
 
     let health_summary = collect_health_summary(profile_store);
     append_text(&mut tar, &prefix, "health-summary.json", &health_summary)?;
+
+    if let Some(status) = &options.metadata_status {
+        let metadata_text =
+            collect_metadata_status(status, &options.metadata_backup_files, options.redact_paths);
+        append_text(&mut tar, &prefix, "metadata-status.json", &metadata_text)?;
+    }
 
     let (steam_diag_text, proton_installs_json, proton_install_count) = collect_steam_diagnostics();
     append_text(&mut tar, &prefix, "steam-diagnostics.txt", &steam_diag_text)?;
@@ -299,6 +313,8 @@ mod tests {
         let options = DiagnosticBundleOptions {
             redact_paths: false,
             output_dir: Some(output_dir),
+            metadata_status: Some(MetadataStatus::Ok),
+            metadata_backup_files: Vec::new(),
         };
 
         let result = export_diagnostic_bundle(&profile_store, &settings_store, &options).unwrap();
@@ -333,6 +349,9 @@ mod tests {
         assert!(entry_paths
             .iter()
             .any(|p| p.ends_with("health-summary.json")));
+        assert!(entry_paths
+            .iter()
+            .any(|p| p.ends_with("metadata-status.json")));
         assert!(entry_paths
             .iter()
             .any(|p| p.ends_with("steam-diagnostics.txt")));

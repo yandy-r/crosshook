@@ -139,15 +139,17 @@ The chip label reflects the active fixture, e.g. `DEV · empty`.
 
 ## Orthogonal Debug Toggles (BR-12)
 
-Three orthogonal toggles can be combined freely with each other AND with the
+Four orthogonal toggles can be combined freely with each other AND with the
 fixture switcher above. Like `?fixture=`, they are parsed once at module init
 (in `lib/toggles.ts`) and a reload is required to change them.
 
-| Toggle             | Effect                                                                               |
-| ------------------ | ------------------------------------------------------------------------------------ |
-| `?delay=<ms>`      | Adds `setTimeout(<ms>)` artificial latency before EVERY mock handler runs.           |
-| `?errors=true`     | Rejects mutating commands with a synthetic `[dev-mock] forced error`. Reads succeed. |
-| `?onboarding=show` | Synthesizes an `onboarding-check` event 500ms after mount so the wizard surfaces.    |
+| Toggle               | Effect                                                                               |
+| -------------------- | ------------------------------------------------------------------------------------ |
+| `?delay=<ms>`        | Adds `setTimeout(<ms>)` artificial latency before EVERY mock handler runs.           |
+| `?errors=true`       | Rejects mutating commands with a synthetic `[dev-mock] forced error`. Reads succeed. |
+| `?onboarding=show`   | Synthesizes an `onboarding-check` event 500ms after mount so the wizard surfaces.    |
+| `?metadata=newer`    | `metadata_store_status` returns `newer_schema` so the degraded-DB banner surfaces.   |
+| `?metadata=disabled` | `metadata_store_status` returns `disabled` (with a mock reason) for the same banner. |
 
 `?delay` and `?errors` are implemented as a `wrapHandler()` middleware in
 `lib/mocks/wrapHandler.ts` that wraps every registered handler exactly once

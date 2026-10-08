@@ -3,7 +3,7 @@ use super::models::{
 };
 use super::MetadataStoreError;
 use chrono::Utc;
-use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
+use rusqlite::{params, Connection, OptionalExtension};
 use sha2::{Digest, Sha256};
 use std::fmt::Write as _;
 
@@ -19,13 +19,10 @@ pub fn upsert_version_snapshot(
 ) -> Result<(), MetadataStoreError> {
     let checked_at = Utc::now().to_rfc3339();
 
-    let tx =
-        Transaction::new_unchecked(conn, TransactionBehavior::Immediate).map_err(|source| {
-            MetadataStoreError::Database {
-                action: "start a version snapshot transaction",
-                source,
-            }
-        })?;
+    let tx = super::util::write_savepoint(conn).map_err(|source| MetadataStoreError::Database {
+        action: "start a version snapshot transaction",
+        source,
+    })?;
 
     tx.execute(
         "INSERT INTO version_snapshots

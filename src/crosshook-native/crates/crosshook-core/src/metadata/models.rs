@@ -19,6 +19,32 @@ pub enum MetadataStoreError {
     Corrupt(String),
     SymlinkDetected(PathBuf),
     Validation(String),
+    /// The database `user_version` is newer than this binary supports.
+    NewerSchema {
+        found: u32,
+        supported: u32,
+    },
+    /// A write was rejected because the store is open read-only (newer schema).
+    ReadOnlyNewerSchema,
+    /// SQLite rejected a write for a reason unrelated to schema compatibility.
+    SQLiteReadonly,
+    /// Writes disabled because safe startup could not be completed.
+    ReadOnlyDisabled {
+        reason: String,
+    },
+}
+
+/// Health of the metadata store, surfaced to the UI and diagnostics.
+///
+/// JSON shape is part of the IPC contract:
+/// `{"state":"ok"}`, `{"state":"newer_schema","found":N,"supported":N}`,
+/// `{"state":"disabled","reason":"..."}`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
+pub enum MetadataStatus {
+    Ok,
+    NewerSchema { found: u32, supported: u32 },
+    Disabled { reason: String },
 }
 
 impl Display for MetadataStoreError {
@@ -45,6 +71,16 @@ impl Display for MetadataStoreError {
                 )
             }
             Self::Validation(msg) => write!(f, "metadata validation error: {msg}"),
+            Self::NewerSchema { found, supported } => write!(
+                f,
+                "metadata schema version {found} is newer than this CrossHook build supports ({supported}); the database was opened read-only"
+            ),
+            Self::ReadOnlyDisabled { reason } => write!(f, "metadata database is read-only ({reason})"),
+            Self::SQLiteReadonly => write!(f, "metadata database is read-only"),
+            Self::ReadOnlyNewerSchema => write!(
+                f,
+                "metadata database is read-only (newer schema version); writes are disabled"
+            ),
         }
     }
 }
@@ -57,8 +93,28 @@ impl Error for MetadataStoreError {
             Self::HomeDirectoryUnavailable
             | Self::Corrupt(_)
             | Self::SymlinkDetected(_)
-            | Self::Validation(_) => None,
+            | Self::Validation(_)
+            | Self::NewerSchema { .. }
+            | Self::ReadOnlyNewerSchema
+            | Self::SQLiteReadonly
+            | Self::ReadOnlyDisabled { .. } => None,
         }
+    }
+}
+
+impl MetadataStoreError {
+    /// `true` when this error means "the store is open read-only because the
+    /// schema is newer than this build". Covers `SQLITE_READONLY` including
+    /// all extended codes (they share primary code 8).
+    pub fn is_read_only_schema(&self) -> bool {
+        matches!(
+            self,
+            Self::NewerSchema { .. } | Self::ReadOnlyNewerSchema | Self::ReadOnlyDisabled { .. }
+        ) || matches!(
+            self,
+            Self::Database { source, .. }
+                if source.sqlite_error_code() == Some(rusqlite::ffi::ErrorCode::ReadOnly)
+        )
     }
 }
 

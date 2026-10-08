@@ -172,7 +172,7 @@ pub(super) fn migrate_3_to_4(conn: &Connection) -> Result<(), MetadataStoreError
 pub(super) fn migrate_4_to_5(conn: &Connection) -> Result<(), MetadataStoreError> {
     conn.execute_batch(
         "
-        BEGIN TRANSACTION;
+        SAVEPOINT crosshook_migrate_4_to_5;
         ALTER TABLE community_profiles RENAME TO community_profiles_old;
 
         CREATE TABLE community_profiles (
@@ -209,7 +209,7 @@ pub(super) fn migrate_4_to_5(conn: &Connection) -> Result<(), MetadataStoreError
         DROP TABLE community_profiles_old;
         CREATE UNIQUE INDEX IF NOT EXISTS idx_community_profiles_tap_path
             ON community_profiles(tap_id, relative_path);
-        COMMIT;
+        RELEASE crosshook_migrate_4_to_5;
         ",
     )
     .map_err(|source| MetadataStoreError::Database {
@@ -243,7 +243,7 @@ pub(super) fn migrate_5_to_6(conn: &Connection) -> Result<(), MetadataStoreError
 pub(super) fn migrate_6_to_7(conn: &Connection) -> Result<(), MetadataStoreError> {
     conn.execute_batch(
         "
-        BEGIN TRANSACTION;
+        SAVEPOINT crosshook_migrate_6_to_7;
         CREATE TABLE health_snapshots_new (
             profile_id  TEXT PRIMARY KEY REFERENCES profiles(profile_id) ON DELETE CASCADE,
             status      TEXT NOT NULL,
@@ -256,7 +256,7 @@ pub(super) fn migrate_6_to_7(conn: &Connection) -> Result<(), MetadataStoreError
         DROP TABLE health_snapshots;
         ALTER TABLE health_snapshots_new RENAME TO health_snapshots;
         CREATE INDEX IF NOT EXISTS idx_health_snapshots_checked_at ON health_snapshots(checked_at);
-        COMMIT;
+        RELEASE crosshook_migrate_6_to_7;
         ",
     )
     .map_err(|source| MetadataStoreError::Database {

@@ -12,7 +12,7 @@ pub fn persist_optimization_catalog(
     catalog_version: u32,
 ) -> Result<(), MetadataStoreError> {
     let tx = conn
-        .transaction()
+        .savepoint()
         .map_err(|source| MetadataStoreError::Database {
             action: "begin optimization catalog transaction",
             source,

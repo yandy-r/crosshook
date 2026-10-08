@@ -33,29 +33,20 @@ impl MetadataStore {
         })
     }
 
-    /// Active dismissed tool IDs, evicting expired rows first.
+    /// Active dismissed tool IDs, excluding expired rows without requiring a write.
     pub fn get_dismissed_readiness_nags(&self) -> Result<HashSet<String>, MetadataStoreError> {
         let now = Utc::now().to_rfc3339();
 
-        self.with_conn_mut("get dismissed readiness nags", |conn| {
-            conn.execute(
-                "DELETE FROM readiness_nag_dismissals WHERE expires_at < ?1",
-                rusqlite::params![now],
-            )
-            .map_err(|source| MetadataStoreError::Database {
-                action: "evict expired readiness nag dismissals",
-                source,
-            })?;
-
+        self.with_conn("get dismissed readiness nags", |conn| {
             let mut stmt = conn
-                .prepare("SELECT tool_id FROM readiness_nag_dismissals")
+                .prepare("SELECT tool_id FROM readiness_nag_dismissals WHERE expires_at >= ?1")
                 .map_err(|source| MetadataStoreError::Database {
                     action: "prepare get dismissed readiness nags",
                     source,
                 })?;
 
             let keys = stmt
-                .query_map([], |row| row.get::<_, String>(0))
+                .query_map([now], |row| row.get::<_, String>(0))
                 .map_err(|source| MetadataStoreError::Database {
                     action: "query dismissed readiness nags",
                     source,

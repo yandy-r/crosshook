@@ -200,7 +200,8 @@ src/crosshook-native/              # Primary source root
 **Permissions**: `0600` (owner read/write only)
 **Current schema version**: 27
 **Access**: `MetadataStore::try_new()` in `crosshook-core`
-**Migrations**: `src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs`
+**Migrations**: `src/crosshook-native/crates/crosshook-core/src/metadata/migrations/mod.rs`
+**Forward guard (v0.6.1+)**: `SUPPORTED_MAX_VERSION` caps the schema this binary may touch. A newer DB opens read-only (no migration, no writes); an older non-empty DB gets a `VACUUM INTO` backup before migrating. Schema bumps must pass `scripts/check-schema-version.sh` and preserve the core migration regression test invariant (latest migration == `SUPPORTED_MAX_VERSION`). See [`docs/internal-docs/metadata-schema-policy.md`](docs/internal-docs/metadata-schema-policy.md).
 
 ### Table inventory
 

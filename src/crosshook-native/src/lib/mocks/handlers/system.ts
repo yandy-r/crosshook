@@ -25,6 +25,7 @@ import type {
 import type { RunExecutableResult } from '../../../types/run-executable';
 import type { OptimizationCatalogPayload, OptimizationEntry } from '../../../utils/optimization-catalog';
 import { getActiveFixture } from '../../fixture';
+import { getActiveToggles } from '../../toggles';
 import { forcedError, neverResolving } from './profile-utils';
 import type { Handler } from './types';
 
@@ -514,6 +515,17 @@ const MOCK_TRAINER_TYPE_CATALOG: TrainerTypeEntry[] = [
 // --- Handler registration ---
 
 export function registerSystem(map: Map<string, Handler>): void {
+  // --- metadata store status (?metadata=newer|disabled previews the degraded banner) ---
+
+  map.set('metadata_store_status', async () => {
+    const { metadataState } = getActiveToggles();
+    if (metadataState === 'newer') return { state: 'newer_schema', found: 99, supported: 27 };
+    if (metadataState === 'disabled') {
+      return { state: 'disabled', reason: '[dev-mock] metadata database could not be opened' };
+    }
+    return { state: 'ok' };
+  });
+
   // --- discovery ---
 
   map.set('discovery_catalog', async (args): Promise<CatalogPage> => {

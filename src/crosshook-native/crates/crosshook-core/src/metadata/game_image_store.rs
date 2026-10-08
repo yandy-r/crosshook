@@ -1,5 +1,5 @@
 use super::MetadataStoreError;
-use rusqlite::{params, Connection, OptionalExtension, Transaction};
+use rusqlite::{params, Connection, OptionalExtension};
 
 #[derive(Debug, Clone)]
 pub struct GameImageCacheRow {
@@ -115,7 +115,7 @@ pub fn get_game_image(
 
 pub fn evict_expired_images(conn: &mut Connection) -> Result<Vec<String>, MetadataStoreError> {
     let tx = conn
-        .transaction()
+        .savepoint()
         .map_err(|source| MetadataStoreError::Database {
             action: "begin evict expired game images transaction",
             source,
@@ -139,7 +139,7 @@ pub fn evict_expired_images(conn: &mut Connection) -> Result<Vec<String>, Metada
     Ok(file_paths)
 }
 
-fn select_expired_image_paths(tx: &Transaction<'_>) -> Result<Vec<String>, MetadataStoreError> {
+fn select_expired_image_paths(tx: &Connection) -> Result<Vec<String>, MetadataStoreError> {
     let mut stmt = tx
         .prepare(
             "SELECT file_path FROM game_image_cache

@@ -4,7 +4,7 @@ use super::helpers::*;
 use super::{db, MetadataStoreError};
 use crate::community::taps::CommunityTapSyncResult;
 use chrono::Utc;
-use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
+use rusqlite::{params, Connection, OptionalExtension};
 
 /// Index a community tap sync result and its trainer sources in one call.
 ///
@@ -80,7 +80,7 @@ pub fn index_community_tap_result(
     let profile_count = result.index.entries.len() as i64;
 
     // Transactional UPSERT+DELETE+INSERT so watermark does not advance on partial failures.
-    let tx = Transaction::new(conn, TransactionBehavior::Immediate).map_err(|source| {
+    let tx = crate::metadata::util::write_savepoint(conn).map_err(|source| {
         MetadataStoreError::Database {
             action: "start a community profiles re-index transaction",
             source,

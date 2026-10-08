@@ -30,6 +30,8 @@ export interface DebugToggles {
   showOnboarding: boolean;
   /** If true, populate `steam_deck_caveats` in `check_readiness` responses (when not yet dismissed). */
   showSteamDeckCaveats: boolean;
+  /** Forced `metadata_store_status` state for browser dev mode ('ok' unless overridden). */
+  metadataState: 'ok' | 'newer' | 'disabled';
 }
 
 function safeReadSearchParams(): URLSearchParams {
@@ -49,7 +51,9 @@ function parseToggles(): DebugToggles {
   const forceErrors = params.get('errors') === 'true';
   const showOnboarding = params.get('onboarding') === 'show';
   const showSteamDeckCaveats = params.get('steamDeckCaveats') === 'show';
-  return { delayMs, forceErrors, showOnboarding, showSteamDeckCaveats };
+  const rawMetadata = params.get('metadata');
+  const metadataState = rawMetadata === 'newer' || rawMetadata === 'disabled' ? rawMetadata : 'ok';
+  return { delayMs, forceErrors, showOnboarding, showSteamDeckCaveats, metadataState };
 }
 
 const ACTIVE_TOGGLES: DebugToggles = parseToggles();
@@ -73,5 +77,6 @@ export function togglesToChipFragments(toggles: DebugToggles): readonly string[]
   if (toggles.delayMs > 0) fragments.push(`${toggles.delayMs}ms`);
   if (toggles.showOnboarding) fragments.push('onboarding');
   if (toggles.showSteamDeckCaveats) fragments.push('steamDeckCaveats');
+  if (toggles.metadataState !== 'ok') fragments.push(`metadata:${toggles.metadataState}`);
   return fragments;
 }

@@ -3,7 +3,7 @@
 use super::constants::*;
 use super::MetadataStoreError;
 use crate::discovery::models::{TrainerSourceEntry, TrainerSourcesManifest};
-use rusqlite::{params, Connection, Transaction, TransactionBehavior};
+use rusqlite::{params, Connection};
 
 /// Returns `true` when a trainer sources manifest must be skipped entirely
 /// (A6 byte-cap violation on `game_name`).
@@ -45,7 +45,7 @@ pub fn index_trainer_sources(
     tap_id: &str,
     sources: &[(String, TrainerSourcesManifest)],
 ) -> Result<usize, MetadataStoreError> {
-    let tx = Transaction::new(conn, TransactionBehavior::Immediate).map_err(|source| {
+    let tx = crate::metadata::util::write_savepoint(conn).map_err(|source| {
         MetadataStoreError::Database {
             action: "start a trainer sources re-index transaction",
             source,

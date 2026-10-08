@@ -12,6 +12,11 @@ impl MetadataStore {
         &self,
         record: &PrefixVersionRestoreJournalRow,
     ) -> Result<(), MetadataStoreError> {
+        if !self.is_available() {
+            return Err(MetadataStoreError::ReadOnlyDisabled {
+                reason: "metadata store unavailable".into(),
+            });
+        }
         self.with_conn_mut("upsert prefix version restore", |conn| {
             prefix_version_restore_store::upsert_restore(conn, record)
         })
@@ -21,7 +26,7 @@ impl MetadataStore {
         &self,
         prefix_path: &str,
     ) -> Result<Option<PrefixVersionRestoreJournalRow>, MetadataStoreError> {
-        self.with_conn("load prefix version restore", |conn| {
+        self.with_sqlite_conn("load prefix version restore", |conn| {
             prefix_version_restore_store::load_restore(conn, prefix_path)
         })
     }
@@ -31,6 +36,11 @@ impl MetadataStore {
         prefix_path: &str,
         error: &str,
     ) -> Result<(), MetadataStoreError> {
+        if !self.is_available() {
+            return Err(MetadataStoreError::ReadOnlyDisabled {
+                reason: "metadata store unavailable".into(),
+            });
+        }
         self.with_conn_mut("mark prefix version restore failed", |conn| {
             prefix_version_restore_store::mark_restore_failed(conn, prefix_path, error)
         })
@@ -40,6 +50,11 @@ impl MetadataStore {
         &self,
         prefix_path: &str,
     ) -> Result<(), MetadataStoreError> {
+        if !self.is_available() {
+            return Err(MetadataStoreError::ReadOnlyDisabled {
+                reason: "metadata store unavailable".into(),
+            });
+        }
         self.with_conn_mut("delete prefix version restore", |conn| {
             prefix_version_restore_store::delete_restore(conn, prefix_path)
         })
