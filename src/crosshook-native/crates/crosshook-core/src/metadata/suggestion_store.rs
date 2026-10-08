@@ -35,7 +35,7 @@ impl MetadataStore {
         })
     }
 
-    /// Return the set of dismissed suggestion keys for a profile+app, evicting expired rows first.
+    /// Return the set of dismissed suggestion keys for a profile+app, excluding expired rows without requiring a write.
     pub fn get_dismissed_keys(
         &self,
         profile_id: &str,
@@ -43,26 +43,16 @@ impl MetadataStore {
     ) -> Result<HashSet<String>, MetadataStoreError> {
         let now = Utc::now().to_rfc3339();
 
-        self.with_conn_mut("get dismissed keys", |conn| {
-            // Evict expired rows for this profile+app
-            conn.execute(
-                "DELETE FROM suggestion_dismissals WHERE profile_id = ?1 AND app_id = ?2 AND expires_at < ?3",
-                rusqlite::params![profile_id, app_id, now],
-            )
-            .map_err(|source| MetadataStoreError::Database {
-                action: "evict expired suggestion dismissals",
-                source,
-            })?;
-
+        self.with_conn("get dismissed keys", |conn| {
             let mut stmt = conn
-                .prepare("SELECT suggestion_key FROM suggestion_dismissals WHERE profile_id = ?1 AND app_id = ?2")
+                .prepare("SELECT suggestion_key FROM suggestion_dismissals WHERE profile_id = ?1 AND app_id = ?2 AND expires_at >= ?3")
                 .map_err(|source| MetadataStoreError::Database {
                     action: "prepare get dismissed keys query",
                     source,
                 })?;
 
             let keys = stmt
-                .query_map(rusqlite::params![profile_id, app_id], |row| {
+                .query_map(rusqlite::params![profile_id, app_id, now], |row| {
                     row.get::<_, String>(0)
                 })
                 .map_err(|source| MetadataStoreError::Database {

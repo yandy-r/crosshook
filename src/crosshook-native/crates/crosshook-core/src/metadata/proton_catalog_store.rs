@@ -27,7 +27,7 @@ pub fn put_proton_catalog_impl(
     rows: &[ProtonCatalogRow],
 ) -> Result<(), MetadataStoreError> {
     let tx = conn
-        .transaction()
+        .savepoint()
         .map_err(|source| MetadataStoreError::Database {
             action: "begin proton catalog upsert transaction",
             source,
@@ -52,7 +52,7 @@ pub fn replace_proton_catalog_impl(
     rows: &[ProtonCatalogRow],
 ) -> Result<(), MetadataStoreError> {
     let tx = conn
-        .transaction()
+        .savepoint()
         .map_err(|source| MetadataStoreError::Database {
             action: "begin proton catalog replace transaction",
             source,
@@ -83,7 +83,7 @@ pub fn replace_proton_catalog_impl(
 }
 
 fn upsert_proton_catalog_rows(
-    tx: &rusqlite::Transaction<'_>,
+    tx: &Connection,
     rows: &[ProtonCatalogRow],
 ) -> Result<(), MetadataStoreError> {
     for row in rows {

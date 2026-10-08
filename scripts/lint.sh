@@ -10,7 +10,7 @@ usage() {
   cat <<'EOF'
 Usage: ./scripts/lint.sh [--fix] [--staged] [--unstaged] [--modified]
                          [--rust] [--ts] [--shell] [--host-gateway]
-                         [--legacy-palette] [--all]
+                         [--legacy-palette] [--schema-version] [--all]
 
 Run linters across the full stack.
 
@@ -27,6 +27,7 @@ Run linters across the full stack.
   --shell            Shell scripts only (shellcheck)
   --host-gateway     Host-command gateway check only (ADR-0001; always full-tree scan)
   --legacy-palette   Legacy palette check only (Phase 2 token migration; always full-tree scan)
+  --schema-version   Schema-version drift check only (SUPPORTED_MAX_VERSION vs docs; always full-tree scan)
   --all              All checks (default)
 EOF
 }
@@ -39,6 +40,7 @@ RUN_TS=0
 RUN_SHELL=0
 RUN_HOST_GATEWAY=0
 RUN_LEGACY_PALETTE=0
+RUN_SCHEMA_VERSION=0
 EXIT_CODE=0
 
 while [[ $# -gt 0 ]]; do
@@ -52,7 +54,8 @@ while [[ $# -gt 0 ]]; do
     --shell) RUN_SHELL=1; shift ;;
     --host-gateway) RUN_HOST_GATEWAY=1; shift ;;
     --legacy-palette) RUN_LEGACY_PALETTE=1; shift ;;
-    --all) RUN_RUST=1; RUN_TS=1; RUN_SHELL=1; RUN_HOST_GATEWAY=1; RUN_LEGACY_PALETTE=1; shift ;;
+    --schema-version) RUN_SCHEMA_VERSION=1; shift ;;
+    --all) RUN_RUST=1; RUN_TS=1; RUN_SHELL=1; RUN_HOST_GATEWAY=1; RUN_LEGACY_PALETTE=1; RUN_SCHEMA_VERSION=1; shift ;;
     --help|-h) usage; exit 0 ;;
     *) echo "Unknown arg: $1" >&2; usage >&2; exit 1 ;;
   esac
@@ -70,12 +73,13 @@ fi
 SCOPED=$(( SCOPE_STAGED || SCOPE_UNSTAGED ))
 
 # Default to all if nothing specified
-if (( !RUN_RUST && !RUN_TS && !RUN_SHELL && !RUN_HOST_GATEWAY && !RUN_LEGACY_PALETTE )); then
+if (( !RUN_RUST && !RUN_TS && !RUN_SHELL && !RUN_HOST_GATEWAY && !RUN_LEGACY_PALETTE && !RUN_SCHEMA_VERSION )); then
   RUN_RUST=1
   RUN_TS=1
   RUN_SHELL=1
   RUN_HOST_GATEWAY=1
   RUN_LEGACY_PALETTE=1
+  RUN_SCHEMA_VERSION=1
 fi
 
 if (( RUN_RUST )); then
@@ -204,6 +208,14 @@ if (( RUN_LEGACY_PALETTE )); then
     echo "note: scope flags do not narrow legacy-palette; running full-tree scan."
   fi
   "$ROOT_DIR/scripts/check-legacy-palette.sh" || EXIT_CODE=1
+fi
+
+if (( RUN_SCHEMA_VERSION )); then
+  echo "=== Schema-version ==="
+  if (( SCOPED )); then
+    echo "note: scope flags do not narrow schema-version; running full-tree check."
+  fi
+  "$ROOT_DIR/scripts/check-schema-version.sh" || EXIT_CODE=1
 fi
 
 exit "$EXIT_CODE"

@@ -1,6 +1,8 @@
 import { TooltipProvider } from '@radix-ui/react-tooltip';
+import { screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MetadataStatusBanner } from '@/components/layout/MetadataStatusBanner';
 import { CommunityPage } from '@/components/pages/CommunityPage';
 import { CompatibilityPage } from '@/components/pages/CompatibilityPage';
 import { DiscoverPage } from '@/components/pages/DiscoverPage';
@@ -148,6 +150,52 @@ for (const [name, renderPage] of ROUTE_PAGES) {
 // Hero Detail tab axe coverage lives in components.a11y.test.tsx for the
 // profile editor and launch-options surfaces that replaced the deleted routes.
 // ---------------------------------------------------------------------------
+
+describe('MetadataStatusBanner route integration', () => {
+  beforeEach(() => {
+    // LibraryPage reads localStorage for view-mode persistence; stub like the route suite above.
+    const memory = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      get length() {
+        return memory.size;
+      },
+      clear: (): void => {
+        memory.clear();
+      },
+      getItem: (key: string): string | null => memory.get(key) ?? null,
+      key: (index: number): string | null => Array.from(memory.keys())[index] ?? null,
+      removeItem: (key: string): void => {
+        memory.delete(key);
+      },
+      setItem: (key: string, value: string): void => {
+        memory.set(key, value);
+      },
+    } as Storage);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('LibraryPage with visible degraded banner has no axe violations', async () => {
+    sessionStorage.clear();
+    const { container } = renderWithMocks(
+      <AllProviders>
+        <MetadataStatusBanner />
+        <LibraryPage onOpenCommandPalette={noop} />
+      </AllProviders>,
+      {
+        handlerOverrides: {
+          ...EMPTY_PROFILE_OVERRIDES,
+          metadata_store_status: async () => ({ state: 'newer_schema', found: 99, supported: 27 }),
+        },
+      }
+    );
+    await screen.findByRole('status');
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
+  });
+});
 
 describe('populated-fixture accessibility', () => {
   beforeEach(() => {

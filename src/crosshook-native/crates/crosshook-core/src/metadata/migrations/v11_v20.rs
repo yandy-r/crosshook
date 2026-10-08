@@ -288,7 +288,7 @@ pub(super) fn migrate_17_to_18(conn: &Connection) -> Result<(), MetadataStoreErr
 pub(super) fn migrate_18_to_19(conn: &Connection) -> Result<(), MetadataStoreError> {
     conn.execute_batch(
         "
-        BEGIN TRANSACTION;
+        SAVEPOINT crosshook_migrate_18_to_19;
 
         -- 1. Add sort_order column to collections (NOT NULL DEFAULT 0).
         ALTER TABLE collections ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;
@@ -306,7 +306,7 @@ pub(super) fn migrate_18_to_19(conn: &Connection) -> Result<(), MetadataStoreErr
         ALTER TABLE collection_profiles_new RENAME TO collection_profiles;
         CREATE INDEX IF NOT EXISTS idx_collection_profiles_profile_id
             ON collection_profiles(profile_id);
-        COMMIT;
+        RELEASE crosshook_migrate_18_to_19;
         ",
     )
     .map_err(|source| MetadataStoreError::Database {

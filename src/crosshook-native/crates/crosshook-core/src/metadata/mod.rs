@@ -53,6 +53,7 @@
 //!
 //! This layout is a refactor of a previously-3,747-line `mod.rs`; see issue #291.
 
+mod backup;
 mod cache_ops;
 mod cache_store;
 mod catalog_ops;
@@ -135,12 +136,12 @@ pub use health_store::HealthSnapshotRow;
 pub use models::{
     BundledOptimizationPresetRow, CacheEntryStatus, CollectionRow, CommunityProfileRow,
     CommunityTapRow, ConfigRevisionRow, ConfigRevisionSource, DriftState, FailureTrendRow,
-    LaunchHistoryEntry, LaunchOutcome, MetadataStoreError, PrefixDependencyStateRow,
-    PrefixStorageCleanupAuditRow, PrefixStorageSnapshotRow, PrefixVersionRestoreJournalRow,
-    ProfileLaunchPresetOrigin, SyncReport, SyncSource, VersionCorrelationStatus,
-    VersionSnapshotRow, MAX_CACHE_PAYLOAD_BYTES, MAX_CONFIG_REVISIONS_PER_PROFILE,
-    MAX_DIAGNOSTIC_JSON_BYTES, MAX_HISTORY_LIST_LIMIT, MAX_SNAPSHOT_TOML_BYTES,
-    MAX_VERSION_SNAPSHOTS_PER_PROFILE,
+    LaunchHistoryEntry, LaunchOutcome, MetadataStatus, MetadataStoreError,
+    PrefixDependencyStateRow, PrefixStorageCleanupAuditRow, PrefixStorageSnapshotRow,
+    PrefixVersionRestoreJournalRow, ProfileLaunchPresetOrigin, SyncReport, SyncSource,
+    VersionCorrelationStatus, VersionSnapshotRow, MAX_CACHE_PAYLOAD_BYTES,
+    MAX_CONFIG_REVISIONS_PER_PROFILE, MAX_DIAGNOSTIC_JSON_BYTES, MAX_HISTORY_LIST_LIMIT,
+    MAX_SNAPSHOT_TOML_BYTES, MAX_VERSION_SNAPSHOTS_PER_PROFILE,
 };
 pub use offline_store::{CommunityTapOfflineRow, OfflineReadinessRow, TrainerHashCacheRow};
 pub use profile_sync::sha256_hex;

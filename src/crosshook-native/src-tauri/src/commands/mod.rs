@@ -10,6 +10,7 @@ pub mod install;
 pub mod launch;
 mod log_stream;
 pub mod lutris;
+pub mod metadata;
 pub mod migration;
 pub mod mods;
 pub mod offline;

@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { HealthBadge } from '@/components/HealthBadge';
 import { ContextRail } from '@/components/layout/ContextRail';
 import { Inspector } from '@/components/layout/Inspector';
+import { MetadataStatusBanner } from '@/components/layout/MetadataStatusBanner';
 import { GameDetail } from '@/components/library/GameDetail';
 import { HeroDetailHeader } from '@/components/library/HeroDetailHeader';
 import { HeroDetailTabs } from '@/components/library/HeroDetailTabs';
@@ -101,6 +102,34 @@ describe('CommandPalette accessibility', () => {
         onExecuteCommand={noop}
       />
     );
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// MetadataStatusBanner
+// ---------------------------------------------------------------------------
+
+describe('MetadataStatusBanner accessibility', () => {
+  it('has no axe violations for the newer-schema state', async () => {
+    const { container } = renderWithMocks(<MetadataStatusBanner />, {
+      handlerOverrides: {
+        metadata_store_status: async () => ({ state: 'newer_schema', found: 99, supported: 27 }),
+      },
+    });
+    await screen.findByRole('status');
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
+  });
+
+  it('has no axe violations for the disabled state', async () => {
+    const { container } = renderWithMocks(<MetadataStatusBanner />, {
+      handlerOverrides: {
+        metadata_store_status: async () => ({ state: 'disabled', reason: 'database file is locked' }),
+      },
+    });
+    await screen.findByRole('status');
     const results = await axe(container);
     expect(results).toHaveNoViolations();
   });

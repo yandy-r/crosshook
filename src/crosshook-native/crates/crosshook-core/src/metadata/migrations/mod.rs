@@ -14,6 +14,10 @@ mod tests;
 use super::MetadataStoreError;
 use rusqlite::Connection;
 
+/// Highest schema version this binary understands. Must equal the last rung of the
+/// ladder in [`run_migrations`]; `scripts/check-schema-version.sh` parses this line.
+pub const SUPPORTED_MAX_VERSION: u32 = 27;
+
 pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
     let version = conn
         .pragma_query_value(None, "user_version", |row| row.get::<_, u32>(0))
@@ -21,6 +25,13 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
             action: "read metadata schema version",
             source,
         })?;
+
+    if version > SUPPORTED_MAX_VERSION {
+        return Err(MetadataStoreError::NewerSchema {
+            found: version,
+            supported: SUPPORTED_MAX_VERSION,
+        });
+    }
 
     if version < 1 {
         v1_v10::migrate_0_to_1(conn)?;

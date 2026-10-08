@@ -4,7 +4,7 @@ use super::models::{
 };
 use super::MetadataStoreError;
 use chrono::Utc;
-use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
+use rusqlite::{params, Connection, OptionalExtension};
 
 /// Insert a new config revision for the given profile, skipping the insert when
 /// the content hash matches the latest recorded revision (dedup). Prunes older
@@ -27,13 +27,12 @@ pub fn insert_config_revision(
         )));
     }
 
-    let tx =
-        Transaction::new_unchecked(conn, TransactionBehavior::Immediate).map_err(|source| {
-            MetadataStoreError::Database {
-                action: "start a config revision insert transaction",
-                source,
-            }
-        })?;
+    let tx = crate::metadata::util::write_savepoint(conn).map_err(|source| {
+        MetadataStoreError::Database {
+            action: "start a config revision insert transaction",
+            source,
+        }
+    })?;
 
     // Dedup: skip if the latest revision for this profile already has the same hash.
     let latest_hash: Option<String> = tx
@@ -227,13 +226,12 @@ pub fn set_known_good_revision(
     profile_id: &str,
     revision_id: i64,
 ) -> Result<(), MetadataStoreError> {
-    let tx =
-        Transaction::new_unchecked(conn, TransactionBehavior::Immediate).map_err(|source| {
-            MetadataStoreError::Database {
-                action: "start a set-known-good transaction",
-                source,
-            }
-        })?;
+    let tx = crate::metadata::util::write_savepoint(conn).map_err(|source| {
+        MetadataStoreError::Database {
+            action: "start a set-known-good transaction",
+            source,
+        }
+    })?;
 
     tx.execute(
         "UPDATE config_revisions

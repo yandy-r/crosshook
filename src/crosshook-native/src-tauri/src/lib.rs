@@ -154,44 +154,53 @@ pub fn run() {
                 let auto_load_profile_name =
                     startup::resolve_auto_load_profile_name(&settings_store, &profile_store)?;
 
-                if let Err(error) =
-                    startup::run_metadata_reconciliation(&metadata_for_startup, &profile_store)
-                {
-                    tracing::warn!(%error, "startup metadata reconciliation failed");
-                }
-
-                {
-                    let catalog = crosshook_core::launch::global_catalog();
-                    if let Err(error) = metadata_for_startup.persist_optimization_catalog(
-                        &catalog.entries,
-                        catalog.catalog_version,
-                    ) {
-                        tracing::warn!(%error, "failed to persist optimization catalog to metadata db");
+                if metadata_for_startup.status() == crosshook_core::metadata::MetadataStatus::Ok {
+                    if let Err(error) =
+                        startup::run_metadata_reconciliation(&metadata_for_startup, &profile_store)
+                    {
+                        tracing::warn!(%error, "startup metadata reconciliation failed");
                     }
-                }
 
-                {
-                    let rc = crosshook_core::onboarding::global_readiness_catalog();
-                    if let Err(error) = metadata_for_startup.persist_readiness_catalog(
-                        &rc.entries,
-                        rc.catalog_version,
-                    ) {
-                        tracing::warn!(%error, "failed to persist readiness catalog to metadata db");
-                    }
-                }
-
-                {
-                    let settings = settings_store
-                        .load()
-                        .unwrap_or_else(|_| AppSettingsData::default());
-                    if metadata_for_startup.is_available() {
-                        if settings.install_nag_dismissed_at.is_some() {
-                            let _ = metadata_for_startup.dismiss_readiness_nag("umu_run", 36500);
-                        }
-                        if settings.steam_deck_caveats_dismissed_at.is_some() {
-                            let _ = metadata_for_startup.dismiss_readiness_nag("steam_deck_caveats", 36500);
+                    {
+                        let catalog = crosshook_core::launch::global_catalog();
+                        if let Err(error) = metadata_for_startup.persist_optimization_catalog(
+                            &catalog.entries,
+                            catalog.catalog_version,
+                        ) {
+                            tracing::warn!(%error, "failed to persist optimization catalog to metadata db");
                         }
                     }
+
+                    {
+                        let rc = crosshook_core::onboarding::global_readiness_catalog();
+                        if let Err(error) = metadata_for_startup.persist_readiness_catalog(
+                            &rc.entries,
+                            rc.catalog_version,
+                        ) {
+                            tracing::warn!(%error, "failed to persist readiness catalog to metadata db");
+                        }
+                    }
+
+                    {
+                        let settings = settings_store
+                            .load()
+                            .unwrap_or_else(|_| AppSettingsData::default());
+                        if metadata_for_startup.is_available() {
+                            if settings.install_nag_dismissed_at.is_some() {
+                                if let Err(error) = metadata_for_startup.dismiss_readiness_nag("umu_run", 36500) {
+                                    tracing::warn!(%error, "failed to persist legacy umu nag dismissal");
+                                }
+                            }
+                            if settings.steam_deck_caveats_dismissed_at.is_some() {
+                                if let Err(error) = metadata_for_startup.dismiss_readiness_nag("steam_deck_caveats", 36500) {
+                                    tracing::warn!(%error, "failed to persist legacy Steam Deck nag dismissal");
+                                }
+                            }
+                        }
+                    }
+
+                } else {
+                    tracing::warn!(status = ?metadata_for_startup.status(), "metadata read-only or unavailable; optional startup writes skipped");
                 }
 
                 if let Some(profile_name) = auto_load_profile_name {
@@ -509,6 +518,7 @@ pub fn run() {
             commands::health::get_cached_health_snapshots,
             commands::health::get_cached_offline_readiness_snapshots,
             commands::diagnostics::export_diagnostics,
+            commands::metadata::metadata_store_status,
             commands::migration::check_proton_migrations,
             commands::migration::apply_proton_migration,
             commands::migration::apply_batch_migration,

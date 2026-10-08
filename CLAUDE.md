@@ -72,10 +72,12 @@ For storage changes, plans must also:
 
 ## SQLite Metadata DB (summary)
 
-Operational metadata lives in **`~/.local/share/crosshook/metadata.db`** (WAL, `0600`). Migrations: `src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs`.
+Operational metadata lives in **`~/.local/share/crosshook/metadata.db`** (WAL, `0600`). Migrations: `src/crosshook-native/crates/crosshook-core/src/metadata/migrations/mod.rs`.
 
-- **Current schema version**: **26**
+- **Current schema version**: **27**
+- **Migration v26→v27**: adds `prefix_version_restore_journal` — restart-safe Wine-prefix Windows-version restore records (see AGENTS.md § _Prefix dependency recovery_).
 - **Migration v25→v26**: adds `profile_mods` — per-profile mod coexistence registry (machine-local; drives trainer coexistence advisories; never exported with community profiles).
+- **Schema bump policy**: any schema version change must update `SUPPORTED_MAX_VERSION` in `migrations/mod.rs`, both docs, pass `scripts/check-schema-version.sh`, and preserve the core migration regression test invariant (latest migration == `SUPPORTED_MAX_VERSION`) — see [`docs/internal-docs/metadata-schema-policy.md`](docs/internal-docs/metadata-schema-policy.md).
 - **Migration v24→v25**: adds nullable `community_profiles.trainer_loading_mode` for the discovery catalog loading-mode facet; resets tap watermarks (`last_head_commit`) so the next community sync backfills the column offline. No new tables.
 - **Migration v23→v24**: adds `umu_gameid_lookup_cache` for the opt-in umu GAMEID HTTP resolver, including cached hits, misses, and stale fallback metadata.
 - **Migration v22→v23**: evicts `proton_release_catalog` rows so additive DTO fields (e.g. `published_at`) repopulate on next fetch. No schema change.

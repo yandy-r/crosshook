@@ -350,3 +350,40 @@
   font-size: 0.85rem;
   line-height: 1.4;
 }
+
+/* App-level metadata store status banner (AppShell). */
+/* Compound selector beats theme.css `.crosshook-warning-banner` regardless of import order. */
+.crosshook-warning-banner.crosshook-metadata-status-banner {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  /* Above app content (max 40, focus.css) but below every modal layer (1000+), so it never covers modal controls. */
+  z-index: 900;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: min(720px, calc(100vw - 32px));
+  /* Opaque base keeps text readable over content; warning tint layered on top keeps the warning look. */
+  background:
+    linear-gradient(rgba(245, 158, 11, 0.12), rgba(245, 158, 11, 0.12)),
+    var(--crosshook-color-bg);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  font-size: 0.875rem;
+}
+
+.crosshook-metadata-status-banner > span {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.crosshook-metadata-status-banner .crosshook-rename-toast-dismiss {
+  flex: none;
+  color: inherit;
+  border-radius: var(--crosshook-radius-md);
+}
+
+.crosshook-metadata-status-banner .crosshook-rename-toast-dismiss:focus-visible {
+  outline: 2px solid var(--crosshook-color-accent-strong);
+  outline-offset: 2px;
+}
