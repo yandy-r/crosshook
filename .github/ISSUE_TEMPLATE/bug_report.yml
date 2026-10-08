@@ -1,0 +1,123 @@
+name: Bug Report
+description: Report a bug or unexpected behavior in CrossHook Loader
+title: '[Bug]: '
+labels: ['type:bug', 'status:needs-triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill out the form below so we can reproduce and fix it.
+
+  - type: checkboxes
+    id: duplicate-check
+    attributes:
+      label: Duplicate Check
+      description: Please search existing issues before filing a new one.
+      options:
+        - label: I have searched existing issues and this bug has not been reported.
+          required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which part of CrossHook is affected?
+      options:
+        - Injection (DLL injection)
+        - Memory (read/write/save/restore)
+        - Process (launch/attach/suspend/resume/kill)
+        - UI (MainForm / ResumePanel)
+        - Profiles (game/trainer configuration)
+        - Build / Packaging
+        - CLI / Arguments
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      description: Where are you running CrossHook?
+      options:
+        - Steam Deck (SteamOS)
+        - Linux (other distro)
+        - macOS
+        - Windows (via WINE)
+    validations:
+      required: true
+
+  - type: input
+    id: proton-wine-version
+    attributes:
+      label: Proton / WINE Version
+      description: 'e.g., Proton 9.0-1, Proton GE 8-25, WINE 9.0'
+      placeholder: 'Proton 9.0-1'
+    validations:
+      required: true
+
+  - type: input
+    id: crosshook-version
+    attributes:
+      label: CrossHook Version
+      description: 'Version or commit hash of CrossHook Loader'
+      placeholder: 'v1.0.0 or abc1234'
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear description of what the bug is.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Detailed steps to reproduce the behavior.
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened.
+    validations:
+      required: true
+
+  - type: textarea
+    id: game-trainer
+    attributes:
+      label: Game & Trainer Details
+      description: 'If applicable, provide the game name, trainer name/version, and any DLLs involved.'
+      placeholder: |
+        Game: Elden Ring
+        Trainer: FLiNG v1.2.3
+        DLLs: dinput8.dll
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Screenshots
+      description: Paste relevant log output or attach screenshots. Use code blocks for logs.
+      render: shell
+    validations:
+      required: false

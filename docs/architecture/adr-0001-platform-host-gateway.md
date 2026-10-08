@@ -124,7 +124,7 @@ gamemoderun
 The script is wired into:
 
 - `scripts/lint.sh` (the main lint runner)
-- `.forgejo/workflows/lint.yml` (CI, runs on every Forgejo PR)
+- `.github/workflows/lint.yml` (CI, runs on every PR)
 - `lefthook.yml` (local pre-commit hook)
 
 ---

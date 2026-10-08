@@ -112,9 +112,9 @@ Context: `docs/plans/dev-web-frontend/feature-spec.md`, `docs/plans/dev-web-fron
 
 **Issue 1**: The 5 components are not named in the task body, only in the READ list (source files). The issue body needs a concrete file list to be useful.
 
-**Issue 2**: The issue-creation guidance is stale. New repo issues belong on Forgejo, so implementers should use `tea` or the Forgejo API and the `.forgejo/ISSUE_TEMPLATE/` forms rather than GitHub issue tooling.
+**Issue 2**: The issue-creation guidance is stale. New repo issues belong on GitHub, so implementers should use `gh` and the `.github/ISSUE_TEMPLATE/` forms.
 
-**Suggestion**: Add the 5 component names inline: `LaunchPage.tsx`, `HealthDashboardPage.tsx`, `ProfileActions.tsx`, `LaunchPanel.tsx`, `TrainerDiscoveryPanel.tsx`. Add one sentence directing implementers to create the issue on Forgejo with the `.forgejo/ISSUE_TEMPLATE/feature_request.yml` fields.
+**Suggestion**: Add the 5 component names inline: `LaunchPage.tsx`, `HealthDashboardPage.tsx`, `ProfileActions.tsx`, `LaunchPanel.tsx`, `TrainerDiscoveryPanel.tsx`. Add one sentence directing implementers to create the issue on GitHub with the `.github/ISSUE_TEMPLATE/feature_request.yml` fields.
 
 ---
 

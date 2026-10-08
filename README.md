@@ -3,7 +3,7 @@
 [![Download CrossHook](https://img.shields.io/badge/Download-CrossHook_Flatpak-00C853?style=for-the-badge)](https://github.com/yandy-r/crosshook/releases)
 [![GitHub Release](https://img.shields.io/github/v/release/yandy-r/crosshook?style=for-the-badge&color=blue&label=Latest)](https://github.com/yandy-r/crosshook/releases)
 [![License](https://img.shields.io/github/license/yandy-r/crosshook?style=for-the-badge&color=green)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Steam%20Deck-blue?style=for-the-badge&logo=linux)](https://git.home.rfamily.dev/yandy/crosshook)
+[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Steam%20Deck-blue?style=for-the-badge&logo=linux)](https://github.com/yandy-r/crosshook)
 
 CrossHook is a native Linux trainer launcher for Steam and Proton games. It runs directly on your
 Linux desktop or Steam Deck -- no WINE needed for CrossHook itself -- and orchestrates trainers,
@@ -219,11 +219,11 @@ containing mock code -- the feature has zero production surface.
 
 ### CI
 
-Forgejo Actions workflows under `.forgejo/workflows/` run collaboration checks for PRs and
-publish releases from tags pushed to `origin`. The
-[release](.github/workflows/release.yml) GitHub Actions workflow is release-only: it builds and
-uploads the Flatpak bundle to a GitHub Release on every version tag push (`v*`) to the `github`
-remote. `./scripts/prepare-release.sh --push` pushes release tags to both remotes by default.
+GitHub Actions workflows under [`.github/workflows/`](.github/workflows/) run collaboration
+checks (lint, PR title, fixture lint) on pull requests and pushes to `main`. The
+[release](.github/workflows/release.yml) workflow builds and uploads the Flatpak bundle to a
+GitHub Release on every version tag push (`v*`). `./scripts/prepare-release.sh --push` pushes the
+release branch and tag to `origin`.
 
 ## Release Notes
 
@@ -240,12 +240,12 @@ remote. `./scripts/prepare-release.sh --push` pushes release tags to both remote
 
 ## Contributing
 
-Contributions are welcome on [Forgejo](https://git.home.rfamily.dev/yandy/crosshook). See
+Contributions are welcome on [GitHub](https://github.com/yandy-r/crosshook). See
 [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code style, commit conventions, and the
 pull request process.
 
 For bugs and feature requests, use the
-[Forgejo issue templates](https://git.home.rfamily.dev/yandy/crosshook/issues/new/choose).
+[GitHub issue templates](https://github.com/yandy-r/crosshook/issues/new/choose).
 
 ## License
 

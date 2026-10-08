@@ -1,20 +1,20 @@
 # CrossHook Roadmap
 
 Living priority map for what to build next. Updated from `main` commit history,
-Forgejo/GitHub releases, open issues on Forgejo (`origin`), and recent PR state
-(**2026-06-18**).
+GitHub releases, open issues, and recent PR state (**2026-06-18**).
 
-**Issue tracker:** Active work is tracked on
-[Forgejo](https://git.home.rfamily.dev/yandy/crosshook/issues). Migrated issues
-retain the original GitHub number in the body (`Migrated from GitHub issue #…`).
-This roadmap uses **Forgejo numbers** for open work; historical shipped PRs below
-still link to GitHub for archaeology.
+**Issue tracker:** New work is tracked on
+[GitHub](https://github.com/yandy-r/crosshook/issues). Between 2026-06-17 and
+2026-10 collaboration briefly moved to a self-hosted Forgejo instance; the
+`git.home.rfamily.dev` links and Forgejo numbers below are **legacy references**
+to that retired tracker (each also cites its original GitHub number as `GH #…`).
+Re-file any still-open Forgejo item on GitHub before starting work on it.
 
 **How to use this file**
 
 - Treat **Do next** as the current sprint unless blocked.
 - Link implementation PRs with `Closes #…` or `Part of #…` per
-  [`.forgejo/pull_request_template.md`](.forgejo/pull_request_template.md).
+  [`.github/pull_request_template.md`](.github/pull_request_template.md).
 - When a phase ships, check off or close the matching issue and update this file
   in the same PR or a follow-up docs commit.
 - Canonical implementation detail lives in PRDs under `docs/prps/prds/`; this
@@ -27,12 +27,12 @@ still link to GitHub for archaeology.
 Prioritized actions for the current cycle. Work top-to-bottom; skip only when
 blocked.
 
-| #   | Action                                                                                                                                                                                                                                                                                                                                    | Why now                                                                                                                                             |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | **Cut the next release from `main`** — run `./scripts/prepare-release.sh`, validate changelog sections, smoke native + Flatpak build, tag to Forgejo `origin` and GitHub `github`. Ships launch command-arguments UI ([#504](https://github.com/yandy-r/crosshook/pull/504)), skip-launcher fix, and dual Forgejo/GitHub release publish. | [v0.5.0](https://github.com/yandy-r/crosshook/releases/tag/v0.5.0) landed Flatpak-only distribution; `main` has unreleased launch UX and CI work.   |
-| 2   | **Continue [#3](https://git.home.rfamily.dev/yandy/crosshook/issues/3) tracker hygiene** — reconcile the Forgejo board after [#4](https://git.home.rfamily.dev/yandy/crosshook/issues/4) closed via [#17](https://git.home.rfamily.dev/yandy/crosshook/pull/17); triage remaining P2/P3 items (#63 trainer hash, #73 collections).        | `priority:high` / `status:in-progress` tracker; body reconciled 2026-06-18 for config history completion and HMAC deferral.                         |
-| 3   | **Start [#2](https://git.home.rfamily.dev/yandy/crosshook/issues/2)** — Lutris profile import (GitHub #71). Write a focused PRP plan with storage boundaries before coding.                                                                                                                                                               | **Next P1 product slice** — migration aid; config history enhancements (#4) shipped in [#17](https://git.home.rfamily.dev/yandy/crosshook/pull/17). |
-| 4   | **Groom Flatpak submission track** — review [#6](https://git.home.rfamily.dev/yandy/crosshook/issues/6) / [#5](https://git.home.rfamily.dev/yandy/crosshook/issues/5) (GitHub #210 / #206) against Phase 4 isolation ([#412](https://github.com/yandy-r/crosshook/pull/412)).                                                             | Per-app isolation shipped; Flathub is the next distribution milestone after the release train clears.                                               |
+| #   | Action                                                                                                                                                                                                                                                                                                                             | Why now                                                                                                                                             |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Cut the next release from `main`** — run `./scripts/prepare-release.sh`, validate changelog sections, smoke native + Flatpak build, tag to GitHub `origin`. Ships launch command-arguments UI ([#504](https://github.com/yandy-r/crosshook/pull/504)), skip-launcher fix, and dual Forgejo/GitHub release publish.               | [v0.5.0](https://github.com/yandy-r/crosshook/releases/tag/v0.5.0) landed Flatpak-only distribution; `main` has unreleased launch UX and CI work.   |
+| 2   | **Continue [#3](https://git.home.rfamily.dev/yandy/crosshook/issues/3) tracker hygiene** — reconcile the Forgejo board after [#4](https://git.home.rfamily.dev/yandy/crosshook/issues/4) closed via [#17](https://git.home.rfamily.dev/yandy/crosshook/pull/17); triage remaining P2/P3 items (#63 trainer hash, #73 collections). | `priority:high` / `status:in-progress` tracker; body reconciled 2026-06-18 for config history completion and HMAC deferral.                         |
+| 3   | **Start [#2](https://git.home.rfamily.dev/yandy/crosshook/issues/2)** — Lutris profile import (GitHub #71). Write a focused PRP plan with storage boundaries before coding.                                                                                                                                                        | **Next P1 product slice** — migration aid; config history enhancements (#4) shipped in [#17](https://git.home.rfamily.dev/yandy/crosshook/pull/17). |
+| 4   | **Groom Flatpak submission track** — review [#6](https://git.home.rfamily.dev/yandy/crosshook/issues/6) / [#5](https://git.home.rfamily.dev/yandy/crosshook/issues/5) (GitHub #210 / #206) against Phase 4 isolation ([#412](https://github.com/yandy-r/crosshook/pull/412)).                                                      | Per-app isolation shipped; Flathub is the next distribution milestone after the release train clears.                                               |
 
 **Strategic principle** (from [#3](https://git.home.rfamily.dev/yandy/crosshook/issues/3)): invest in making the
 trainer-on-Linux workflow **reliable, diagnosable, and shareable** — depth over
@@ -50,7 +50,7 @@ launcher scope prematurely.
 | **On `main`, unreleased**     | Config history enhancements ([#17](https://git.home.rfamily.dev/yandy/crosshook/pull/17)); launch command-arguments sub-tab ([#504](https://github.com/yandy-r/crosshook/pull/504)); skip-launcher argv fix; Forgejo collaboration CI + dual Forgejo/GitHub release publish |
 | **Unified Desktop Redesign**  | **Shipped** (v0.3.0) — responsive shell, Hero Detail mode, command palette, context rail, status bar, route reworks                                                                                                                                                         |
 | **Hero Detail Consolidation** | **Shipped** (v0.3.0) — profile/launch/hook editing in Hero Detail; legacy `/profiles` and `/launch` routes removed; trainer tab editor completed on `main` ([#479](https://github.com/yandy-r/crosshook/issues/479))                                                        |
-| **Open issues (Forgejo)**     | 16 on `origin` — #4 closed 2026-06-18; HMAC deferral tracked separately (see [Open issue inventory](#open-issue-inventory))                                                                                                                                                 |
+| **Open issues (Forgejo)**     | 16 on the legacy tracker — #4 closed 2026-06-18; HMAC deferral tracked separately (see [Open issue inventory](#open-issue-inventory))                                                                                                                                       |
 | **Open PRs**                  | 0                                                                                                                                                                                                                                                                           |
 
 ---
@@ -265,7 +265,7 @@ check: 2026-06-07 (see issue comment).
 
 ## Open issue inventory
 
-16 open issues on Forgejo (`origin`) after #4 closed 2026-06-18 (HMAC deferral
+16 open issues on the legacy Forgejo tracker after #4 closed 2026-06-18 (HMAC deferral
 spun to a new deferred issue). Migrated from GitHub 2026-06-17. Flatpak
 packaging (GitHub #69) shipped in v0.5.0; config history enhancements (Forgejo
 #4 / GitHub #123) shipped in PR #17.

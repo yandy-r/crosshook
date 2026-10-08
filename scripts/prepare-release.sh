@@ -12,15 +12,15 @@ NATIVE_CARGO_MANIFESTS=(
   "$ROOT_DIR/src/crosshook-native/src-tauri/Cargo.toml"
 )
 SOURCE_REMOTE="${SOURCE_REMOTE:-origin}"
-RELEASE_REMOTES=(origin github)
+RELEASE_REMOTES=(origin)
 PUSH=false
 VERSION_INPUT=""
 
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/prepare-release.sh --version 5.1.0 [--push] [--source-remote origin] [--release-remotes "origin github"]
-  ./scripts/prepare-release.sh --tag v5.1.0 [--push] [--source-remote origin] [--release-remotes "origin github"]
+  ./scripts/prepare-release.sh --version 5.1.0 [--push] [--source-remote origin] [--release-remotes origin]
+  ./scripts/prepare-release.sh --tag v5.1.0 [--push] [--source-remote origin] [--release-remotes origin]
 
 This script:
   1. Syncs the native workspace version
@@ -28,15 +28,14 @@ This script:
   3. Validates the tagged release-notes section
   4. Commits the release metadata update
   5. Creates an annotated release tag
-  6. Optionally pushes the branch to Forgejo and the tag to both release remotes
+  6. Optionally pushes the branch and the tag to the release remotes
 
 Examples:
   ./scripts/prepare-release.sh --version 5.1.0
   ./scripts/prepare-release.sh --tag v5.1.0 --push
 
-By default, source collaboration is pushed to the Forgejo `origin` remote and
-release tags are pushed to both `origin` and `github` so Forgejo and GitHub
-release workflows each publish the Flatpak bundle.
+By default, the branch and release tag are pushed to GitHub `origin`, where
+.github/workflows/release.yml publishes the Flatpak bundle.
 EOF
 }
 
