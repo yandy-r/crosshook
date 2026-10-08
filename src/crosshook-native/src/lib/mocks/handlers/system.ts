@@ -526,6 +526,12 @@ export function registerSystem(map: Map<string, Handler>): void {
     return { state: 'ok' };
   });
 
+  // --- bench (YAN-782) ---
+
+  map.set('bench_ready', async (): Promise<void> => {
+    // No-op: benchmark hooks are inert unless the real backend sees CROSSHOOK_BENCH=1.
+  });
+
   // --- discovery ---
 
   map.set('discovery_catalog', async (args): Promise<CatalogPage> => {

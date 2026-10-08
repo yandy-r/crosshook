@@ -301,12 +301,16 @@ pub fn run() {
                     });
                 }
 
-                tauri::async_runtime::spawn(async {
-                    match crosshook_core::umu_database::refresh_umu_database().await {
-                        Ok(status) => tracing::info!(?status, "umu-database startup refresh complete"),
-                        Err(err) => tracing::warn!(%err, "umu-database startup refresh failed"),
-                    }
-                });
+                if commands::bench::bench_enabled() {
+                    tracing::info!("umu-database startup refresh skipped (CROSSHOOK_BENCH=1)");
+                } else {
+                    tauri::async_runtime::spawn(async {
+                        match crosshook_core::umu_database::refresh_umu_database().await {
+                            Ok(status) => tracing::info!(?status, "umu-database startup refresh complete"),
+                            Err(err) => tracing::warn!(%err, "umu-database startup refresh failed"),
+                        }
+                    });
+                }
 
                 // Flatpak first-run migration completion event (Phase 4, ADR-0004).
                 // Emit `flatpak-migration-complete` when the startup migration imported
@@ -408,6 +412,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
+            commands::bench::bench_ready,
             commands::export::export_launchers,
             commands::export::validate_launcher_export,
             commands::export::check_launcher_exists,
