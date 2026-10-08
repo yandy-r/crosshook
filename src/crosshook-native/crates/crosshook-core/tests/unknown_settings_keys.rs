@@ -67,6 +67,19 @@ fn settings_unknown_fields_survive_save_migration_and_partial_update() {
 }
 
 #[test]
+fn settings_normalized_save_is_byte_stable_across_reload_and_save() {
+    let dir = tempdir().unwrap();
+    let store = SettingsStore::with_base_path(dir.path().into());
+    fs::write(store.settings_path(), SETTINGS).unwrap();
+    store.save(&store.load().unwrap()).unwrap();
+    let first = fs::read(store.settings_path()).unwrap();
+
+    store.save(&store.load().unwrap()).unwrap();
+
+    assert_eq!(fs::read(store.settings_path()).unwrap(), first);
+}
+
+#[test]
 fn settings_ipc_merge_uses_disk_extras_and_subscription_identity() {
     let current: AppSettingsData = toml::from_str(SETTINGS).unwrap();
     let mut incoming = current.clone();
