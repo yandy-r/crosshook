@@ -59,46 +59,55 @@ For Flatpak, per-app data derives from the **launcher** `HOME` (`flatpak-context
 
 Entry point `scripts/bench/run.sh` (thin wrapper; captures pre-isolation environment for the guard, then execs the stdlib Python helper). Implemented flags:
 
-| Flag                                             | Meaning                                                                                                                        |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| `--variant A\|B\|C\|C-iced\|C-gpui`              | Required. Build under test.                                                                                                    |
-| `--env E1\|E2-D\|E2-G\|E3\|E3-sw`                | Required. Environment ID from this document.                                                                                   |
-| `--metric G1 … --metric G10`                     | Repeatable metric selection.                                                                                                   |
-| `--metrics all\|G1,G2,…`                         | `all` (default) or comma-separated list.                                                                                       |
-| `--iterations N`                                 | 1–1000, default 10 (G1/G2 iterations).                                                                                         |
-| `--dry-run`                                      | Synthetic status rows only; never a measurement.                                                                               |
-| `--binary PATH`                                  | Native release executable (required for launched metrics without `--flatpak`).                                                 |
-| `--bundle PATH`                                  | `.flatpak` bundle file for G10.                                                                                                |
-| `--flatpak`                                      | Launch through `flatpak run` with isolation flags (see above); `--branch` selects branch (default `master`).                   |
-| `--fixtures DIR`                                 | Canonical fixture tree; materialized into the isolated root before launch.                                                     |
-| `--output DIR`                                   | Default `results`. Writes `<output>/<variant>/<env>/<Gx>.csv` plus `meta.json`.                                                |
-| `--tmp-root DIR`                                 | Isolated root parent, default `/tmp/opencode`.                                                                                 |
-| `--timeout S`, `--duration S`, `--refresh-hz HZ` | READY wait (default 60), G3/G6/G7 window (default 600), interval threshold (default 120; set to the panel mode actually used). |
-| `--capture-csv PATH`                             | External raw-observation CSV; required for real G4/G5/G6/G8/G9 (see schemas below).                                            |
-| `--cold-cache-ack`                               | Required for real G1; without it the runner exits 20 with `NEEDS_COLD_CACHE_PREP`.                                             |
-| `--keep`                                         | Retain the isolated root for inspection.                                                                                       |
+| Flag                                             | Meaning                                                                                                                                                |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--variant A\|B\|C\|C-iced\|C-gpui`              | Required. Build under test.                                                                                                                            |
+| `--env E1\|E2-D\|E2-G\|E3\|E3-sw`                | Required. Environment ID from this document.                                                                                                           |
+| `--metric G1 … --metric G10`                     | Repeatable metric selection.                                                                                                                           |
+| `--metrics all\|G1,G2,…`                         | `all` (default) or comma-separated list.                                                                                                               |
+| `--iterations N`                                 | 1–1000, default 10 (G1/G2 iterations).                                                                                                                 |
+| `--dry-run`                                      | Synthetic status rows only; never a measurement.                                                                                                       |
+| `--binary PATH`                                  | Native release executable (required for launched metrics without `--flatpak`).                                                                         |
+| `--bundle PATH`                                  | `.flatpak` bundle file for G10.                                                                                                                        |
+| `--flatpak`                                      | Launch through `flatpak run` with isolation flags (see above); `--branch` selects branch (default `master`).                                           |
+| `--fixtures DIR`                                 | Canonical fixture tree; materialized into the isolated root before launch.                                                                             |
+| `--output DIR`                                   | Default `results`. Writes `<output>/<variant>/<env>/<Gx>.csv` plus `meta.json`.                                                                        |
+| `--tmp-root DIR`                                 | Isolated root parent, default `/tmp/opencode`.                                                                                                         |
+| `--timeout S`, `--duration S`, `--refresh-hz HZ` | READY wait (default 60), measurement window (default 600; G6-only selection defaults 300), interval threshold (default 120; set to actual panel mode). |
+| `--capture-csv PATH`                             | Raw-observation CSV; required for real G4/G5/G6/G8/G9 (G8 also launches replay; see below).                                                            |
+| `--runtime-delta-mb N`                           | Measured runtime download delta input, required for G10.                                                                                               |
+| `--cold-cache-ack`                               | Required for real G1; without it the runner exits 20 with `NEEDS_COLD_CACHE_PREP`.                                                                     |
+| `--keep`                                         | Retain the isolated root for inspection.                                                                                                               |
 
-Exit codes: `0` captured/dry-run; `10` guard refusal (`BENCH_REFUSE`); `20` G1 without cold-cache acknowledgment (`NEEDS_COLD_CACHE_PREP`); `1` other capture failure (`NO_READY`, `READY_TIMEOUT`, `BENCH_ERROR`, missing CSV, malformed schema, …). `meta.json` records commit SHA, variant, environment, metrics, iterations, `synthetic`, flatpak mode, fixture seed, kernel, governor, per-tool availability, capture path, refresh Hz, duration, cold-cache acknowledgment, and final status. Baselines are identified by commit SHA, never a tag.
+Exit codes: `0` captured/dry-run; `10` guard refusal (`BENCH_REFUSE`); `20` G1 without cold-cache acknowledgment (`NEEDS_COLD_CACHE_PREP`); `30` required tool absent (`MISSING_TOOL`); `1` other capture failure (`NO_READY`, `READY_TIMEOUT`, `BENCH_ERROR`, missing CSV, malformed schema, …). `meta.json` records commit SHA, variant, environment, metrics, iterations, `synthetic`, Flatpak mode, fixture seed, kernel, governor, per-tool availability, capture path, refresh Hz, duration, cold-cache acknowledgment, and final status. Baselines use commit SHA, never a tag.
 
-G1/G2/G3/G7 launch the app inside the isolated root; G4/G5/G6/G8/G9/G10 are ingest-only (`--capture-csv`) and launch nothing. Cold G1 requires explicit page-cache preparation for every iteration (manual step; the flag only acknowledges it — the runner does not drop caches). A warm-cache run must be recorded as G2, never as G1. Dry-run is available for all ten metrics and writes `status=dry-run` rows; dry-run CSVs are schema fixtures, not data.
+G1/G2/G3/G7/G8 launch the app inside isolated root; G4/G5/G6/G9 ingest observations and G10 measures inputs without launching app. G8 additionally requires fixtures and a `frame_ms` CSV; runner launches app with `CROSSHOOK_BENCH_LOG=<root>/logs/launch-50k.log` and `CROSSHOOK_BENCH_LOG_RATE=5000`, samples app process-tree memory for 11 seconds, and computes frame stats from input CSV. This replay measurement is implemented for Flatpak and native through common environment; visual frame-time production remains external.
+
+Cold G1 requires explicit page-cache preparation before each iteration; `--cold-cache-ack` only acknowledges preparation — runner does not drop caches. On a dedicated, controlled benchmark host, an authorized operator may use:
+
+```sh
+sync && echo 3 | sudo tee /proc/sys/vm/drop_caches >/dev/null
+```
+
+**Security / system-impact warning:** this requires privileged access and drops page cache, dentries, and inodes system-wide. It affects all processes and other users, may cause significant I/O/performance impact, and is unsafe on shared or production hosts. Never automate it in the runner. Record host, operator, command, and timestamp. A warm-cache run is G2, never G1. Dry-run is available for all ten metrics and writes `status=dry-run` rows; dry-run CSVs are schema fixtures, not data.
 
 ## External capture CSV schemas
 
 Real G4/G5/G6/G8/G9 ingest raw observations from `--capture-csv` (one CSV per run; select only metrics whose required columns that CSV carries). Header must match; values must be finite and non-negative.
 
-| Metric | Required columns                  | Notes                                                                         |
-| ------ | --------------------------------- | ----------------------------------------------------------------------------- |
-| G4     | `frame_ms`                        | Adds `over_interval_percent` (share > `1000/--refresh-hz`).                   |
-| G5     | `latency_ms`, optional `scenario` | Per-row scenario (`unspecified` when absent); appends `summary` row with p95. |
-| G6     | `stall_ms`                        | Counts `> 16 ms` and `> 50 ms`; `duration_s` from `--duration`.               |
-| G8     | `frame_ms`, `memory_growth_mb`    | Reports frame stats plus max `memory_growth_mb`.                              |
-| G9     | `frame_ms`                        | Same statistics as G4.                                                        |
+| Metric | Required columns                  | Notes                                                                                                             |
+| ------ | --------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| G4     | `frame_ms`                        | Adds `over_interval_percent` (share > `1000/--refresh-hz`).                                                       |
+| G5     | `latency_ms`, optional `scenario` | Per-row scenario (`unspecified` when absent); appends `summary` row with p95.                                     |
+| G6     | `stall_ms`                        | Counts `> 16 ms` and `> 50 ms`; `duration_s` from `--duration` (300 when only G6 is selected).                    |
+| G8     | `frame_ms`                        | Frame statistics external; memory growth is measured from the live replay session (no `memory_growth_mb` column). |
+| G9     | `frame_ms`                        | Same statistics as G4.                                                                                            |
 
 Missing file/column → `CAPTURE_REQUIRED`/`CAPTURE_SCHEMA` failure; empty data → `EMPTY_CAPTURE`. The runner never invents samples or derives frame times from compositor rAF proxies.
 
 ## Raw provenance recipe
 
-For every real run, preserve raw observation CSV, raw recorder/perf artifacts, stdout/stderr, exact command line, tool versions, display mode/refresh, and SHA-256 checksums beside runner output. Example artifact setup:
+For every real run, preserve raw observation CSV, raw recorder/perf artifacts, stdout/stderr, exact command line, tool versions, display mode/refresh, and SHA-256 checksums beside runner output. The artifact commands below are evidence-collection examples, not a complete frame-time measurement recipe (see limitations). Example setup:
 
 ```sh
 OUT=results/raw/$(git rev-parse --short HEAD)-$(date -u +%Y%m%dT%H%M%SZ)
@@ -129,7 +138,7 @@ find "$OUT" -type f -print0 | sort -z | xargs -0 sha256sum > "$OUT/SHA256SUMS"
 
 Limitations (honest scope of these tools):
 
-- An encoded fixed-rate stream (gpu-screen-recorder/ffmpeg at `-f N`) duplicates or drops frames on a fixed cadence. Frame duplication counts can indicate dropped frames, but per-frame `frame_ms` **cannot** be derived from such a stream. Feed G4/G8/G9 from a source with real per-frame timestamps: MangoHud CSV, Wayland presentation-time/frame-callback logs, or equivalent. The runner rejects CSVs without the required measured columns.
+- No command in this document yet observes true presentation timestamps; until a Wayland presentation-time (`wp_presentation`) feedback collector or equivalent exists, there is **no complete G4/G5/G8/G9 frame-time recipe**. Leave `frame_ms`/`latency_ms` unproduced rather than approximating. An encoded fixed-rate stream (gpu-screen-recorder/ffmpeg at `-f N`) duplicates or drops frames on a fixed cadence: duplication counts can indicate dropped frames, but per-frame `frame_ms` **cannot** be derived from such a stream.
 - Keystroke-to-photon (G5) requires correlating the input event timestamp with the first presentation change. ydotool gives injection time only; encoded video adds an unknown pipeline latency. Measure by pairing input-event monotonic timestamps with per-frame presentation timestamps; encoded recordings only bound the latency, they do not measure it.
 - `perf sched timehist` attributes scheduling delays; map stalls to the UI thread explicitly and record the mapping with the artifact.
 
@@ -137,17 +146,19 @@ Limitations (honest scope of these tools):
 
 Dry-run works for all ten metrics; real captures are partial:
 
-| Item           | State                                                       | Needed                                                                                                                                                                                                                                                         |
-| -------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| G1/G2          | Implemented (`READY` latency per iteration + p50/p95).      | First-frame-painted timing not yet captured (READY only). Cold-cache prep procedure manual and undocumented per-host.                                                                                                                                          |
-| G3             | PSS/USS process-tree samples + growth.                      | `gpu_mb` recorded as `unavailable`.                                                                                                                                                                                                                            |
-| G7             | CPU% only, `status=partial`.                                | `wakeups_s` and `power_w` unavailable (needs perf wakeup counters / `upower` or `/sys/class/power_supply` on Deck hardware).                                                                                                                                   |
-| G10            | Binary and `.flatpak` bundle sizes only, `status=partial`.  | Installed size and runtime download delta.                                                                                                                                                                                                                     |
-| G4/G5/G6/G8/G9 | Ingest path implemented; no producer wired into the runner. | Provide measured per-frame/per-event CSVs (see limitations); ydotool, gpu-screen-recorder and perf are absent on E1. G8 replay env (`CROSSHOOK_BENCH_LOG`, `CROSSHOOK_BENCH_LOG_RATE`) is forwarded for Flatpak but not set by the runner for native sessions. |
-| Fixtures       | Files and contract declared.                                | `bench_fixtures` example must complete and prove same-seed determinism (`diff -r`) before any real capture.                                                                                                                                                    |
-| E2-D/E2-G/E3   | Not inventoried.                                            | Deck and Mesa hardware access.                                                                                                                                                                                                                                 |
-
-No hardware gate is established until real captures and review exist. Dry-run output is synthetic status and must never be reported as a measurement.
+| Item         | State                                                                                                                                                           | Needed                                                                                                                                                                |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| G1/G2        | Implemented: READY latency per iteration plus p50/p95 (`--cold-cache-ack` gate on G1).                                                                          | First-frame-painted timing not yet captured (READY only); per-host cold-cache prep procedure is a manual, privileged step.                                            |
+| G3           | PSS/USS process-tree samples plus growth, `status=measured`.                                                                                                    | `gpu_mb` requires NVIDIA (`nvidia-smi` compute-apps); fails `GPU_MEMORY_UNREPORTED` on AMD/Intel/Mesa (E3) until a vendor collector exists.                           |
+| G4           | Ingest path implemented.                                                                                                                                        | No presentation-timestamp producer yet (see limitations).                                                                                                             |
+| G5           | Ingest path implemented.                                                                                                                                        | Input↔photon correlation collector missing.                                                                                                                           |
+| G6           | Ingest path implemented; default window 300 s.                                                                                                                  | `stall_ms` producer missing.                                                                                                                                          |
+| G7           | CPU% + `perf stat sched:sched_wakeup` wakeups/s + `upower` energy-rate W, `status=measured`.                                                                    | Requires `perf` wakeup-trace permission (paranoid sysctl may deny) and a battery (`BATTERY_REQUIRED` on batteryless hosts); Deck idle matrix still needs E2 hardware. |
+| G8           | Runner launches the 50k-line replay (`CROSSHOOK_BENCH_LOG`, `CROSSHOOK_BENCH_LOG_RATE=5000`) and samples replay memory for 11 s; frame stats from external CSV. | `frame_ms` producer missing; replay needs `--fixtures` (50k-line log) and ydotool/gpu-screen-recorder present.                                                        |
+| G9           | Ingest path implemented.                                                                                                                                        | `frame_ms` producer missing.                                                                                                                                          |
+| G10          | Stripped binary (`strip`), bundle file size, `flatpak info --show-size`, and `--runtime-delta-mb` (measured input), `status=measured`.                          | `--runtime-delta-mb` must come from a measured runtime download on the target network; not derivable by the runner.                                                   |
+| Fixtures     | Files and contract declared.                                                                                                                                    | `bench_fixtures` example must complete and prove same-seed determinism (`diff -r`) before any real capture.                                                           |
+| E2-D/E2-G/E3 | Not inventoried.                                                                                                                                                | Deck and Mesa hardware access.                                                                                                                                        |
 
 ## Tests
 

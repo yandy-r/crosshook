@@ -123,7 +123,10 @@ impl Ctx<'_> {
         }
         // Embedded UUIDs inside larger strings (e.g. JSON payloads) are left alone: core APIs
         // only mint them as whole-column ids.
-        s.replace(&self.real_prefix, TOKEN).replace("\\\\", "\\")
+        if !s.contains(&self.real_prefix) {
+            return s.to_string();
+        }
+        s.replace(&self.real_prefix, TOKEN)
     }
 }
 
