@@ -3,12 +3,14 @@
 Living priority map for what to build next. Updated from `main` commit history,
 GitHub releases, open issues, and recent PR state (**2026-06-18**).
 
-**Issue tracker:** New work is tracked on
-[GitHub](https://github.com/yandy-r/crosshook/issues). Between 2026-06-17 and
-2026-10 collaboration briefly moved to a self-hosted Forgejo instance; the
-`git.home.rfamily.dev` links and Forgejo numbers below are **legacy references**
-to that retired tracker (each also cites its original GitHub number as `GH #…`).
-Re-file any still-open Forgejo item on GitHub before starting work on it.
+**Issue tracker:** Work is tracked on
+[GitHub](https://github.com/yandy-r/crosshook/issues) and mirrored in Linear
+(`crosshook -- bugs` / `crosshook -- features`). Between 2026-06-17 and
+2026-10-07 collaboration briefly moved to a self-hosted Forgejo instance. On
+2026-10-07 every still-relevant Forgejo issue was moved back to GitHub (the
+original GitHub issue was reopened where one existed); React-frontend-specific
+items were closed as superseded by the native Rust UI migration. Remaining
+`git.home.rfamily.dev` links are historical.
 
 **How to use this file**
 
@@ -32,7 +34,7 @@ blocked.
 | 1   | **Cut the next release from `main`** — run `./scripts/prepare-release.sh`, validate changelog sections, smoke native + Flatpak build, tag to GitHub `origin`. Ships launch command-arguments UI ([#504](https://github.com/yandy-r/crosshook/pull/504)), skip-launcher fix, and dual Forgejo/GitHub release publish.               | [v0.5.0](https://github.com/yandy-r/crosshook/releases/tag/v0.5.0) landed Flatpak-only distribution; `main` has unreleased launch UX and CI work.   |
 | 2   | **Continue [#3](https://git.home.rfamily.dev/yandy/crosshook/issues/3) tracker hygiene** — reconcile the Forgejo board after [#4](https://git.home.rfamily.dev/yandy/crosshook/issues/4) closed via [#17](https://git.home.rfamily.dev/yandy/crosshook/pull/17); triage remaining P2/P3 items (#63 trainer hash, #73 collections). | `priority:high` / `status:in-progress` tracker; body reconciled 2026-06-18 for config history completion and HMAC deferral.                         |
 | 3   | **Start [#2](https://git.home.rfamily.dev/yandy/crosshook/issues/2)** — Lutris profile import (GitHub #71). Write a focused PRP plan with storage boundaries before coding.                                                                                                                                                        | **Next P1 product slice** — migration aid; config history enhancements (#4) shipped in [#17](https://git.home.rfamily.dev/yandy/crosshook/pull/17). |
-| 4   | **Groom Flatpak submission track** — review [#6](https://git.home.rfamily.dev/yandy/crosshook/issues/6) / [#5](https://git.home.rfamily.dev/yandy/crosshook/issues/5) (GitHub #210 / #206) against Phase 4 isolation ([#412](https://github.com/yandy-r/crosshook/pull/412)).                                                      | Per-app isolation shipped; Flathub is the next distribution milestone after the release train clears.                                               |
+| 4   | **Groom Flatpak submission track** — review [#210](https://github.com/yandy-r/crosshook/issues/210) / [#206](https://github.com/yandy-r/crosshook/issues/206) against Phase 4 isolation ([#412](https://github.com/yandy-r/crosshook/pull/412)).                                                                                   | Per-app isolation shipped; Flathub is the next distribution milestone after the release train clears.                                               |
 
 **Strategic principle** (from [#3](https://git.home.rfamily.dev/yandy/crosshook/issues/3)): invest in making the
 trainer-on-Linux workflow **reliable, diagnosable, and shareable** — depth over
@@ -199,12 +201,12 @@ Trainer tab editing is complete on `main`.
 
 Strategic work, not blocking the current release train.
 
-| Issue                                                                 | Summary                                        | Notes                                                                                              |
-| --------------------------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| [#6](https://git.home.rfamily.dev/yandy/crosshook/issues/6) (GH #210) | Flatpak Phase 4 — Flathub submission           | Depends on per-app isolation ([ADR-0004](docs/architecture/adr-0004-flatpak-per-app-isolation.md)) |
-| [#5](https://git.home.rfamily.dev/yandy/crosshook/issues/5) (GH #206) | Submit CrossHook to Flathub                    | Child of Flatpak track                                                                             |
-| [#7](https://git.home.rfamily.dev/yandy/crosshook/issues/7) (GH #249) | Custom Proton fork "tinkerers" UX              | UMU / advanced-user follow-up; `deferred`                                                          |
-| [#8](https://git.home.rfamily.dev/yandy/crosshook/issues/8) (GH #250) | Non-x86_64 architectures (umu container scope) | UMU / compatibility follow-up; `deferred`                                                          |
+| Issue                                                   | Summary                                        | Notes                                                                                              |
+| ------------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| [#210](https://github.com/yandy-r/crosshook/issues/210) | Flatpak Phase 4 — Flathub submission           | Depends on per-app isolation ([ADR-0004](docs/architecture/adr-0004-flatpak-per-app-isolation.md)) |
+| [#206](https://github.com/yandy-r/crosshook/issues/206) | Submit CrossHook to Flathub                    | Child of Flatpak track                                                                             |
+| [#249](https://github.com/yandy-r/crosshook/issues/249) | Custom Proton fork "tinkerers" UX              | UMU / advanced-user follow-up; `deferred`                                                          |
+| [#250](https://github.com/yandy-r/crosshook/issues/250) | Non-x86_64 architectures (umu container scope) | UMU / compatibility follow-up; `deferred`                                                          |
 
 ---
 
@@ -213,26 +215,29 @@ Strategic work, not blocking the current release train.
 These remain intentionally out of the active board until there is a clear user
 pull or a new PRD.
 
-| Issue                                                                   | Topic                                                 |
-| ----------------------------------------------------------------------- | ----------------------------------------------------- |
-| [#9](https://git.home.rfamily.dev/yandy/crosshook/issues/9) (GH #426)   | Alternate themes / theme switcher                     |
-| [#10](https://git.home.rfamily.dev/yandy/crosshook/issues/10) (GH #427) | Persisted layout prefs: inspector width, cmdk recency |
-| [#11](https://git.home.rfamily.dev/yandy/crosshook/issues/11) (GH #428) | URL routing / deep links                              |
-| [#12](https://git.home.rfamily.dev/yandy/crosshook/issues/12) (GH #429) | New icon library                                      |
-| [#13](https://git.home.rfamily.dev/yandy/crosshook/issues/13) (GH #430) | Replace `react-resizable-panels`                      |
-| [#14](https://git.home.rfamily.dev/yandy/crosshook/issues/14) (GH #431) | Backend / Community marketplace scope                 |
-| [#15](https://git.home.rfamily.dev/yandy/crosshook/issues/15) (GH #432) | n-zone gamepad-nav refactor (4+ zones)                |
-| [#16](https://git.home.rfamily.dev/yandy/crosshook/issues/16) (GH #433) | Hero Detail Media tab                                 |
+| Issue                                                   | Topic                                                                                                      |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| [#426](https://github.com/yandy-r/crosshook/issues/426) | Alternate themes / theme switcher                                                                          |
+| ~~GH #427~~                                             | Persisted layout prefs: inspector width, cmdk recency — closed: superseded by the native Rust UI migration |
+| ~~GH #428~~                                             | URL routing / deep links — closed: superseded by the native Rust UI migration                              |
+| ~~GH #429~~                                             | New icon library — closed: superseded by the native Rust UI migration                                      |
+| ~~GH #430~~                                             | Replace `react-resizable-panels` — closed: superseded by the native Rust UI migration                      |
+| ~~GH #431~~                                             | Backend / Community marketplace scope — closed: PRD scope placeholder, not actionable                      |
+| ~~GH #432~~                                             | n-zone gamepad-nav refactor (4+ zones) — closed: superseded by the native Rust UI migration                |
+| [#505](https://github.com/yandy-r/crosshook/issues/505) | Config history HMAC tamper evidence (deferred from config history enhancements)                            |
+| [#433](https://github.com/yandy-r/crosshook/issues/433) | Hero Detail Media tab                                                                                      |
 
 ---
 
 ## Maintenance & blocked
 
-| Issue                                                                | Summary                                                     | Status                                                                                                                                    |
-| -------------------------------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| [#1](https://git.home.rfamily.dev/yandy/crosshook/issues/1) (GH #26) | Track upstream fix for vulnerable glib in Tauri Linux stack | `status:blocked` — still on `glib 0.18.5` after Tauri 2.11.x; see [upstream tracking](#upstream-tracking-for-issue-1-glib-advisory) below |
+| Issue                                                 | Summary                                                     | Status                                                                                                                                                                                                |
+| ----------------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [#26](https://github.com/yandy-r/crosshook/issues/26) | Track upstream fix for vulnerable glib in Tauri Linux stack | `status:blocked` — still on `glib 0.18.5` after Tauri 2.11.x; removing Tauri in the native Rust UI migration resolves it; see [upstream tracking](#upstream-tracking-for-issue-1-glib-advisory) below |
 
 ### Upstream tracking for issue 1 (glib advisory)
+
+Now tracked as GitHub #26.
 
 CrossHook cannot bump `glib` to `>= 0.20.0` while the Linux stack resolves
 `gtk 0.18.2` → `glib ^0.18`. The patch landed in
@@ -257,7 +262,7 @@ Tauri ecosystem migration to gtk4-rs / WebKitGTK6.
 [tao#1104](https://github.com/tauri-apps/tao/pull/1104),
 [muda#341](https://github.com/tauri-apps/muda/pull/341)
 
-Re-evaluate [#1](https://git.home.rfamily.dev/yandy/crosshook/issues/1) when a Tauri
+Re-evaluate [#26](https://github.com/yandy-r/crosshook/issues/26) when a Tauri
 release ships with gtk4-rs / webkit6 and resolves `glib >= 0.20.0`. Latest local
 check: 2026-06-07 (see issue comment).
 
@@ -265,7 +270,7 @@ check: 2026-06-07 (see issue comment).
 
 ## Open issue inventory
 
-16 open issues on the legacy Forgejo tracker after #4 closed 2026-06-18 (HMAC deferral
+Historical snapshot (2026-06-18): 16 open issues on the legacy Forgejo tracker after #4 closed (HMAC deferral
 spun to a new deferred issue). Migrated from GitHub 2026-06-17. Flatpak
 packaging (GitHub #69) shipped in v0.5.0; config history enhancements (Forgejo
 #4 / GitHub #123) shipped in PR #17.
