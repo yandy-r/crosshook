@@ -26,6 +26,7 @@ fn shareable_toml_roundtrips_through_parser() {
 fn shareable_toml_strips_hooks_by_default() {
     let mut profile = sample_profile();
     profile.pre_launch_hooks = vec![LaunchHook {
+        extra: toml::Table::new(),
         id: "pre-1".to_string(),
         name: "Overlay".to_string(),
         path: "/opt/hooks/pre.sh".to_string(),
@@ -41,6 +42,7 @@ fn shareable_toml_strips_hooks_by_default() {
 fn shareable_toml_include_hooks_opt_in() {
     let mut profile = sample_profile();
     profile.pre_launch_hooks = vec![LaunchHook {
+        extra: toml::Table::new(),
         id: "pre-1".to_string(),
         name: "Overlay".to_string(),
         path: "/opt/hooks/pre.sh".to_string(),

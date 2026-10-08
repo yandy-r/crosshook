@@ -8,7 +8,7 @@ use super::index::CommunityProfileIndexError;
 
 const DEFAULT_TAP_BRANCH: &str = "main";
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct CommunityTapSubscription {
     pub url: String,
@@ -16,6 +16,9 @@ pub struct CommunityTapSubscription {
     pub branch: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pinned_commit: Option<String>,
+    /// Unknown TOML fields retained for forward-compatible local persistence.
+    #[serde(default, flatten)]
+    pub extra: toml::Table,
 }
 
 impl CommunityTapSubscription {
@@ -38,7 +41,7 @@ impl CommunityTapSubscription {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CommunityTapWorkspace {
     pub subscription: CommunityTapSubscription,
     pub local_path: PathBuf,
@@ -53,7 +56,7 @@ impl CommunityTapWorkspace {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CommunityTapSyncStatus {
     Cloned,
@@ -61,7 +64,7 @@ pub enum CommunityTapSyncStatus {
     CachedFallback,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CommunityTapSyncResult {
     pub workspace: CommunityTapWorkspace,
     pub status: CommunityTapSyncStatus,

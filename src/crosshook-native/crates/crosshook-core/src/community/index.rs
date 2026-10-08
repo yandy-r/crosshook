@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use super::{CommunityProfileManifest, COMMUNITY_PROFILE_SCHEMA_VERSION};
 use crate::discovery::models::TrainerSourcesManifest;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct CommunityProfileIndex {
     pub entries: Vec<CommunityProfileIndexEntry>,
@@ -17,7 +17,7 @@ pub struct CommunityProfileIndex {
     pub trainer_sources: Vec<(String, TrainerSourcesManifest)>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CommunityProfileIndexEntry {
     pub tap_url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -233,6 +233,7 @@ mod tests {
     fn sample_workspace(path: PathBuf) -> CommunityTapWorkspace {
         CommunityTapWorkspace {
             subscription: CommunityTapSubscription {
+                extra: toml::Table::new(),
                 url: "https://example.invalid/taps/community.git".to_string(),
                 branch: Some("main".to_string()),
                 pinned_commit: None,

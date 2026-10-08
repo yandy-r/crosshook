@@ -1,4 +1,3 @@
-use std::fs;
 use std::path::PathBuf;
 
 use crate::profile::toml_store::ProfileStore;
@@ -9,7 +8,7 @@ use super::types::{
 
 /// Applies a single migration using an atomic temp-file + rename write (W-1).
 ///
-/// Does NOT delegate to `ProfileStore::save()` which uses non-atomic `fs::write()`.
+/// Uses the shared durable writer directly, without MangoHud companion updates.
 pub fn apply_single_migration(
     store: &ProfileStore,
     request: &ApplyMigrationRequest,
@@ -70,11 +69,10 @@ pub fn apply_single_migration(
         }
     }
 
-    // Atomic write: serialize storage form → .toml.tmp → rename to .toml.
+    // Serialize storage form and atomically replace it using a same-directory temp.
     let profile_path = store
         .base_path
         .join(format!("{}.toml", request.profile_name));
-    let tmp_path = profile_path.with_extension("toml.tmp");
 
     let toml_str = match toml::to_string_pretty(&profile.storage_profile()) {
         Ok(s) => s,
@@ -90,18 +88,7 @@ pub fn apply_single_migration(
         }
     };
 
-    if let Err(err) = fs::write(&tmp_path, &toml_str) {
-        return MigrationApplyResult {
-            profile_name: request.profile_name.clone(),
-            field: request.field,
-            old_path,
-            new_path: request.new_path.clone(),
-            outcome: MigrationOutcome::Failed,
-            error: Some(err.to_string()),
-        };
-    }
-
-    if let Err(err) = fs::rename(&tmp_path, &profile_path) {
+    if let Err(err) = crate::fs_util::write_atomic(&profile_path, toml_str.as_bytes()) {
         return MigrationApplyResult {
             profile_name: request.profile_name.clone(),
             field: request.field,

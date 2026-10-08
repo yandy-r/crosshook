@@ -111,7 +111,7 @@ fn default_true() -> bool {
 /// A user-managed subscription to an external trainer discovery source.
 /// Stored in `settings.toml` under `[[external_trainer_sources]]`.
 /// Analogous to `CommunityTapSubscription` for community taps.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExternalTrainerSourceSubscription {
     /// Stable machine identifier (e.g. `"fling"`). Used in cache keys and IPC.
@@ -126,6 +126,9 @@ pub struct ExternalTrainerSourceSubscription {
     /// Whether this source participates in searches.
     #[serde(default = "default_true")]
     pub enabled: bool,
+    /// Unknown TOML fields retained for forward-compatible local persistence.
+    #[serde(default, flatten)]
+    pub extra: toml::Table,
 }
 
 /// Known source types that have a parser implementation.
@@ -134,6 +137,7 @@ const KNOWN_SOURCE_TYPES: &[&str] = &["wordpress_rss"];
 /// Returns the built-in FLiNG default source subscription.
 pub fn fling_default_source() -> ExternalTrainerSourceSubscription {
     ExternalTrainerSourceSubscription {
+        extra: toml::Table::new(),
         source_id: "fling".to_string(),
         display_name: "FLiNG".to_string(),
         base_url: "https://flingtrainer.com/".to_string(),

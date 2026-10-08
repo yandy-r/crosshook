@@ -124,6 +124,7 @@ fn syncs_and_indexes_local_tap_repo() {
 
     let store = CommunityTapStore::with_base_path(store_root);
     let subscription = CommunityTapSubscription {
+        extra: toml::Table::new(),
         url: source_repo.display().to_string(),
         branch: Some("main".to_string()),
         pinned_commit: None,
@@ -153,6 +154,7 @@ fn rejects_blank_tap_urls() {
     let store = CommunityTapStore::with_base_path(PathBuf::from("/tmp/crosshook-taps-test"));
     let error = store
         .sync_tap(&CommunityTapSubscription {
+            extra: toml::Table::new(),
             url: "   ".to_string(),
             branch: None,
             pinned_commit: None,
@@ -191,6 +193,7 @@ fn is_tap_available_offline_false_when_workspace_missing() {
     let temp_dir = tempdir().unwrap();
     let store = CommunityTapStore::with_base_path(temp_dir.path().to_path_buf());
     let subscription = CommunityTapSubscription {
+        extra: toml::Table::new(),
         url: "https://example.invalid/tap.git".to_string(),
         branch: None,
         pinned_commit: None,
@@ -237,6 +240,7 @@ fn rejects_injection_attempt_as_pinned_commit() {
 
     let store = CommunityTapStore::with_base_path(store_root);
     let subscription = CommunityTapSubscription {
+        extra: toml::Table::new(),
         url: source_repo.display().to_string(),
         branch: Some("main".to_string()),
         pinned_commit: Some("'; rm -rf /".to_string()),
@@ -287,6 +291,7 @@ fn pinned_tap_stays_on_selected_commit() {
 
     let store = CommunityTapStore::with_base_path(store_root);
     let subscription = CommunityTapSubscription {
+        extra: toml::Table::new(),
         url: source_repo.display().to_string(),
         branch: Some("main".to_string()),
         pinned_commit: Some(pinned_commit.clone()),

@@ -7,7 +7,7 @@ use super::local_override::LocalOverrideSection;
 use super::runtime::RuntimeSection;
 use super::trainer::TrainerSection;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct GameProfile {
     #[serde(default)]
     pub game: GameSection,
@@ -29,6 +29,9 @@ pub struct GameProfile {
     pub pre_launch_hooks: Vec<LaunchHook>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub post_exit_hooks: Vec<LaunchHook>,
+    /// Unknown TOML keys retained across read-modify-write operations.
+    #[serde(default, flatten)]
+    pub extra: toml::Table,
 }
 
 impl GameProfile {
@@ -88,6 +91,7 @@ impl GameProfile {
                             .get(index)
                             .copied()
                             .unwrap_or(false),
+                        extra: toml::Table::new(),
                     })
                 })
                 .collect();
@@ -144,8 +148,8 @@ impl GameProfile {
     /// In production, the only caller that threads collection defaults is
     /// `profile_load`, which first calls `ProfileStore::load`. That loader
     /// already collapses `local_override` into layer 1 (baking the overrides
-    /// into the base profile fields) and clears `self.local_override` to
-    /// `LocalOverrideSection::default()`. By the time this method runs on a
+    /// into the base profile fields) and clears the known machine-local
+    /// `self.local_override` fields, keeping unknown extras. By the time this method runs on a
     /// post-load profile, layer 3 is a no-op — the `local_override`-guarded
     /// branches below all see empty strings. The effective precedence at that
     /// call site is therefore:
@@ -168,6 +172,7 @@ impl GameProfile {
         let mut merged = self.clone();
 
         // ── Layer 2: collection defaults ────────────────────────────────────
+        // Replace known settings only: unknown collection keys stay collection-local.
         if let Some(d) = defaults {
             if let Some(ref method) = d.method {
                 if !method.trim().is_empty() {
@@ -175,7 +180,9 @@ impl GameProfile {
                 }
             }
             if let Some(ref opts) = d.optimizations {
+                let extra = std::mem::take(&mut merged.launch.optimizations.extra);
                 merged.launch.optimizations = opts.clone();
+                merged.launch.optimizations.extra = extra;
             }
             if !d.custom_env_vars.is_empty() {
                 // Additive merge — collection keys win on collision, profile keys
@@ -188,13 +195,19 @@ impl GameProfile {
                 merged.launch.network_isolation = ni;
             }
             if let Some(ref gs) = d.gamescope {
+                let extra = std::mem::take(&mut merged.launch.gamescope.extra);
                 merged.launch.gamescope = gs.clone();
+                merged.launch.gamescope.extra = extra;
             }
             if let Some(ref tgs) = d.trainer_gamescope {
+                let extra = std::mem::take(&mut merged.launch.trainer_gamescope.extra);
                 merged.launch.trainer_gamescope = tgs.clone();
+                merged.launch.trainer_gamescope.extra = extra;
             }
             if let Some(ref mh) = d.mangohud {
+                let extra = std::mem::take(&mut merged.launch.mangohud.extra);
                 merged.launch.mangohud = mh.clone();
+                merged.launch.mangohud.extra = extra;
             }
         }
 
@@ -264,6 +277,7 @@ impl GameProfile {
         let mut storage = effective.clone();
         storage.normalize_injection();
 
+        // Retain local_override extras from the clone while rebuilding known machine-local fields.
         storage.local_override.game.executable_path = effective.game.executable_path.clone();
         storage.local_override.game.custom_cover_art_path =
             effective.game.custom_cover_art_path.clone();
@@ -290,10 +304,11 @@ impl GameProfile {
         storage
     }
 
-    /// Returns the portable profile representation with all local machine-specific data removed.
+    /// Returns the portable profile representation with known machine-specific data removed.
+    /// Unknown TOML data stays intact; export boundaries must call `clear_extra()`.
     pub fn portable_profile(&self) -> Self {
         let mut portable = self.storage_profile();
-        portable.local_override = LocalOverrideSection::default();
+        portable.local_override = portable.local_override.extra_only();
         portable
     }
 }

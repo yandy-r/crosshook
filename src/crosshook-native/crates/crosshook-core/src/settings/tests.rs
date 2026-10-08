@@ -23,6 +23,7 @@ fn save_and_load_round_trip() {
         auto_load_last_profile: true,
         last_used_profile: "elden-ring".to_string(),
         community_taps: vec![CommunityTapSubscription {
+            extra: toml::Table::new(),
             url: "https://example.invalid/community.git".to_string(),
             branch: Some("main".to_string()),
             pinned_commit: Some("deadbeef".to_string()),

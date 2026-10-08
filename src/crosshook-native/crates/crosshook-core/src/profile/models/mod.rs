@@ -1,5 +1,6 @@
 //! Profile data models — structs, enums, serde shapes, and the core `GameProfile` type.
 
+mod extra;
 mod game_meta;
 mod gamescope;
 mod hooks;

@@ -50,6 +50,7 @@ pub fn profile_to_shareable_toml_with_options(
     options: ShareableTomlOptions,
 ) -> Result<String, toml::ser::Error> {
     let mut profile = profile.clone();
+    profile.clear_extra();
     if !options.include_hooks {
         profile.pre_launch_hooks.clear();
         profile.post_exit_hooks.clear();

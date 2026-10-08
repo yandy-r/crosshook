@@ -718,11 +718,13 @@ mod tests {
         let store = crate::community::CommunityTapStore::with_base_path(temp.path().join("taps"));
 
         let good = crate::community::CommunityTapSubscription {
+            extra: toml::Table::new(),
             url: "https://example.com/good-tap.git".to_string(),
             branch: None,
             pinned_commit: None,
         };
         let bad = crate::community::CommunityTapSubscription {
+            extra: toml::Table::new(),
             url: "git://forbidden.example/tap.git".to_string(),
             branch: None,
             pinned_commit: None,

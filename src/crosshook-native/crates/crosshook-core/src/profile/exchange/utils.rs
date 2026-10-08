@@ -22,6 +22,7 @@ use std::path::{Path, PathBuf};
 /// This function is fail-open — new fields silently survive export unless explicitly enumerated.
 pub(super) fn sanitize_profile_for_community_export(profile: &GameProfile) -> GameProfile {
     let mut out = profile.portable_profile();
+    out.clear_extra();
 
     // DLL hook declarations may carry local paths and enabled execution intent.
     // Preserve portable identity/display metadata, but never export a machine-local
@@ -37,7 +38,8 @@ pub(super) fn sanitize_profile_for_community_export(profile: &GameProfile) -> Ga
     out.runtime.working_directory.clear();
 
     // Guard against local file paths leaking through the base game section.
-    // portable_profile() already clears local_override via Default::default(), but these
+    // portable_profile() already clears known machine-local local_override fields (unknown
+    // extras are preserved), but these
     // explicit clears ensure no machine-local art path survives export even if a path was
     // written directly into the base section.
     out.game.custom_cover_art_path.clear();
@@ -54,6 +56,7 @@ pub(super) fn sanitize_profile_for_community_export(profile: &GameProfile) -> Ga
 
 pub(super) fn hydrate_imported_profile(profile: &GameProfile) -> GameProfile {
     let mut hydrated = profile.effective_profile();
+    hydrated.clear_extra();
 
     // Reconcile hook stage with its container and drop identity-less hooks before
     // any downstream use — JSON manifests are untrusted and may carry a mismatched

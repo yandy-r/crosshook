@@ -93,6 +93,7 @@ fn delete_launcher_for_profile_delegates_correctly() {
 
     let profile = GameProfile {
         game: GameSection {
+            extra: toml::Table::new(),
             name: "Test Game".to_string(),
             executable_path: String::new(),
             custom_cover_art_path: String::new(),
@@ -100,6 +101,7 @@ fn delete_launcher_for_profile_delegates_correctly() {
             custom_background_art_path: String::new(),
         },
         trainer: TrainerSection {
+            extra: toml::Table::new(),
             path: "/mnt/trainers/test.exe".to_string(),
             kind: String::new(),
             loading_mode: TrainerLoadingMode::SourceDirectory,
@@ -110,6 +112,7 @@ fn delete_launcher_for_profile_delegates_correctly() {
         steam: SteamSection {
             app_id: "12345".to_string(),
             launcher: LauncherSection {
+                extra: toml::Table::new(),
                 display_name: "Test Game".to_string(),
                 icon_path: String::new(),
             },

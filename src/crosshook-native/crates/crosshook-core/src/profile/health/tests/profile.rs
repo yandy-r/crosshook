@@ -249,6 +249,7 @@ fn enabled_canonical_injection_hook_missing_path_reports_canonical_field() {
     let tmp = tempdir().expect("tempdir");
     let mut profile = healthy_steam_profile(tmp.path());
     profile.injection.loaded_hooks = vec![LoadedDllHook {
+        extra: toml::Table::new(),
         id: "missing-dll".to_string(),
         name: "Missing DLL".to_string(),
         path: tmp
@@ -284,6 +285,7 @@ fn disabled_canonical_injection_hook_path_is_not_validated() {
     let tmp = tempdir().expect("tempdir");
     let mut profile = healthy_steam_profile(tmp.path());
     profile.injection.loaded_hooks = vec![LoadedDllHook {
+        extra: toml::Table::new(),
         id: "disabled-dll".to_string(),
         name: "Disabled DLL".to_string(),
         path: tmp

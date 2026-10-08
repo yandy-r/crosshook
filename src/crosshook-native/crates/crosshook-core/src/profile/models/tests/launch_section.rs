@@ -31,12 +31,14 @@ fn launch_presets_toml_roundtrip() {
         "performance".to_string(),
         LaunchOptimizationsSection {
             enabled_option_ids: vec!["disable_steam_input".to_string()],
+            ..LaunchOptimizationsSection::default()
         },
     );
     presets.insert(
         "quality".to_string(),
         LaunchOptimizationsSection {
             enabled_option_ids: vec!["enable_hdr".to_string()],
+            ..LaunchOptimizationsSection::default()
         },
     );
     launch.presets = presets;

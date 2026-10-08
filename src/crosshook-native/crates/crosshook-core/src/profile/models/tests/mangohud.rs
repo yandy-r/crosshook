@@ -26,6 +26,7 @@ fn mangohud_config_roundtrip() {
         battery: false,
         watt: false,
         position: Some(MangoHudPosition::TopRight),
+        ..MangoHudConfig::default()
     };
     let serialized = toml::to_string_pretty(&profile).expect("serialize");
     let parsed: GameProfile = toml::from_str(&serialized).expect("deserialize");

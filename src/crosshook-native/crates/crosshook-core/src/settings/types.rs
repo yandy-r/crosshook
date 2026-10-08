@@ -46,16 +46,20 @@ fn default_config_history_max_revisions() -> u32 {
 }
 
 /// User preferences for profile config revision history.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct ConfigHistorySettings {
     #[serde(default = "default_config_history_max_revisions")]
     pub max_revisions: u32,
+    /// Unknown TOML fields retained for forward-compatible local persistence.
+    #[serde(default, flatten)]
+    pub extra: toml::Table,
 }
 
 impl Default for ConfigHistorySettings {
     fn default() -> Self {
         Self {
+            extra: toml::Table::new(),
             max_revisions: default_config_history_max_revisions(),
         }
     }
@@ -226,7 +230,7 @@ impl FromStr for ReducedMotionPreference {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct AppSettingsData {
     pub auto_load_last_profile: bool,
@@ -314,11 +318,15 @@ pub struct AppSettingsData {
     /// Config revision history preferences (retention cap, etc.).
     #[serde(default)]
     pub config_history: ConfigHistorySettings,
+    /// Unknown TOML fields retained for forward-compatible local persistence.
+    #[serde(default, flatten)]
+    pub extra: toml::Table,
 }
 
 impl Default for AppSettingsData {
     fn default() -> Self {
         Self {
+            extra: toml::Table::new(),
             auto_load_last_profile: false,
             last_used_profile: String::new(),
             community_taps: Vec::new(),
@@ -351,6 +359,48 @@ impl Default for AppSettingsData {
             install_nag_dismissed_at: None,
             steam_deck_caveats_dismissed_at: None,
             config_history: ConfigHistorySettings::default(),
+        }
+    }
+}
+
+impl AppSettingsData {
+    /// Removes unknown TOML fields from IPC responses without serializing them.
+    pub fn clear_extra(&mut self) {
+        self.extra.clear();
+        self.config_history.extra.clear();
+        for tap in &mut self.community_taps {
+            tap.extra.clear();
+        }
+        for source in &mut self.external_trainer_sources {
+            source.extra.clear();
+        }
+    }
+
+    /// Replaces incoming unknown fields with trusted on-disk fields. Subscription
+    /// lists match by identity so reordering does not attach fields to other entries.
+    pub fn preserve_extra_from(&mut self, current: &Self) {
+        self.clear_extra();
+        self.extra.clone_from(&current.extra);
+        self.config_history
+            .extra
+            .clone_from(&current.config_history.extra);
+        for tap in &mut self.community_taps {
+            if let Some(old) = current.community_taps.iter().find(|old| {
+                old.url == tap.url
+                    && old.branch == tap.branch
+                    && old.pinned_commit == tap.pinned_commit
+            }) {
+                tap.extra.clone_from(&old.extra);
+            }
+        }
+        for source in &mut self.external_trainer_sources {
+            if let Some(old) = current
+                .external_trainer_sources
+                .iter()
+                .find(|old| old.source_id == source.source_id)
+            {
+                source.extra.clone_from(&old.extra);
+            }
         }
     }
 }

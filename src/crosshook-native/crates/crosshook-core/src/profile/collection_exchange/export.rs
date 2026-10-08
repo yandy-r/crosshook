@@ -38,6 +38,10 @@ pub fn export_collection_preset_to_toml(
 
     let defaults = metadata_store
         .get_collection_defaults(collection_id)?
+        .map(|mut defaults| {
+            defaults.clear_extra();
+            defaults
+        })
         .filter(|d| !d.is_empty());
 
     let member_names = metadata_store.list_profiles_in_collection(collection_id)?;

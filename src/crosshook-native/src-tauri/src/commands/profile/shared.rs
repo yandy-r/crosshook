@@ -251,7 +251,10 @@ where
     F: FnOnce(&mut GameProfile),
 {
     let mut profile = store.load(name).map_err(|e| e.to_string())?;
+    let existing = profile.clone();
     mutate_fn(&mut profile);
+    profile.clear_extra();
+    profile.preserve_extra_from(&existing);
     store.save(name, &profile).map_err(|e| e.to_string())?;
 
     let profile_path = store.base_path.join(format!("{name}.toml"));

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct GameSection {
     #[serde(default)]
     pub name: String,
@@ -24,9 +24,12 @@ pub struct GameSection {
         skip_serializing_if = "String::is_empty"
     )]
     pub custom_background_art_path: String,
+    /// Unknown TOML keys retained across read-modify-write operations.
+    #[serde(default, flatten)]
+    pub extra: toml::Table,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct LoadedDllHook {
     #[serde(skip_serializing_if = "String::is_empty")]
@@ -36,6 +39,9 @@ pub struct LoadedDllHook {
     #[serde(skip_serializing_if = "String::is_empty")]
     pub path: String,
     pub enabled: bool,
+    /// Unknown TOML keys retained across read-modify-write operations.
+    #[serde(default, flatten)]
+    pub extra: toml::Table,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -65,7 +71,7 @@ pub enum InjectionFallback {
     AbortLaunch,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct InjectionSection {
     #[serde(
@@ -83,9 +89,12 @@ pub struct InjectionSection {
     pub dll_paths: Vec<String>,
     #[serde(rename = "inject_on_launch", default)]
     pub inject_on_launch: Vec<bool>,
+    /// Unknown TOML keys retained across read-modify-write operations.
+    #[serde(default, flatten)]
+    pub extra: toml::Table,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct SteamSection {
     #[serde(default)]
     pub enabled: bool,
@@ -97,12 +106,18 @@ pub struct SteamSection {
     pub proton_path: String,
     #[serde(default)]
     pub launcher: LauncherSection,
+    /// Unknown TOML keys retained across read-modify-write operations.
+    #[serde(default, flatten)]
+    pub extra: toml::Table,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct LauncherSection {
     #[serde(rename = "icon_path", default)]
     pub icon_path: String,
     #[serde(rename = "display_name", default)]
     pub display_name: String,
+    /// Unknown TOML keys retained across read-modify-write operations.
+    #[serde(default, flatten)]
+    pub extra: toml::Table,
 }

@@ -2,7 +2,9 @@ use crate::profile::GameProfile;
 
 pub fn sample_profile() -> GameProfile {
     GameProfile {
+        extra: toml::Table::new(),
         game: crate::profile::GameSection {
+            extra: toml::Table::new(),
             name: "Elden Ring".to_string(),
             executable_path: "/games/elden-ring/eldenring.exe".to_string(),
             custom_cover_art_path: String::new(),
@@ -10,6 +12,7 @@ pub fn sample_profile() -> GameProfile {
             custom_background_art_path: String::new(),
         },
         trainer: crate::profile::TrainerSection {
+            extra: toml::Table::new(),
             path: "/trainers/elden-ring.exe".to_string(),
             kind: "fling".to_string(),
             loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
@@ -20,12 +23,14 @@ pub fn sample_profile() -> GameProfile {
         injection: crate::profile::InjectionSection {
             loaded_hooks: vec![
                 crate::profile::LoadedDllHook {
+                    extra: toml::Table::new(),
                     id: "legacy-dll-1".to_string(),
                     name: "a".to_string(),
                     path: "/dlls/a.dll".to_string(),
                     enabled: true,
                 },
                 crate::profile::LoadedDllHook {
+                    extra: toml::Table::new(),
                     id: "legacy-dll-2".to_string(),
                     name: "b".to_string(),
                     path: "/dlls/b.dll".to_string(),
@@ -37,16 +42,19 @@ pub fn sample_profile() -> GameProfile {
             ..Default::default()
         },
         steam: crate::profile::SteamSection {
+            extra: toml::Table::new(),
             enabled: true,
             app_id: "1245620".to_string(),
             compatdata_path: "/steam/compatdata/1245620".to_string(),
             proton_path: "/steam/proton/proton".to_string(),
             launcher: crate::profile::LauncherSection {
+                extra: toml::Table::new(),
                 icon_path: "/icons/elden-ring.png".to_string(),
                 display_name: "Elden Ring".to_string(),
             },
         },
         runtime: crate::profile::RuntimeSection {
+            extra: toml::Table::new(),
             prefix_path: String::new(),
             proton_path: String::new(),
             working_directory: String::new(),

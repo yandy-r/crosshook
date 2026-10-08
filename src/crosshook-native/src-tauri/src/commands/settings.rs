@@ -72,7 +72,12 @@ pub struct AppSettingsIpcData {
 }
 
 impl AppSettingsIpcData {
-    fn from_parts(data: AppSettingsData, resolved_profiles: &Path, active_profiles: &Path) -> Self {
+    fn from_parts(
+        mut data: AppSettingsData,
+        resolved_profiles: &Path,
+        active_profiles: &Path,
+    ) -> Self {
+        data.clear_extra();
         let resolved_profiles_directory = resolved_profiles.display().to_string();
         let active_profiles_directory = active_profiles.display().to_string();
         let profiles_directory_requires_restart =
@@ -188,6 +193,7 @@ fn merge_settings_from_request(
     data: SettingsSaveRequest,
     current: AppSettingsData,
 ) -> AppSettingsData {
+    let disk_extras = current.clone();
     let recent_files_limit = clamp_recent_files_limit(data.recent_files_limit);
     let log_filter = data.log_filter.trim();
     let log_filter = if log_filter.is_empty() {
@@ -195,7 +201,8 @@ fn merge_settings_from_request(
     } else {
         log_filter.to_string()
     };
-    AppSettingsData {
+    let mut merged = AppSettingsData {
+        extra: toml::Table::new(),
         auto_load_last_profile: data.auto_load_last_profile,
         last_used_profile: data.last_used_profile,
         community_taps: data.community_taps,
@@ -259,7 +266,9 @@ fn merge_settings_from_request(
                 history
             })
             .unwrap_or(current.config_history),
-    }
+    };
+    merged.preserve_extra_from(&disk_extras);
+    merged
 }
 
 #[tauri::command]
@@ -282,9 +291,12 @@ pub fn settings_save(
     data: SettingsSaveRequest,
     store: State<'_, SettingsStore>,
 ) -> Result<(), String> {
-    let current = store.load().map_err(map_settings_error)?;
-    let merged = merge_settings_from_request(data, current);
-    store.save(&merged).map_err(map_settings_error)
+    store
+        .update(|current| {
+            *current = merge_settings_from_request(data, current.clone());
+            Ok::<_, String>(())
+        })
+        .map_err(map_settings_error)?
 }
 
 /// Write-only command for updating the SteamGridDB API key.
@@ -314,7 +326,9 @@ pub fn recent_files_load(
 ) -> Result<RecentFilesData, String> {
     let settings = settings_store.load().map_err(map_settings_error)?;
     let cap = clamp_recent_files_limit(settings.recent_files_limit) as usize;
-    store.load(cap).map_err(map_recent_files_error)
+    let mut recent = store.load(cap).map_err(map_recent_files_error)?;
+    recent.extra.clear();
+    Ok(recent)
 }
 
 #[tauri::command]
@@ -325,7 +339,9 @@ pub fn recent_files_save(
 ) -> Result<(), String> {
     let settings = settings_store.load().map_err(map_settings_error)?;
     let cap = clamp_recent_files_limit(settings.recent_files_limit) as usize;
-    store.save(&data, cap).map_err(map_recent_files_error)
+    store
+        .save_from_ipc(&data, cap)
+        .map_err(map_recent_files_error)
 }
 
 #[cfg(test)]
@@ -398,6 +414,27 @@ mod tests {
             reduced_motion: None,
             config_history: None,
         }
+    }
+
+    #[test]
+    fn merge_preserves_disk_extras_and_ignores_request_extras() {
+        let current: AppSettingsData = toml::from_str(
+            "future = 2026-10-08\n[ui]\nscale = 1.25\n[config_history]\nmax_revisions = 20\nfuture = true\n",
+        )
+        .unwrap();
+        let mut request = make_save_request();
+        request.offline_mode = true;
+        request.config_history = Some(ConfigHistorySettings {
+            max_revisions: 30,
+            extra: toml::Table::from_iter([("injected".to_string(), true.into())]),
+        });
+        let merged = merge_settings_from_request(request, current.clone());
+        assert!(merged.offline_mode);
+        assert_eq!(merged.config_history.max_revisions, 30);
+        assert_eq!(merged.extra, current.extra);
+        assert_eq!(merged.config_history.extra, current.config_history.extra);
+        let ipc = AppSettingsIpcData::from_parts(merged, Path::new("/a"), Path::new("/a"));
+        assert!(!serde_json::to_string(&ipc).unwrap().contains("future"));
     }
 
     #[test]

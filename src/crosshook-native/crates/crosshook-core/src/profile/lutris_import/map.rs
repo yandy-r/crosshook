@@ -105,7 +105,10 @@ pub fn map_lutris_to_profile(input: MappedLutrisInput) -> LutrisMapResult {
 
     let mut launch = LaunchSection {
         method: METHOD_PROTON_RUN.to_string(),
-        optimizations: LaunchOptimizationsSection { enabled_option_ids },
+        optimizations: LaunchOptimizationsSection {
+            extra: toml::Table::new(),
+            enabled_option_ids,
+        },
         custom_env_vars,
         gamescope,
         ..LaunchSection::default()
@@ -113,7 +116,9 @@ pub fn map_lutris_to_profile(input: MappedLutrisInput) -> LutrisMapResult {
     launch.command_arguments.custom_args = custom_args;
 
     let profile = GameProfile {
+        extra: toml::Table::new(),
         game: GameSection {
+            extra: toml::Table::new(),
             name: game_name.clone(),
             executable_path: exe.unwrap_or_default(),
             custom_cover_art_path: String::new(),

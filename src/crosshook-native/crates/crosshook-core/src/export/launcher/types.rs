@@ -11,7 +11,7 @@ use super::paths::normalize_host_unix_path;
 use crate::profile::{GamescopeConfig, TrainerLoadingMode};
 use crate::settings::UmuPreference;
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct SteamExternalLauncherExportRequest {
     pub method: String,
     pub launcher_name: String,

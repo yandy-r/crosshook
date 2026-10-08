@@ -3,7 +3,7 @@ use super::super::GameProfile;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CommunityImportResult {
     pub profile_name: String,
     pub source_path: PathBuf,
@@ -12,7 +12,7 @@ pub struct CommunityImportResult {
     pub manifest: CommunityProfileManifest,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CommunityImportPreview {
     pub profile_name: String,
     pub source_path: PathBuf,
@@ -21,7 +21,7 @@ pub struct CommunityImportPreview {
     pub required_prefix_deps: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CommunityExportResult {
     pub profile_name: String,
     pub output_path: PathBuf,
