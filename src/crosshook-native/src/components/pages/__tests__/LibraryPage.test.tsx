@@ -30,6 +30,11 @@ vi.mock('@/components/OnboardingWizard', () => ({
   },
 }));
 
+// Capture the `ready` flag LibraryPage computes instead of firing real timers:
+// the hook's contract (no fire while false) is covered in useBenchReady.test.ts.
+const useBenchReadyMock = vi.hoisted(() => vi.fn());
+vi.mock('../../../hooks/useBenchReady', () => ({ useBenchReady: useBenchReadyMock }));
+
 interface LibraryPageHarnessProps {
   libraryFilterIntent?: LibraryFilterIntent | null;
   openGameDetailIntent?: OpenGameDetailIntent | null;
@@ -101,6 +106,7 @@ function renderLibraryHarness(
 describe('LibraryPage', () => {
   beforeEach(() => {
     lastWizardProps = {};
+    useBenchReadyMock.mockClear();
     vi.spyOn(console, 'debug').mockImplementation(() => {});
     const memory = new Map<string, string>();
     vi.stubGlobal('localStorage', {
@@ -330,6 +336,45 @@ describe('LibraryPage', () => {
     });
 
     expect(screen.queryByTestId('game-detail')).not.toBeInTheDocument();
+  });
+
+  describe('bench ready signal', () => {
+    const lastReady = () => useBenchReadyMock.mock.calls.at(-1)?.[0];
+
+    it('is ready after summaries load', async () => {
+      renderLibraryHarness();
+      await screen.findByRole('button', { name: 'Select Test Game Alpha' });
+      expect(lastReady()).toBe(true);
+    });
+
+    it('is ready for a successfully loaded empty library', async () => {
+      renderLibraryHarness({
+        handlerOverrides: {
+          profile_list_summaries: async () => [],
+          profile_list: async () => [],
+          profile_list_favorites: async () => [],
+        },
+      });
+      await screen.findByText('Add your first game');
+      expect(lastReady()).toBe(true);
+    });
+
+    it('never becomes ready when the summaries fetch fails', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      renderLibraryHarness({
+        handlerOverrides: {
+          profile_list_summaries: async () => {
+            throw new Error('summaries boom');
+          },
+        },
+      });
+      await waitFor(() => {
+        expect(console.error).toHaveBeenCalledWith('Failed to fetch profile summaries', expect.any(Error));
+      });
+      await act(async () => {});
+      expect(useBenchReadyMock).toHaveBeenCalled();
+      expect(useBenchReadyMock.mock.calls.every(([ready]) => ready === false)).toBe(true);
+    });
   });
 
   describe('add-game wizard', () => {

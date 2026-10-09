@@ -699,6 +699,7 @@ version = "0.6.0"
 dependencies = [
  "chrono",
  "crosshook-core",
+ "nix",
  "serde",
  "serde_json",
  "static_assertions",

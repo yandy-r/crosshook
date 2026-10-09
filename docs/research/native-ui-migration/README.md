@@ -490,60 +490,50 @@ src/crosshook-native/
 - **B:** tuned Tauri (0.6.1).
 - **C:** native.
 
-**Environments:**
+**Environments:** defined canonically in [`docs/internal/bench/README.md`](../../internal/bench/README.md) — E1 developer laptop; E2-D Steam Deck Desktop Mode (KWin Wayland); E2-G same Deck, Game Mode (gamescope, XWayland, non-Steam shortcut); E3 Mesa AMD/Intel desktop; E3-sw software rendering (llvmpipe). Inventoried hardware/software values per environment: [`docs/internal/bench/environments.md`](../../internal/bench/environments.md).
 
-- **E1:** RTX 5070 laptop, NVIDIA 615.71.09, Wayland.
-- **E2:** Steam Deck LCD/OLED, in both Desktop Mode (KWin) and Game Mode (gamescope).
-- **E3:** Mesa AMD/Intel desktop, Wayland.
-
-**Fixtures (M0-01):** 500 profiles with 500 covers, 300 Proton rows, 1,000 community profiles, and a 50k-line log, all in an isolated XDG home.
-
-**Tools:**
-
-- `hyperfine` (start time);
-- `smaps_rollup` PSS summed over the process tree (memory);
-- `pidstat` and `perf sched` (CPU and stalls);
-- `ydotool` (input injection);
-- `gpu-screen-recorder` and PipeWire frame capture (photon timing and frame pacing);
-- MangoHud CSV (frame times);
-- `/sys/class/power_supply/*/power_now` and `amdgpu` `gpu_busy_percent` (Deck power).
+**Tools:** metric-specific tools, units and failure rules are defined in [`docs/internal/bench/README.md`](../../internal/bench/README.md).
 
 ### 9.2 Gates G1–G10
 
-| Gate | Metric                                                           | Desktop (E1/E3)                        | Deck (E2)                                                                                       | Relative to A                                          |
-| ---- | ---------------------------------------------------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| G1   | Cold start to READY p95                                          | ≤ 500 ms                               | ≤ 900 ms                                                                                        | ≥ 2× faster                                            |
-| G2   | Warm start to READY p95; first frame                             | ≤ 250 ms; ≤ 150 ms                     | ≤ 400 ms; ≤ 250 ms                                                                              | ≥ 2× faster                                            |
-| G3   | Idle PSS: empty library / 500 profiles after visiting all routes | ≤ 60 / ≤ 120 MB                        | same                                                                                            | ≥ 3× / ≥ 2× lower; < 5% growth over 10 min             |
-| G4   | Idle CPU over 60 s; UI wakeups                                   | ≤ 0.2%; ≤ 2/s                          | ≤ 0.3%; ≤ 2/s                                                                                   | 0 fixed-rate timers                                    |
-| G5   | Scroll p95 / p99 and frame pacing                                | ≤ 8.3 / 12.5 ms at 120 Hz              | ≤ 16.7 / 25 ms at 60 Hz                                                                         | Dropped < 1%; frames > 1.5× interval < 0.5%            |
-| G6   | Input latency: keystroke-to-photon; D-pad step; route switch     | ≤ 25 ms; ≤ 1 frame; ≤ 50 ms            | ≤ 40 ms; ≤ 2 frames; ≤ 80 ms                                                                    | ≥ 2× lower                                             |
-| G7   | Deck idle power and GPU wake (fixed brightness)                  | –                                      | ≤ +0.3 W over the desktop-idle baseline; `gpu_busy` ≤ 1%; no redraw while idle except the caret | ≤ A                                                    |
-| G8   | Console at 5k lines/s and health table (300 rows)                | p95 ≤ 1 interval; ≤ 10k lines; ≤ 15 MB | same                                                                                            | –                                                      |
-| G9   | Size: Flatpak bundle / installed app / binary                    | ≤ 12 / ≤ 40 / ≤ 25 MB                  | same                                                                                            | Interim: installed delta ≤ +30 MB while both GUIs ship |
-| G10  | UI-thread stalls > 16 ms from I/O or core                        | **0**                                  | **0**                                                                                           | Hard gate                                              |
+| Gate                                              | Metric (canonical)                                                                                                                                   | Desktop (E1/E3)                        | Deck (E2-D/E2-G)                                                                                | Relative to A                                          |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| G1                                                | Cold start to READY p95                                                                                                                              | ≤ 500 ms                               | ≤ 900 ms                                                                                        | ≥ 2× faster                                            |
+| G2                                                | Warm start to READY p95                                                                                                                              | ≤ 250 ms                               | ≤ 400 ms                                                                                        | ≥ 2× faster                                            |
+| First frame (supplemental, currently unavailable) | First frame painted                                                                                                                                  | ≤ 150 ms                               | ≤ 250 ms                                                                                        | ≥ 2× faster                                            |
+| G3                                                | Idle PSS: empty library / 500 profiles after visiting all routes                                                                                     | ≤ 60 / ≤ 120 MB                        | same                                                                                            | ≥ 3× / ≥ 2× lower                                      |
+| G3 (growth)                                       | 10-min memory growth                                                                                                                                 | < 5%                                   | < 5%                                                                                            | —                                                      |
+| G7                                                | Idle CPU over 60 s; UI wakeups                                                                                                                       | ≤ 0.2%; ≤ 2/s                          | ≤ 0.3%; ≤ 2/s                                                                                   | 0 fixed-rate timers                                    |
+| G4                                                | Scroll p95 / p99 and frame pacing                                                                                                                    | ≤ 8.3 / 12.5 ms at 120 Hz              | ≤ 16.7 / 25 ms at 60 Hz                                                                         | Dropped < 1%; frames > 1.5× interval < 0.5%            |
+| G5                                                | Input latency: keystroke-to-photon; D-pad step; route switch                                                                                         | ≤ 25 ms; ≤ 1 frame; ≤ 50 ms            | ≤ 40 ms; ≤ 2 frames; ≤ 80 ms                                                                    | ≥ 2× lower                                             |
+| G7 (Deck power)                                   | Deck idle power and GPU wake (fixed brightness)                                                                                                      | –                                      | ≤ +0.3 W over the desktop-idle baseline; `gpu_busy` ≤ 1%; no redraw while idle except the caret | ≤ A                                                    |
+| G8                                                | Canonical: 50k-line log replay at 5k lines/s while scrolling (health table, 300 rows, is a separate supplemental measurement, currently unavailable) | p95 ≤ 1 interval; ≤ 10k lines; ≤ 15 MB | same                                                                                            | –                                                      |
+| G10                                               | Size: Flatpak bundle / installed app / binary                                                                                                        | ≤ 12 / ≤ 40 / ≤ 25 MB                  | same                                                                                            | Interim: installed delta ≤ +30 MB while both GUIs ship |
+| G6                                                | UI-thread stalls > 16 ms from I/O or core                                                                                                            | **0**                                  | **0**                                                                                           | Hard gate                                              |
+
+Metric definitions, units and reported statistics are canonical in [`docs/internal/bench/README.md`](../../internal/bench/README.md); this table keeps the numeric thresholds only. IDs follow the canonical order and were remapped from the pre-canonical gate IDs used in earlier revisions (idle CPU G4→G7, scroll G5→G4, input G6→G5, Deck power unchanged (G7), size G9→G10, stalls G10→G6; first-frame moved out of G2 into its own supplemental row).
 
 ### 9.3 Baselines
 
 - **A** is captured in M0-02.
-- **B** is captured at the 0.6.1 exit for G1–G5 on E1/E2, with no regression against A allowed.
+- **B** is captured at the 0.6.1 exit for G1, G2, G3, G4 and G7 on E1/E2-D, with no regression against A allowed.
 - **Both A and B are recaptured in M6-07** on the drivers and toolchain current at that time. Without that, the rc.1 comparison would drift by about a year.
 
 ### 9.4 Perf checkpoints at every pre-release
 
-| Release         | Gate                                                                                                             |
-| --------------- | ---------------------------------------------------------------------------------------------------------------- |
-| 0.6.1           | B captured for G1–G5 on E1/E2; no regression against A                                                           |
-| alpha.0 (spike) | ADR-0002 hard and soft thresholds (§6)                                                                           |
-| alpha.1         | G1–G5 within 2× of target on E1 (M1-52 real-hardware checkpoint); installed delta ≤ +30 MB                       |
-| alpha.2         | G1–G5 within 1.5× on E1 and E2, including the 500-profile library with cover art                                 |
-| alpha.3         | Same as alpha.2, over the configure surfaces                                                                     |
-| beta.1          | Targets met on E1; within 1.25× on E2; covers console floods (G8), the health table and the 500+-profile library |
-| beta.2          | Adds G6 gamepad latency and G7 Deck idle power, within 1.25×                                                     |
-| rc.1            | G1–G10 pass on E1/E2/E3 against the recaptured A and B                                                           |
-| 0.8.1           | G9 final: bundle ≤ 12 MB, installed ≤ 40 MB                                                                      |
+| Release         | Gate                                                                                                               |
+| --------------- | ------------------------------------------------------------------------------------------------------------------ |
+| 0.6.1           | B captured for G1, G2, G3, G4 and G7 on E1/E2-D; no regression against A                                           |
+| alpha.0 (spike) | ADR-0002 hard and soft thresholds (§6)                                                                             |
+| alpha.1         | G1, G2, G3, G4 and G7 within 2× of target on E1 (M1-52 real-hardware checkpoint); installed delta ≤ +30 MB         |
+| alpha.2         | G1, G2, G3, G4 and G7 within 1.5× on E1 and E2-D, including the 500-profile library with cover art                 |
+| alpha.3         | Same as alpha.2, over the configure surfaces                                                                       |
+| beta.1          | Targets met on E1; within 1.25× on E2-D; covers console floods (G8), the health table and the 500+-profile library |
+| beta.2          | Adds G5 input latency (gamepad) and G7 Deck idle power, within 1.25×                                               |
+| rc.1            | G1–G10 pass on E1/E2-D/E2-G/E3 against the recaptured A and B                                                      |
+| 0.8.1           | G10 final: bundle ≤ 12 MB, installed ≤ 40 MB                                                                       |
 
-**Headless CI (M1-28)** runs under `cage` or `weston --backend=headless`. It guards G1, G3, G4 and G10 against regressions. It cannot measure GPU or compositor behaviour, which is why the real-hardware checkpoint (M1-52) repeats at every milestone. Raw CSV/JSON results are committed under `docs/internal/bench/`.
+**Headless CI (M1-28)** runs under `cage` or `weston --backend=headless`. It guards G1, G3, G6 and G7 against regressions. It cannot measure GPU or compositor behaviour, which is why the real-hardware checkpoint (M1-52) repeats at every milestone. Raw CSV/JSON results are committed under `docs/internal/bench/`.
 
 ---
 

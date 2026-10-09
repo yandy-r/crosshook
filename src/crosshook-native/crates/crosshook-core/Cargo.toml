@@ -55,6 +55,11 @@ ts-rs = { version = "12.0.1", optional = true, features = ["chrono-impl", "uuid-
 zbus = { version = "5", default-features = false, features = ["tokio"] }
 zvariant = { version = "5", default-features = false }
 
+[[example]]
+name = "bench_fixtures"
+path = "examples/bench_fixtures/main.rs"
+test = true
+
 [lints]
 workspace = true
 

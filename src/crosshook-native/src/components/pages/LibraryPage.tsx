@@ -3,6 +3,7 @@ import { useInspectorSelection } from '@/context/InspectorSelectionContext';
 import { useCollections } from '@/hooks/useCollections';
 import { useProfileContext } from '../../context/ProfileContext';
 import { useProfileHealthContext } from '../../context/ProfileHealthContext';
+import { useBenchReady } from '../../hooks/useBenchReady';
 import { useCollectionMembers } from '../../hooks/useCollectionMembers';
 import { useLibraryProfiles } from '../../hooks/useLibraryProfiles';
 import { useLibrarySummaries } from '../../hooks/useLibrarySummaries';
@@ -61,7 +62,13 @@ export function LibraryPage({
     loading: activeCollectionMembersLoading,
   } = useCollectionMembers(activeCollectionId);
 
-  const { summaries, setSummaries } = useLibrarySummaries(profiles, favoriteProfiles, activeCollectionId);
+  const {
+    summaries,
+    setSummaries,
+    loading: summariesLoading,
+    error: summariesError,
+  } = useLibrarySummaries(profiles, favoriteProfiles, activeCollectionId);
+  useBenchReady(!summariesLoading && !summariesError);
   const libraryHasNoProfiles = !profilesLoading && profiles.length === 0;
   const { healthByName, loading: healthLoading } = useProfileHealthContext();
   const { setInspectorSelection, setLibraryInspectorHandlers, setLibraryShellMode } = useInspectorSelection();
