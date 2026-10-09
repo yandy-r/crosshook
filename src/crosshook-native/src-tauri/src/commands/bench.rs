@@ -110,13 +110,13 @@ fn require_absolute<'a>(name: &str, value: &'a str) -> Result<&'a Path, String> 
     }
 }
 
-/// Reject a root that is `/`, the user's HOME, or any ancestor of HOME (too broad to
-/// be a fixture dir). `root` and `home` must already be canonical.
+/// Reject `/` or a root equal to HOME itself. Ancestors of HOME are allowed: the
+/// bench harness intentionally runs with an isolated HOME nested under the fixture
+/// root, and the runner already verifies real paths, so only the two degenerate
+/// breadth cases are guarded here. `root` and `home` must already be canonical.
 fn validate_root(root: &Path, home: Option<&Path>) -> Result<(), String> {
-    if root == Path::new("/") || home.is_some_and(|h| h.starts_with(root)) {
-        return Err(format!(
-            "{ENV_ROOT} is too broad (/, HOME, or a parent of HOME)"
-        ));
+    if root == Path::new("/") || home.is_some_and(|h| h == root) {
+        return Err(format!("{ENV_ROOT} is too broad (/ or HOME itself)"));
     }
     Ok(())
 }
@@ -491,9 +491,14 @@ mod tests {
         let f = fixture();
         let log = f.log.to_str().unwrap();
         assert!(resolve_replay_plan(Some("/"), log, None, None).is_err());
-        // HOME ancestor and exact-HOME roots are too broad to trust as fixture dirs.
-        assert!(resolve_replay_plan(f._dir.path().to_str(), log, None, Some(&f.root)).is_err());
+        // Exact-HOME root is too broad to trust as a fixture dir.
         assert!(resolve_replay_plan(f.root.to_str(), log, None, Some(&f.root)).is_err());
+        // Isolated HOME nested under the fixture root is the intended harness
+        // layout (and likewise a root that is an ancestor of HOME): accepted.
+        let home = f.root.join("home");
+        std::fs::create_dir_all(&home).unwrap();
+        assert!(resolve_replay_plan(f.root.to_str(), log, None, Some(&home)).is_ok());
+        assert!(resolve_replay_plan(f._dir.path().to_str(), log, None, Some(&f.root)).is_ok());
         // Unrelated or nested-under-root HOME is fine.
         assert!(plan_parts(resolve_replay_plan(
             f.root.to_str(),
