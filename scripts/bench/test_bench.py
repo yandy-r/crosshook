@@ -66,7 +66,7 @@ class GuardTests(unittest.TestCase):
         self.assertNotIn("HOST_XDG_DATA_HOME", env)
 
     def test_flatpak_launcher_recipe(self):
-        args = bench.arguments(["--variant", "A", "--env", "E1", "--flatpak"])
+        args = bench.arguments(["--variant", "A", "--env", "E1", "--flatpak", "--metric", "G2"])
         root = self.root / "crosshook-bench-owned"
         env = build_env(root, {}, flatpak=True)
         command = bench.launch_command(args, env)
@@ -109,8 +109,13 @@ class InstrumentTests(unittest.TestCase):
         self.assertAlmostEqual(instruments.size_mb("1.0 MB"), 1e6 / 1024**2)
         with patch.object(instruments, "output", side_effect=["/battery_BAT0\n", "energy-rate: 7.5 W\n"]):
             self.assertEqual(instruments.battery_power_w(), 7.5)
-        with patch.object(instruments, "output", return_value="10, 12\n11, 5\n99, 50\n"):
+        with patch.object(instruments.shutil, "which", return_value="/usr/bin/nvidia-smi"), \
+                patch.object(instruments, "output", return_value="10, 12\n11, 5\n99, 50\n"):
             self.assertEqual(instruments.gpu_memory_mb({10, 11}), 17)
+        with patch.object(instruments.shutil, "which", return_value=None):
+            self.assertEqual(instruments.gpu_memory_mb({10}), "unavailable")
+        with self.assertRaises(SystemExit):
+            bench.arguments(["--variant", "A", "--env", "E1", "--metrics", "G2,G6"])
         stderr = "300,,sched:sched_wakeup,1000,100.00,,\n"
         with patch.object(instruments.subprocess, "run",
                           return_value=instruments.subprocess.CompletedProcess([], 0, "", stderr)):

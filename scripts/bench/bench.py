@@ -73,7 +73,11 @@ def arguments(argv: list[str] | None = None):
     args = parser.parse_args(argv)
     args.selected = args.metric or (list(SCHEMAS) if args.metrics == "all" else args.metrics.split(","))
     if args.duration is None:
-        args.duration = 300 if args.selected == ["G6"] else 600
+        args.duration = 600
+        if not args.dry_run and "G6" in args.selected and len(args.selected) > 1:
+            parser.error("G6 uses a 300 s session; run it separately or pass --duration")
+        if args.selected == ["G6"]:
+            args.duration = 300
     if not args.selected or any(m not in SCHEMAS for m in args.selected):
         parser.error("--metrics requires all or comma-separated G1..G10")
     if not 1 <= args.iterations <= 1000:
@@ -139,7 +143,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.bundle:
             preflight(original, bundle=args.bundle)
         if not args.dry_run:
-            required = {"G3": ("nvidia-smi",), "G7": ("perf", "upower"),
+            required = {"G7": ("perf", "upower"),
                         "G8": ("ydotool", "gpu-screen-recorder"),
                         "G10": ("strip", "flatpak")}
             missing = {tool for metric in args.selected for tool in required.get(metric, ())

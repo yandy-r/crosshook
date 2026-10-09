@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 import re
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -47,8 +48,10 @@ def wakeup_events(pids: set[int], duration: float) -> float:
     raise InstrumentError("INSTRUMENT_FAILED: perf sched_wakeup unavailable or permission denied")
 
 
-def gpu_memory_mb(pids: set[int]) -> float:
-    """NVIDIA per-process GPU memory; other GPUs need a vendor-specific collector."""
+def gpu_memory_mb(pids: set[int]) -> float | str:
+    """NVIDIA per-process GPU memory; other GPUs report `unavailable` (YAN-1007)."""
+    if shutil.which("nvidia-smi") is None:
+        return "unavailable"
     rows = output(["nvidia-smi", "--query-compute-apps=pid,used_memory",
                    "--format=csv,noheader,nounits"])
     values = []
