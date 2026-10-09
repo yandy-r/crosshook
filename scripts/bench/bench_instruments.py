@@ -52,19 +52,23 @@ def gpu_memory_mb(pids: set[int]) -> float | str:
     """NVIDIA per-process GPU memory; other GPUs report `unavailable` (YAN-1007)."""
     if shutil.which("nvidia-smi") is None:
         return "unavailable"
-    rows = output(["nvidia-smi", "--query-compute-apps=pid,used_memory",
-                   "--format=csv,noheader,nounits"])
+    # pmon covers graphics and compute contexts; fb is per (GPU, PID) MB, "-" when unavailable.
+    rows = output(["nvidia-smi", "pmon", "-s", "m", "-c", "1"])
     values = []
     for row in rows.splitlines():
-        fields = [field.strip() for field in row.split(",")]
-        if len(fields) == 2 and fields[0].isdigit() and int(fields[0]) in pids:
-            value = float(fields[1])
-            if not math.isfinite(value) or value < 0:
-                raise InstrumentError("INSTRUMENT_FAILED: invalid NVIDIA memory")
-            values.append(value)
-    if not values:
-        raise InstrumentError("GPU_MEMORY_UNREPORTED: NVIDIA reported no app-tree compute process")
-    return sum(values)
+        fields = row.split()
+        if len(fields) < 4 or row.startswith("#") or not fields[1].isdigit() or int(fields[1]) not in pids:
+            continue
+        if fields[3] == "-":
+            continue
+        try:
+            value = float(fields[3])
+        except ValueError as error:
+            raise InstrumentError("INSTRUMENT_FAILED: invalid NVIDIA memory") from error
+        if not math.isfinite(value) or value < 0:
+            raise InstrumentError("INSTRUMENT_FAILED: invalid NVIDIA memory")
+        values.append(value)
+    return sum(values) if values else "unavailable"
 
 
 def battery_power_w() -> float:

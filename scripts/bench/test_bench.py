@@ -78,7 +78,8 @@ class GuardTests(unittest.TestCase):
     def test_dry_run_all_schemas(self):
         output = self.root / "results"
         with patch.object(bench.Originals, "capture", return_value=self.original):
-            result = bench.main(["--variant", "A", "--env", "E1", "--dry-run", "--output", str(output)])
+            result = bench.main(["--variant", "A", "--env", "E1", "--dry-run", "--output", str(output),
+                                 "--tmp-root", str(self.root / "runs")])
         self.assertEqual(result, 0)
         for metric, schema in bench.SCHEMAS.items():
             with (output / "A/E1" / f"{metric}.csv").open() as stream:
@@ -93,7 +94,8 @@ class GuardTests(unittest.TestCase):
         for extra, code in cases:
             with self.subTest(extra=extra), patch.object(bench.Originals, "capture", return_value=self.original), \
                     patch.object(bench.shutil, "which", return_value=None):
-                self.assertEqual(bench.main(["--variant", "A", "--env", "E1", "--output", str(output), *extra]), code)
+                self.assertEqual(bench.main(["--variant", "A", "--env", "E1", "--output", str(output),
+                                                "--tmp-root", str(self.root / "runs"), *extra]), code)
         self.assertFalse(output.exists())
 
     def test_refusal_writes_nothing(self):
@@ -110,12 +112,20 @@ class InstrumentTests(unittest.TestCase):
         with patch.object(instruments, "output", side_effect=["/battery_BAT0\n", "energy-rate: 7.5 W\n"]):
             self.assertEqual(instruments.battery_power_w(), 7.5)
         with patch.object(instruments.shutil, "which", return_value="/usr/bin/nvidia-smi"), \
-                patch.object(instruments, "output", return_value="10, 12\n11, 5\n99, 50\n"):
-            self.assertEqual(instruments.gpu_memory_mb({10, 11}), 17)
+                patch.object(instruments, "output", return_value=(
+                    "# gpu pid type fb ccpm command\n# Idx # C/G MB MB name\n"
+                    "0 10 G 12 0 app\n1 10 C 3 0 app\n0 11 C+G 5 0 web\n0 12 G - - x\n0 99 G 50 0 other\n")):
+            self.assertEqual(instruments.gpu_memory_mb({10, 11, 12}), 20)
+            self.assertEqual(instruments.gpu_memory_mb({42}), "unavailable")
+        with patch.object(instruments.shutil, "which", return_value="/usr/bin/nvidia-smi"), \
+                patch.object(instruments, "output", return_value="0 10 G nope 0 app\n"), \
+                self.assertRaises(instruments.InstrumentError):
+            instruments.gpu_memory_mb({10})
         with patch.object(instruments.shutil, "which", return_value=None):
             self.assertEqual(instruments.gpu_memory_mb({10}), "unavailable")
         with self.assertRaises(SystemExit):
             bench.arguments(["--variant", "A", "--env", "E1", "--metrics", "G2,G6"])
+        self.assertEqual(bench.arguments(["--variant", "A", "--env", "E1", "--metric", "G2"]).tmp_root, tempfile.gettempdir())
         stderr = "300,,sched:sched_wakeup,1000,100.00,,\n"
         with patch.object(instruments.subprocess, "run",
                           return_value=instruments.subprocess.CompletedProcess([], 0, "", stderr)):

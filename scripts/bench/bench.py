@@ -63,7 +63,7 @@ def arguments(argv: list[str] | None = None):
     parser.add_argument("--branch", default="master")
     parser.add_argument("--fixtures")
     parser.add_argument("--output", default="results")
-    parser.add_argument("--tmp-root", default="/tmp/opencode")
+    parser.add_argument("--tmp-root", default=tempfile.gettempdir())
     parser.add_argument("--timeout", type=positive, default=60)
     parser.add_argument("--duration", type=positive, default=None)
     parser.add_argument("--refresh-hz", type=positive, default=120)
