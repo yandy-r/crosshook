@@ -2,7 +2,7 @@
 
 E1 is inventoried on hardware (values below observed directly). E2 and E3 are **not inventoried** here; their hardware rows stay unavailable until first capture. Do not use target definitions to infer machine details.
 
-## E1 — developer laptop (inventored 2026-10-08)
+## E1 — developer laptop (inventoried 2026-10-08)
 
 | Component    | Observed value                                                        |
 | ------------ | --------------------------------------------------------------------- |
@@ -15,6 +15,8 @@ E1 is inventoried on hardware (values below observed directly). E2 and E3 are **
 | Scale        | 1.05 (`kscreen-doctor -o`)                                            |
 | CPU governor | `powersave` (`/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor`) |
 | Flatpak      | 1.18.4                                                                |
+
+Inventory records the active mode (180.06 Hz). **Frame captures (G4/G5/G8/G9) require the 120 Hz mode:** switch the panel to 120 Hz before capturing and pass `--refresh-hz 120`, so frame-interval thresholds (8.3 ms) stay comparable. Record the mode actually used per capture.
 
 E1 target metrics: G1–G10 (see [`README.md`](README.md)).
 
