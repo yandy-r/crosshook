@@ -1,0 +1,17 @@
+[package]
+
+name = "crosshook-app"
+version.workspace = true
+edition = "2021"
+description = "Application scaffold: runtime owner handle, bounded event bus, and sanitized presenter errors."
+
+[lints]
+
+workspace = true
+
+[dependencies]
+
+crosshook-core = { path = "../crosshook-core" }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+thiserror = "2"

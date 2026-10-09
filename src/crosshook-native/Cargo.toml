@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/crosshook-app",
     "crates/crosshook-core",
     "crates/crosshook-cli",
     "src-tauri",
