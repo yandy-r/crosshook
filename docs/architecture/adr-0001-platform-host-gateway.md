@@ -1,4 +1,4 @@
-# ADR-0001: `platform.rs` is the host-command gateway
+# ADR-0001: `platform/` is the host-command gateway module
 
 **Status**: Accepted — 2026-04-17
 
@@ -28,9 +28,9 @@ cannot observe the breakage that Flatpak users would see.
 ## Decision
 
 All host-tool execution at the Flatpak boundary routes through
-`src/crosshook-native/crates/crosshook-core/src/platform.rs`.
+the gateway at `src/crosshook-native/crates/crosshook-core/src/platform/gateway.rs`.
 
-For the **denylisted strict host-only tools** (`proton`, `umu-run`, `gamescope`, `mangohud`, `winetricks`, `protontricks`, `gamemoderun`) no module in `crosshook-core` or `src-tauri` may call `Command::new("<tool>")` directly with a literal tool name — every invocation must use one of the gateway functions listed below. This is the only rule enforced by `scripts/check-host-gateway.sh`.
+For the **denylisted strict host-only tools** (`proton`, `umu-run`, `gamescope`, `mangohud`, `winetricks`, `protontricks`, `gamemoderun`) no module in `crosshook-core` or `src-tauri` may call `Command::new("<tool>")` directly with a literal tool name — every invocation must use one of the gateway functions listed below. These rules (extended by _Enforcement_ below) are enforced by `scripts/check-host-gateway.sh`.
 
 For other host tools (e.g. `git`, `getent`, `lspci`, `unshare`) direct `Command::new("<tool>")` calls are **permitted** in native-only branches, provided every such call site pairs with an `is_flatpak()` guard that routes the Flatpak branch through `platform::host_*`. These exceptions are enumerated under _Escape hatches_ below and are maintained by review, not by the script.
 
@@ -68,7 +68,7 @@ For other host tools (e.g. `git`, `getent`, `lspci`, `unshare`) direct `Command:
 
 Rust's `Command::env()` and `Command::envs()` apply env vars to the child process by passing them through `execve(2)`. When the child _is_ `flatpak-spawn`, that means the vars land on `flatpak-spawn`'s own environment, not on the host process that `flatpak-spawn` subsequently forks. `flatpak-spawn --host` propagates the vars it was told to propagate through its `--env=KEY=VALUE` argument list — nothing else.
 
-`platform.rs` works around this in two ways:
+`platform/gateway.rs` works around this in two ways:
 
 - **Structured env (launch maps):** `host_command_with_env` and `host_std_command_with_env` iterate every entry in the `envs` map and emit one `--env=KEY=VALUE` argument for each. `--clear-env` precedes the program name so the host child starts with a clean environment built entirely from the explicit list, free of sandbox-only variables that would otherwise poison Proton/Wine (e.g., `XDG_CONFIG_HOME` pointing at the sandbox's per-app directory).
 
@@ -84,7 +84,7 @@ It does **not** apply to:
 
 - **In-sandbox subprocess code.** Game binaries, trainer binaries, `bash`, `unshare`, and game-scope wrappers that are themselves launched _inside_ the sandbox (before `flatpak-spawn` hands off to the host) are started with `Command::new(...)` directly and are not subject to this rule.
 - **User-supplied executable paths.** When a path comes from user configuration (game binary, trainer binary, Proton binary override), it is a variable, not a literal tool name. The code normalizes these paths via `normalize_flatpak_host_path` but does not need to route them through a gateway function.
-- **Test fixtures.** Test code under `#[cfg(test)]` or `tests/` is exempt; tests that exercise `platform.rs` internals necessarily create `Command` values directly.
+- **Test fixtures.** Test code under `#[cfg(test)]` or `tests/` is exempt; tests that exercise `platform/gateway.rs` internals necessarily create `Command` values directly.
 
 ---
 
@@ -109,40 +109,52 @@ The following patterns are explicitly allowed, because they pair every non-gatew
 
 ## Enforcement
 
-`scripts/check-host-gateway.sh` greps for `Command::new("<tool>")` literals across `crosshook-core` and `src-tauri` Rust source, where `<tool>` is one of the host-only tools that must always go through the gateway. The denylist (strict host-only tools, not general utilities) is:
+`scripts/check-host-gateway.sh` is a **lexical** guard. It scans `*.rs` files (excluding any `tests/` directory) under these `src` roots in `src/crosshook-native/`; absent roots are skipped so future crates need no script change:
 
-```
-proton
-umu-run
-gamescope
-mangohud
-winetricks
-protontricks
-gamemoderun
-```
+- `crates/crosshook-core/src`, `src-tauri/src`
+- `crates/crosshook-app/src`, `crates/crosshook-ui/src`, `crates/crosshook-widgets/src`, `crates/crosshook-view-model/src`
 
-The script is wired into:
+The only exclusion is the explicit gateway file `crates/crosshook-core/src/platform/gateway.rs`. The script errors if that file is missing or is a symlink; there is no blanket `platform/` exclusion, so siblings such as `platform/portals/` are scanned. Symlinked scan roots and symlinked `.rs` sources are rejected rather than silently skipped (default `find` does not follow them, which would report a false "clean"). Scan errors (`rg`/`grep` status > 1, non-directory scan root) fail the check rather than being hidden.
 
-- `scripts/lint.sh` (the main lint runner)
-- `.github/workflows/lint.yml` (CI, runs on every PR)
+Rejected outside the gateway (optional whitespace around `::`, `new`, and parentheses is tolerated):
+
+- `Command::new("<tool>")` / `StdCommand::new("<tool>")` (also `std::process::` / `tokio::process::` prefixed; simple turbofish, optional `&` on the literal, and trailing comma tolerated) for: `proton`, `umu-run`, `gamescope`, `mangohud`, `winetricks`, `protontricks`, `gamemoderun`, `xdg-open`, `gio`, `kde-open`, `gnome-open`, `flatpak-spawn`.
+- `open::that(...)` and `opener::open(...)`.
+
+Allowed: portal D-Bus calls via `zbus`, `ashpd`, or `rfd` with the `xdg-portal` backend, and the non-denylisted tools in _Escape hatches_. Native UI URL opening must go through the OpenURI portal only; routing a URL opener through the host-command gateway does not exempt it from this policy.
+
+Suppression: put `# allow: host-gateway` on the offending line with a reason. Do not widen exemptions; prefer the gateway.
+
+`./scripts/check-host-gateway.sh --self-test` (alias `--selftest`) runs `scripts/tests/check-host-gateway/run.sh`, which copies the script into scratch repos and exercises positive and negative fixtures against every scan root, the gateway exclusion, the `tests/` exemption, suppression, and fail-closed errors. The script is wired into:
+
+- `scripts/lint.sh` (main lint runner)
+- `.github/workflows/lint.yml` (CI: guard and `--self-test`; ShellCheck covers `scripts/tests/*/*.sh`)
 - `lefthook.yml` (local pre-commit hook)
+
+### Limitations
+
+- Single-line matching: multi-line calls, `use ... as` aliases, `const TOOL: &str` indirection, raw strings, and macros are not detected.
+- Comments and string literals are not parsed: a commented-out bypass is flagged; `#[cfg(test)]` modules inside `src/` are **not** recognised as test code (use the suppression marker with a reason, or move them under `tests/`).
+- Dynamic program names (`Command::new(var)`) are out of scope; see _Scope boundary_.
+- `flatpak-spawn` and `std::process::Command::new("flatpak-spawn")` literals currently live only in `platform/gateway.rs`; new ones elsewhere are rejected.
 
 ---
 
 ## Maintenance contract
 
-- Any new host tool added to `platform.rs` **must** also be added to the denylist in `scripts/check-host-gateway.sh`.
-- The API table above **must** stay in sync with the actual `pub fn` / `pub unsafe fn` set in `platform.rs`. PR reviewers are responsible for verifying both.
+- Any new host tool added to the gateway **must** also be added to the denylist in `scripts/check-host-gateway.sh` (and the list above).
+- Any new gateway file must be added to `GATEWAY_FILES` explicitly; do not exclude directories.
+- The API table above **must** stay in sync with the actual `pub fn` / `pub unsafe fn` set in `platform/` (env-threading command construction lives in `gateway.rs`; detection, host-fs, XDG, and Steam-Deck helpers live in sibling modules). PR reviewers are responsible for verifying both.
 
 ---
 
 ## Monitoring signals (when to revisit)
 
-| Signal                                                                      | Implication                                                                                                                                                      |
-| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `flatpak/flatpak#5538` fine-grained `flatpak-spawn` command filtering lands | CrossHook can declare a bounded command allowlist rather than blanket `org.freedesktop.Flatpak`; `platform.rs` becomes the natural place to enumerate that list. |
-| `umu` consolidates Proton/Wine launching                                    | CrossHook's dependency surface shrinks; the denylist may contract.                                                                                               |
-| CrossHook gains a non-Linux target                                          | Sandbox assumptions no longer hold; `is_flatpak()` semantics need review.                                                                                        |
+| Signal                                                                      | Implication                                                                                                                                                              |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `flatpak/flatpak#5538` fine-grained `flatpak-spawn` command filtering lands | CrossHook can declare a bounded command allowlist rather than blanket `org.freedesktop.Flatpak`; `platform/gateway.rs` becomes the natural place to enumerate that list. |
+| `umu` consolidates Proton/Wine launching                                    | CrossHook's dependency surface shrinks; the denylist may contract.                                                                                                       |
+| CrossHook gains a non-Linux target                                          | Sandbox assumptions no longer hold; `is_flatpak()` semantics need review.                                                                                                |
 
 ---
 
