@@ -86,13 +86,16 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ripgrep shellcheck
 
       - name: Run ShellCheck
-        run: shellcheck --severity=warning scripts/*.sh scripts/lib/*.sh scripts/bench/*.sh
+        run: shellcheck --severity=warning scripts/*.sh scripts/lib/*.sh scripts/bench/*.sh scripts/tests/*/*.sh
 
       - name: Bench harness tests
         run: python3 -m unittest scripts/bench/test_bench.py
 
       - name: Host-gateway guardrail
         run: ./scripts/check-host-gateway.sh
+
+      - name: Host-gateway guardrail self-test
+        run: ./scripts/check-host-gateway.sh --self-test
 
       - name: Check legacy palette
         run: ./scripts/check-legacy-palette.sh
