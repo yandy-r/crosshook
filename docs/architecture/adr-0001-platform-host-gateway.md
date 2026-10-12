@@ -84,7 +84,7 @@ It does **not** apply to:
 
 - **In-sandbox subprocess code.** Game binaries, trainer binaries, `bash`, `unshare`, and game-scope wrappers that are themselves launched _inside_ the sandbox (before `flatpak-spawn` hands off to the host) are started with `Command::new(...)` directly and are not subject to this rule.
 - **User-supplied executable paths.** When a path comes from user configuration (game binary, trainer binary, Proton binary override), it is a variable, not a literal tool name. The code normalizes these paths via `normalize_flatpak_host_path` but does not need to route them through a gateway function.
-- **Test fixtures.** Test code under `#[cfg(test)]` or `tests/` is exempt; tests that exercise `platform/gateway.rs` internals necessarily create `Command` values directly.
+- **Test fixtures.** Only `tests/` directories are exempt (tests that exercise `platform/gateway.rs` internals necessarily create `Command` values directly). Inline `#[cfg(test)]` modules under `src/` are still scanned by the lexical guard — see _Limitations_.
 
 ---
 
@@ -103,7 +103,7 @@ The following patterns are explicitly allowed, because they pair every non-gatew
    - `launch/runtime_helpers.rs` `is_unshare_net_available()` (lines 816–830): Under Flatpak calls `platform::host_std_command("unshare")`. Native uses `std::process::Command::new("unshare")`.
    - Prefix dependency tools are not an escape hatch: `prefix_deps/detection.rs` probes Winetricks/Protontricks on the host, and `prefix_deps/runner.rs` executes them through `host_command_with_env` so Flatpak uses `flatpak-spawn --host` with the resolved `WINEPREFIX`.
 
-4. **Test code** under `#[cfg(test)]` or `tests/` is unconditionally exempt.
+4. **Test code** in `tests/` directories is unconditionally exempt. Inline `#[cfg(test)]` modules under `src/` are **not** exempt — suppress the specific line with `# allow: host-gateway` plus a reason, or move the code under `tests/`.
 
 ---
 
@@ -114,14 +114,14 @@ The following patterns are explicitly allowed, because they pair every non-gatew
 - `crates/crosshook-core/src`, `src-tauri/src`
 - `crates/crosshook-app/src`, `crates/crosshook-ui/src`, `crates/crosshook-widgets/src`, `crates/crosshook-view-model/src`
 
-The only exclusion is the explicit gateway file `crates/crosshook-core/src/platform/gateway.rs`. The script errors if that file is missing or is a symlink; there is no blanket `platform/` exclusion, so siblings such as `platform/portals/` are scanned. Symlinked scan roots and symlinked `.rs` sources are rejected rather than silently skipped (default `find` does not follow them, which would report a false "clean"). Scan errors (`rg`/`grep` status > 1, non-directory scan root) fail the check rather than being hidden.
+The only exclusion is the explicit gateway file `crates/crosshook-core/src/platform/gateway.rs`. The script errors if that file is missing or is a symlink; there is no blanket `platform/` exclusion, so siblings such as `platform/portals/` are scanned. Symlink policy is fail-closed but not overbroad: symlinked scan roots, symlinked directories inside the scanned tree, and symlinked `.rs` sources (dangling included) are rejected rather than silently skipped (default `find` does not follow them, which would report a false "clean"); non-Rust asset symlinks and anything under `tests/` are allowed. A dangling non-`.rs` symlink cannot be classified as a directory and is treated as an asset. Scan errors (`rg`/`grep` status > 1, non-directory scan root) fail the check rather than being hidden.
 
 Rejected outside the gateway (optional whitespace around `::`, `new`, and parentheses is tolerated):
 
 - `Command::new("<tool>")` / `StdCommand::new("<tool>")` (also `std::process::` / `tokio::process::` prefixed; simple turbofish, optional `&` on the literal, and trailing comma tolerated) for: `proton`, `umu-run`, `gamescope`, `mangohud`, `winetricks`, `protontricks`, `gamemoderun`, `xdg-open`, `gio`, `kde-open`, `gnome-open`, `flatpak-spawn`.
-- `open::that(...)` and `opener::open(...)`.
+- `open::that(...)`, `open::that_detached(...)`, `open::with(...)`, `opener::open(...)`, `opener::open_browser(...)`, and `opener::open_detached(...)`.
 
-Allowed: portal D-Bus calls via `zbus`, `ashpd`, or `rfd` with the `xdg-portal` backend, and the non-denylisted tools in _Escape hatches_. Native UI URL opening must go through the OpenURI portal only; routing a URL opener through the host-command gateway does not exempt it from this policy.
+Allowed: portal D-Bus calls via `zbus`, `ashpd`, or `rfd` with the `xdg-portal` backend, and the non-denylisted tools in _Escape hatches_. Native UI URL opening must go through the OpenURI portal only; routing a URL opener through the host-command gateway does not exempt it from this policy. (The Classic Tauri/React UI's existing `tauri-plugin-shell` opener is legacy pre-native behaviour whose migration to this policy is tracked separately; native crates under `crates/` are bound by the OpenURI-only rule today.)
 
 Suppression: put `# allow: host-gateway` on the offending line with a reason. Do not widen exemptions; prefer the gateway.
 
