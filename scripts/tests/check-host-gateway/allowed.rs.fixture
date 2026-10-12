@@ -1,0 +1,17 @@
+fn allowed() {
+    let _ = crate::platform::host_command("proton");
+    let _ = host_std_command("umu-run");
+    let _ = Command::new("bash");
+    let _ = Command::new("git");
+    let _ = Command::new("unshare");
+    let _ = Command::new("getent");
+    let _ = Command::new("lspci");
+    let _ = Command::new(normalized_path);
+    let _ = Command::new(&game_path);
+    let _ = StdCommand::new("ls");
+    let _ = zbus_proxy.call("org.freedesktop.portal.OpenURI").await;
+    let _ = ashpd::desktop::open::OpenDirectoryRequest::request().await;
+    let _ = rfd::FileDialog::new().pick_file();
+    let _ = Command::new("gitoo",);   // not a denylisted tool despite trailing comma
+    let _ = Command::new("xproton");  // prefix must not match
+}

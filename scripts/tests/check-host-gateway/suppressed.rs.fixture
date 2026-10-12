@@ -1,0 +1,3 @@
+fn suppressed() {
+    let _ = Command::new("proton"); // # allow: host-gateway fixture suppression contract
+}

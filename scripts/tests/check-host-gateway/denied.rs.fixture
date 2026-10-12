@@ -1,0 +1,19 @@
+fn bypasses() {
+    let _ = Command::new("proton");
+    let _ = tokio::process::Command::new("umu-run");
+    let _ = std::process::Command::new("gamescope");
+    let _ = StdCommand::new("mangohud");
+    let _ = Command::new("winetricks");
+    let _ = Command::new("protontricks");
+    let _ = Command::new("gamemoderun");
+    let _ = std::process::Command :: new ( "xdg-open" );
+    let _ = Command::new("gio");
+    let _ = Command::new("kde-open");
+    let _ = Command::new("gnome-open");
+    let _ = Command::new("flatpak-spawn");
+    let _ = open :: that ("https://example.com");
+    let _ = opener::open("https://example.com");
+    let _ = Command::new("gio",);
+    let _ = Command::new(&"xdg-open");
+    let _ = std::process::Command::new::<&str>("flatpak-spawn");
+}
