@@ -160,11 +160,31 @@ frontend). Building from source requires Rust, Node.js, and system libraries for
 
 ### Prerequisites
 
-Install build dependencies automatically using the included script:
+For a complete source build and local installation, run:
+
+```bash
+npm run flatpak:setup
+# Accept package-manager prompts automatically (sudo may still request a password):
+npm run flatpak:setup -- --yes
+```
+
+Setup detects the host distribution through `/etc/os-release` and installs the native
+Tauri development libraries, compiler tools, Flatpak tools, icon tools, metadata validators,
+and GNOME runtime/SDK before building. Supported hosts are mutable Debian/Ubuntu, Fedora,
+Arch, and openSUSE systems, including derivatives identified by `ID_LIKE`. Cairo, GLib,
+Pango, ATK, and GDK development packages are resolved by the package manager as dependencies
+of GTK/WebKit. Existing Rust and Node installations are reused.
+
+The binary build checks required tools and library versions with `pkg-config` before
+compilation and reports missing dependencies together. Unsupported distributions and immutable
+OSTree hosts need a supported mutable build environment (such as Toolbox/Distrobox).
+
+To install just the native binary build dependencies, or check the current environment:
 
 ```bash
 # Supports pacman, apt, dnf, and zypper
 ./scripts/install-native-build-deps.sh
+./scripts/install-native-build-deps.sh --check
 ```
 
 Or install manually. You need: `cargo`, `npm`, `flatpak`, `flatpak-builder`, and development

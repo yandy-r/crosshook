@@ -81,8 +81,7 @@ if (( INSTALL_DEPS )); then
   "$ROOT_DIR/scripts/install-native-build-deps.sh" "${install_args[@]}"
 fi
 
-command -v cargo >/dev/null 2>&1 || die "cargo is required"
-command -v npm >/dev/null 2>&1 || die "npm is required"
+"$ROOT_DIR/scripts/install-native-build-deps.sh" --check
 
 cd "$NATIVE_DIR"
 

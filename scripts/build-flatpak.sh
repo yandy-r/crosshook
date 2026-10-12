@@ -66,10 +66,10 @@ Options:
   --skip-build      Never auto-run build-release-binary.sh; require the
                     binary at $DIST_DIR/crosshook-native to already exist.
                     Mutually exclusive with --rebuild.
-  --install-deps    Install flatpak, flatpak-builder, asset-generation
-                    tools, and the GNOME runtime + SDK on the host before
-                    building.
-  --yes, -y         Forward non-interactive install mode to apt/dnf/pacman.
+  --install-deps    Install native build libraries, Flatpak, icon tools,
+                    metadata validators, and the GNOME runtime + SDK
+                    before building.
+  --yes, -y         Forward non-interactive install mode to the host package manager.
   --keep-staging    Do not delete the staging directory after the build.
   --install         After building, flatpak install --user the bundle.
   --strict          Fail the build if desktop-file-validate or
@@ -147,36 +147,17 @@ BUNDLE_PATH="$DIST_DIR/$BUNDLE_NAME"
 
 # ---- Optional: install host tooling + runtime ------------------------------
 if (( INSTALL_DEPS )); then
-  log "installing flatpak toolchain and GNOME ${RUNTIME_VERSION} runtime"
-  if command -v pacman >/dev/null 2>&1; then
-    sudo_cmd=()
-    (( EUID != 0 )) && sudo_cmd=(sudo)
-    pacman_args=(-S --needed flatpak flatpak-builder librsvg imagemagick)
-    (( INSTALL_DEPS_YES )) && pacman_args+=(--noconfirm)
-    "${sudo_cmd[@]}" pacman "${pacman_args[@]}"
-  elif command -v dnf >/dev/null 2>&1; then
-    sudo_cmd=()
-    (( EUID != 0 )) && sudo_cmd=(sudo)
-    dnf_args=(install flatpak flatpak-builder librsvg2-tools ImageMagick)
-    (( INSTALL_DEPS_YES )) && dnf_args+=(-y)
-    "${sudo_cmd[@]}" dnf "${dnf_args[@]}"
-  elif command -v apt-get >/dev/null 2>&1; then
-    sudo_cmd=()
-    (( EUID != 0 )) && sudo_cmd=(sudo)
-    apt_args=(install flatpak flatpak-builder librsvg2-bin imagemagick)
-    (( INSTALL_DEPS_YES )) && apt_args+=(-y)
-    "${sudo_cmd[@]}" apt-get update
-    "${sudo_cmd[@]}" apt-get "${apt_args[@]}"
-  else
-    die "no supported package manager found; install flatpak, flatpak-builder, rsvg-convert, and ImageMagick manually"
-  fi
+  log "installing native build dependencies, Flatpak tools, and GNOME ${RUNTIME_VERSION} runtime"
+  install_args=(--flatpak)
+  (( INSTALL_DEPS_YES )) && install_args+=(--yes)
+  "$ROOT_DIR/scripts/install-native-build-deps.sh" "${install_args[@]}"
 
   if ! flatpak remote-list --user 2>/dev/null | grep -q '^flathub'; then
     flatpak remote-add --user --if-not-exists flathub \
       https://flathub.org/repo/flathub.flatpakrepo
   fi
 
-  flatpak install --user --noninteractive flathub \
+  flatpak install --user --noninteractive --arch="$FLATPAK_ARCH" flathub \
     "org.gnome.Platform//${RUNTIME_VERSION}" \
     "org.gnome.Sdk//${RUNTIME_VERSION}"
 fi

@@ -1,21 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/native-build-deps.sh
+source "$ROOT_DIR/scripts/lib/native-build-deps.sh"
+
 ASSUME_YES=0
+WITH_FLATPAK=0
+CHECK_ONLY=0
 
 usage() {
   cat <<'EOF'
-Usage: ./scripts/install-native-build-deps.sh [--yes]
+Usage: ./scripts/install-native-build-deps.sh [--yes] [--flatpak] [--check]
 
-Install the host packages required by scripts/build-release-binary.sh.
-
-This helper prepares a host to run `tauri build --no-bundle` for the
-release binary consumed by Flatpak packaging. It does not install the Flatpak
-toolchain; use `scripts/build-flatpak.sh --install-deps` for that.
+Install and verify host dependencies for the Tauri release binary.
+Selects apt, dnf, pacman, or zypper from /etc/os-release (including ID_LIKE).
+Package managers resolve transitive development dependencies such as Cairo,
+GLib, Pango, ATK, and GDK alongside GTK3, libsoup3, WebKitGTK 4.1, and OpenSSL.
 
 Options:
-  --yes, -y   Run the package-manager install non-interactively where supported
+  --flatpak   Also install Flatpak, icon tools, and metadata validators
+  --check     Check tools and pkg-config libraries without installing anything
+  --yes, -y   Run package installation non-interactively (sudo may prompt)
   --help, -h  Show this help text
+
+For the complete build/install workflow, run npm run flatpak:setup.
+Immutable hosts should run builds inside a mutable development container.
 EOF
 }
 
@@ -26,128 +36,16 @@ die() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --yes|-y)
-      ASSUME_YES=1
-      shift
-      ;;
-    --help|-h)
-      usage
-      exit 0
-      ;;
-    *)
-      die "unknown argument: $1"
-      ;;
+    --yes|-y) ASSUME_YES=1; shift ;;
+    --flatpak) WITH_FLATPAK=1; shift ;;
+    --check) CHECK_ONLY=1; shift ;;
+    --help|-h) usage; exit 0 ;;
+    *) die "unknown argument: $1" ;;
   esac
 done
 
-run_with_sudo() {
-  if [[ ${EUID:-$(id -u)} -eq 0 ]]; then
-    "$@"
-  elif command -v sudo >/dev/null 2>&1; then
-    sudo "$@"
-  else
-    die "sudo is required to install system packages"
-  fi
-}
-
-install_with_pacman() {
-  local -a packages=(
-    base-devel
-    curl
-    gtk3
-    libsoup3
-    nodejs
-    npm
-    openssl
-    pkgconf
-    rust
-    webkit2gtk-4.1
-  )
-  local -a cmd=(pacman -S --needed)
-  (( ASSUME_YES )) && cmd+=(--noconfirm)
-  cmd+=("${packages[@]}")
-  run_with_sudo "${cmd[@]}"
-}
-
-install_with_apt() {
-  local -a packages=(
-    build-essential
-    curl
-    libgtk-3-dev
-    libsoup-3.0-dev
-    libssl-dev
-    libwebkit2gtk-4.1-dev
-    nodejs
-    npm
-    pkg-config
-    rustc
-    cargo
-  )
-  run_with_sudo apt-get update
-  local -a cmd=(apt-get install)
-  (( ASSUME_YES )) && cmd+=(-y)
-  cmd+=("${packages[@]}")
-  run_with_sudo "${cmd[@]}"
-}
-
-install_with_dnf() {
-  local -a packages=(
-    cargo
-    curl
-    gcc
-    gcc-c++
-    gtk3-devel
-    libsoup3-devel
-    make
-    nodejs
-    npm
-    openssl-devel
-    pkgconf-pkg-config
-    rust
-    webkit2gtk4.1-devel
-  )
-  local -a cmd=(dnf install)
-  (( ASSUME_YES )) && cmd+=(-y)
-  cmd+=("${packages[@]}")
-  run_with_sudo "${cmd[@]}"
-}
-
-install_with_zypper() {
-  local -a packages=(
-    cargo
-    curl
-    gcc
-    gcc-c++
-    gtk3-devel
-    libsoup-3_0-devel
-    make
-    nodejs
-    npm
-    libopenssl-devel
-    pkgconf-pkg-config
-    rust
-    webkit2gtk3-devel
-  )
-  local -a cmd=(zypper install)
-  (( ASSUME_YES )) && cmd+=(-y)
-  cmd+=("${packages[@]}")
-  run_with_sudo "${cmd[@]}"
-}
-
-if command -v pacman >/dev/null 2>&1; then
-  echo "Installing release-binary build dependencies with pacman..."
-  install_with_pacman
-elif command -v apt-get >/dev/null 2>&1; then
-  echo "Installing release-binary build dependencies with apt-get..."
-  install_with_apt
-elif command -v dnf >/dev/null 2>&1; then
-  echo "Installing release-binary build dependencies with dnf..."
-  install_with_dnf
-elif command -v zypper >/dev/null 2>&1; then
-  echo "Installing release-binary build dependencies with zypper..."
-  install_with_zypper
-else
-  die "unsupported package manager; install cargo, npm, GTK3, libsoup3, OpenSSL, pkg-config, and webkit2gtk 4.1 manually"
+if (( ! CHECK_ONLY )); then
+  native_build_deps_install "$ASSUME_YES" "$WITH_FLATPAK"
 fi
-
-echo "Release-binary build dependencies are installed."
+native_build_deps_check "$WITH_FLATPAK"
+echo "Release-binary build dependencies are ready."

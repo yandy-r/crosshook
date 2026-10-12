@@ -88,6 +88,9 @@ jobs:
       - name: Run ShellCheck
         run: shellcheck --severity=warning scripts/*.sh scripts/lib/*.sh scripts/bench/*.sh scripts/tests/*/*.sh
 
+      - name: Build dependency setup tests
+        run: python3 -m unittest scripts/test_build_deps.py
+
       - name: Bench harness tests
         run: python3 -m unittest scripts/bench/test_bench.py
 

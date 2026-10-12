@@ -70,7 +70,7 @@ flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flath
 flatpak install --user flathub org.gnome.Platform//50 org.gnome.Sdk//50
 ```
 
-Alternatively, `./scripts/build-flatpak.sh --install-deps` installs `flatpak`, `flatpak-builder`, `rsvg-convert`, and ImageMagick via your package manager, adds Flathub if missing, and runs the `flatpak install` for `org.gnome.Platform` and `org.gnome.Sdk` at version `${CROSSHOOK_FLATPAK_RUNTIME_VERSION:-50}`.
+Alternatively, `npm run flatpak:setup` installs the native Tauri build dependencies (including GTK/WebKit development libraries), Flatpak tools, icon tools, and metadata validators for the detected Linux distribution, then builds and installs the bundle. It adds Flathub if missing and installs `org.gnome.Platform` and `org.gnome.Sdk` at version `${CROSSHOOK_FLATPAK_RUNTIME_VERSION:-50}` for the build architecture. Use `npm run flatpak:setup -- --yes` to accept package-manager prompts automatically. `./scripts/build-flatpak.sh --install-deps` performs the same dependency setup without installing the resulting application.
 
 **Smoke test**
 
