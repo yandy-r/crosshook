@@ -16,4 +16,8 @@ fn bypasses() {
     let _ = Command::new("gio",);
     let _ = Command::new(&"xdg-open");
     let _ = std::process::Command::new::<&str>("flatpak-spawn");
+    let _ = open::that_detached("https://example.com");
+    let _ = open :: with ("x", args);
+    let _ = opener::open_browser("https://example.com");
+    let _ = opener :: open_detached("https://example.com");
 }

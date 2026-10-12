@@ -14,4 +14,6 @@ fn allowed() {
     let _ = rfd::FileDialog::new().pick_file();
     let _ = Command::new("gitoo",);   // not a denylisted tool despite trailing comma
     let _ = Command::new("xproton");  // prefix must not match
+    let _ = reopen::that("x");        // identifier prefix must not match
+    let _ = opener::opener_custom("x");
 }

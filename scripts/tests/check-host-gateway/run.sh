@@ -53,7 +53,7 @@ expect "allowed + suppressed pass in all roots" "$r" 0 "passed"
 for d in "${ROOTS[@]}"; do
   r="$(new_repo "root-${d//\//-}")"
   put "$r" "$d/bad.rs" "$HERE/denied.rs.fixture"
-  expect "violation detected in $d" "$r" 1 "17 violation(s)"
+  expect "violation detected in $d" "$r" 1 "21 violation(s)"
 done
 
 # No blanket platform/ exclusion: sibling of gateway.rs is scanned.
@@ -82,16 +82,33 @@ expect "nested symlink directory errors" "$r" 1 "symlinked scan roots"
 r="$(new_repo rslink)"; cp "$HERE/denied.rs.fixture" "$r/target.rs"; ln -s "$r/target.rs" "$r/$CRATES/crosshook-core/src/linked.rs"
 expect "symlink .rs source errors" "$r" 1 "symlinked scan roots"
 
+# Non-Rust symlink assets, and any symlink under tests/, are allowed (no overbroad rejection).
+r="$(new_repo assetlink)"; printf 'x' >"$r/asset.png"; mkdir -p "$r/$CRATES/crosshook-core/src/tests" "$r/real"
+ln -s "$r/asset.png" "$r/$CRATES/crosshook-core/src/asset.png"
+ln -s /nonexistent "$r/$CRATES/crosshook-core/src/dangling.txt"
+ln -s "$r/real" "$r/$CRATES/crosshook-core/src/tests/dirlink"
+ln -s /nonexistent "$r/$CRATES/crosshook-core/src/tests/dangling.rs"
+expect "asset and tests/ symlinks allowed" "$r" 0 "passed"
+r="$(new_repo testslink)"; mkdir -p "$r/test-target"; cp "$HERE/denied.rs.fixture" "$r/test-target/bad.rs"
+ln -s "$r/test-target" "$r/$CRATES/crosshook-core/src/tests"
+expect "tests directory symlink allowed" "$r" 0 "passed"
+r="$(new_repo danglingroot)"; mkdir -p "$r/$CRATES/crosshook-ui"; ln -s /nonexistent "$r/$CRATES/crosshook-ui/src"
+expect "dangling scan root errors" "$r" 1 "symlinked scan roots"
+r="$(new_repo danglingrs)"; ln -s /nonexistent "$r/$CRATES/crosshook-core/src/dangling.rs"
+expect "dangling .rs symlink errors" "$r" 1 "symlinked scan roots"
+r="$(new_repo danglingdir)"; ln -s /nonexistent "$r/$CRATES/crosshook-core/src/dangling-dir"
+expect "dangling non-.rs symlink allowed" "$r" 0 "passed"
+
 # Scan root that is not a directory fails closed.
 r="$(new_repo notdir)"; mkdir -p "$r/$CRATES/crosshook-ui"; : >"$r/$CRATES/crosshook-ui/src"
 expect "non-directory scan root errors" "$r" 1 "not a directory"
 
-# Whitespace variants and each ban category are covered by denied.rs.fixture (17 hits above);
+# Whitespace variants and each ban category are covered by denied.rs.fixture (21 hits above);
 # assert the unsuppressed count precisely for the combined fixtures.
 r="$(new_repo combined)"
 put "$r" "$CRATES/crosshook-app/src/a.rs" "$HERE/denied.rs.fixture"
 put "$r" "$CRATES/crosshook-app/src/b.rs" "$HERE/suppressed.rs.fixture"
-expect "suppression does not hide other violations" "$r" 1 "17 violation(s)"
+expect "suppression does not hide other violations" "$r" 1 "21 violation(s)"
 
 out="$(bash "$SRC_SCRIPT" --list)"; [[ "$out" == *xdg-open* && "$out" == *flatpak-spawn* ]] || { echo "FAIL: --list" >&2; FAILURES=$((FAILURES + 1)); }
 

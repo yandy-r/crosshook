@@ -77,22 +77,29 @@ if [[ ${#EXISTING_DIRS[@]} -eq 0 ]]; then
   exit 1
 fi
 
-# ponytail: single-line lexical guard, not Rust parsing. Aliases, multiline calls,
-# raw strings and cfg(test) need review; use a Rust-aware checker if scope grows.
+# ponytail: single-line lexical guard, not Rust parsing. Literal plus turbofish,
+# optional & and trailing comma; aliases, multiline calls, raw strings, const
+# indirection and macros need review; use Rust-aware check if scope grows.
 ALT="$(IFS='|'; echo "${HOST_TOOL_DENYLIST[*]}")"
 SPACE='[[:blank:]]*'
-PATTERN="(^|[^[:alnum:]_])(Command|StdCommand)${SPACE}::${SPACE}new${SPACE}(::${SPACE}<[^>]*>${SPACE})?\\(${SPACE}&?${SPACE}\"(${ALT})\"${SPACE},?${SPACE}\\)|(^|[^[:alnum:]_])(open${SPACE}::${SPACE}that|opener${SPACE}::${SPACE}open)${SPACE}\\("
+PATTERN="(^|[^[:alnum:]_])(Command|StdCommand)${SPACE}::${SPACE}new${SPACE}(::${SPACE}<[^>]*>${SPACE})?\\(${SPACE}&?${SPACE}\"(${ALT})\"${SPACE},?${SPACE}\\)|(^|[^[:alnum:]_])(open${SPACE}::${SPACE}(that|that_detached|with)|opener${SPACE}::${SPACE}(open|open_browser|open_detached))${SPACE}\\("
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-if ! find "${EXISTING_DIRS[@]}" -type l -print >"$TMP/symlinks" 2>"$TMP/find-err"; then
+# Fail-closed symlink policy (ADR-0001): `find` follows no symlinks by default and
+# would silently skip them. Outside tests/ we reject symlinked directories and
+# *.rs sources (dangling included); non-Rust symlinks are allowed as assets.
+if ! find "${EXISTING_DIRS[@]}" -type l -print0 >"$TMP/links" 2>"$TMP/find-err"; then
   echo "error: cannot enumerate Rust sources." >&2
   cat "$TMP/find-err" >&2
   exit 1
 fi
-if [[ -s "$TMP/symlinks" ]]; then
-  reject_symlink "$(head -n 1 "$TMP/symlinks")"
-fi
+while IFS= read -r -d '' e; do
+  case "$e" in */tests|*/tests/*) continue ;; esac
+  if [[ "${e##*/}" == *.rs || -d "$e" ]]; then
+    reject_symlink "$e"
+  fi
+done <"$TMP/links"
 if ! find "${EXISTING_DIRS[@]}" -type f -name '*.rs' -not -path '*/tests/*' -print0 >"$TMP/files"; then
   echo "error: cannot enumerate Rust sources." >&2
   exit 1
