@@ -89,10 +89,18 @@ impl Display for MetadataStoreError {
             Self::IntegrityCheckFailed {
                 revision_id,
                 failure,
-            } => write!(
-                f,
-                "integrity check failed for revision {revision_id}: {failure}"
-            ),
+            } => match failure {
+                // Fail closed (ADR-0005): also covers revisions recorded while
+                // the key was unavailable or by a pre-HMAC build.
+                IntegrityFailure::SignatureRequired => write!(
+                    f,
+                    "revision {revision_id} was recorded without a valid signature and cannot be restored; integrity cannot be verified"
+                ),
+                _ => write!(
+                    f,
+                    "integrity check failed for revision {revision_id}: {failure}"
+                ),
+            },
         }
     }
 }
@@ -559,7 +567,7 @@ pub struct ConfigRevisionRow {
     pub source_revision_id: Option<i64>,
     pub is_last_known_working: bool,
     pub created_at: String,
-    /// `v1:<key_id>:<hex_mac>` (ADR-0005); `None` for legacy or unsigned rows.
+    /// `v1:<key_id>:<trust>:<hex_mac>` (ADR-0005); `None` for legacy or unsigned rows.
     /// Core-only: never serialized over IPC.
     pub hmac_signature: Option<String>,
 }
@@ -604,7 +612,9 @@ pub enum IntegrityFailure {
     ContentHashMismatch,
     SignatureMismatch,
     /// Revision written after the key's signing epoch lacks a valid
-    /// current-key signature (stripped, foreign, or unknown format).
+    /// current-key signature (stripped, foreign, or unknown format). Fails
+    /// closed: includes rows recorded unsigned while the key was unavailable
+    /// or by a pre-HMAC build after a downgrade.
     SignatureRequired,
 }
 

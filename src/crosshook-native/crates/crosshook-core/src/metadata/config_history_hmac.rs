@@ -269,20 +269,22 @@ pub(crate) fn key_path(db_path: &Path) -> PathBuf {
 }
 
 /// Loads the key for a file-backed store. Writable stores remove stale temp
-/// files and create the key (with `epoch()` as its signing epoch) when absent;
-/// read-only stores only load. Failures are logged (never key material) and
-/// leave the store on the unsigned / hash-only path.
+/// files, create the key (with `high_water()` as its signing epoch) when
+/// absent, and lower an existing key's epoch to the current high-water mark
+/// when the database was recreated or restored behind it. Read-only stores
+/// only load. Failures are logged (never key material) and leave the store on
+/// the unsigned / hash-only path.
 pub(super) fn open_for_store(
     db_path: &Path,
     writable: bool,
-    epoch: impl FnOnce() -> io::Result<i64>,
+    high_water: impl FnOnce() -> io::Result<i64>,
 ) -> Option<Arc<ConfigHistoryKey>> {
     let path = key_path(db_path);
     if writable {
         remove_stale_temp_files(&path);
     }
     let result = if writable {
-        load_or_create(&path, epoch)
+        load_or_create(&path, high_water)
     } else {
         load(&path)
     };
@@ -292,21 +294,93 @@ pub(super) fn open_for_store(
         Err(error) => {
             tracing::warn!(
                 %error,
-                "config history HMAC key unavailable; new revisions will be unsigned and rollback verifies hash only"
+                "config history HMAC key unavailable; new revisions are recorded unsigned and will not be restorable once the key is back"
             );
             None
         }
     }
 }
 
-/// Loads an existing key, or creates one when the file does not exist.
+/// Loads an existing key, or creates one when the file does not exist. An
+/// existing key whose epoch is above the database's current high-water mark
+/// (DB deleted, recreated, or restored from an older backup) is rewritten with
+/// the same key bytes and the lower epoch, so every id the database can still
+/// assign requires a signature. The epoch is never raised and the key is never
+/// rotated here: both would be downgrades a DB-only attacker could trigger.
 pub(crate) fn load_or_create(
     path: &Path,
-    epoch: impl FnOnce() -> io::Result<i64>,
+    high_water: impl FnOnce() -> io::Result<i64>,
 ) -> io::Result<ConfigHistoryKey> {
     match load(path) {
-        Err(error) if error.kind() == io::ErrorKind::NotFound => create_or_adopt(path, epoch()?),
-        result => result,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            create_or_adopt(path, high_water()?)
+        }
+        Ok(key) => {
+            let current = high_water()?;
+            if current < key.signed_from {
+                tracing::warn!(
+                    key_epoch = key.signed_from,
+                    high_water = current,
+                    "config history database is behind the HMAC key epoch; lowering the epoch"
+                );
+                Ok(lower_epoch(path, key, current))
+            } else {
+                Ok(key)
+            }
+        }
+        Err(error) => Err(error),
+    }
+}
+
+/// Atomically replaces the key file with the same key bytes and `signed_from`
+/// (temp file + fsync + rename over the path; `rename` replaces the directory
+/// entry itself and never follows a symlink there). The lowered epoch is
+/// stricter, so it applies in memory even if persisting it fails.
+fn lower_epoch(path: &Path, key: ConfigHistoryKey, signed_from: i64) -> ConfigHistoryKey {
+    let lowered = ConfigHistoryKey::new(key.bytes.clone(), signed_from);
+    let persisted = key_file_contents(&key.bytes, signed_from).and_then(|contents| {
+        write_private_temp(path, &contents[..])?
+            .persist(path)
+            .map_err(|error| error.error)?;
+        sync_parent(path);
+        Ok(())
+    });
+    if let Err(error) = persisted {
+        tracing::warn!(
+            %error,
+            "failed to persist lowered config history HMAC epoch; using it for this session"
+        );
+    }
+    lowered
+}
+
+fn key_file_contents(
+    bytes: &[u8; KEY_LEN],
+    signed_from: i64,
+) -> io::Result<Zeroizing<[u8; KEY_FILE_LEN]>> {
+    let epoch = u64::try_from(signed_from)
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "negative signing epoch"))?;
+    let mut contents = Zeroizing::new([0_u8; KEY_FILE_LEN]);
+    contents[..KEY_LEN].copy_from_slice(bytes);
+    contents[KEY_LEN..].copy_from_slice(&epoch.to_be_bytes());
+    Ok(contents)
+}
+
+/// Writes `contents` to a fsynced `0600` temp file beside `path`.
+fn write_private_temp(path: &Path, contents: &[u8]) -> io::Result<tempfile::NamedTempFile> {
+    let mut tmp = tempfile::Builder::new()
+        .prefix(TEMP_PREFIX)
+        .permissions(Permissions::from_mode(0o600))
+        .tempfile_in(parent_dir(path))?;
+    tmp.as_file_mut().write_all(contents)?;
+    tmp.as_file().sync_all()?;
+    Ok(tmp)
+}
+
+/// Best effort: make a new directory entry durable.
+fn sync_parent(path: &Path) {
+    if let Ok(dir) = File::open(parent_dir(path)) {
+        let _ = dir.sync_all();
     }
 }
 
@@ -371,28 +445,13 @@ pub(crate) fn load(path: &Path) -> io::Result<ConfigHistoryKey> {
 /// key + epoch are written and fsynced to a private temp file, then linked into
 /// place with no-replace semantics. If another process won, its key is read.
 pub(crate) fn create_or_adopt(path: &Path, signed_from: i64) -> io::Result<ConfigHistoryKey> {
-    let dir = parent_dir(path);
-    let epoch = u64::try_from(signed_from)
-        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "negative signing epoch"))?;
-    let mut contents = Zeroizing::new([0_u8; KEY_FILE_LEN]);
-    getrandom::fill(&mut contents[..KEY_LEN])
-        .map_err(|error| io::Error::other(error.to_string()))?;
-    contents[KEY_LEN..].copy_from_slice(&epoch.to_be_bytes());
-
-    let mut tmp = tempfile::Builder::new()
-        .prefix(TEMP_PREFIX)
-        .permissions(Permissions::from_mode(0o600))
-        .tempfile_in(dir)?;
-    tmp.as_file_mut().write_all(&contents[..])?;
-    tmp.as_file().sync_all()?;
+    let mut bytes = Zeroizing::new([0_u8; KEY_LEN]);
+    getrandom::fill(&mut bytes[..]).map_err(|error| io::Error::other(error.to_string()))?;
+    let contents = key_file_contents(&bytes, signed_from)?;
+    let tmp = write_private_temp(path, &contents[..])?;
     match tmp.persist_noclobber(path) {
         Ok(_) => {
-            // Best effort: make the new directory entry durable.
-            if let Ok(dir) = File::open(dir) {
-                let _ = dir.sync_all();
-            }
-            let mut bytes = Zeroizing::new([0_u8; KEY_LEN]);
-            bytes.copy_from_slice(&contents[..KEY_LEN]);
+            sync_parent(path);
             Ok(ConfigHistoryKey::new(bytes, signed_from))
         }
         Err(error) if error.error.kind() == io::ErrorKind::AlreadyExists => load(path),

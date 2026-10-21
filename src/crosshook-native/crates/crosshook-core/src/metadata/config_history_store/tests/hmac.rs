@@ -487,3 +487,92 @@ fn stale_key_temp_files_are_removed_on_writable_open() {
         "recent temp file may belong to a live writer"
     );
 }
+
+#[test]
+fn recreated_database_lowers_key_epoch_so_new_rows_require_signatures() {
+    let dir = tempdir().unwrap();
+    let path = db_path(&dir);
+    {
+        let store = open_store(&path);
+        insert(&store, SNAPSHOT);
+        insert(&store, "[game]\nname = \"Second\"\n");
+        insert(&store, "[game]\nname = \"Third\"\n");
+    }
+    let key_before = fs::read(key_file(&dir)).unwrap();
+
+    // Delete the database (and sidecars) but keep the key.
+    for name in ["metadata.db", "metadata.db-wal", "metadata.db-shm"] {
+        let _ = fs::remove_file(dir.path().join(name));
+    }
+    let store = open_store(&path);
+    let key = store.config_history_key.as_ref().unwrap();
+    assert_eq!(
+        key.signed_from(),
+        0,
+        "epoch lowered to the new high-water mark"
+    );
+    let key_after = fs::read(key_file(&dir)).unwrap();
+    assert_eq!(key_after.len(), 40);
+    assert_eq!(
+        key_after[..32],
+        key_before[..32],
+        "same key bytes, no rotation"
+    );
+    assert_eq!(
+        fs::metadata(key_file(&dir)).unwrap().permissions().mode() & 0o777,
+        0o600
+    );
+
+    let row = insert(&store, SNAPSHOT);
+    forge_content(&store, row.id);
+    set_signature(&store, row.id, None);
+    assert_failure(
+        store.verify_config_revision(&reload(&store, row.id)),
+        IntegrityFailure::SignatureRequired,
+    );
+
+    // Reopen: the persisted lower epoch sticks and is never raised.
+    drop(store);
+    let reopened = open_store(&path);
+    assert_eq!(
+        reopened.config_history_key.as_ref().unwrap().signed_from(),
+        0
+    );
+}
+
+#[test]
+fn key_unavailable_session_rows_are_listed_but_not_restorable() {
+    // Fail closed (ADR-0005): rows recorded while the key file existed but
+    // could not be loaded are kept, yet cannot be restored once it loads again.
+    let dir = tempdir().unwrap();
+    let path = db_path(&dir);
+    insert(&open_store(&path), SNAPSHOT);
+    let key_bytes = fs::read(key_file(&dir)).unwrap();
+
+    fs::set_permissions(key_file(&dir), fs::Permissions::from_mode(0o600)).unwrap();
+    fs::write(key_file(&dir), [9_u8; 7]).unwrap(); // unreadable: wrong length
+    let unsigned_id = {
+        let store = open_store(&path);
+        assert!(store.config_history_key.is_none());
+        insert(&store, "[game]\nname = \"While keyless\"\n").id
+    };
+
+    fs::write(key_file(&dir), &key_bytes).unwrap();
+    let store = open_store(&path);
+    assert!(store.config_history_key.is_some());
+    let row = reload(&store, unsigned_id);
+    assert_eq!(row.hmac_signature, None);
+    assert_eq!(
+        store.list_config_revisions(PROFILE_ID, None).unwrap().len(),
+        2
+    );
+    let result = store.verify_config_revision(&row);
+    assert_failure(result, IntegrityFailure::SignatureRequired);
+    let message = store.verify_config_revision(&row).unwrap_err().to_string();
+    assert_eq!(
+        message,
+        format!(
+            "revision {unsigned_id} was recorded without a valid signature and cannot be restored; integrity cannot be verified"
+        )
+    );
+}

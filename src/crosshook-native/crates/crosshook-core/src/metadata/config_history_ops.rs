@@ -6,7 +6,9 @@ impl MetadataStore {
     /// latest recorded revision. Returns the new id when inserted, `None` on dedup.
     ///
     /// File-backed stores sign the revision with the config-history HMAC key
-    /// (ADR-0005). Without a key the revision is still inserted, unsigned.
+    /// (ADR-0005). Without a key the revision is still inserted, unsigned, so
+    /// it stays listable and diffable; if its id is above the key's signing
+    /// epoch it will not be restorable once the key is available (fail closed).
     pub fn insert_config_revision(
         &self,
         profile_id: &str,
@@ -21,7 +23,7 @@ impl MetadataStore {
         if signer.is_none() && self.is_file_backed() && self.is_available() {
             tracing::warn!(
                 profile_id,
-                "config history HMAC key unavailable; inserting unsigned config revision"
+                "config history HMAC key unavailable; recording unsigned config revision (listable, not restorable once the key is back)"
             );
         }
         self.with_conn_mut("insert a config revision", |conn| {
