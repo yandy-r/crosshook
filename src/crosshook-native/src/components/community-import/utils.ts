@@ -1,11 +1,19 @@
 import { isLaunchValidationIssue, type LaunchRequest, type LaunchValidationIssue } from '../../types';
-import {
-  DEFAULT_GAMESCOPE_CONFIG,
-  DEFAULT_MANGOHUD_CONFIG,
-  type GameProfile,
-  type LaunchMethod,
-} from '../../types/profile';
+import type { GameProfile } from '../../types/profile';
+import { buildProfileLaunchRequest, resolveLaunchMethod } from '../../utils/launch';
 import type { SteamFieldState } from './types';
+
+/**
+ * Local stand-in for the backend `game_path_required` issue (text mirrors
+ * `ValidationError::GamePathRequired` in crosshook-core) used when the draft has no
+ * game executable, so the wizard never sends a request it knows is invalid.
+ */
+export const MISSING_GAME_PATH_ISSUE: LaunchValidationIssue = {
+  message: 'A game executable path is required.',
+  help: "Browse to the game executable before launching. For Steam or Proton launches, this is usually the game's .exe under steamapps/common/.",
+  severity: 'fatal',
+  code: 'game_path_required',
+};
 
 export function normalizeProfile(profile: GameProfile): GameProfile {
   return {
@@ -22,6 +30,7 @@ export function normalizeProfile(profile: GameProfile): GameProfile {
       },
     },
     runtime: {
+      ...profile.runtime,
       prefix_path: profile.runtime?.prefix_path ?? '',
       proton_path: profile.runtime?.proton_path ?? '',
       working_directory: profile.runtime?.working_directory ?? '',
@@ -49,61 +58,13 @@ export function normalizeProfile(profile: GameProfile): GameProfile {
   };
 }
 
-export function resolveLaunchMethod(profile: GameProfile): Exclude<LaunchMethod, ''> {
-  if (
-    profile.launch?.method === 'steam_applaunch' ||
-    profile.launch?.method === 'proton_run' ||
-    profile.launch?.method === 'native'
-  ) {
-    return profile.launch.method;
-  }
-
-  if (profile.steam.enabled) {
-    return 'steam_applaunch';
-  }
-
-  if (profile.game.executable_path.trim().toLowerCase().endsWith('.exe')) {
-    return 'proton_run';
-  }
-
-  return 'native';
-}
-
-export function buildLaunchRequest(profile: GameProfile, steamClientInstallPath: string): LaunchRequest {
-  const method = resolveLaunchMethod(profile);
-  return {
-    method,
-    game_path: profile.game.executable_path,
-    trainer_path: profile.trainer.path,
-    trainer_host_path: profile.trainer.path,
-    trainer_loading_mode: profile.trainer.loading_mode,
-    steam: {
-      app_id: profile.steam.app_id,
-      compatdata_path: profile.steam.compatdata_path,
-      proton_path: profile.steam.proton_path,
-      steam_client_install_path: steamClientInstallPath,
-    },
-    runtime: {
-      prefix_path: profile.runtime.prefix_path,
-      proton_path: profile.runtime.proton_path,
-      working_directory: profile.runtime.working_directory,
-    },
-    optimizations: {
-      enabled_option_ids: [...profile.launch.optimizations.enabled_option_ids],
-    },
-    command_arguments: {
-      enabled_argument_ids: [...(profile.launch.command_arguments?.enabled_argument_ids ?? [])],
-      custom_args: [...(profile.launch.command_arguments?.custom_args ?? [])],
-    },
-    launch_game_only: false,
-    launch_trainer_only: false,
-    custom_env_vars: { ...profile.launch.custom_env_vars },
-    network_isolation: profile.launch.network_isolation ?? true,
-    gamescope: profile.launch.gamescope ?? DEFAULT_GAMESCOPE_CONFIG,
-    mangohud: profile.launch.mangohud ?? DEFAULT_MANGOHUD_CONFIG,
-    pre_launch_hooks: [...(profile.pre_launch_hooks ?? [])],
-    post_exit_hooks: [...(profile.post_exit_hooks ?? [])],
-  };
+/**
+ * Build the wizard's preview/validate request through the shared profile builder.
+ * The wizard has no saved profile name yet and uses the backend default umu preference.
+ * Returns `null` when the draft has no game executable path.
+ */
+export function buildLaunchRequest(profile: GameProfile, steamClientInstallPath: string): LaunchRequest | null {
+  return buildProfileLaunchRequest(profile, resolveLaunchMethod(profile), steamClientInstallPath, '', 'auto');
 }
 
 export function toStatusClass(state: SteamFieldState): string {

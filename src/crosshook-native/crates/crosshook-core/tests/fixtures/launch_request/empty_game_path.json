@@ -1,0 +1,124 @@
+{
+  "description": "blank game executable path is rejected",
+  "input": {
+    "profile": {
+      "game": {
+        "name": "Test Game",
+        "executable_path": "   ",
+        "custom_cover_art_path": "",
+        "custom_portrait_art_path": "",
+        "custom_background_art_path": ""
+      },
+      "trainer": {
+        "path": "/trainers/test/Trainer.exe",
+        "type": "fling",
+        "trainer_type": "unknown",
+        "loading_mode": "source_directory",
+        "required_protontricks": [],
+        "community_trainer_sha256": ""
+      },
+      "injection": {
+        "dll_paths": [],
+        "inject_on_launch": [],
+        "loaded_hooks": [],
+        "method": "disabled",
+        "stage": "trainer_launch",
+        "timeout_ms": 0,
+        "fallback": "warn_and_continue"
+      },
+      "steam": {
+        "enabled": false,
+        "app_id": "",
+        "compatdata_path": "",
+        "proton_path": "",
+        "launcher": {
+          "icon_path": "",
+          "display_name": ""
+        }
+      },
+      "runtime": {
+        "prefix_path": "",
+        "proton_path": "",
+        "working_directory": "",
+        "steam_app_id": "",
+        "umu_game_id": "",
+        "umu_store": "",
+        "umu_codename": ""
+      },
+      "launch": {
+        "method": "proton_run",
+        "optimizations": {
+          "enabled_option_ids": []
+        },
+        "command_arguments": {
+          "enabled_argument_ids": [],
+          "custom_args": []
+        },
+        "presets": {},
+        "active_preset": "",
+        "custom_env_vars": {},
+        "network_isolation": true,
+        "gamescope": {
+          "enabled": false,
+          "fullscreen": false,
+          "borderless": false,
+          "grab_cursor": false,
+          "force_grab_cursor": false,
+          "hdr_enabled": false,
+          "allow_nested": false,
+          "extra_args": []
+        },
+        "trainer_gamescope": {
+          "enabled": false,
+          "fullscreen": false,
+          "borderless": false,
+          "grab_cursor": false,
+          "force_grab_cursor": false,
+          "hdr_enabled": false,
+          "allow_nested": false,
+          "extra_args": []
+        },
+        "mangohud": {
+          "enabled": false,
+          "gpu_stats": false,
+          "cpu_stats": false,
+          "ram": false,
+          "frametime": false,
+          "battery": false,
+          "watt": false
+        }
+      },
+      "local_override": {
+        "game": {
+          "executable_path": "",
+          "custom_cover_art_path": "",
+          "custom_portrait_art_path": "",
+          "custom_background_art_path": ""
+        },
+        "trainer": {
+          "path": "",
+          "extra_protontricks": []
+        },
+        "steam": {
+          "compatdata_path": "",
+          "proton_path": ""
+        },
+        "runtime": {
+          "prefix_path": "",
+          "proton_path": ""
+        }
+      },
+      "pre_launch_hooks": [],
+      "post_exit_hooks": []
+    },
+    "steam_client_path": "/home/user/.steam/root",
+    "profile_name": "test-game",
+    "umu_default": "auto",
+    "is_flatpak": false
+  },
+  "expected": {
+    "method": "proton_run",
+    "trainer_method": "proton_run",
+    "error": "missing_game_path"
+  }
+}

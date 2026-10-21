@@ -1,5 +1,6 @@
 mod error;
 mod error_text;
+mod from_profile;
 mod issues;
 mod models;
 mod path_probe;
@@ -9,6 +10,7 @@ mod validation;
 mod tests;
 
 pub use error::ValidationError;
+pub use from_profile::LaunchRequestError;
 pub use issues::{LaunchValidationIssue, ValidationSeverity};
 pub use models::{
     is_inside_gamescope_session, LaunchCommandArgumentsRequest, LaunchOptimizationsRequest,

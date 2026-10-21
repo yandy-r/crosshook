@@ -30,6 +30,8 @@ pub use local_override::{
 };
 pub use mangohud::{MangoHudConfig, MangoHudPosition};
 pub use profile::GameProfile;
-pub use resolve::{resolve_art_app_id, resolve_launch_method, validate_steam_app_id};
+pub use resolve::{
+    resolve_art_app_id, resolve_launch_method, resolve_trainer_launch_method, validate_steam_app_id,
+};
 pub use runtime::RuntimeSection;
 pub use trainer::{TrainerLoadingMode, TrainerSection};

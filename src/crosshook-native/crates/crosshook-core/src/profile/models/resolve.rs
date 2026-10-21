@@ -24,6 +24,20 @@ pub fn resolve_launch_method(profile: &GameProfile) -> &str {
     METHOD_NATIVE
 }
 
+/// Returns the method a trainer subprocess actually executes with.
+///
+/// Flatpak Steam profiles launch their trainer through the direct Proton
+/// builder, so the trainer run is `proton_run`; elsewhere the profile's method
+/// passes through. Unknown methods fold to `native`.
+pub fn resolve_trainer_launch_method(profile_method: &str, is_flatpak: bool) -> &'static str {
+    match profile_method.trim() {
+        METHOD_STEAM_APPLAUNCH if is_flatpak => METHOD_PROTON_RUN,
+        METHOD_STEAM_APPLAUNCH => METHOD_STEAM_APPLAUNCH,
+        METHOD_PROTON_RUN => METHOD_PROTON_RUN,
+        _ => METHOD_NATIVE,
+    }
+}
+
 /// Returns the effective Steam App ID to use for art/metadata resolution.
 ///
 /// Priority: `steam.app_id` (non-empty) → `runtime.steam_app_id`.

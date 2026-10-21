@@ -1,0 +1,61 @@
+{
+  "description": "Older/partial saved proton_run profile omitting optional launch, runtime and hook keys (serde defaults)",
+  "input": {
+    "profile": {
+      "game": {
+        "name": "Sparse Game",
+        "executable_path": "/games/sparse/Game.exe"
+      },
+      "trainer": {
+        "path": "/trainers/sparse/Trainer.exe",
+        "type": "fling"
+      },
+      "steam": {
+        "enabled": false,
+        "app_id": "",
+        "compatdata_path": "",
+        "proton_path": ""
+      },
+      "runtime": {
+        "prefix_path": "/home/user/prefixes/sparse",
+        "proton_path": "/home/user/proton/proton",
+        "working_directory": ""
+      },
+      "launch": {
+        "method": "proton_run"
+      }
+    },
+    "steam_client_path": "/home/user/.steam/root",
+    "profile_name": "sparse-game",
+    "umu_default": "auto",
+    "is_flatpak": false
+  },
+  "expected": {
+    "method": "proton_run",
+    "trainer_method": "proton_run",
+    "request": {
+      "method": "proton_run",
+      "game_path": "/games/sparse/Game.exe",
+      "trainer_path": "/trainers/sparse/Trainer.exe",
+      "trainer_host_path": "/trainers/sparse/Trainer.exe",
+      "trainer_loading_mode": "source_directory",
+      "steam": {
+        "app_id": "",
+        "compatdata_path": "",
+        "proton_path": "",
+        "steam_client_install_path": "/home/user/.steam/root"
+      },
+      "runtime": {
+        "prefix_path": "/home/user/prefixes/sparse",
+        "proton_path": "/home/user/proton/proton",
+        "working_directory": ""
+      },
+      "optimizations": {},
+      "launch_trainer_only": false,
+      "launch_game_only": false,
+      "profile_name": "sparse-game",
+      "umu_preference": "auto",
+      "network_isolation": true
+    }
+  }
+}
