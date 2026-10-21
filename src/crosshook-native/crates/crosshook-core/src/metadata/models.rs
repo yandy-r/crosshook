@@ -576,14 +576,15 @@ pub enum RevisionIntegrity {
 /// Why a revision was verified by content hash only.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HashOnlyReason {
-    /// Legacy (pre-v28) or key-less insert: no signature stored.
+    /// Legacy (pre-v28 / pre-epoch) or key-less insert: no signature stored.
     Unsigned,
-    /// Signed with a different key (e.g. key file was recreated).
+    /// Pre-epoch row signed with a different key (e.g. key file was recreated).
     ForeignKey,
-    /// Signature uses an unrecognized format version.
-    UnknownVersion,
     /// This store has no signing key (missing/unreadable key file, in-memory store).
     KeyUnavailable,
+    /// Signed under the current key, but derived (rollback) from a revision
+    /// that itself only passed hash verification.
+    DerivedFromHashOnly,
 }
 
 impl HashOnlyReason {
@@ -591,8 +592,8 @@ impl HashOnlyReason {
         match self {
             Self::Unsigned => "unsigned",
             Self::ForeignKey => "foreign_key",
-            Self::UnknownVersion => "unknown_version",
             Self::KeyUnavailable => "key_unavailable",
+            Self::DerivedFromHashOnly => "derived_from_hash_only",
         }
     }
 }
@@ -602,6 +603,9 @@ impl HashOnlyReason {
 pub enum IntegrityFailure {
     ContentHashMismatch,
     SignatureMismatch,
+    /// Revision written after the key's signing epoch lacks a valid
+    /// current-key signature (stripped, foreign, or unknown format).
+    SignatureRequired,
 }
 
 impl Display for IntegrityFailure {
@@ -609,6 +613,7 @@ impl Display for IntegrityFailure {
         f.write_str(match self {
             Self::ContentHashMismatch => "content hash mismatch",
             Self::SignatureMismatch => "HMAC signature mismatch",
+            Self::SignatureRequired => "required HMAC signature missing or invalid",
         })
     }
 }

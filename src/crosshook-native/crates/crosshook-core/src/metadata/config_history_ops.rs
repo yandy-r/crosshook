@@ -1,8 +1,5 @@
-use super::config_history_hmac::SignatureCheck;
-use super::{config_history_store, sha256_hex, MetadataStore, MetadataStoreError};
-use crate::metadata::models::{
-    ConfigRevisionRow, ConfigRevisionSource, HashOnlyReason, IntegrityFailure, RevisionIntegrity,
-};
+use super::{config_history_hmac, config_history_store, MetadataStore, MetadataStoreError};
+use crate::metadata::models::{ConfigRevisionRow, ConfigRevisionSource, RevisionIntegrity};
 
 impl MetadataStore {
     /// Insert a config revision for the profile, skipping if the hash matches the
@@ -44,53 +41,28 @@ impl MetadataStore {
 
     /// Verify a stored revision before it is restored (ADR-0005).
     ///
-    /// Always recomputes the SHA-256 content hash. When the row carries a `v1`
-    /// signature made with this store's key, the HMAC is verified in constant
-    /// time. Either mismatch returns [`MetadataStoreError::IntegrityCheckFailed`].
-    /// Unsigned rows, foreign-key or unknown-format signatures, and a missing
-    /// key degrade to [`RevisionIntegrity::HashOnly`] with a warning.
+    /// Always recomputes the SHA-256 content hash. With a key loaded, every
+    /// revision written after the key's signing epoch must carry a valid
+    /// current-key signature: stripped, foreign, unknown-format, or
+    /// mismatching signatures return [`MetadataStoreError::IntegrityCheckFailed`].
+    /// Pre-epoch rows (legacy/unsigned or signed by an earlier key), derived
+    /// rows carrying `hash_only` trust, and stores without a key degrade to
+    /// [`RevisionIntegrity::HashOnly`] with a warning.
     pub fn verify_config_revision(
         &self,
         revision: &ConfigRevisionRow,
     ) -> Result<RevisionIntegrity, MetadataStoreError> {
-        if sha256_hex(revision.snapshot_toml.as_bytes()) != revision.content_hash {
-            return Err(MetadataStoreError::IntegrityCheckFailed {
-                revision_id: revision.id,
-                failure: IntegrityFailure::ContentHashMismatch,
-            });
+        let integrity =
+            config_history_hmac::verify_row(self.config_history_key.as_deref(), revision)?;
+        if let RevisionIntegrity::HashOnly { reason } = integrity {
+            tracing::warn!(
+                revision_id = revision.id,
+                profile_id = %revision.profile_id,
+                reason = reason.as_str(),
+                "config revision HMAC not verified; falling back to content-hash check"
+            );
         }
-
-        let reason = match (
-            revision.hmac_signature.as_deref(),
-            self.config_history_key.as_deref(),
-        ) {
-            (None, _) => HashOnlyReason::Unsigned,
-            (Some(_), None) => HashOnlyReason::KeyUnavailable,
-            (Some(signature), Some(key)) => match key.check(
-                signature,
-                &revision.profile_id,
-                &revision.content_hash,
-                &revision.snapshot_toml,
-            ) {
-                SignatureCheck::Valid => return Ok(RevisionIntegrity::Signed),
-                SignatureCheck::Mismatch => {
-                    return Err(MetadataStoreError::IntegrityCheckFailed {
-                        revision_id: revision.id,
-                        failure: IntegrityFailure::SignatureMismatch,
-                    })
-                }
-                SignatureCheck::ForeignKey => HashOnlyReason::ForeignKey,
-                SignatureCheck::UnknownVersion => HashOnlyReason::UnknownVersion,
-            },
-        };
-
-        tracing::warn!(
-            revision_id = revision.id,
-            profile_id = %revision.profile_id,
-            reason = reason.as_str(),
-            "config revision HMAC not verified; falling back to content-hash check"
-        );
-        Ok(RevisionIntegrity::HashOnly { reason })
+        Ok(integrity)
     }
 
     /// List config revisions for a profile ordered newest first.

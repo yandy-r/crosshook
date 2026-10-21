@@ -31,10 +31,20 @@ impl MetadataStore {
     pub fn with_path(path: &Path) -> Result<Self, MetadataStoreError> {
         let opened = db::open_at_path(path)?;
         let read_only = opened.status != MetadataStatus::Ok;
-        let config_history_key = opened
-            .conn
-            .as_ref()
-            .and_then(|_| config_history_hmac::open_for_store(path, !read_only));
+        // Signing epoch for a newly created key: every id ever assigned so far
+        // (AUTOINCREMENT high-water mark), so only later rows require signatures.
+        let config_history_key = opened.conn.as_ref().and_then(|conn| {
+            config_history_hmac::open_for_store(path, !read_only, || {
+                conn.query_row(
+                    "SELECT MAX(
+                         COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'config_revisions'), 0),
+                         COALESCE((SELECT MAX(id) FROM config_revisions), 0))",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .map_err(std::io::Error::other)
+            })
+        });
         Ok(Self {
             available: opened.conn.is_some(),
             conn: opened.conn.map(|conn| Arc::new(Mutex::new(conn))),

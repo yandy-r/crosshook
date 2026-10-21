@@ -45,15 +45,16 @@ pub const DATA_INCLUDE_SUBTREES: &[&str] = &[
     "crosshook/media",
     "crosshook/launchers",
 ];
-/// Metadata DB file set, copied as one all-or-nothing unit with the `.db` first.
-/// The config-history HMAC key (ADR-0005) travels with the DB so imported
-/// revision signatures keep verifying; `fs::copy` preserves its `0600` mode.
+/// Metadata DB trio, copied as one all-or-nothing unit with the `.db` first.
 pub const DATA_INCLUDE_FILES: &[&str] = &[
     "crosshook/metadata.db",
     "crosshook/metadata.db-wal",
     "crosshook/metadata.db-shm",
-    "crosshook/config_history_hmac.key",
 ];
+/// Config-history HMAC key (ADR-0005). Copied only alongside a DB import and
+/// only when the sandbox has no key, so imported signatures keep verifying.
+/// Never part of the "already imported" check.
+pub const DATA_INCLUDE_DB_COMPANION_FILE: &str = "crosshook/config_history_hmac.key";
 pub const DATA_SKIP_SUBTREES: &[&str] = &[
     "crosshook/prefixes",
     "crosshook/artifacts",
