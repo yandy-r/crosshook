@@ -3,7 +3,7 @@
 name = "crosshook-app"
 version.workspace = true
 edition = "2021"
-description = "Application scaffold: runtime owner handle, bounded event bus, and sanitized presenter errors."
+description = "Application layer: runtime owner handle, bounded event bus, sanitized presenter errors, and toolkit-independent services."
 
 [lints]
 
@@ -12,6 +12,17 @@ workspace = true
 [dependencies]
 
 crosshook-core = { path = "../crosshook-core" }
+serde = { version = "1", features = ["derive"] }
+static_assertions = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 thiserror = "2"
+tracing = "0.1"
+
+[dev-dependencies]
+
+flate2 = "1"
+serde_json = "1"
+tar = "0.4"
+tempfile = "3"
+toml = "1.1.0"

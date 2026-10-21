@@ -34,7 +34,7 @@ pub struct AppError {
 }
 
 impl AppError {
-    fn new(kind: AppErrorKind, message: impl Into<String>) -> Self {
+    pub(crate) fn new(kind: AppErrorKind, message: impl Into<String>) -> Self {
         Self {
             kind,
             message: sanitize_message(&message.into()),
@@ -112,12 +112,55 @@ impl From<crosshook_core::profile::ProfileStoreError> for AppError {
 impl From<crosshook_core::settings::SettingsStoreError> for AppError {
     fn from(error: crosshook_core::settings::SettingsStoreError) -> Self {
         use crosshook_core::settings::SettingsStoreError as E;
+        // Fixed strings only: TOML Display echoes source lines, which hold
+        // user paths that may live outside `$HOME`.
         match error {
             // `Io` may embed absolute paths; keep only the kind.
             E::Io(io) => Self::new(AppErrorKind::Io, io.kind().to_string()),
-            E::TomlDe(_) | E::TomlSer(_) => Self::new(
+            E::TomlDe(_) => Self::new(
                 AppErrorKind::Validation { field: "settings" },
-                error.to_string(),
+                "settings file is not valid TOML",
+            ),
+            E::TomlSer(_) => Self::new(AppErrorKind::Internal, "failed to serialize settings"),
+        }
+    }
+}
+
+impl From<crosshook_core::settings::RecentFilesStoreError> for AppError {
+    fn from(error: crosshook_core::settings::RecentFilesStoreError) -> Self {
+        use crosshook_core::settings::RecentFilesStoreError as E;
+        // Fixed strings only: TOML Display echoes source lines (recent paths).
+        match error {
+            // `Io` may embed absolute paths; keep only the kind.
+            E::Io(io) => Self::new(AppErrorKind::Io, io.kind().to_string()),
+            E::TomlDe(_) => Self::new(
+                AppErrorKind::Validation {
+                    field: "recent_files",
+                },
+                "recent files data is not valid TOML",
+            ),
+            E::TomlSer(_) => Self::new(AppErrorKind::Internal, "failed to serialize recent files"),
+        }
+    }
+}
+
+impl From<crosshook_core::export::DiagnosticBundleError> for AppError {
+    fn from(error: crosshook_core::export::DiagnosticBundleError) -> Self {
+        use crosshook_core::export::DiagnosticBundleError as E;
+        // Fixed strings only: `Io` carries the absolute path and archive
+        // messages may echo entry paths.
+        match error {
+            E::Io { action, source, .. } => Self::new(
+                AppErrorKind::Io,
+                format!("failed to {action}: {}", source.kind()),
+            ),
+            E::Archive(_) => Self::new(
+                AppErrorKind::Internal,
+                "failed to write the diagnostic archive",
+            ),
+            E::ProfileStore(_) => Self::new(
+                AppErrorKind::Internal,
+                "failed to read profiles for the diagnostic bundle",
             ),
         }
     }

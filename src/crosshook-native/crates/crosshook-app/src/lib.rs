@@ -1,7 +1,9 @@
-//! Application scaffold: an owner handle ([`App`]) over an explicit Tokio
-//! runtime and a bounded event bus. Runtime-only; persists nothing.
+//! Application layer: an owner handle ([`App`]) over an explicit Tokio
+//! runtime, a bounded event bus, sanitized presenter errors, and
+//! toolkit-independent [`services`] over `crosshook-core` stores.
 //!
-//! No Tauri or CLI wiring lives here. See the crate `README.md`.
+//! No UI toolkit dependency lives here; shells (Tauri, native UI) delegate to
+//! the services. See the crate `README.md`.
 
 #![deny(missing_docs)]
 
@@ -10,6 +12,7 @@ mod error;
 mod events;
 pub mod presenter;
 mod runtime;
+pub mod services;
 
 pub use app::App;
 pub use error::{AppError, AppErrorKind};

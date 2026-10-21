@@ -185,27 +185,27 @@ pub enum BackgroundError {
 
 ### Lifecycle
 
-1. **Startup.** The Tauri `.setup(...)` closure in `src-tauri/src/lib.rs` spawns one task on `tauri::async_runtime::spawn` that calls `request_background("keep CrossHook running during launches", /*autostart=*/false)` and hands the result to `BackgroundGrantHolder::store_result`. If `background_supported()` returns `false` the call short-circuits and no D-Bus traffic occurs.
-2. **Managed-state storage.** `BackgroundGrantHolder` is registered via `.manage(BackgroundGrantHolder::new())` and owns the RAII `BackgroundGrant` once `store_result` fires. Drop of the Tauri app (shutdown) drops the holder, which drops the grant, which closes the zbus connection.
-3. **Init synchronization.** The holder exposes `wait_for_initialization(timeout)` — an async method backed by `tokio::sync::Notify` that resolves either when `store_result` fires or when the timeout elapses. During the in-flight window sync readers (`protection_state`, `has_active_grant`) return `Pending` / `false`. Native builds are initialized from construction (they pre-arm the notifier), so waiting is a no-op.
-4. **Watchdog visibility.** `spawn_gamescope_watchdog` in `src-tauri/src/commands/launch.rs` does **not** block the launch on the grant; it spawns a sibling task that awaits `wait_for_initialization(500ms)` and logs the resolved state, so diagnostics reflect the final outcome rather than the initial `Pending`. Functionally the portal's session-scoped grant protects CrossHook regardless of when the watchdog spawned.
+1. **Startup.** The Tauri `.setup(...)` closure in `src-tauri/src/lib.rs` spawns one task on `tauri::async_runtime::spawn` that calls `BackgroundGrantHolder::request_and_store(&XdgBackgroundPortal)` (in `crates/crosshook-app/src/services/background.rs`), which calls `request_background("keep CrossHook running during game launches …", /*autostart=*/false)` and hands the result to `BackgroundGrantHolder::store_result`. If `background_supported()` returns `false` the call short-circuits and no D-Bus traffic occurs.
+2. **Managed-state storage.** `BackgroundGrantHolder` (owned by `crosshook-app`) is registered via `.manage(BackgroundGrantHolder::new())` and owns the RAII `BackgroundGrant` (as an opaque grant handle) once `store_result` fires. Drop of the Tauri app (shutdown) drops the holder, which drops the grant, which closes the zbus connection.
+3. **Init synchronization.** The holder exposes `wait_for_initialization(timeout)` — an async method backed by `tokio::sync::Notify` that resolves either when `store_result` fires or when the timeout elapses. During the in-flight window sync readers (`protection_state`, `has_active_grant`) return `Pending` / `false`. Native builds construct the holder with `initialized = true`, so `wait_for_initialization` returns immediately via its initialized early-return and waiting is a no-op.
+4. **Watchdog visibility.** `spawn_gamescope_watchdog` in `src-tauri/src/commands/launch/execution.rs` does **not** block the launch on the grant; it spawns a sibling task that awaits `wait_for_initialization(500ms)` and logs the resolved state, so diagnostics reflect the final outcome rather than the initial `Pending`. Functionally the portal's session-scoped grant protects CrossHook regardless of when the watchdog spawned.
 5. **Denial path.** If the portal denies the request (KDE Plasma, for example, can prompt the user and the user can decline), `store_result` surfaces `BackgroundProtectionState::Degraded`, we log a single `tracing::warn!` via the setup task, and the host tool dashboard renders the `background_protection` capability row as `CapabilityState::Degraded` (§Capability integration below). The launch still proceeds — we do not block the user.
 
 ### Call-site table
 
-| Call site                                                                                           | Action                                                                                                   | Contract function                                                        |
-| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| Tauri `.setup(...)` closure in `src-tauri/src/lib.rs`                                               | Spawn one task: `request_background("...", false)`, hand result to `BackgroundGrantHolder::store_result` | `request_background`                                                     |
-| `spawn_gamescope_watchdog` in `src-tauri/src/commands/launch.rs`                                    | Spawn a sibling task that awaits `wait_for_initialization(500ms)` and logs the resolved grant state      | `background_supported`, `BackgroundGrantHolder::wait_for_initialization` |
-| (Future) Portal `Running` signal handler                                                            | If the portal revokes background and the watchdog is still active, re-request once                       | `request_background`                                                     |
-| Synthetic `background_protection` capability, exposed via `get_background_protection_state` command | Derive the dashboard row from `protection_state()` — `Pending` surfaces as an indeterminate row          | `background_supported`, `BackgroundGrantHolder::protection_state`        |
+| Call site                                                                                           | Action                                                                                              | Contract function                                                        |
+| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Tauri `.setup(...)` closure in `src-tauri/src/lib.rs`                                               | Spawn one task: `BackgroundGrantHolder::request_and_store(&XdgBackgroundPortal)` → `store_result`   | `request_background`                                                     |
+| `spawn_gamescope_watchdog` in `src-tauri/src/commands/launch/execution.rs`                          | Spawn a sibling task that awaits `wait_for_initialization(500ms)` and logs the resolved grant state | `background_supported`, `BackgroundGrantHolder::wait_for_initialization` |
+| (Future) Portal `Running` signal handler                                                            | If the portal revokes background and the watchdog is still active, re-request once                  | `request_background`                                                     |
+| Synthetic `background_protection` capability, exposed via `get_background_protection_state` command | Derive the dashboard row from `protection_state()` — `Pending` surfaces as an indeterminate row     | `background_supported`, `BackgroundGrantHolder::protection_state`        |
 
 ### Scope boundaries
 
 - **CrossHook itself, not host games.** `RequestBackground` is a sandbox-scoped contract: it tells the portal "do not reap my sandbox process." Host games run outside the sandbox and are never passed to this API. This aligns with [`docs/research/flatpak-bundling/12-risks.md`](../research/flatpak-bundling/12-risks.md) §1 Correction 2.
 - **No autostart.** CrossHook is not a system daemon. We pass `autostart: false` unconditionally; the user launches CrossHook explicitly.
 - **No singleton.** We explicitly do not install a global static `BackgroundGrant`. Ownership sits in Tauri's managed state so tests can construct a sandbox without leaking tokio tasks.
-- **Fake-able seam for tests.** The portal call goes through a thin trait `BackgroundPortal` with a live `ZbusBackgroundPortal` impl and a `#[cfg(test)] FakeBackgroundPortal`. Unit tests for the capability integration inject the fake without touching D-Bus.
+- **Fake-able seam for tests.** The portal call goes through the `BackgroundPortal` trait in `crosshook-app` (`supported()`, async `request(reason, autostart)`) with the live `XdgBackgroundPortal` impl; unit tests inject a fake portal and grant handle without touching D-Bus.
 
 ### Capability integration
 
@@ -220,7 +220,7 @@ A new synthetic capability `background_protection` joins the existing host-tool 
 
 This integrates cleanly with `crosshook-core/src/onboarding/capability.rs::check_generalized_readiness` — it's derived state, not a persisted column, so **no SQLite schema change is required** (schema v21 unchanged).
 
-> **UI integration deferred.** The `get_background_protection_state` Tauri command is registered and present in `.invoke_handler`, but no TypeScript consumer currently calls it. A `// TODO(frontend)` comment is in place at the command site in `src-tauri/src/background_portal.rs`. Wiring the dashboard row is tracked as a follow-up frontend task.
+> **UI integration deferred.** The `get_background_protection_state` Tauri command (in `src-tauri/src/commands/background.rs`, backed by `BackgroundGrantHolder` in `crates/crosshook-app/src/services/background.rs`) is registered and present in `.invoke_handler`, but no TypeScript consumer currently calls it. Wiring the dashboard row is tracked as a follow-up frontend task.
 
 ### Error handling
 

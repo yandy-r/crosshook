@@ -47,6 +47,29 @@ pub struct DiagnosticBundleOptions {
     pub metadata_status: Option<MetadataStatus>,
     /// Owned metadata backup files to list in `metadata-status.json`.
     pub metadata_backup_files: Vec<PathBuf>,
+    /// Caller-supplied files written under the bundle's
+    /// [`DIAGNOSTIC_BUNDLE_EXTRA_FILES_DIR`] subdirectory. Each name must pass
+    /// [`is_valid_bundle_file_name`]; contents are archived verbatim.
+    pub extra_files: Vec<DiagnosticBundleFile>,
+}
+
+/// Bundle subdirectory holding [`DiagnosticBundleOptions::extra_files`].
+pub const DIAGNOSTIC_BUNDLE_EXTRA_FILES_DIR: &str = "app";
+
+/// A caller-supplied file to include in the diagnostic bundle.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiagnosticBundleFile {
+    /// Single relative file name (no separators, `..`, or NUL).
+    pub name: String,
+    /// Raw file contents.
+    pub contents: Vec<u8>,
+}
+
+/// Returns `true` when `name` is a single relative file name that is safe to
+/// place under [`DIAGNOSTIC_BUNDLE_EXTRA_FILES_DIR`]: non-empty, not `.` or
+/// `..`, and free of `/`, `\`, and NUL.
+pub fn is_valid_bundle_file_name(name: &str) -> bool {
+    !name.is_empty() && name != "." && name != ".." && !name.contains(['/', '\\', '\0'])
 }
 
 /// Result returned after successful bundle creation.
@@ -110,6 +133,16 @@ pub fn export_diagnostic_bundle(
     settings_store: &SettingsStore,
     options: &DiagnosticBundleOptions,
 ) -> Result<DiagnosticBundleResult, DiagnosticBundleError> {
+    if options
+        .extra_files
+        .iter()
+        .any(|file| !is_valid_bundle_file_name(&file.name))
+    {
+        return Err(DiagnosticBundleError::Archive(
+            "invalid extra file name".to_string(),
+        ));
+    }
+
     let timestamp = Utc::now().format("%Y%m%d-%H%M%S").to_string();
     let prefix = format!("crosshook-diagnostics-{timestamp}");
     let archive_name = format!("{prefix}.tar.gz");
@@ -183,6 +216,11 @@ pub fn export_diagnostic_bundle(
     }
 
     let log_file_count = app_logs.len() + launch_logs.len();
+
+    for file in &options.extra_files {
+        let entry_path = format!("{DIAGNOSTIC_BUNDLE_EXTRA_FILES_DIR}/{}", file.name);
+        append_bytes(&mut tar, &prefix, &entry_path, &file.contents)?;
+    }
 
     // Finalize the archive.
     let encoder = tar
@@ -315,6 +353,10 @@ mod tests {
             output_dir: Some(output_dir),
             metadata_status: Some(MetadataStatus::Ok),
             metadata_backup_files: Vec::new(),
+            extra_files: vec![DiagnosticBundleFile {
+                name: "ui.log".to_string(),
+                contents: b"hello".to_vec(),
+            }],
         };
 
         let result = export_diagnostic_bundle(&profile_store, &settings_store, &options).unwrap();
@@ -362,5 +404,33 @@ mod tests {
         assert!(entry_paths
             .iter()
             .any(|p| p.contains("profiles/test-game.toml")));
+        assert!(entry_paths.iter().any(|p| p.ends_with("/app/ui.log")));
+    }
+
+    #[test]
+    fn bundle_file_name_validation_rejects_unsafe_names() {
+        for bad in ["", ".", "..", "a/b", "a\\b", "../x", "nul\0"] {
+            assert!(!is_valid_bundle_file_name(bad), "{bad:?} must be rejected");
+        }
+        assert!(is_valid_bundle_file_name("ui.log"));
+        assert!(is_valid_bundle_file_name("..hidden"));
+    }
+
+    #[test]
+    fn export_rejects_invalid_extra_file_name_without_writing() {
+        let temp = tempdir().unwrap();
+        let output_dir = temp.path().join("output");
+        let options = DiagnosticBundleOptions {
+            output_dir: Some(output_dir.clone()),
+            extra_files: vec![DiagnosticBundleFile {
+                name: "../escape".to_string(),
+                contents: Vec::new(),
+            }],
+            ..Default::default()
+        };
+        let profile_store = ProfileStore::with_base_path(temp.path().join("profiles"));
+        let settings_store = SettingsStore::with_base_path(temp.path().join("settings"));
+        assert!(export_diagnostic_bundle(&profile_store, &settings_store, &options).is_err());
+        assert!(!output_dir.exists());
     }
 }

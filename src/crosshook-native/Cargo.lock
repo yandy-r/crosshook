@@ -639,9 +639,17 @@ name = "crosshook-app"
 version = "0.6.0"
 dependencies = [
  "crosshook-core",
+ "flate2",
+ "serde",
+ "serde_json",
+ "static_assertions",
+ "tar",
+ "tempfile",
  "thiserror 2.0.18",
  "tokio",
  "tokio-util",
+ "toml 1.1.2+spec-1.1.0",
+ "tracing",
 ]
 
 [[package]]
@@ -698,11 +706,11 @@ name = "crosshook-native"
 version = "0.6.0"
 dependencies = [
  "chrono",
+ "crosshook-app",
  "crosshook-core",
  "nix",
  "serde",
  "serde_json",
- "static_assertions",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",

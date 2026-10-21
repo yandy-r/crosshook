@@ -1,12 +1,12 @@
-mod background_portal;
 mod commands;
 mod paths;
 mod startup;
 
-pub use background_portal::{
-    get_background_protection_state, BackgroundGrantHolder, BackgroundProtectionState,
-};
+pub use crosshook_app::services::{BackgroundGrantHolder, BackgroundProtectionState};
 
+use crosshook_app::services::{
+    DiagnosticsService, RecentFilesService, SettingsService, XdgBackgroundPortal,
+};
 use crosshook_core::app_id_migration::migrate_legacy_tauri_app_id_xdg_directories;
 use crosshook_core::community::CommunityTapStore;
 use crosshook_core::flatpak_migration::{is_host_xdg_opt_in, MigrationOutcome};
@@ -362,33 +362,13 @@ pub fn run() {
                 // contract). Request once at startup so the sandbox-side
                 // `gamescope_watchdog` survives the user minimizing the
                 // Tauri window during long game sessions.
-                // Native builds short-circuit inside `request_background`
-                // and make zero D-Bus calls.
+                // Native builds short-circuit inside the portal request and
+                // make zero D-Bus calls.
                 {
                     let app_handle = app.handle().clone();
                     tauri::async_runtime::spawn(async move {
-                        let result = crosshook_core::platform::portals::background::request_background(
-                            "keep CrossHook running during game launches so the watchdog can clean up gamescope on exit",
-                            false,
-                        )
-                        .await;
-                        if let Err(error) = &result {
-                            match error {
-                                crosshook_core::platform::portals::background::BackgroundError::NotSandboxed => {
-                                    tracing::debug!(
-                                        "background portal: not running under Flatpak; skipping RequestBackground"
-                                    );
-                                }
-                                other => {
-                                    tracing::warn!(
-                                        %other,
-                                        "background portal: RequestBackground failed; watchdog protection degraded"
-                                    );
-                                }
-                            }
-                        }
                         let holder = app_handle.state::<BackgroundGrantHolder>();
-                        holder.store_result(result);
+                        holder.request_and_store(&XdgBackgroundPortal).await;
                     });
                 }
 
@@ -396,9 +376,21 @@ pub fn run() {
             }
         })
         .manage(BackgroundGrantHolder::new())
+        .manage(SettingsService::new(
+            settings_store.clone(),
+            profile_store.base_path.clone(),
+        ))
+        .manage(RecentFilesService::new(
+            settings_store.clone(),
+            recent_files_store,
+        ))
+        .manage(DiagnosticsService::new(
+            profile_store.clone(),
+            settings_store.clone(),
+            metadata_store.clone(),
+        ))
         .manage(profile_store)
         .manage(settings_store)
-        .manage(recent_files_store)
         .manage(community_tap_store)
         .manage(metadata_store)
         .manage(commands::update::UpdateProcessState::new())
@@ -536,7 +528,7 @@ pub fn run() {
             commands::onboarding::probe_host_tool_details,
             commands::onboarding::get_cached_host_readiness_snapshot,
             commands::onboarding::get_capabilities,
-            get_background_protection_state,
+            commands::background::get_background_protection_state,
             commands::onboarding::dismiss_onboarding,
             commands::onboarding::dismiss_umu_install_nag,
             commands::onboarding::dismiss_steam_deck_caveats,
