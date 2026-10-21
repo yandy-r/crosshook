@@ -21,49 +21,94 @@ and without making history unusable when the evidence cannot be checked.
 
 1. **Signature column.** Migration v27→v28 adds nullable `config_revisions.hmac_signature TEXT`. Existing rows are
    not touched and stay `NULL`.
-2. **Key.** A 32-byte key from the OS CSPRNG (`getrandom`) is stored as `config_history_hmac.key` in the same directory
-   as `metadata.db` (normally `~/.local/share/crosshook/`), mode `0600`. Creation writes and fsyncs a private temp file
-   in that directory, then publishes it with a no-replace rename/link (`tempfile::persist_noclobber`). An existing key
-   is never overwritten; a process that loses the creation race reads the winner's key. Reads refuse symlinks and
-   non-regular files and require exactly 32 bytes. Only writable stores create a key; read-only stores (newer schema,
-   disabled) load an existing one. In-memory and disabled stores have no key.
-3. **Signing.** `MetadataStore::insert_config_revision` signs every new row after the existing dedup check:
-   HMAC-SHA256 over the domain-separated, length-prefixed message
-   `tag ‖ profile_id ‖ content_hash ‖ snapshot_toml`, where each field is a u64 big-endian length followed by its bytes
-   and `tag = "crosshook.config_revision.v1"`. The stored value is self-describing: `v1:<key_id>:<hex_mac>`, with
-   `key_id` = the first 8 bytes (16 hex chars) of SHA-256(key). The key id does not reveal the key.
+2. **Key and signing epoch.** The key file `config_history_hmac.key` sits in the same directory as `metadata.db`
+   (normally `~/.local/share/crosshook/`), mode `0600`, exactly 40 bytes:
+   - a 32-byte key from the OS CSPRNG (`getrandom`);
+   - a u64 big-endian **signing epoch** `signed_from`: the `config_revisions` AUTOINCREMENT high-water mark
+     (`MAX(sqlite_sequence, MAX(id))`) when the key was created.
+
+   Every revision with `id > signed_from` was written under this key. The epoch lives outside SQLite, so an attacker
+   who can only edit the DB cannot move it.
+
+   Creation writes and fsyncs a private temp file in that directory, then publishes it with a no-replace rename/link
+   (`tempfile::persist_noclobber`). An existing key is never overwritten, and a process that loses the creation race
+   reads the winner's key.
+
+   Loading opens with `O_NOFOLLOW` and runs `fstat` on the open handle. It rejects non-regular files, files owned by
+   another uid, and any length other than 40. Group or other permission bits are reset on the open handle to `0600`,
+   with a warning. Key bytes live in `Zeroizing` buffers, and `hmac` is built with `zeroize`.
+
+   Only writable stores create a key. They also remove crash-leftover `.config_history_hmac.key.*` temp files that are
+   regular, owned by us, and older than one hour. Read-only stores (newer schema, disabled) only load. In-memory and
+   disabled stores have no key.
+
+3. **Signing.** `MetadataStore::insert_config_revision` inserts the row after the existing dedup check. In the same
+   savepoint it then stores `v1:<key_id>:<trust>:<hex_mac>`:
+   - The MAC is HMAC-SHA256 over the length-prefixed (u64 big-endian) fields
+     `tag ‖ id ‖ profile_id ‖ source ‖ created_at ‖ content_hash ‖ snapshot_toml ‖ trust`, with
+     `tag = "crosshook.config_revision.v1"`.
+   - `key_id` is the first 8 bytes (16 hex chars) of SHA-256(key) and does not reveal the key.
+   - `trust` is `verified` for live saves.
+   - A revision derived from `source_revision_id` (rollback) is `verified` only when core re-verifies the source row
+     as fully `Signed`. Otherwise it is `hash_only`. The source's stored trust value is never read without a MAC
+     check.
+
+   This decision lives in core, so src-tauri is unchanged.
+
 4. **Verification.** `MetadataStore::verify_config_revision(&ConfigRevisionRow)` in `crosshook-core` always re-checks
-   the SHA-256 content hash, then verifies the HMAC in constant time (`Mac::verify_slice`) when the signature is `v1`
-   and its key id matches the current key. It returns `RevisionIntegrity::Signed` or
-   `RevisionIntegrity::HashOnly { reason }`, or `MetadataStoreError::IntegrityCheckFailed` (content-hash mismatch or
-   signature mismatch). `profile_config_rollback` calls it in place of its old inline hash check and rejects the
-   rollback on error.
+   the SHA-256 content hash. MACs are compared in constant time (`Mac::verify_slice`).
+   - With a key loaded and `id > signed_from`, only a valid current-key signature passes:
+     - `verified` gives `Signed`;
+     - `hash_only` gives `HashOnly { DerivedFromHashOnly }`;
+     - a `NULL`, foreign-key, or unknown-format signature gives `IntegrityCheckFailed { SignatureRequired }`;
+     - a MAC or trust mismatch gives `IntegrityCheckFailed { SignatureMismatch }`.
+   - Unknown formats and same-key mismatches are rejected for any row while a key is loaded.
+   - `profile_config_rollback` calls this function in place of its old inline hash check and rejects the rollback on
+     error.
 5. **Degraded paths.** These cases fall back to the hash check, log a `tracing::warn!` (revision id, profile id, and
    reason only; never key material or MACs), and let the rollback proceed:
-   - `NULL` signature (legacy row or key-less insert) → `HashOnly { Unsigned }`
-   - a different key id (key file deleted and recreated, or a DB copied from another machine) → `HashOnly { ForeignKey }`
-   - an unknown version prefix → `HashOnly { UnknownVersion }`
-   - a missing or unreadable key → `HashOnly { KeyUnavailable }`
+   - a pre-epoch row with a `NULL` signature (legacy, written before the key existed) → `HashOnly { Unsigned }`
+   - a pre-epoch row signed by an earlier key (the key file was deleted and recreated) → `HashOnly { ForeignKey }`
+   - a missing or unreadable key → `HashOnly { Unsigned }` or `HashOnly { KeyUnavailable }`
+   - a derived row carrying `hash_only` trust → `HashOnly { DerivedFromHashOnly }`
 
    If no key is available at insert time, the revision is still inserted, unsigned, with a warning. History is never
    dropped and dedup is unchanged.
 
-6. **Flatpak import.** `crosshook/config_history_hmac.key` joins `DATA_INCLUDE_FILES`, the all-or-nothing metadata DB
-   file set in `flatpak_migration`. It is copied after the `.db` with the same idempotency and rollback rules, and
-   `fs::copy` keeps its `0600` mode, so imported signatures keep verifying inside the sandbox.
+6. **Flatpak import.** `DATA_INCLUDE_FILES` stays the DB trio (`.db`, `-wal`, `-shm`), and only the trio decides
+   whether the DB counts as already imported. `crosshook/config_history_hmac.key` is a companion file:
+   - it is copied only when the DB is copied in the same run, and only when the sandbox has no key;
+   - the destination is set to `0600`;
+   - a pre-existing sandbox key is never removed on rollback.
 7. **IPC.** Unchanged. `ConfigRevisionRow` is not serialized, and `ConfigRevisionSummary` gains no field. Neither the
    key nor the signature crosses IPC.
 
 ## Threat model
 
-- **In scope (tamper evidence):** edits made only through the database (direct SQLite edits, a third-party tool
-  rewriting `metadata.db`, a DB file swapped in from elsewhere) and silent corruption. If the key file is intact, a
-  forged `snapshot_toml` with a recomputed `content_hash` fails the HMAC check and rollback is refused.
+- **In scope (tamper evidence):** edits made only through the database (direct SQLite edits, or a third-party tool
+  rewriting `metadata.db`) and silent corruption. If the key file is intact, all of these are rejected for any
+  revision written after the signing epoch:
+  - a forged `snapshot_toml` with a recomputed `content_hash`;
+  - stripping, replacing, or reformatting the signature;
+  - flipping its trust value;
+  - moving a signed snapshot into another row (the id is in the MAC);
+  - changing a row's `source` or `created_at`.
+
+  Forged content that passes only hash verification is never upgraded to `Signed`, because rollbacks from it carry
+  `hash_only` trust.
+
 - **Out of scope:** an attacker with filesystem access as the user. They can read the key and forge signatures, or
-  edit the profile TOML directly. This is evidence, not protection. Replacing or deleting the key makes earlier
-  signatures foreign, so they degrade to hash-only. That is deliberate, so a lost key never blocks recovery.
-- **Not covered:** removing rows, or resetting `hmac_signature` to `NULL` (that row degrades to hash-only with a
-  warning). Rollback still writes only snapshots whose content hash matches.
+  edit the profile TOML directly. This is evidence, not protection. Replacing or deleting the key resets the epoch to
+  the current high-water mark, so earlier signatures become foreign and pre-epoch rows degrade to hash-only. That is
+  deliberate, so a lost key never blocks recovery.
+- **Residual risk (by design):**
+  - **Rows at or below the epoch** (legacy pre-v28 history, rows from before a key was recreated) are hash-only. A
+    DB-only attacker can still change them with a recomputed hash. Rollback warns, and anything derived from them
+    stays `hash_only`.
+  - **Profile-name repointing:** editing `profiles` so that profile X's name points to profile Y's `profile_id`
+    would restore Y's validly signed snapshot into `X.toml`. The content is still CrossHook-authored.
+  - **Row deletion** and edits to columns outside the MAC (`profile_name_at_write`, `source_revision_id`,
+    `is_last_known_working`) are not detected.
 
 ## Storage boundary
 
@@ -81,7 +126,8 @@ No TOML settings are added.
   older binaries cannot read is never produced.
 - **Offline:** fully local. No network.
 - **Degraded behavior:** a missing or unreadable key gives unsigned inserts and hash-only rollback with warnings.
-  Deleting the key recreates it on the next writable start, and older signatures report as foreign-key (hash-only).
+  Deleting the key recreates it on the next writable start with a new epoch. Older rows then fall at or below the
+  epoch and verify hash-only (foreign key).
 - **User visibility / editability:** no UI. Users can inspect, back up, or delete the key file. An integrity failure
   appears as the existing rollback error string
   (`integrity check failed for revision N: HMAC signature mismatch`).
@@ -94,7 +140,8 @@ inserts leave `hmac_signature` `NULL`, and those rows verify hash-only after upg
 
 ## Consequences
 
-- Rollback refuses forged revisions while the key is intact, with no UI changes.
+- Rollback refuses forged or signature-stripped revisions written after the epoch while the key is intact, with no UI
+  changes.
 - One more `0600` secret file sits next to `metadata.db`. Backup and restore tooling should copy it together with the
   DB to keep signatures verifiable. Restores without it still work, hash-only.
 - New dependencies: `hmac 0.13` (digest 0.11, matching `sha2 0.11`) and `getrandom 0.4`, which was already in the
