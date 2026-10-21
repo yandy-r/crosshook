@@ -10,7 +10,10 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { buildLaunchRequest as buildCommunityLaunchRequest } from '@/components/community-import/utils';
+import {
+  buildLaunchRequest as buildCommunityLaunchRequest,
+  normalizeProfile,
+} from '@/components/community-import/utils';
 import { applyLaunchPhase } from '@/hooks/useLaunchState';
 import { LaunchPhase, type LaunchRequest } from '@/types';
 import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG, type GameProfile } from '@/types/profile';
@@ -164,8 +167,9 @@ describe('launch request golden fixtures', () => {
       expect(normalizeRequest(request)).toEqual(normalizeRequest(expected.request));
     });
 
-    it('community-import buildLaunchRequest matches with no profile name and auto umu default', () => {
-      const request = buildCommunityLaunchRequest(profile, input.steam_client_path);
+    it('community-import buildLaunchRequest on the normalized draft matches with no profile name and auto umu default', () => {
+      // The wizard always normalizes the draft first; building from it proves normalizeProfile keeps the runtime umu fields.
+      const request = buildCommunityLaunchRequest(normalizeProfile(profile), input.steam_client_path);
 
       if (expected.error) {
         expect(request).toBeNull();
@@ -180,20 +184,22 @@ describe('launch request golden fixtures', () => {
         })
       );
     });
+  });
 
-    it.skipIf(Boolean(expected.error))('applyLaunchPhase only flips the phase flags', () => {
-      const request = normalizeRequest(expected.request) as unknown as LaunchRequest;
+  it('applyLaunchPhase flips only the phase flags of a from_profile request', () => {
+    const golden = cases.find(([, c]) => !c.expected.error)?.[1];
+    expect(golden).toBeDefined();
+    const request = normalizeRequest(golden?.expected.request) as unknown as LaunchRequest;
 
-      expect(applyLaunchPhase(request, LaunchPhase.GameLaunching)).toEqual({
-        ...request,
-        launch_game_only: true,
-        launch_trainer_only: false,
-      });
-      expect(applyLaunchPhase(request, LaunchPhase.TrainerLaunching)).toEqual({
-        ...request,
-        launch_game_only: false,
-        launch_trainer_only: true,
-      });
+    expect(applyLaunchPhase(request, LaunchPhase.GameLaunching)).toEqual({
+      ...request,
+      launch_game_only: true,
+      launch_trainer_only: false,
+    });
+    expect(applyLaunchPhase(request, LaunchPhase.TrainerLaunching)).toEqual({
+      ...request,
+      launch_game_only: false,
+      launch_trainer_only: true,
     });
   });
 });

@@ -160,7 +160,7 @@ About 3,500 lines of use-case orchestration live in `src-tauri`:
   - community import workspace containment;
   - the storage-cleanup allow-list checked against a fresh scan.
 
-`LaunchRequest` is built in four places: three TypeScript `buildLaunchRequest` copies and one in the CLI.
+`LaunchRequest` was built in four places: three TypeScript `buildLaunchRequest` copies and one in the CLI. Since M1-01 (YAN-892), `LaunchRequest::from_profile` in `crosshook-core` is the only Rust builder; the CLI copy is gone, the community-import builder delegates to `buildProfileLaunchRequest`, and shared golden fixtures (`crates/crosshook-core/tests/fixtures/launch_request/`) keep the TypeScript builder aligned until React is removed.
 
 Several pieces of logic exist only in TypeScript:
 
