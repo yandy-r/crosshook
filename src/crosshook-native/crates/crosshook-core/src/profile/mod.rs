@@ -43,13 +43,13 @@ pub use lutris_import::{
     LutrisImportPreview, LutrisImportResult,
 };
 pub use models::{
-    resolve_art_app_id, resolve_launch_method, validate_steam_app_id, CollectionDefaultsSection,
-    GameProfile, GameSection, GamescopeConfig, GamescopeFilter, HookStage, InjectionFallback,
-    InjectionMethod, InjectionSection, InjectionStage, LaunchHook, LaunchOptimizationsSection,
-    LaunchSection, LauncherSection, LegacyProfileData, LoadedDllHook, LocalOverrideGameSection,
-    LocalOverrideRuntimeSection, LocalOverrideSection, LocalOverrideSteamSection,
-    LocalOverrideTrainerSection, MangoHudConfig, MangoHudPosition, RuntimeSection, SteamSection,
-    TrainerLoadingMode, TrainerSection,
+    resolve_art_app_id, resolve_launch_method, resolve_trainer_launch_method,
+    validate_steam_app_id, CollectionDefaultsSection, GameProfile, GameSection, GamescopeConfig,
+    GamescopeFilter, HookStage, InjectionFallback, InjectionMethod, InjectionSection,
+    InjectionStage, LaunchHook, LaunchOptimizationsSection, LaunchSection, LauncherSection,
+    LegacyProfileData, LoadedDllHook, LocalOverrideGameSection, LocalOverrideRuntimeSection,
+    LocalOverrideSection, LocalOverrideSteamSection, LocalOverrideTrainerSection, MangoHudConfig,
+    MangoHudPosition, RuntimeSection, SteamSection, TrainerLoadingMode, TrainerSection,
 };
 pub use toml_store::{
     bundled_optimization_preset_toml_key, profile_to_shareable_toml,

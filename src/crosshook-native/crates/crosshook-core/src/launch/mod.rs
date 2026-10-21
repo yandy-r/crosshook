@@ -54,9 +54,9 @@ pub use optimizations::{
 };
 pub use preview::{build_launch_preview, LaunchPreview};
 pub use request::{
-    is_inside_gamescope_session, validate, validate_all, LaunchRequest, LaunchValidationIssue,
-    RuntimeLaunchConfig, SteamLaunchConfig, SteamLaunchRequest, ValidationError,
-    ValidationSeverity, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
+    is_inside_gamescope_session, validate, validate_all, LaunchRequest, LaunchRequestError,
+    LaunchValidationIssue, RuntimeLaunchConfig, SteamLaunchConfig, SteamLaunchRequest,
+    ValidationError, ValidationSeverity, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };
 pub use runtime_helpers::{launch_platform_capabilities, LaunchPlatformCapabilities};
 pub use session::{

@@ -5,14 +5,13 @@ use std::process::Stdio;
 use crate::args::{GlobalOptions, LaunchCommand};
 use crate::cli_error::CliError;
 use crate::store::profile_store;
-use crosshook_core::launch::request::{LaunchCommandArgumentsRequest, LaunchOptimizationsRequest};
 use crosshook_core::launch::{
-    self, build_launch_preview, LaunchRequest, RuntimeLaunchConfig, SteamLaunchConfig,
-    ValidationSeverity, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
+    self, build_launch_preview, LaunchRequest, ValidationSeverity, METHOD_NATIVE,
+    METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };
 use crosshook_core::metadata::MetadataStore;
-use crosshook_core::profile::{resolve_launch_method, GameProfile};
-use crosshook_core::settings::{SettingsStore, UmuPreference};
+use crosshook_core::profile::resolve_launch_method;
+use crosshook_core::settings::SettingsStore;
 use crosshook_core::umu_database;
 use tokio::fs::{self, OpenOptions};
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
@@ -43,14 +42,17 @@ pub(crate) async fn launch_profile(
     let settings = settings_store
         .load()
         .map_err(|e| CliError::General(format!("settings load: {e}")))?;
-    // Profile runtime override takes precedence over the global default.
-    let effective_umu_preference = profile
-        .runtime
-        .umu_preference
-        .unwrap_or(settings.umu_preference);
-    let mut request =
-        launch_request_from_profile(&profile, &profile_name, effective_umu_preference)
-            .map_err(|e| CliError::LaunchFailure(e.to_string()))?;
+    let steam_client_install_path =
+        resolve_steam_client_install_path(&profile.steam.compatdata_path);
+    let mut request = LaunchRequest::from_profile(
+        &profile,
+        resolve_launch_method(&profile),
+        &steam_client_install_path.to_string_lossy(),
+        &profile_name,
+        settings.umu_preference,
+    )
+    .map_err(|e| CliError::LaunchFailure(e.to_string()))?;
+    request.launch_game_only = true;
     let metadata_store = MetadataStore::try_new().unwrap_or_else(|_| MetadataStore::disabled());
     request.resolved_umu_game_id = Some(
         umu_database::resolve_umu_game_id(&request, settings.umu_database_lookup, &metadata_store)
@@ -186,79 +188,6 @@ pub(crate) async fn launch_profile(
     }
 
     Ok(())
-}
-
-fn launch_request_from_profile(
-    profile: &GameProfile,
-    profile_name: &str,
-    umu_preference: UmuPreference,
-) -> Result<LaunchRequest, Box<dyn Error>> {
-    let method = resolve_launch_method(profile);
-    let steam_client_install_path =
-        resolve_steam_client_install_path(&profile.steam.compatdata_path);
-
-    Ok(LaunchRequest {
-        method: method.to_string(),
-        game_path: profile.game.executable_path.clone(),
-        trainer_path: profile.trainer.path.clone(),
-        trainer_host_path: profile.trainer.path.clone(),
-        trainer_loading_mode: profile.trainer.loading_mode,
-        steam: match method {
-            METHOD_STEAM_APPLAUNCH => SteamLaunchConfig {
-                app_id: profile.steam.app_id.clone(),
-                compatdata_path: profile.steam.compatdata_path.clone(),
-                proton_path: profile.steam.proton_path.clone(),
-                steam_client_install_path: steam_client_install_path.to_string_lossy().into_owned(),
-            },
-            _ => SteamLaunchConfig {
-                steam_client_install_path: steam_client_install_path.to_string_lossy().into_owned(),
-                ..Default::default()
-            },
-        },
-        runtime: match method {
-            METHOD_PROTON_RUN => RuntimeLaunchConfig {
-                prefix_path: profile.runtime.prefix_path.clone(),
-                proton_path: profile.runtime.proton_path.clone(),
-                working_directory: profile.runtime.working_directory.clone(),
-                steam_app_id: profile.runtime.steam_app_id.clone(),
-                umu_game_id: profile.runtime.umu_game_id.clone(),
-                umu_store: profile.runtime.umu_store.clone(),
-                umu_codename: profile.runtime.umu_codename.clone(),
-            },
-            METHOD_NATIVE => RuntimeLaunchConfig {
-                working_directory: profile.runtime.working_directory.clone(),
-                ..Default::default()
-            },
-            _ => RuntimeLaunchConfig::default(),
-        },
-        optimizations: LaunchOptimizationsRequest {
-            enabled_option_ids: profile.launch.optimizations.enabled_option_ids.clone(),
-        },
-        command_arguments: LaunchCommandArgumentsRequest {
-            enabled_argument_ids: profile
-                .launch
-                .command_arguments
-                .enabled_argument_ids
-                .clone(),
-            custom_args: profile.launch.command_arguments.custom_args.clone(),
-        },
-        launch_trainer_only: false,
-        launch_game_only: true,
-        profile_name: Some(profile_name.to_string()),
-        custom_env_vars: profile.launch.custom_env_vars.clone(),
-        umu_preference,
-        resolved_umu_game_id: None,
-        network_isolation: profile.launch.network_isolation,
-        gamescope: profile.launch.gamescope.clone(),
-        trainer_gamescope: if profile.launch.trainer_gamescope.is_default() {
-            None
-        } else {
-            Some(profile.launch.trainer_gamescope.clone())
-        },
-        mangohud: profile.launch.mangohud.clone(),
-        pre_launch_hooks: profile.pre_launch_hooks.clone(),
-        post_exit_hooks: profile.post_exit_hooks.clone(),
-    })
 }
 
 fn resolve_steam_client_install_path(compatdata_path: &str) -> PathBuf {

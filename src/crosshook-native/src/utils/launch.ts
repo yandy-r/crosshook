@@ -45,7 +45,7 @@ export function buildProfileLaunchRequest(
       umu_codename: profile.runtime.umu_codename ?? '',
     },
     optimizations: {
-      enabled_option_ids: [...profile.launch.optimizations.enabled_option_ids],
+      enabled_option_ids: [...(profile.launch.optimizations?.enabled_option_ids ?? [])],
     },
     command_arguments: {
       enabled_argument_ids: [...(profile.launch.command_arguments?.enabled_argument_ids ?? [])],
@@ -53,10 +53,10 @@ export function buildProfileLaunchRequest(
     },
     launch_trainer_only: false,
     launch_game_only: false,
-    profile_name: profileName || undefined,
+    profile_name: profileName.trim() ? profileName : undefined,
     // Profile runtime override wins over the global default.
     umu_preference: profile.runtime.umu_preference ?? umuPreference,
-    custom_env_vars: { ...profile.launch.custom_env_vars },
+    custom_env_vars: { ...(profile.launch.custom_env_vars ?? {}) },
     network_isolation: profile.launch.network_isolation ?? true,
     gamescope: profile.launch.gamescope ?? DEFAULT_GAMESCOPE_CONFIG,
     trainer_gamescope: profile.launch.trainer_gamescope ?? DEFAULT_GAMESCOPE_CONFIG,
@@ -66,6 +66,12 @@ export function buildProfileLaunchRequest(
   };
 }
 
+/**
+ * Mirror of `crosshook_core::profile::resolve_launch_method`
+ * (crates/crosshook-core/src/profile/models/resolve.rs); Rust is the source of truth;
+ * golden fixtures in crates/crosshook-core/tests/fixtures/launch_request keep them aligned.
+ * Removed with React in M7.
+ */
 export function resolveLaunchMethod(profile: GameProfile): ResolvedLaunchMethod {
   const method = profile.launch.method.trim();
 

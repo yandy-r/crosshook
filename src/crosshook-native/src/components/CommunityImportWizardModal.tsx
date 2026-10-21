@@ -3,6 +3,7 @@ import { callCommand } from '@/lib/ipc';
 import type { CommunityImportPreview } from '../hooks/useCommunityProfiles';
 import type { LaunchPreview, LaunchValidationIssue } from '../types';
 import type { GameProfile } from '../types/profile';
+import { resolveLaunchMethod } from '../utils/launch';
 import AutoResolveStep from './community-import/AutoResolveStep';
 import ManualAdjustmentStep from './community-import/ManualAdjustmentStep';
 import ProfileDetailsStep from './community-import/ProfileDetailsStep';
@@ -16,8 +17,8 @@ import type {
 import {
   buildLaunchRequest,
   isStrictLaunchValidationIssue,
+  MISSING_GAME_PATH_ISSUE,
   normalizeProfile,
-  resolveLaunchMethod,
 } from './community-import/utils';
 import ValidationStep from './community-import/ValidationStep';
 import WizardStepper from './community-import/WizardStepper';
@@ -180,10 +181,16 @@ export function CommunityImportWizardModal({ open, draft, saving, onClose, onSav
       return [];
     }
 
+    const request = buildLaunchRequest(profile, steamClientInstallPath);
+    if (!request) {
+      setValidationError(null);
+      setValidationIssues([MISSING_GAME_PATH_ISSUE]);
+      return [MISSING_GAME_PATH_ISSUE];
+    }
+
     setValidating(true);
     setValidationError(null);
     try {
-      const request = buildLaunchRequest(profile, steamClientInstallPath);
       const preview = await callCommand<LaunchPreview>('preview_launch', { request });
       setValidationIssues(preview.validation.issues);
       return preview.validation.issues;
@@ -339,6 +346,11 @@ export function CommunityImportWizardModal({ open, draft, saving, onClose, onSav
             void (async () => {
               const request = buildLaunchRequest(profile, steamClientInstallPath);
               setValidationError(null);
+              if (!request) {
+                setValidationIssues([MISSING_GAME_PATH_ISSUE]);
+                setStep(3);
+                return;
+              }
               try {
                 await callCommand<void>('validate_launch', { request });
               } catch (error) {

@@ -107,7 +107,8 @@ function reducer(state: LaunchState, action: LaunchAction): LaunchState {
   }
 }
 
-function buildLaunchRequest(
+/** Set the game-only / trainer-only flags for a launch phase; every other field is kept as-is. */
+export function applyLaunchPhase(
   request: LaunchRequest,
   phase: LaunchPhase.GameLaunching | LaunchPhase.TrainerLaunching
 ): LaunchRequest {
@@ -297,7 +298,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
     }
 
     const generation = launchGenerationRef.current;
-    const launchRequest = buildLaunchRequest(request, LaunchPhase.GameLaunching);
+    const launchRequest = applyLaunchPhase(request, LaunchPhase.GameLaunching);
     activeHelperLogPathRef.current = null;
     observedGameProcessRef.current = false;
     dispatch({ type: 'game-start' });
@@ -359,7 +360,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
     const generation = launchGenerationRef.current;
     const trainerFallbackPhase =
       state.phase === LaunchPhase.WaitingForTrainer ? LaunchPhase.WaitingForTrainer : LaunchPhase.Idle;
-    const launchRequest = buildLaunchRequest(request, LaunchPhase.TrainerLaunching);
+    const launchRequest = applyLaunchPhase(request, LaunchPhase.TrainerLaunching);
     activeHelperLogPathRef.current = null;
     dispatch({ type: 'trainer-start' });
     setLaunchPathWarnings([]);

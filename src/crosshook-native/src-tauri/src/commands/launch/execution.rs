@@ -15,7 +15,7 @@ use crosshook_core::launch::{
     TeardownReason, WatchdogOutcome, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };
 use crosshook_core::metadata::MetadataStore;
-use crosshook_core::profile::ProfileStore;
+use crosshook_core::profile::{resolve_trainer_launch_method, ProfileStore};
 use crosshook_core::settings::{AppSettingsData, SettingsStore};
 use crosshook_core::umu_database;
 use tauri::{AppHandle, Manager, State};
@@ -279,12 +279,7 @@ pub async fn launch_trainer(
         _ => METHOD_NATIVE,
     };
     let is_flatpak = crosshook_core::platform::is_flatpak();
-    let execution_method: &'static str = if resolved_method == METHOD_STEAM_APPLAUNCH && is_flatpak
-    {
-        METHOD_PROTON_RUN
-    } else {
-        resolved_method
-    };
+    let execution_method = resolve_trainer_launch_method(resolved_method, is_flatpak);
 
     let log_path = create_log_path("trainer", &request.log_target_slug())?;
 
