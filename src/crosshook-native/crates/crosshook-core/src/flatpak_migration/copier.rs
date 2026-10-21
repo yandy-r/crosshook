@@ -15,7 +15,11 @@
 //! not through the directory-level staged-rename path. This is safe because
 //! the migration runs at startup before `MetadataStore::try_new` opens any
 //! handle. The `.db` file is always copied first so WAL and SHM cannot arrive
-//! without the journal they belong to.
+//! without the journal they belong to. The config-history HMAC key
+//! (`config_history_hmac.key`, ADR-0005) is handled only together with a DB
+//! import: a leftover sandbox key (from a sandbox DB that no longer exists) is
+//! renamed aside to `config_history_hmac.key.orphaned-<unix_ts>`, never
+//! deleted, and the host key that signed the imported DB is copied as `0600`.
 //!
 //! # Continue-on-error
 //!
@@ -28,7 +32,8 @@ use std::path::{Path, PathBuf};
 use tracing::{debug, warn};
 
 use crate::flatpak_migration::types::{
-    FlatpakMigrationError, DATA_INCLUDE_FILES, DATA_INCLUDE_SUBTREES, DATA_SKIP_SUBTREES,
+    FlatpakMigrationError, DATA_INCLUDE_DB_COMPANION_FILE, DATA_INCLUDE_FILES,
+    DATA_INCLUDE_SUBTREES, DATA_SKIP_SUBTREES,
 };
 use crate::fs_util::{copy_dir_recursive, dir_is_empty};
 
@@ -250,9 +255,9 @@ pub(crate) fn copy_data_subtrees(
     //   * Rollback on failure: any trio member already copied in this run is
     //     removed so the next retry starts from a clean sandbox.
     //
-    // The trio reports as a single `imported` entry (the `.db` path) so the
-    // frontend toast count reflects "one database imported" rather than three
-    // raw files.
+    // The set reports as a single `imported` entry (the `.db` path) so the
+    // frontend toast count reflects "one database imported" rather than raw
+    // files.
     let trio_dsts: Vec<PathBuf> = DATA_INCLUDE_FILES
         .iter()
         .map(|entry| sandbox_data_root.join(entry))
@@ -299,9 +304,44 @@ pub(crate) fn copy_data_subtrees(
                 }
             }
         }
+        // The key travels with the DB it signed. A leftover sandbox key belongs
+        // to a sandbox DB that no longer exists (the trio was absent), so it is
+        // moved aside (never deleted) and restored if the import rolls back.
+        let key_dst = sandbox_data_root.join(DATA_INCLUDE_DB_COMPANION_FILE);
+        let mut orphaned: Option<PathBuf> = None;
+        if trio_err.is_none() && !copied.is_empty() {
+            let key_src = host_data_root.join(DATA_INCLUDE_DB_COMPANION_FILE);
+            let step = (|| -> std::io::Result<()> {
+                if fs::symlink_metadata(&key_dst).is_ok() {
+                    let aside = orphan_path(&key_dst);
+                    fs::rename(&key_dst, &aside)?;
+                    warn!(
+                        orphan = %aside.display(),
+                        "moved leftover sandbox config history key aside for DB import"
+                    );
+                    orphaned = Some(aside);
+                }
+                if key_src.exists() {
+                    copy_private(&key_src, &key_dst)?;
+                    copied.push(key_dst.clone());
+                }
+                Ok(())
+            })();
+            if let Err(err) = step {
+                trio_err = Some(FlatpakMigrationError::Io {
+                    path: key_dst.clone(),
+                    source: err,
+                });
+            }
+        }
         if let Some(err) = trio_err {
             for path in &copied {
                 let _ = fs::remove_file(path);
+            }
+            if let Some(aside) = &orphaned {
+                if let Err(restore_err) = fs::rename(aside, &key_dst) {
+                    warn!(error = %restore_err, "could not restore sandbox config history key");
+                }
             }
             warn!(error = %err, "metadata db trio copy failed, rolled back");
             eprintln!("CrossHook: metadata db trio copy failed: {err}");
@@ -319,8 +359,37 @@ pub(crate) fn copy_data_subtrees(
             skipped_existed.push(entry);
         }
     }
-
     (imported, skipped_existed, errors)
+}
+
+/// Unused sibling name for a leftover key: `<key>.orphaned-<unix_ts>[-n]`.
+fn orphan_path(key: &Path) -> PathBuf {
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    let base = format!(
+        "{}.orphaned-{ts}",
+        key.file_name().unwrap_or_default().to_string_lossy()
+    );
+    let mut candidate = key.with_file_name(&base);
+    let mut n = 1;
+    while fs::symlink_metadata(&candidate).is_ok() {
+        candidate = key.with_file_name(format!("{base}-{n}"));
+        n += 1;
+    }
+    candidate
+}
+
+/// Copies a secret file and forces the destination to `0600` (the host copy
+/// may have looser bits). Partial destinations are removed on failure.
+fn copy_private(src: &Path, dst: &Path) -> std::io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    let result = fs::copy(src, dst)
+        .and_then(|_| fs::set_permissions(dst, fs::Permissions::from_mode(0o600)));
+    if result.is_err() {
+        let _ = fs::remove_file(dst);
+    }
+    result
 }
 
 #[cfg(test)]
@@ -449,6 +518,149 @@ mod tests {
         ] {
             assert!(sandbox_root.path().join(name).exists());
         }
+    }
+
+    #[test]
+    fn copy_data_subtrees_carries_hmac_key_with_db_and_forces_0600() {
+        use std::os::unix::fs::PermissionsExt;
+        let host_root = tempdir().unwrap();
+        let sandbox_root = tempdir().unwrap();
+        write(&host_root.path().join("crosshook/metadata.db"), b"db");
+        let host_key = host_root.path().join("crosshook/config_history_hmac.key");
+        write(&host_key, &[7_u8; 40]);
+        // A lax host mode must not survive into the sandbox.
+        fs::set_permissions(&host_key, fs::Permissions::from_mode(0o644)).unwrap();
+
+        let (imported, _, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
+        assert!(errors.is_empty(), "unexpected errors: {errors:?}");
+        assert!(imported.contains(&"crosshook/metadata.db"));
+        assert!(!imported.contains(&"crosshook/config_history_hmac.key"));
+        let sandbox_key = sandbox_root
+            .path()
+            .join("crosshook/config_history_hmac.key");
+        assert_eq!(fs::read(&sandbox_key).unwrap(), vec![7_u8; 40]);
+        assert_eq!(
+            fs::metadata(&sandbox_key).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+    }
+
+    fn sandbox_orphans(sandbox_root: &Path) -> Vec<PathBuf> {
+        fs::read_dir(sandbox_root.join("crosshook"))
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .filter(|p| {
+                p.file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .starts_with("config_history_hmac.key.orphaned-")
+            })
+            .collect()
+    }
+
+    #[test]
+    fn leftover_sandbox_key_is_orphaned_and_host_key_wins() {
+        let host_root = tempdir().unwrap();
+        let sandbox_root = tempdir().unwrap();
+        write(&host_root.path().join("crosshook/metadata.db"), b"db");
+        write(
+            &host_root.path().join("crosshook/config_history_hmac.key"),
+            b"host-key",
+        );
+        let sandbox_key = sandbox_root
+            .path()
+            .join("crosshook/config_history_hmac.key");
+        write(&sandbox_key, b"sandbox-key");
+
+        let (imported, _, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
+        assert!(errors.is_empty(), "unexpected errors: {errors:?}");
+        assert!(imported.contains(&"crosshook/metadata.db"));
+        assert_eq!(
+            fs::read(sandbox_root.path().join("crosshook/metadata.db")).unwrap(),
+            b"db"
+        );
+        assert_eq!(fs::read(&sandbox_key).unwrap(), b"host-key");
+        let orphans = sandbox_orphans(sandbox_root.path());
+        assert_eq!(orphans.len(), 1, "orphan must be preserved: {orphans:?}");
+        assert_eq!(fs::read(&orphans[0]).unwrap(), b"sandbox-key");
+    }
+
+    #[test]
+    fn leftover_sandbox_key_is_orphaned_without_host_key() {
+        let host_root = tempdir().unwrap();
+        let sandbox_root = tempdir().unwrap();
+        write(&host_root.path().join("crosshook/metadata.db"), b"db");
+        let sandbox_key = sandbox_root
+            .path()
+            .join("crosshook/config_history_hmac.key");
+        write(&sandbox_key, b"sandbox-key");
+
+        let (_, _, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
+        assert!(errors.is_empty(), "unexpected errors: {errors:?}");
+        // Next open creates a fresh key with the correct epoch.
+        assert!(!sandbox_key.exists());
+        assert_eq!(sandbox_orphans(sandbox_root.path()).len(), 1);
+    }
+
+    #[test]
+    fn failed_host_key_copy_restores_orphaned_sandbox_key() {
+        let host_root = tempdir().unwrap();
+        let sandbox_root = tempdir().unwrap();
+        write(&host_root.path().join("crosshook/metadata.db"), b"db");
+        // A directory in place of the host key makes the key copy fail.
+        fs::create_dir_all(host_root.path().join("crosshook/config_history_hmac.key")).unwrap();
+        let sandbox_key = sandbox_root
+            .path()
+            .join("crosshook/config_history_hmac.key");
+        write(&sandbox_key, b"sandbox-key");
+
+        let (imported, _, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
+        assert_eq!(errors.len(), 1, "expected key copy failure, got {errors:?}");
+        assert!(!imported.contains(&"crosshook/metadata.db"));
+        assert!(!sandbox_root.path().join("crosshook/metadata.db").exists());
+        assert_eq!(fs::read(&sandbox_key).unwrap(), b"sandbox-key");
+        assert!(sandbox_orphans(sandbox_root.path()).is_empty());
+    }
+
+    #[test]
+    fn key_is_not_copied_without_db_import() {
+        let host_root = tempdir().unwrap();
+        let sandbox_root = tempdir().unwrap();
+        write(&host_root.path().join("crosshook/metadata.db"), b"new-db");
+        write(
+            &host_root.path().join("crosshook/config_history_hmac.key"),
+            b"host-key",
+        );
+        write(
+            &sandbox_root.path().join("crosshook/metadata.db"),
+            b"old-db",
+        );
+
+        let (_, _, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
+        assert!(errors.is_empty());
+        assert!(!sandbox_root
+            .path()
+            .join("crosshook/config_history_hmac.key")
+            .exists());
+    }
+
+    #[test]
+    fn failed_trio_copy_never_removes_pre_existing_sandbox_key() {
+        let host_root = tempdir().unwrap();
+        let sandbox_root = tempdir().unwrap();
+        write(&host_root.path().join("crosshook/metadata.db"), b"db");
+        // A directory in place of the host WAL makes its copy fail after the .db.
+        fs::create_dir_all(host_root.path().join("crosshook/metadata.db-wal")).unwrap();
+        let sandbox_key = sandbox_root
+            .path()
+            .join("crosshook/config_history_hmac.key");
+        write(&sandbox_key, b"sandbox-key");
+
+        let (imported, _, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
+        assert_eq!(errors.len(), 1, "expected trio failure, got {errors:?}");
+        assert!(!imported.contains(&"crosshook/metadata.db"));
+        assert!(!sandbox_root.path().join("crosshook/metadata.db").exists());
+        assert_eq!(fs::read(&sandbox_key).unwrap(), b"sandbox-key");
     }
 
     #[test]

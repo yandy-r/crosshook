@@ -32,6 +32,11 @@ pub enum MetadataStoreError {
     ReadOnlyDisabled {
         reason: String,
     },
+    /// A config revision failed its content-hash or HMAC check (ADR-0005).
+    IntegrityCheckFailed {
+        revision_id: i64,
+        failure: IntegrityFailure,
+    },
 }
 
 /// Health of the metadata store, surfaced to the UI and diagnostics.
@@ -81,6 +86,21 @@ impl Display for MetadataStoreError {
                 f,
                 "metadata database is read-only (newer schema version); writes are disabled"
             ),
+            Self::IntegrityCheckFailed {
+                revision_id,
+                failure,
+            } => match failure {
+                // Fail closed (ADR-0005): also covers revisions recorded while
+                // the key was unavailable or by a pre-HMAC build.
+                IntegrityFailure::SignatureRequired => write!(
+                    f,
+                    "revision {revision_id} was recorded without a valid signature and cannot be restored; integrity cannot be verified"
+                ),
+                _ => write!(
+                    f,
+                    "integrity check failed for revision {revision_id}: {failure}"
+                ),
+            },
         }
     }
 }
@@ -97,7 +117,8 @@ impl Error for MetadataStoreError {
             | Self::NewerSchema { .. }
             | Self::ReadOnlyNewerSchema
             | Self::SQLiteReadonly
-            | Self::ReadOnlyDisabled { .. } => None,
+            | Self::ReadOnlyDisabled { .. }
+            | Self::IntegrityCheckFailed { .. } => None,
         }
     }
 }
@@ -546,4 +567,63 @@ pub struct ConfigRevisionRow {
     pub source_revision_id: Option<i64>,
     pub is_last_known_working: bool,
     pub created_at: String,
+    /// `v1:<key_id>:<trust>:<hex_mac>` (ADR-0005); `None` for legacy or unsigned rows.
+    /// Core-only: never serialized over IPC.
+    pub hmac_signature: Option<String>,
+}
+
+/// Outcome of a successful config revision integrity check (ADR-0005).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RevisionIntegrity {
+    /// Content hash and HMAC signature both verified under the current key.
+    Signed,
+    /// Content hash verified; the signature could not be checked.
+    HashOnly { reason: HashOnlyReason },
+}
+
+/// Why a revision was verified by content hash only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HashOnlyReason {
+    /// Legacy (pre-v28 / pre-epoch) or key-less insert: no signature stored.
+    Unsigned,
+    /// Pre-epoch row signed with a different key (e.g. key file was recreated).
+    ForeignKey,
+    /// This store has no signing key (missing/unreadable key file, in-memory store).
+    KeyUnavailable,
+    /// Signed under the current key, but derived (rollback) from a revision
+    /// that itself only passed hash verification.
+    DerivedFromHashOnly,
+}
+
+impl HashOnlyReason {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Unsigned => "unsigned",
+            Self::ForeignKey => "foreign_key",
+            Self::KeyUnavailable => "key_unavailable",
+            Self::DerivedFromHashOnly => "derived_from_hash_only",
+        }
+    }
+}
+
+/// Which config revision integrity check failed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IntegrityFailure {
+    ContentHashMismatch,
+    SignatureMismatch,
+    /// Revision written after the key's signing epoch lacks a valid
+    /// current-key signature (stripped, foreign, or unknown format). Fails
+    /// closed: includes rows recorded unsigned while the key was unavailable
+    /// or by a pre-HMAC build after a downgrade.
+    SignatureRequired,
+}
+
+impl Display for IntegrityFailure {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::ContentHashMismatch => "content hash mismatch",
+            Self::SignatureMismatch => "HMAC signature mismatch",
+            Self::SignatureRequired => "required HMAC signature missing or invalid",
+        })
+    }
 }

@@ -57,6 +57,7 @@ fn insert_dedup_skips_when_latest_hash_matches() {
         "some toml content",
         None,
         MAX_CONFIG_REVISIONS_PER_PROFILE,
+        None,
     )
     .unwrap();
     assert!(deduped.is_none(), "identical hash must be skipped");
@@ -84,6 +85,7 @@ fn insert_dedup_does_not_apply_to_non_latest_hash() {
         "some toml content",
         None,
         MAX_CONFIG_REVISIONS_PER_PROFILE,
+        None,
     )
     .unwrap();
     assert!(
@@ -111,6 +113,7 @@ fn insert_dedup_is_scoped_to_profile() {
         "some toml content",
         None,
         MAX_CONFIG_REVISIONS_PER_PROFILE,
+        None,
     )
     .unwrap();
     assert!(
@@ -133,6 +136,7 @@ fn lineage_source_revision_id_stored_and_retrieved() {
         "rollback toml content",
         Some(parent_id),
         MAX_CONFIG_REVISIONS_PER_PROFILE,
+        None,
     )
     .unwrap()
     .expect("child insert should succeed");

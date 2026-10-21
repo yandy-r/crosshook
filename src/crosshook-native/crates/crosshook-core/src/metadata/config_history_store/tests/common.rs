@@ -38,6 +38,7 @@ pub(super) fn insert_revision(conn: &Connection, profile_id: &str, hash: &str) -
         "some toml content",
         None,
         crate::metadata::MAX_CONFIG_REVISIONS_PER_PROFILE,
+        None,
     )
     .expect("insert must not fail")
     .expect("insert must not be deduped against a different hash")

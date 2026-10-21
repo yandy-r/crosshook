@@ -183,6 +183,10 @@ impl From<crosshook_core::metadata::MetadataStoreError> for AppError {
                 "invalid metadata path",
             ),
             E::Corrupt(_) => Self::new(AppErrorKind::Internal, "metadata database is corrupt"),
+            E::IntegrityCheckFailed { .. } => Self::new(
+                AppErrorKind::Validation { field: "revision" },
+                "config revision integrity check failed",
+            ),
             E::Database { .. } => {
                 Self::new(AppErrorKind::Internal, "metadata database operation failed")
             }

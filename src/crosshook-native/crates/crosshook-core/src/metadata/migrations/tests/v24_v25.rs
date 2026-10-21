@@ -55,12 +55,14 @@ fn migration_24_to_25_resets_tap_watermarks() {
 
     // Rebuild the v24 steady state: no trainer_loading_mode column, no
     // profile_mods and prefix-version journal tables (added in v26 and v27),
-    // a stored watermark, and user_version pinned at 24 so run_migrations
-    // replays every later migration exactly once.
+    // no config_revisions.hmac_signature (v28), a stored watermark, and
+    // user_version pinned at 24 so run_migrations replays every later
+    // migration exactly once.
     conn.execute_batch(
         "ALTER TABLE community_profiles DROP COLUMN trainer_loading_mode;
          DROP TABLE profile_mods;
-         DROP TABLE prefix_version_restore_journal;",
+         DROP TABLE prefix_version_restore_journal;
+         ALTER TABLE config_revisions DROP COLUMN hmac_signature;",
     )
     .unwrap();
     conn.pragma_update(None, "user_version", 24_u32).unwrap();
