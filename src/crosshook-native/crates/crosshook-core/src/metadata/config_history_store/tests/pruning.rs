@@ -19,6 +19,7 @@ fn pruning_respects_max_revisions_per_profile() {
             "some toml content",
             None,
             MAX_CONFIG_REVISIONS_PER_PROFILE,
+            None,
         )
         .expect("insert must not fail")
         .expect("each unique-hash insert should succeed");
@@ -58,6 +59,7 @@ fn pruning_does_not_affect_other_profiles() {
             "toml",
             None,
             MAX_CONFIG_REVISIONS_PER_PROFILE,
+            None,
         )
         .unwrap();
     }
@@ -86,6 +88,7 @@ fn pruning_retains_revisions_referenced_by_source_revision_id() {
             "toml",
             None,
             MAX_CONFIG_REVISIONS_PER_PROFILE,
+            None,
         )
         .expect("insert must not fail")
         .expect("each insert must create a row");
@@ -106,6 +109,7 @@ fn pruning_retains_revisions_referenced_by_source_revision_id() {
         "rollback toml",
         Some(oldest_id),
         MAX_CONFIG_REVISIONS_PER_PROFILE,
+        None,
     )
     .expect("insert with parent reference must succeed after FK-safe pruning");
 
@@ -130,6 +134,7 @@ fn pruning_respects_custom_max_revisions_limit() {
             "toml",
             None,
             custom_limit,
+            None,
         )
         .expect("insert must not fail")
         .expect("each unique-hash insert should succeed");

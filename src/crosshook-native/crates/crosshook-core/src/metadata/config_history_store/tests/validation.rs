@@ -34,6 +34,7 @@ fn oversized_snapshot_toml_is_rejected() {
         &oversized,
         None,
         MAX_CONFIG_REVISIONS_PER_PROFILE,
+        None,
     );
     assert!(
         matches!(result, Err(MetadataStoreError::Validation(_))),
@@ -105,6 +106,7 @@ fn cross_profile_lineage_is_rejected() {
         "some toml",
         Some(rev_a), // points to profile-a's revision
         MAX_CONFIG_REVISIONS_PER_PROFILE,
+        None,
     );
 
     assert!(

@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 use directories::BaseDirs;
 use rusqlite::{Connection, Transaction, TransactionBehavior};
 
+use super::config_history_hmac::{self, ConfigHistoryKey};
 use super::{backup, db, migrations, MetadataStatus, MetadataStoreError};
 
 #[derive(Clone)]
@@ -13,6 +14,9 @@ pub struct MetadataStore {
     read_only: bool,
     initial_status: MetadataStatus,
     path: Option<PathBuf>,
+    /// Config-history signing key (ADR-0005). `None` for in-memory/disabled
+    /// stores and when the key file is unavailable.
+    pub(super) config_history_key: Option<Arc<ConfigHistoryKey>>,
 }
 
 impl MetadataStore {
@@ -26,12 +30,18 @@ impl MetadataStore {
 
     pub fn with_path(path: &Path) -> Result<Self, MetadataStoreError> {
         let opened = db::open_at_path(path)?;
+        let read_only = opened.status != MetadataStatus::Ok;
+        let config_history_key = opened
+            .conn
+            .as_ref()
+            .and_then(|_| config_history_hmac::open_for_store(path, !read_only));
         Ok(Self {
             available: opened.conn.is_some(),
             conn: opened.conn.map(|conn| Arc::new(Mutex::new(conn))),
-            read_only: opened.status != MetadataStatus::Ok,
+            read_only,
             initial_status: opened.status,
             path: Some(path.to_owned()),
+            config_history_key,
         })
     }
 
@@ -42,6 +52,7 @@ impl MetadataStore {
             read_only: false,
             initial_status: MetadataStatus::Ok,
             path: None,
+            config_history_key: None,
         })
     }
 
@@ -54,11 +65,17 @@ impl MetadataStore {
                 reason: "metadata store unavailable".into(),
             },
             path: None,
+            config_history_key: None,
         }
     }
 
     pub fn is_available(&self) -> bool {
         self.available && self.conn.is_some()
+    }
+
+    /// `true` for stores opened from a database file (not in-memory/disabled).
+    pub(super) fn is_file_backed(&self) -> bool {
+        self.path.is_some()
     }
 
     /// Sanitized IPC health; detailed errors belong in logs, never in this value.

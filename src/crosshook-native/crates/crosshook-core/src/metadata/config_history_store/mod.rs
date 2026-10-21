@@ -1,3 +1,4 @@
+use super::config_history_hmac::ConfigHistoryKey;
 use super::models::{
     ConfigRevisionRow, ConfigRevisionSource, MAX_CONFIG_REVISIONS_PER_PROFILE,
     MAX_SNAPSHOT_TOML_BYTES,
@@ -10,6 +11,10 @@ use rusqlite::{params, Connection, OptionalExtension};
 /// the content hash matches the latest recorded revision (dedup). Prunes older
 /// rows beyond the retention limit in the same transaction. Returns the new row's
 /// id when a row is inserted, or `None` when skipped due to dedup.
+///
+/// When `signer` is present the row stores an HMAC-SHA256 signature over
+/// `profile_id`, `content_hash`, and `snapshot_toml` (ADR-0005); otherwise the
+/// row is inserted unsigned.
 pub fn insert_config_revision(
     conn: &Connection,
     profile_id: &str,
@@ -19,6 +24,7 @@ pub fn insert_config_revision(
     snapshot_toml: &str,
     source_revision_id: Option<i64>,
     max_revisions: usize,
+    signer: Option<&ConfigHistoryKey>,
 ) -> Result<Option<i64>, MetadataStoreError> {
     if snapshot_toml.len() > MAX_SNAPSHOT_TOML_BYTES {
         return Err(MetadataStoreError::Validation(format!(
@@ -81,12 +87,13 @@ pub fn insert_config_revision(
         }
     }
 
+    let hmac_signature = signer.map(|key| key.sign(profile_id, content_hash, snapshot_toml));
     let now = Utc::now().to_rfc3339();
     tx.execute(
         "INSERT INTO config_revisions
              (profile_id, profile_name_at_write, source, content_hash, snapshot_toml,
-              source_revision_id, is_last_known_working, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7)",
+              source_revision_id, is_last_known_working, created_at, hmac_signature)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7, ?8)",
         params![
             profile_id,
             profile_name_at_write,
@@ -95,6 +102,7 @@ pub fn insert_config_revision(
             snapshot_toml,
             source_revision_id,
             now,
+            hmac_signature,
         ],
     )
     .map_err(|source| MetadataStoreError::Database {
@@ -145,7 +153,7 @@ pub fn list_config_revisions(
     let mut stmt = conn
         .prepare(
             "SELECT id, profile_id, profile_name_at_write, source, content_hash, snapshot_toml,
-                    source_revision_id, is_last_known_working, created_at
+                    source_revision_id, is_last_known_working, created_at, hmac_signature
              FROM config_revisions
              WHERE profile_id = ?1
              ORDER BY id DESC
@@ -168,6 +176,7 @@ pub fn list_config_revisions(
                 source_revision_id: row.get(6)?,
                 is_last_known_working: row.get::<_, i64>(7)? != 0,
                 created_at: row.get(8)?,
+                hmac_signature: row.get(9)?,
             })
         })
         .map_err(|source| MetadataStoreError::Database {
@@ -192,7 +201,7 @@ pub fn get_config_revision(
 ) -> Result<Option<ConfigRevisionRow>, MetadataStoreError> {
     conn.query_row(
         "SELECT id, profile_id, profile_name_at_write, source, content_hash, snapshot_toml,
-                source_revision_id, is_last_known_working, created_at
+                source_revision_id, is_last_known_working, created_at, hmac_signature
          FROM config_revisions
          WHERE id = ?1 AND profile_id = ?2",
         params![revision_id, profile_id],
@@ -207,6 +216,7 @@ pub fn get_config_revision(
                 source_revision_id: row.get(6)?,
                 is_last_known_working: row.get::<_, i64>(7)? != 0,
                 created_at: row.get(8)?,
+                hmac_signature: row.get(9)?,
             })
         },
     )

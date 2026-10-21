@@ -3,6 +3,7 @@ mod v21_v23;
 mod v24_v25;
 mod v25_v26;
 mod v26_v27;
+mod v27_v28;
 
 #[test]
 fn migration_ladder_reaches_supported_max_and_rejects_newer_before_writes() {

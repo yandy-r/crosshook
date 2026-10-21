@@ -16,7 +16,7 @@
 //! - [`store`] — `MetadataStore` struct, constructors, `with_conn*` helpers
 //! - [`util`] — shared utilities (`in_clause_placeholders`)
 //! - [`db`] — SQLite connection opening (permissions, symlink guard)
-//! - [`migrations`] — schema migrations (current: **v27**)
+//! - [`migrations`] — schema migrations (current: **v28**)
 //! - [`models`] — shared row types, error type, size limits
 //!
 //! ## Per-domain operations (`*_ops.rs` → delegates to `*_store.rs`)
@@ -33,7 +33,8 @@
 //! - [`game_image_ops`] / [`game_image_store`] — Steam game image cache
 //! - [`offline_ops`] / [`offline_store`] — offline readiness, trainer hash cache, tap offline state
 //! - [`version_ops`] / [`version_store`] — version snapshots + correlation status
-//! - [`config_history_ops`] / [`config_history_store`] — TOML config revision history
+//! - [`config_history_ops`] / [`config_history_store`] / [`config_history_hmac`] — TOML config
+//!   revision history and its HMAC-SHA256 tamper evidence (ADR-0005)
 //! - [`preset_ops`] / [`preset_store`] — bundled + per-profile optimization presets
 //! - [`catalog_ops`] — optimization / readiness / readiness-snapshot / proton release catalogs
 //! - [`prefix_ops`] / [`prefix_deps_store`] / [`prefix_storage_store`] — prefix dep state and storage snapshots
@@ -61,6 +62,7 @@ mod collections;
 mod collections_ops;
 mod community_index;
 mod community_ops;
+pub(crate) mod config_history_hmac;
 mod config_history_ops;
 mod config_history_store;
 mod db;
@@ -131,17 +133,18 @@ mod trainer_hash_tests;
 mod version_store_tests;
 
 pub use community_index::degraded_catalog_from_taps;
+pub use config_history_hmac::KEY_FILE_NAME as CONFIG_HISTORY_KEY_FILE_NAME;
 pub use game_image_store::GameImageCacheRow;
 pub use health_store::HealthSnapshotRow;
 pub use models::{
     BundledOptimizationPresetRow, CacheEntryStatus, CollectionRow, CommunityProfileRow,
     CommunityTapRow, ConfigRevisionRow, ConfigRevisionSource, DriftState, FailureTrendRow,
-    LaunchHistoryEntry, LaunchOutcome, MetadataStatus, MetadataStoreError,
-    PrefixDependencyStateRow, PrefixStorageCleanupAuditRow, PrefixStorageSnapshotRow,
-    PrefixVersionRestoreJournalRow, ProfileLaunchPresetOrigin, SyncReport, SyncSource,
-    VersionCorrelationStatus, VersionSnapshotRow, MAX_CACHE_PAYLOAD_BYTES,
-    MAX_CONFIG_REVISIONS_PER_PROFILE, MAX_DIAGNOSTIC_JSON_BYTES, MAX_HISTORY_LIST_LIMIT,
-    MAX_SNAPSHOT_TOML_BYTES, MAX_VERSION_SNAPSHOTS_PER_PROFILE,
+    HashOnlyReason, IntegrityFailure, LaunchHistoryEntry, LaunchOutcome, MetadataStatus,
+    MetadataStoreError, PrefixDependencyStateRow, PrefixStorageCleanupAuditRow,
+    PrefixStorageSnapshotRow, PrefixVersionRestoreJournalRow, ProfileLaunchPresetOrigin,
+    RevisionIntegrity, SyncReport, SyncSource, VersionCorrelationStatus, VersionSnapshotRow,
+    MAX_CACHE_PAYLOAD_BYTES, MAX_CONFIG_REVISIONS_PER_PROFILE, MAX_DIAGNOSTIC_JSON_BYTES,
+    MAX_HISTORY_LIST_LIMIT, MAX_SNAPSHOT_TOML_BYTES, MAX_VERSION_SNAPSHOTS_PER_PROFILE,
 };
 pub use offline_store::{CommunityTapOfflineRow, OfflineReadinessRow, TrainerHashCacheRow};
 pub use profile_sync::sha256_hex;

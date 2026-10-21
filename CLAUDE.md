@@ -74,7 +74,8 @@ For storage changes, plans must also:
 
 Operational metadata lives in **`~/.local/share/crosshook/metadata.db`** (WAL, `0600`). Migrations: `src/crosshook-native/crates/crosshook-core/src/metadata/migrations/mod.rs`.
 
-- **Current schema version**: **27**
+- **Current schema version**: **28**
+- **Migration v27→v28**: adds nullable `config_revisions.hmac_signature` — HMAC-SHA256 tamper evidence for config history; the key is a `0600` file `config_history_hmac.key` next to `metadata.db` (never SQLite/TOML/IPC). Legacy rows stay `NULL` and verify hash-only (see [ADR-0005](docs/architecture/adr-0005-config-history-hmac.md)).
 - **Migration v26→v27**: adds `prefix_version_restore_journal` — restart-safe Wine-prefix Windows-version restore records (see AGENTS.md § _Prefix dependency recovery_).
 - **Migration v25→v26**: adds `profile_mods` — per-profile mod coexistence registry (machine-local; drives trainer coexistence advisories; never exported with community profiles).
 - **Schema bump policy**: any schema version change must update `SUPPORTED_MAX_VERSION` in `migrations/mod.rs`, both docs, pass `scripts/check-schema-version.sh`, and preserve the core migration regression test invariant (latest migration == `SUPPORTED_MAX_VERSION`) — see [`docs/internal-docs/metadata-schema-policy.md`](docs/internal-docs/metadata-schema-policy.md).

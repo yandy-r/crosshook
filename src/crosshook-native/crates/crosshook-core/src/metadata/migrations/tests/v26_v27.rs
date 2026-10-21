@@ -12,12 +12,12 @@ fn migrated_conn() -> Connection {
 }
 
 #[test]
-fn fresh_db_reaches_user_version_27() {
+fn fresh_db_reaches_at_least_user_version_27() {
     let conn = migrated_conn();
     let version: u32 = conn
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 27, "fresh DB should migrate to schema v27");
+    assert!(version >= 27, "fresh DB should migrate past schema v27");
 }
 
 #[test]

@@ -15,7 +15,9 @@
 //! not through the directory-level staged-rename path. This is safe because
 //! the migration runs at startup before `MetadataStore::try_new` opens any
 //! handle. The `.db` file is always copied first so WAL and SHM cannot arrive
-//! without the journal they belong to.
+//! without the journal they belong to. The config-history HMAC key
+//! (`config_history_hmac.key`, ADR-0005) belongs to the same unit so imported
+//! revision signatures keep verifying against the key that produced them.
 //!
 //! # Continue-on-error
 //!
@@ -246,13 +248,14 @@ pub(crate) fn copy_data_subtrees(
     //   * Idempotency: if ANY trio member is already present in the sandbox,
     //     skip the whole trio (the DB is considered populated).
     //   * Copy order: `.db` first (guaranteed by `DATA_INCLUDE_FILES` ordering),
-    //     then `.db-wal` and `.db-shm` if the host has them.
+    //     then `.db-wal`, `.db-shm`, and the config-history HMAC key if the host
+    //     has them. `fs::copy` carries the key's `0600` permission bits over.
     //   * Rollback on failure: any trio member already copied in this run is
     //     removed so the next retry starts from a clean sandbox.
     //
-    // The trio reports as a single `imported` entry (the `.db` path) so the
-    // frontend toast count reflects "one database imported" rather than three
-    // raw files.
+    // The set reports as a single `imported` entry (the `.db` path) so the
+    // frontend toast count reflects "one database imported" rather than raw
+    // files.
     let trio_dsts: Vec<PathBuf> = DATA_INCLUDE_FILES
         .iter()
         .map(|entry| sandbox_data_root.join(entry))
@@ -449,6 +452,30 @@ mod tests {
         ] {
             assert!(sandbox_root.path().join(name).exists());
         }
+    }
+
+    #[test]
+    fn copy_data_subtrees_carries_hmac_key_with_db_and_keeps_0600() {
+        use std::os::unix::fs::PermissionsExt;
+        let host_root = tempdir().unwrap();
+        let sandbox_root = tempdir().unwrap();
+        write(&host_root.path().join("crosshook/metadata.db"), b"db");
+        let host_key = host_root.path().join("crosshook/config_history_hmac.key");
+        write(&host_key, &[7_u8; 32]);
+        fs::set_permissions(&host_key, fs::Permissions::from_mode(0o600)).unwrap();
+
+        let (imported, _, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
+        assert!(errors.is_empty(), "unexpected errors: {errors:?}");
+        assert!(imported.contains(&"crosshook/metadata.db"));
+        assert!(!imported.contains(&"crosshook/config_history_hmac.key"));
+        let sandbox_key = sandbox_root
+            .path()
+            .join("crosshook/config_history_hmac.key");
+        assert_eq!(fs::read(&sandbox_key).unwrap(), vec![7_u8; 32]);
+        assert_eq!(
+            fs::metadata(&sandbox_key).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
     }
 
     #[test]

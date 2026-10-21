@@ -8,6 +8,10 @@
 //! - real `--out` prefix -> `@CROSSHOOK_BENCH_ROOT@`
 //!
 //! Then checkpoints WAL, switches to `journal_mode=DELETE` and `VACUUM`s.
+//!
+//! The config-history HMAC key (ADR-0005) is random per run, so fixtures ship
+//! unsigned history: signatures are cleared and the key file is removed. The
+//! app treats such rows as legacy (hash-only) and creates its own key on open.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -179,6 +183,9 @@ pub fn normalize_db(db: &Path, layout: &Layout, seed: u64) -> Result<(), String>
         normalize_table(&conn, &table, &mut ctx)
             .map_err(|e| format!("normalize {}: {e}", table.name))?;
     }
+    // Random-key signatures would break byte identity; keep history unsigned.
+    conn.execute_batch("UPDATE config_revisions SET hmac_signature = NULL;")
+        .map_err(|e| format!("clear config revision signatures: {e}"))?;
     // AUTOINCREMENT counters are rowid-derived and already deterministic; just rewrite
     // nothing there. Commit.
     conn.execute_batch("COMMIT;").map_err(|e| e.to_string())?;
@@ -194,6 +201,10 @@ pub fn normalize_db(db: &Path, layout: &Layout, seed: u64) -> Result<(), String>
         if p.exists() {
             std::fs::remove_file(&p).map_err(|e| format!("remove {}: {e}", p.display()))?;
         }
+    }
+    let key = db.with_file_name(crosshook_core::metadata::CONFIG_HISTORY_KEY_FILE_NAME);
+    if key.exists() {
+        std::fs::remove_file(&key).map_err(|e| format!("remove {}: {e}", key.display()))?;
     }
     Ok(())
 }

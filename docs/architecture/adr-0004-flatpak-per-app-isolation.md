@@ -59,7 +59,7 @@ sandbox:
 
 ```
 include subtrees: crosshook/community, crosshook/media, crosshook/launchers
-include files:    crosshook/metadata.db, crosshook/metadata.db-wal, crosshook/metadata.db-shm
+include files:    crosshook/metadata.db, crosshook/metadata.db-wal, crosshook/metadata.db-shm, crosshook/config_history_hmac.key
 skip subtrees:    crosshook/prefixes, crosshook/artifacts, crosshook/cache, crosshook/logs, crosshook/runtime-helpers
 ```
 

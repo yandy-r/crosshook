@@ -10,6 +10,10 @@ fn seed(path: &Path, version: u32) -> Connection {
         conn.execute_batch("DROP TABLE prefix_version_restore_journal;")
             .unwrap();
     }
+    if version < 28 {
+        conn.execute_batch("ALTER TABLE config_revisions DROP COLUMN hmac_signature;")
+            .unwrap();
+    }
     conn.pragma_update(None, "user_version", version).unwrap();
     conn
 }
@@ -22,13 +26,13 @@ fn schema(path: &Path) -> u32 {
 fn newer_is_readable_typed_readonly_and_byte_identical() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("metadata.db");
-    drop(seed(&path, 28));
+    drop(seed(&path, 29));
     fs::set_permissions(&path, Permissions::from_mode(0o640)).unwrap();
     let before = fs::read(&path).unwrap();
     let store = MetadataStore::with_path(&path).unwrap();
-    assert_eq!(store.status(), newer_status(28));
+    assert_eq!(store.status(), newer_status(29));
     assert!(store.is_available());
-    assert_eq!(store.with_sqlite_conn("read", version).unwrap(), 28);
+    assert_eq!(store.with_sqlite_conn("read", version).unwrap(), 29);
     assert!(matches!(
         store.with_sqlite_conn("write", |conn| {
             conn.execute("CREATE TABLE forbidden(id)", [])?;
@@ -62,7 +66,7 @@ fn newer_is_readable_typed_readonly_and_byte_identical() {
 fn newer_live_wal_reads_uncheckpointed_data() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("metadata.db");
-    let writer = seed(&path, 28);
+    let writer = seed(&path, 29);
     writer.pragma_update(None, "journal_mode", "WAL").unwrap();
     writer.pragma_update(None, "wal_autocheckpoint", 0).unwrap();
     writer
@@ -77,13 +81,13 @@ fn newer_live_wal_reads_uncheckpointed_data() {
         .unwrap();
     assert_eq!(text, "live");
     assert_eq!(before, fs::read(&path).unwrap());
-    assert_eq!(store.status(), newer_status(28));
+    assert_eq!(store.status(), newer_status(29));
     assert!(backup::files(&path).is_empty());
 }
 
 #[test]
 fn equal_and_fresh_no_backup_older_has_durable_private_snapshot() {
-    for from in [0, 26, 27] {
+    for from in [0, 27, 28] {
         let dir = tempdir().unwrap();
         let path = dir.path().join("metadata.db");
         if from != 0 {
@@ -91,11 +95,11 @@ fn equal_and_fresh_no_backup_older_has_durable_private_snapshot() {
         }
         let store = MetadataStore::with_path(&path).unwrap();
         assert_eq!(store.status(), MetadataStatus::Ok);
-        assert_eq!(schema(&path), 27);
+        assert_eq!(schema(&path), 28);
         let files = store.backup_files();
-        assert_eq!(files.len(), usize::from(from == 26));
+        assert_eq!(files.len(), usize::from(from == 27));
         if let Some(backup) = files.first() {
-            assert_eq!(schema(backup), 26);
+            assert_eq!(schema(backup), 27);
             assert!(fs::metadata(backup).unwrap().len() > 0);
             assert_eq!(
                 fs::metadata(backup).unwrap().permissions().mode() & 0o777,
@@ -172,8 +176,8 @@ fn schema_status_exact_json_and_extended_readonly_mapping() {
     for (status, json) in [
         (MetadataStatus::Ok, serde_json::json!({"state":"ok"})),
         (
-            newer_status(28),
-            serde_json::json!({"state":"newer_schema","found":28,"supported":27}),
+            newer_status(29),
+            serde_json::json!({"state":"newer_schema","found":29,"supported":28}),
         ),
         (
             MetadataStatus::Disabled {
@@ -205,7 +209,7 @@ fn concurrent_upgrade_after_backup_never_mutates_header() {
         &path,
         |_, _| {
             let other = Connection::open(&path)?;
-            other.pragma_update(None, "user_version", 28)?;
+            other.pragma_update(None, "user_version", 29)?;
             other.pragma_update(None, "application_id", 123)?;
             drop(other);
             upgraded = fs::read(&path).unwrap();
@@ -214,7 +218,7 @@ fn concurrent_upgrade_after_backup_never_mutates_header() {
         |_| Ok(()),
     )
     .unwrap();
-    assert_eq!(opened.status, newer_status(28));
+    assert_eq!(opened.status, newer_status(29));
     assert_eq!(upgraded, fs::read(&path).unwrap());
     assert!(backup::files(&path).is_empty());
 }
@@ -277,7 +281,7 @@ fn live_writable_handle_rejects_upgrade_for_all_helper_kinds() {
     let path = dir.path().join("metadata.db");
     let store = MetadataStore::with_path(&path).unwrap();
     let other = Connection::open(&path).unwrap();
-    other.pragma_update(None, "user_version", 28).unwrap();
+    other.pragma_update(None, "user_version", 29).unwrap();
     assert!(matches!(
         store.dismiss_readiness_nag("test", 1),
         Err(MetadataStoreError::ReadOnlyNewerSchema)
@@ -289,7 +293,7 @@ fn live_writable_handle_rejects_upgrade_for_all_helper_kinds() {
         }),
         Err(MetadataStoreError::ReadOnlyNewerSchema)
     ));
-    assert_eq!(store.status(), newer_status(28));
+    assert_eq!(store.status(), newer_status(29));
     assert!(store.get_dismissed_readiness_nags().unwrap().is_empty());
 }
 
@@ -297,7 +301,7 @@ fn live_writable_handle_rejects_upgrade_for_all_helper_kinds() {
 fn symlink_database_is_rejected() {
     let dir = tempdir().unwrap();
     let real = dir.path().join("real.db");
-    drop(seed(&real, 28));
+    drop(seed(&real, 29));
     let link = dir.path().join("metadata.db");
     symlink(&real, &link).unwrap();
     assert!(matches!(
@@ -372,7 +376,7 @@ fn older_live_wal_migrates_with_wal_and_backup_has_live_rows() {
         })
         .unwrap();
     assert_eq!(mode, "wal");
-    assert_eq!(schema(&path), 27);
+    assert_eq!(schema(&path), 28);
     let backup = raw_open(&store.backup_files()[0], true).unwrap();
     let value: String = backup
         .query_row("SELECT value FROM live_data", [], |row| row.get(0))

@@ -1,4 +1,3 @@
-use crosshook_core::metadata::sha256_hex;
 use crosshook_core::metadata::{
     ConfigRevisionSource, MetadataStore, MetadataStoreError, SyncSource, MAX_HISTORY_LIST_LIMIT,
 };
@@ -288,16 +287,11 @@ pub fn profile_config_rollback(
             format!("revision {revision_id} not found or does not belong to profile '{name}'")
         })?;
 
-    // Integrity check: re-compute the SHA-256 of the stored snapshot and compare
-    // against the recorded content_hash to detect DB corruption or tampering.
-    {
-        let computed = sha256_hex(revision.snapshot_toml.as_bytes());
-        if computed != revision.content_hash {
-            return Err(format!(
-                "integrity check failed for revision {revision_id}: content hash mismatch"
-            ));
-        }
-    }
+    // Integrity check (core): SHA-256 content hash plus HMAC-SHA256 signature
+    // when available; legacy/unverifiable signatures degrade to hash-only.
+    metadata_store
+        .verify_config_revision(&revision)
+        .map_err(|e| e.to_string())?;
 
     let restored_profile: GameProfile = toml::from_str(&revision.snapshot_toml)
         .map_err(|e| format!("failed to parse snapshot for revision {revision_id}: {e}"))?;
