@@ -132,6 +132,31 @@ async fn dropping_holder_releases_grant() {
     assert!(*portal.released.lock().unwrap());
 }
 
+/// A contract-violating re-request must not drop a held grant.
+#[tokio::test]
+async fn already_requested_after_grant_keeps_grant_and_state() {
+    let portal = FakePortal::new(true, Outcome::Grant);
+    let holder = BackgroundGrantHolder::for_portal(&portal);
+    holder.request_and_store(&portal).await;
+    assert_eq!(
+        holder.protection_state(),
+        BackgroundProtectionState::Available
+    );
+
+    holder.store_result(Err(BackgroundRequestError::AlreadyRequested));
+
+    assert_eq!(
+        holder.protection_state(),
+        BackgroundProtectionState::Available
+    );
+    assert!(holder.has_active_grant());
+    assert!(holder.is_initialized());
+    assert!(
+        !*portal.released.lock().unwrap(),
+        "grant must not be dropped"
+    );
+}
+
 #[tokio::test]
 async fn wait_for_initialization_returns_immediately_when_unsupported() {
     let holder = BackgroundGrantHolder::for_portal(&FakePortal::new(false, Outcome::Grant));

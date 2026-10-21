@@ -10,7 +10,7 @@ use crosshook_core::settings::{
     HighContrastPreference, ReducedMotionPreference, SettingsStore, UmuDatabaseLookupPreference,
     UmuPreference,
 };
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use super::run_blocking;
 use crate::{AppError, AppErrorKind};
@@ -74,11 +74,11 @@ pub struct SettingsSaveRequest {
     pub umu_database_lookup: Option<UmuDatabaseLookupPreference>,
     #[serde(default)]
     pub host_tool_dashboard_dismissed_hints: Option<Vec<String>>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_present")]
     pub host_tool_dashboard_default_category_filter: Option<Option<String>>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_present")]
     pub install_nag_dismissed_at: Option<Option<String>>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_present")]
     pub steam_deck_caveats_dismissed_at: Option<Option<String>>,
     #[serde(default)]
     pub protonup_default_provider: Option<String>,
@@ -88,6 +88,17 @@ pub struct SettingsSaveRequest {
     pub protonup_include_prereleases: Option<bool>,
     #[serde(default)]
     pub config_history: Option<ConfigHistorySettings>,
+}
+
+/// Deserializes a key that is present (value or `null`) as `Some(_)`, so an
+/// explicit `null` becomes `Some(None)` ("clear"). Paired with
+/// `#[serde(default)]`, an absent key stays `None` ("preserve").
+fn deserialize_present<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: Deserializer<'de>,
+{
+    Option::<T>::deserialize(deserializer).map(Some)
 }
 
 /// Merges a [`SettingsSaveRequest`] over `current` settings.

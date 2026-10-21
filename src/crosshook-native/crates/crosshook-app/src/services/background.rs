@@ -218,40 +218,44 @@ impl BackgroundGrantHolder {
     /// Stores the result of a `RequestBackground` call and signals all
     /// awaiters of [`BackgroundGrantHolder::wait_for_initialization`].
     ///
-    /// Must be called exactly once per process lifetime. Subsequent calls
-    /// overwrite the stored state but are harmless — the notify is
-    /// idempotent.
+    /// Must be called exactly once per process lifetime. A later
+    /// `AlreadyRequested` result never discards a held grant (see below);
+    /// other results replace the stored state. The notify is idempotent.
     ///
     /// Successful grants update the holder to `Available` and keep the
     /// RAII handle alive until the holder is dropped. Denials update to
     /// `Degraded`. Transport failures update to `Unavailable`.
-    /// `NotSandboxed` always maps to `NotApplicable`.
+    /// `NotSandboxed` always maps to `NotApplicable`. `AlreadyRequested`
+    /// (a contract violation) keeps the current state and grant when a grant
+    /// is held, and only falls back to `Unavailable` when none is.
     pub fn store_result(&self, result: BackgroundRequestResult) {
-        let (protection, grant) = match result {
-            Ok(grant) => (BackgroundProtectionState::Available, Some(grant)),
-            Err(BackgroundRequestError::NotSandboxed) => {
-                (BackgroundProtectionState::NotApplicable, None)
-            }
-            Err(BackgroundRequestError::PortalDenied) => {
-                (BackgroundProtectionState::Degraded, None)
-            }
-            Err(BackgroundRequestError::Transport(_)) => {
-                (BackgroundProtectionState::Unavailable, None)
-            }
-            Err(BackgroundRequestError::AlreadyRequested) => {
-                // Violated the one-call-per-process contract; the prior grant
-                // (if any) remains valid but we cannot update the holder state
-                // here. Treat as Unavailable so the capability surface is
-                // conservative rather than silently stale.
-                tracing::warn!(
-                    "store_result called after RequestBackground already succeeded \
-                     or is in-flight; this is a programming error"
-                );
-                (BackgroundProtectionState::Unavailable, None)
-            }
-        };
         {
             let mut state = self.lock();
+            let (protection, grant) = match result {
+                Ok(grant) => (BackgroundProtectionState::Available, Some(grant)),
+                Err(BackgroundRequestError::NotSandboxed) => {
+                    (BackgroundProtectionState::NotApplicable, None)
+                }
+                Err(BackgroundRequestError::PortalDenied) => {
+                    (BackgroundProtectionState::Degraded, None)
+                }
+                Err(BackgroundRequestError::Transport(_)) => {
+                    (BackgroundProtectionState::Unavailable, None)
+                }
+                Err(BackgroundRequestError::AlreadyRequested) => {
+                    tracing::warn!(
+                        "store_result called after RequestBackground already succeeded \
+                         or is in-flight; this is a programming error"
+                    );
+                    if state.grant.is_some() {
+                        // The prior grant is still valid; keep it and its state.
+                        return;
+                    }
+                    // No grant to fall back on: report conservatively rather
+                    // than leave a stale `Pending`.
+                    (BackgroundProtectionState::Unavailable, None)
+                }
+            };
             state.protection = protection;
             state.grant = grant;
             state.initialized = true;

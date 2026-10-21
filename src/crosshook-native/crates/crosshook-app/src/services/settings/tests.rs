@@ -246,6 +246,101 @@ fn save_request_rejects_unknown_tri_state_string() {
     assert!(serde_json::from_value::<SettingsSaveRequest>(body).is_err());
 }
 
+const TRI_STATE_NULLABLE_FIELDS: [&str; 3] = [
+    "host_tool_dashboard_default_category_filter",
+    "install_nag_dismissed_at",
+    "steam_deck_caveats_dismissed_at",
+];
+
+/// JSON body for `make_save_request()` with each nullable tri-state field set
+/// via `value` (`None` removes the key).
+fn request_json_with(value: Option<serde_json::Value>) -> serde_json::Value {
+    let mut body = serde_json::to_value(make_save_request()).expect("fixture must serialize");
+    let map = body.as_object_mut().expect("request body is a JSON object");
+    for field in TRI_STATE_NULLABLE_FIELDS {
+        match &value {
+            Some(value) => map.insert(field.to_string(), value.clone()),
+            None => map.remove(field),
+        };
+    }
+    body
+}
+
+/// Regression: explicit JSON `null` must deserialize to `Some(None)` (clear),
+/// distinct from an absent key (`None`, preserve).
+#[test]
+fn save_request_distinguishes_explicit_null_from_absent() {
+    let parsed: SettingsSaveRequest =
+        serde_json::from_value(request_json_with(Some(serde_json::Value::Null))).unwrap();
+    assert_eq!(
+        parsed.host_tool_dashboard_default_category_filter,
+        Some(None)
+    );
+    assert_eq!(parsed.install_nag_dismissed_at, Some(None));
+    assert_eq!(parsed.steam_deck_caveats_dismissed_at, Some(None));
+
+    let parsed: SettingsSaveRequest = serde_json::from_value(request_json_with(None)).unwrap();
+    assert_eq!(parsed.host_tool_dashboard_default_category_filter, None);
+    assert_eq!(parsed.install_nag_dismissed_at, None);
+    assert_eq!(parsed.steam_deck_caveats_dismissed_at, None);
+
+    let parsed: SettingsSaveRequest =
+        serde_json::from_value(request_json_with(Some(serde_json::json!("v")))).unwrap();
+    assert_eq!(
+        parsed.host_tool_dashboard_default_category_filter,
+        Some(Some("v".to_string()))
+    );
+    assert_eq!(parsed.install_nag_dismissed_at, Some(Some("v".to_string())));
+    assert_eq!(
+        parsed.steam_deck_caveats_dismissed_at,
+        Some(Some("v".to_string()))
+    );
+}
+
+/// End to end: a frontend payload with explicit `null` clears stored values,
+/// while an absent key keeps them.
+#[test]
+fn merge_from_json_null_clears_and_absent_preserves() {
+    let current = AppSettingsData {
+        host_tool_dashboard_default_category_filter: Some("runtime".to_string()),
+        install_nag_dismissed_at: Some("2026-04-15T12:00:00Z".to_string()),
+        steam_deck_caveats_dismissed_at: Some("2026-04-15T12:00:00Z".to_string()),
+        ..Default::default()
+    };
+
+    let request = serde_json::from_value(request_json_with(Some(serde_json::Value::Null))).unwrap();
+    let cleared = merge_save_request(request, current.clone());
+    assert_eq!(cleared.host_tool_dashboard_default_category_filter, None);
+    assert_eq!(cleared.install_nag_dismissed_at, None);
+    assert_eq!(cleared.steam_deck_caveats_dismissed_at, None);
+
+    let request = serde_json::from_value(request_json_with(None)).unwrap();
+    let kept = merge_save_request(request, current.clone());
+    assert_eq!(
+        kept.host_tool_dashboard_default_category_filter,
+        current.host_tool_dashboard_default_category_filter
+    );
+    assert_eq!(
+        kept.install_nag_dismissed_at,
+        current.install_nag_dismissed_at
+    );
+    assert_eq!(
+        kept.steam_deck_caveats_dismissed_at,
+        current.steam_deck_caveats_dismissed_at
+    );
+}
+
+/// Serialization shape is unchanged: unset and cleared both emit `null`.
+#[test]
+fn save_request_serializes_tri_state_as_null() {
+    let mut request = make_save_request();
+    request.install_nag_dismissed_at = Some(None);
+    let json = serde_json::to_value(&request).unwrap();
+    for field in TRI_STATE_NULLABLE_FIELDS {
+        assert_eq!(json[field], serde_json::Value::Null, "{field}");
+    }
+}
+
 fn service_in(dir: &Path, active: PathBuf) -> (SettingsService, SettingsStore) {
     let store = SettingsStore::with_base_path(dir.to_path_buf());
     (SettingsService::new(store.clone(), active), store)
