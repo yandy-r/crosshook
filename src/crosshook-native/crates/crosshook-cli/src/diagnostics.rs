@@ -32,6 +32,7 @@ pub(crate) fn handle_diagnostics_command(
                 output_dir: command.output,
                 metadata_status,
                 metadata_backup_files,
+                extra_files: Vec::new(),
             };
 
             let result = crosshook_core::export::export_diagnostic_bundle(

@@ -5,8 +5,9 @@ pub mod launcher;
 pub mod launcher_store;
 
 pub use diagnostics::{
-    export_diagnostic_bundle, DiagnosticBundleError, DiagnosticBundleOptions,
-    DiagnosticBundleResult, DiagnosticBundleSummary,
+    export_diagnostic_bundle, is_valid_bundle_file_name, DiagnosticBundleError,
+    DiagnosticBundleFile, DiagnosticBundleOptions, DiagnosticBundleResult, DiagnosticBundleSummary,
+    DIAGNOSTIC_BUNDLE_EXTRA_FILES_DIR,
 };
 pub use launcher::{
     export_launchers, preview_desktop_entry_content, preview_trainer_script_content, validate,

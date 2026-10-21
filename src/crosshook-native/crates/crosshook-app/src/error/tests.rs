@@ -3,10 +3,11 @@
 use std::io::{Error as IoError, ErrorKind};
 use std::path::PathBuf;
 
+use crosshook_core::export::DiagnosticBundleError;
 use crosshook_core::launch::ValidationError;
 use crosshook_core::metadata::MetadataStoreError;
 use crosshook_core::profile::ProfileStoreError;
-use crosshook_core::settings::SettingsStoreError;
+use crosshook_core::settings::{RecentFilesStoreError, SettingsStoreError};
 
 use super::{AppError, AppErrorKind};
 
@@ -84,6 +85,67 @@ fn settings_io_hides_path() {
     )));
     assert_eq!(error.kind(), AppErrorKind::Io);
     assert!(!error.message().contains("/home/"));
+}
+
+/// TOML parse errors echo the offending source line; a path outside `$HOME`
+/// would survive home redaction, so messages must be fixed strings.
+fn toml_de_error_with_path() -> toml::de::Error {
+    toml::from_str::<toml::Table>("game = \"/mnt/secret/game.exe\" oops").unwrap_err()
+}
+
+#[test]
+fn toml_errors_map_to_fixed_messages_without_source_text() {
+    let de = toml_de_error_with_path();
+    assert!(
+        de.to_string().contains("/mnt/secret"),
+        "fixture must echo source"
+    );
+    let cases = [
+        (
+            AppError::from(SettingsStoreError::TomlDe(de.clone())),
+            AppErrorKind::Validation { field: "settings" },
+            "settings file is not valid TOML",
+        ),
+        (
+            AppError::from(RecentFilesStoreError::TomlDe(de)),
+            AppErrorKind::Validation {
+                field: "recent_files",
+            },
+            "recent files data is not valid TOML",
+        ),
+    ];
+    for (error, kind, message) in cases {
+        assert_eq!(error.kind(), kind);
+        assert_eq!(error.message(), message);
+        assert!(!error.message().contains("/mnt/secret"));
+    }
+}
+
+#[test]
+fn recent_files_io_hides_path() {
+    let error = AppError::from(RecentFilesStoreError::Io(IoError::new(
+        ErrorKind::PermissionDenied,
+        "/mnt/secret/recent.toml",
+    )));
+    assert_eq!(error.kind(), AppErrorKind::Io);
+    assert!(!error.message().contains("/mnt/secret"));
+}
+
+#[test]
+fn diagnostic_bundle_errors_hide_paths() {
+    let cases = [
+        DiagnosticBundleError::Io {
+            action: "create the archive file",
+            path: PathBuf::from("/mnt/secret/out.tar.gz"),
+            source: IoError::new(ErrorKind::PermissionDenied, "/mnt/secret"),
+        },
+        DiagnosticBundleError::Archive("/mnt/secret/entry".to_string()),
+        DiagnosticBundleError::ProfileStore("/mnt/secret/p.toml".to_string()),
+    ];
+    for case in cases {
+        let error = AppError::from(case);
+        assert!(!error.message().contains("/mnt/secret"), "{error:?}");
+    }
 }
 
 #[test]

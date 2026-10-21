@@ -1,22 +1,17 @@
+use crosshook_app::services::RecentFilesService;
+use crosshook_app::services::{SettingsSaveRequest, SettingsService, SettingsSnapshot};
+use crosshook_app::AppError;
 use crosshook_core::community::CommunityTapSubscription;
 use crosshook_core::discovery::ExternalTrainerSourceSubscription;
 use crosshook_core::settings::{
-    clamp_config_history_max_revisions, clamp_recent_files_limit,
-    resolve_profiles_directory_from_config, AppSettingsData, ConfigHistorySettings,
-    HighContrastPreference, RecentFilesData, RecentFilesStore, RecentFilesStoreError,
-    ReducedMotionPreference, SettingsStore, SettingsStoreError, UmuDatabaseLookupPreference,
-    UmuPreference,
+    ConfigHistorySettings, HighContrastPreference, RecentFilesData, ReducedMotionPreference,
+    UmuDatabaseLookupPreference, UmuPreference,
 };
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 use tauri::State;
 
-fn map_settings_error(error: SettingsStoreError) -> String {
-    error.to_string()
-}
-
-fn map_recent_files_error(error: RecentFilesStoreError) -> String {
-    error.to_string()
+fn map_app_error(error: AppError) -> String {
+    error.message().to_string()
 }
 
 /// IPC-safe settings DTO returned by `settings_load`.
@@ -72,16 +67,16 @@ pub struct AppSettingsIpcData {
 }
 
 impl AppSettingsIpcData {
-    fn from_parts(
-        mut data: AppSettingsData,
-        resolved_profiles: &Path,
-        active_profiles: &Path,
-    ) -> Self {
+    fn from_snapshot(snapshot: SettingsSnapshot) -> Self {
+        let SettingsSnapshot {
+            mut data,
+            resolved_profiles_directory,
+            active_profiles_directory,
+            profiles_directory_requires_restart,
+        } = snapshot;
         data.clear_extra();
-        let resolved_profiles_directory = resolved_profiles.display().to_string();
-        let active_profiles_directory = active_profiles.display().to_string();
-        let profiles_directory_requires_restart =
-            paths_need_restart_for_profiles(resolved_profiles, active_profiles);
+        let resolved_profiles_directory = resolved_profiles_directory.display().to_string();
+        let active_profiles_directory = active_profiles_directory.display().to_string();
         Self {
             auto_load_last_profile: data.auto_load_last_profile,
             last_used_profile: data.last_used_profile,
@@ -127,418 +122,107 @@ impl AppSettingsIpcData {
     }
 }
 
-fn paths_need_restart_for_profiles(resolved: &Path, active: &Path) -> bool {
-    match (resolved.canonicalize(), active.canonicalize()) {
-        (Ok(r), Ok(a)) => r != a,
-        _ => resolved != active,
-    }
-}
-
-/// IPC request DTO for `settings_save`.
-///
-/// Excludes the SteamGridDB API key — use `settings_save_steamgriddb_key` to
-/// update the key. This prevents an accidental frontend round-trip from
-/// clearing the stored key.
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub struct SettingsSaveRequest {
-    pub auto_load_last_profile: bool,
-    pub last_used_profile: String,
-    pub community_taps: Vec<CommunityTapSubscription>,
-    pub onboarding_completed: bool,
-    pub offline_mode: bool,
-    pub default_proton_path: String,
-    pub default_launch_method: String,
-    pub default_bundled_optimization_preset_id: String,
-    pub default_trainer_loading_mode: String,
-    pub log_filter: String,
-    pub console_drawer_collapsed_default: bool,
-    pub recent_files_limit: u32,
-    pub profiles_directory: String,
-    pub protontricks_binary_path: String,
-    pub auto_install_prefix_deps: bool,
-    pub discovery_enabled: bool,
-    pub external_trainer_sources: Option<Vec<ExternalTrainerSourceSubscription>>,
-    #[serde(default)]
-    pub high_contrast: Option<HighContrastPreference>,
-    #[serde(default)]
-    pub reduced_motion: Option<ReducedMotionPreference>,
-    #[serde(default)]
-    pub protonup_auto_suggest: Option<bool>,
-    #[serde(default)]
-    pub protonup_binary_path: Option<String>,
-    #[serde(default)]
-    pub umu_preference: Option<UmuPreference>,
-    #[serde(default)]
-    pub umu_database_lookup: Option<UmuDatabaseLookupPreference>,
-    #[serde(default)]
-    pub host_tool_dashboard_dismissed_hints: Option<Vec<String>>,
-    #[serde(default)]
-    pub host_tool_dashboard_default_category_filter: Option<Option<String>>,
-    #[serde(default)]
-    pub install_nag_dismissed_at: Option<Option<String>>,
-    #[serde(default)]
-    pub steam_deck_caveats_dismissed_at: Option<Option<String>>,
-    #[serde(default)]
-    pub protonup_default_provider: Option<String>,
-    #[serde(default)]
-    pub protonup_default_install_root: Option<String>,
-    #[serde(default)]
-    pub protonup_include_prereleases: Option<bool>,
-    #[serde(default)]
-    pub config_history: Option<ConfigHistorySettings>,
-}
-
-fn merge_settings_from_request(
-    data: SettingsSaveRequest,
-    current: AppSettingsData,
-) -> AppSettingsData {
-    let disk_extras = current.clone();
-    let recent_files_limit = clamp_recent_files_limit(data.recent_files_limit);
-    let log_filter = data.log_filter.trim();
-    let log_filter = if log_filter.is_empty() {
-        "info".to_string()
-    } else {
-        log_filter.to_string()
-    };
-    let mut merged = AppSettingsData {
-        extra: toml::Table::new(),
-        auto_load_last_profile: data.auto_load_last_profile,
-        last_used_profile: data.last_used_profile,
-        community_taps: data.community_taps,
-        onboarding_completed: data.onboarding_completed,
-        offline_mode: data.offline_mode,
-        steamgriddb_api_key: current.steamgriddb_api_key,
-        default_proton_path: data.default_proton_path,
-        default_launch_method: data.default_launch_method,
-        default_bundled_optimization_preset_id: data.default_bundled_optimization_preset_id,
-        default_trainer_loading_mode: data.default_trainer_loading_mode,
-        log_filter,
-        console_drawer_collapsed_default: data.console_drawer_collapsed_default,
-        recent_files_limit,
-        profiles_directory: data.profiles_directory,
-        protontricks_binary_path: data.protontricks_binary_path,
-        auto_install_prefix_deps: data.auto_install_prefix_deps,
-        discovery_enabled: data.discovery_enabled,
-        // Preserve current sources only when the field is omitted.
-        // An explicit empty list means "save no sources".
-        external_trainer_sources: data
-            .external_trainer_sources
-            .unwrap_or(current.external_trainer_sources),
-        high_contrast: data.high_contrast.unwrap_or(current.high_contrast),
-        reduced_motion: data.reduced_motion.unwrap_or(current.reduced_motion),
-        protonup_auto_suggest: data
-            .protonup_auto_suggest
-            .unwrap_or(current.protonup_auto_suggest),
-        protonup_binary_path: data
-            .protonup_binary_path
-            .unwrap_or(current.protonup_binary_path),
-        umu_preference: data.umu_preference.unwrap_or(current.umu_preference),
-        umu_database_lookup: data
-            .umu_database_lookup
-            .unwrap_or(current.umu_database_lookup),
-        host_tool_dashboard_dismissed_hints: data
-            .host_tool_dashboard_dismissed_hints
-            .unwrap_or(current.host_tool_dashboard_dismissed_hints),
-        host_tool_dashboard_default_category_filter: data
-            .host_tool_dashboard_default_category_filter
-            .unwrap_or(current.host_tool_dashboard_default_category_filter),
-        // Absent field preserves current value; explicit null clears the timestamp.
-        install_nag_dismissed_at: data
-            .install_nag_dismissed_at
-            .unwrap_or(current.install_nag_dismissed_at),
-        steam_deck_caveats_dismissed_at: data
-            .steam_deck_caveats_dismissed_at
-            .unwrap_or(current.steam_deck_caveats_dismissed_at),
-        protonup_default_provider: data
-            .protonup_default_provider
-            .unwrap_or(current.protonup_default_provider),
-        protonup_default_install_root: data
-            .protonup_default_install_root
-            .unwrap_or(current.protonup_default_install_root),
-        protonup_include_prereleases: data
-            .protonup_include_prereleases
-            .unwrap_or(current.protonup_include_prereleases),
-        config_history: data
-            .config_history
-            .map(|mut history| {
-                history.max_revisions = clamp_config_history_max_revisions(history.max_revisions);
-                history
-            })
-            .unwrap_or(current.config_history),
-    };
-    merged.preserve_extra_from(&disk_extras);
-    merged
-}
-
 #[tauri::command]
-pub fn settings_load(
-    store: State<'_, SettingsStore>,
-    profile_store: State<'_, crosshook_core::profile::ProfileStore>,
+pub async fn settings_load(
+    service: State<'_, SettingsService>,
 ) -> Result<AppSettingsIpcData, String> {
-    let data = store.load().map_err(map_settings_error)?;
-    let resolved = resolve_profiles_directory_from_config(&data, &store.base_path)
-        .map_err(|e| e.to_string())?;
-    Ok(AppSettingsIpcData::from_parts(
-        data,
-        &resolved,
-        &profile_store.base_path,
-    ))
+    let snapshot = service.load().await.map_err(map_app_error)?;
+    Ok(AppSettingsIpcData::from_snapshot(snapshot))
 }
 
+/// Saves the settings form. The SteamGridDB key is never touched; use
+/// `settings_save_steamgriddb_key`.
 #[tauri::command]
-pub fn settings_save(
+pub async fn settings_save(
     data: SettingsSaveRequest,
-    store: State<'_, SettingsStore>,
+    service: State<'_, SettingsService>,
 ) -> Result<(), String> {
-    store
-        .update(|current| {
-            *current = merge_settings_from_request(data, current.clone());
-            Ok::<_, String>(())
-        })
-        .map_err(map_settings_error)?
+    service
+        .save_request(data)
+        .await
+        .map(drop)
+        .map_err(map_app_error)
 }
 
 /// Write-only command for updating the SteamGridDB API key.
 ///
 /// Pass `Some(key)` to set the key, or `None` to clear it.
 #[tauri::command]
-pub fn settings_save_steamgriddb_key(
+pub async fn settings_save_steamgriddb_key(
     key: Option<String>,
-    store: State<'_, SettingsStore>,
+    service: State<'_, SettingsService>,
 ) -> Result<(), String> {
-    let mut current = store.load().map_err(map_settings_error)?;
-    current.steamgriddb_api_key = key.and_then(|k| {
-        let trimmed = k.trim().to_string();
-        if trimmed.is_empty() {
-            None
-        } else {
-            Some(trimmed)
-        }
-    });
-    store.save(&current).map_err(map_settings_error)
+    service
+        .save_steamgriddb_key(key)
+        .await
+        .map_err(map_app_error)
 }
 
 #[tauri::command]
-pub fn recent_files_load(
-    settings_store: State<'_, SettingsStore>,
-    store: State<'_, RecentFilesStore>,
+pub async fn recent_files_load(
+    service: State<'_, RecentFilesService>,
 ) -> Result<RecentFilesData, String> {
-    let settings = settings_store.load().map_err(map_settings_error)?;
-    let cap = clamp_recent_files_limit(settings.recent_files_limit) as usize;
-    let mut recent = store.load(cap).map_err(map_recent_files_error)?;
-    recent.extra.clear();
-    Ok(recent)
+    service.load().await.map_err(map_app_error)
 }
 
 #[tauri::command]
-pub fn recent_files_save(
+pub async fn recent_files_save(
     data: RecentFilesData,
-    settings_store: State<'_, SettingsStore>,
-    store: State<'_, RecentFilesStore>,
+    service: State<'_, RecentFilesService>,
 ) -> Result<(), String> {
-    let settings = settings_store.load().map_err(map_settings_error)?;
-    let cap = clamp_recent_files_limit(settings.recent_files_limit) as usize;
-    store
-        .save_from_ipc(&data, cap)
-        .map_err(map_recent_files_error)
+    service.save(data).await.map_err(map_app_error)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crosshook_core::settings::AppSettingsData;
     use std::path::PathBuf;
 
     #[test]
     fn command_names_match_expected_ipc_contract() {
-        let _ = settings_load
-            as fn(
-                State<'_, SettingsStore>,
-                State<'_, crosshook_core::profile::ProfileStore>,
-            ) -> Result<AppSettingsIpcData, String>;
-        let _ = settings_save
-            as fn(SettingsSaveRequest, State<'_, SettingsStore>) -> Result<(), String>;
-        let _ = settings_save_steamgriddb_key
-            as fn(Option<String>, State<'_, SettingsStore>) -> Result<(), String>;
-        let _ = recent_files_load
-            as fn(
-                State<'_, SettingsStore>,
-                State<'_, RecentFilesStore>,
-            ) -> Result<RecentFilesData, String>;
-        let _ = recent_files_save
-            as fn(
-                RecentFilesData,
-                State<'_, SettingsStore>,
-                State<'_, RecentFilesStore>,
-            ) -> Result<(), String>;
+        // Async commands cannot be cast to fn pointers; naming them pins the
+        // exported symbol (and thus the IPC command name).
+        let _ = settings_load;
+        let _ = settings_save;
+        let _ = settings_save_steamgriddb_key;
+        let _ = recent_files_load;
+        let _ = recent_files_save;
+    }
+
+    fn ipc_from(data: AppSettingsData) -> AppSettingsIpcData {
+        AppSettingsIpcData::from_snapshot(SettingsSnapshot {
+            data,
+            resolved_profiles_directory: PathBuf::from("/tmp/profiles"),
+            active_profiles_directory: PathBuf::from("/tmp/profiles"),
+            profiles_directory_requires_restart: false,
+        })
     }
 
     #[test]
-    fn paths_need_restart_detects_mismatch() {
-        let a = PathBuf::from("/tmp/a");
-        let b = PathBuf::from("/tmp/b");
-        assert!(paths_need_restart_for_profiles(&a, &b));
-    }
-
-    fn make_save_request() -> SettingsSaveRequest {
-        SettingsSaveRequest {
-            auto_load_last_profile: false,
-            last_used_profile: String::new(),
-            community_taps: vec![],
-            onboarding_completed: false,
-            offline_mode: false,
-            default_proton_path: String::new(),
-            default_launch_method: String::new(),
-            default_bundled_optimization_preset_id: String::new(),
-            default_trainer_loading_mode: String::new(),
-            log_filter: "info".to_string(),
-            console_drawer_collapsed_default: false,
-            recent_files_limit: 10,
-            profiles_directory: String::new(),
-            protontricks_binary_path: String::new(),
-            auto_install_prefix_deps: false,
-            discovery_enabled: false,
-            external_trainer_sources: None,
-            protonup_auto_suggest: None,
-            protonup_binary_path: None,
-            umu_preference: None,
-            umu_database_lookup: None,
-            host_tool_dashboard_dismissed_hints: None,
-            host_tool_dashboard_default_category_filter: None,
-            install_nag_dismissed_at: None,
-            steam_deck_caveats_dismissed_at: None,
-            protonup_default_provider: None,
-            protonup_default_install_root: None,
-            protonup_include_prereleases: None,
-            high_contrast: None,
-            reduced_motion: None,
-            config_history: None,
-        }
+    fn ipc_dto_clears_unknown_keys_and_hides_key() {
+        let mut data: AppSettingsData =
+            toml::from_str("future = 2026-10-08\nsteamgriddb_api_key = \"secret\"\n").unwrap();
+        data.extra
+            .insert("future_two".to_string(), toml::Value::Boolean(true));
+        let ipc = ipc_from(data);
+        assert!(ipc.has_steamgriddb_api_key);
+        let json = serde_json::to_string(&ipc).unwrap();
+        assert!(!json.contains("future"));
+        assert!(!json.contains("secret"));
     }
 
     #[test]
-    fn merge_preserves_disk_extras_and_ignores_request_extras() {
-        let current: AppSettingsData = toml::from_str(
-            "future = 2026-10-08\n[ui]\nscale = 1.25\n[config_history]\nmax_revisions = 20\nfuture = true\n",
-        )
-        .unwrap();
-        let mut request = make_save_request();
-        request.offline_mode = true;
-        request.config_history = Some(ConfigHistorySettings {
-            max_revisions: 30,
-            extra: toml::Table::from_iter([("injected".to_string(), true.into())]),
+    fn ipc_dto_carries_restart_state_from_snapshot() {
+        let ipc = AppSettingsIpcData::from_snapshot(SettingsSnapshot {
+            data: AppSettingsData::default(),
+            resolved_profiles_directory: PathBuf::from("/tmp/a"),
+            active_profiles_directory: PathBuf::from("/tmp/b"),
+            profiles_directory_requires_restart: true,
         });
-        let merged = merge_settings_from_request(request, current.clone());
-        assert!(merged.offline_mode);
-        assert_eq!(merged.config_history.max_revisions, 30);
-        assert_eq!(merged.extra, current.extra);
-        assert_eq!(merged.config_history.extra, current.config_history.extra);
-        let ipc = AppSettingsIpcData::from_parts(merged, Path::new("/a"), Path::new("/a"));
-        assert!(!serde_json::to_string(&ipc).unwrap().contains("future"));
-    }
-
-    #[test]
-    fn merge_preserves_install_nag_dismissed_at_when_omitted() {
-        let current = AppSettingsData {
-            install_nag_dismissed_at: Some("2026-04-15T12:00:00Z".to_string()),
-            high_contrast: HighContrastPreference::On,
-            ..Default::default()
-        };
-        let request = make_save_request();
-        let merged = merge_settings_from_request(request, current);
-        assert_eq!(
-            merged.install_nag_dismissed_at,
-            Some("2026-04-15T12:00:00Z".to_string()),
-            "absent field must preserve existing timestamp"
-        );
-        assert_eq!(
-            merged.high_contrast,
-            HighContrastPreference::On,
-            "absent field must preserve high_contrast preference"
-        );
-    }
-
-    #[test]
-    fn merge_sets_high_contrast_when_provided() {
-        let current = AppSettingsData {
-            high_contrast: HighContrastPreference::Off,
-            ..Default::default()
-        };
-        let mut request = make_save_request();
-        request.high_contrast = Some(HighContrastPreference::On);
-        let merged = merge_settings_from_request(request, current);
-        assert_eq!(
-            merged.high_contrast,
-            HighContrastPreference::On,
-            "explicit value must set high_contrast in merged settings"
-        );
-    }
-
-    #[test]
-    fn merge_preserves_reduced_motion_when_absent() {
-        let current = AppSettingsData {
-            reduced_motion: ReducedMotionPreference::Reduced,
-            ..Default::default()
-        };
-        let request = make_save_request();
-        let merged = merge_settings_from_request(request, current);
-        assert_eq!(
-            merged.reduced_motion,
-            ReducedMotionPreference::Reduced,
-            "absent field must preserve reduced_motion preference"
-        );
-    }
-
-    #[test]
-    fn merge_sets_reduced_motion_when_provided() {
-        let current = AppSettingsData {
-            reduced_motion: ReducedMotionPreference::Reduced,
-            ..Default::default()
-        };
-        let mut request = make_save_request();
-        request.reduced_motion = Some(ReducedMotionPreference::Full);
-        let merged = merge_settings_from_request(request, current);
-        assert_eq!(
-            merged.reduced_motion,
-            ReducedMotionPreference::Full,
-            "explicit value must set reduced_motion in merged settings"
-        );
-    }
-
-    #[test]
-    fn save_request_deserializes_tri_state_strings() {
-        let mut body = serde_json::to_value(make_save_request()).expect("fixture must serialize");
-        let map = body.as_object_mut().expect("request body is a JSON object");
-        map.insert("high_contrast".to_string(), serde_json::json!("off"));
-        map.insert("reduced_motion".to_string(), serde_json::json!("reduced"));
-        let parsed: SettingsSaveRequest =
-            serde_json::from_value(body).expect("tri-state strings must deserialize");
-        assert_eq!(parsed.high_contrast, Some(HighContrastPreference::Off));
-        assert_eq!(
-            parsed.reduced_motion,
-            Some(ReducedMotionPreference::Reduced)
-        );
-
-        let mut body = serde_json::to_value(make_save_request()).expect("fixture must serialize");
-        let map = body.as_object_mut().expect("request body is a JSON object");
-        map.remove("high_contrast");
-        map.remove("reduced_motion");
-        let parsed: SettingsSaveRequest =
-            serde_json::from_value(body).expect("absent tri-state keys must deserialize");
-        assert_eq!(parsed.high_contrast, None);
-        assert_eq!(parsed.reduced_motion, None);
-    }
-
-    #[test]
-    fn save_request_rejects_unknown_tri_state_string() {
-        let mut body = serde_json::to_value(make_save_request()).expect("fixture must serialize");
-        let map = body.as_object_mut().expect("request body is a JSON object");
-        map.insert("high_contrast".to_string(), serde_json::json!("yes"));
-        let parsed = serde_json::from_value::<SettingsSaveRequest>(body);
-        assert!(
-            parsed.is_err(),
-            "unknown high_contrast string must fail deserialization"
-        );
+        assert_eq!(ipc.resolved_profiles_directory, "/tmp/a");
+        assert_eq!(ipc.active_profiles_directory, "/tmp/b");
+        assert!(ipc.profiles_directory_requires_restart);
     }
 
     #[test]
@@ -547,44 +231,11 @@ mod tests {
             reduced_motion: ReducedMotionPreference::Reduced,
             ..Default::default()
         };
-        let resolved = PathBuf::from("/tmp/profiles");
-        let active = PathBuf::from("/tmp/profiles");
-        let ipc = AppSettingsIpcData::from_parts(data, &resolved, &active);
+        let ipc = ipc_from(data);
         let json = serde_json::to_string(&ipc).expect("serialization must not fail");
         assert!(
             json.contains("\"reduced_motion\":\"reduced\""),
             "serialized IPC DTO must carry the tri-state string form: {json}"
-        );
-    }
-
-    #[test]
-    fn merge_sets_install_nag_dismissed_at_when_provided() {
-        let current = AppSettingsData {
-            install_nag_dismissed_at: None,
-            ..Default::default()
-        };
-        let mut request = make_save_request();
-        request.install_nag_dismissed_at = Some(Some("2026-04-15T13:00:00Z".to_string()));
-        let merged = merge_settings_from_request(request, current);
-        assert_eq!(
-            merged.install_nag_dismissed_at,
-            Some("2026-04-15T13:00:00Z".to_string()),
-            "explicit timestamp must be stored"
-        );
-    }
-
-    #[test]
-    fn merge_clears_install_nag_dismissed_at_when_explicitly_null() {
-        let current = AppSettingsData {
-            install_nag_dismissed_at: Some("2026-04-15T12:00:00Z".to_string()),
-            ..Default::default()
-        };
-        let mut request = make_save_request();
-        request.install_nag_dismissed_at = Some(None);
-        let merged = merge_settings_from_request(request, current);
-        assert!(
-            merged.install_nag_dismissed_at.is_none(),
-            "explicit null must clear the stored timestamp"
         );
     }
 
@@ -594,9 +245,7 @@ mod tests {
             install_nag_dismissed_at: Some("2026-04-15T10:00:00Z".to_string()),
             ..Default::default()
         };
-        let resolved = PathBuf::from("/tmp/profiles");
-        let active = PathBuf::from("/tmp/profiles");
-        let ipc = AppSettingsIpcData::from_parts(data, &resolved, &active);
+        let ipc = ipc_from(data);
         assert_eq!(
             ipc.install_nag_dismissed_at,
             Some("2026-04-15T10:00:00Z".to_string()),
@@ -610,9 +259,7 @@ mod tests {
             install_nag_dismissed_at: None,
             ..Default::default()
         };
-        let resolved = PathBuf::from("/tmp/profiles");
-        let active = PathBuf::from("/tmp/profiles");
-        let ipc = AppSettingsIpcData::from_parts(data, &resolved, &active);
+        let ipc = ipc_from(data);
         assert!(
             ipc.install_nag_dismissed_at.is_none(),
             "from_parts must pass through None when field is unset"
@@ -627,9 +274,7 @@ mod tests {
             high_contrast: HighContrastPreference::On,
             ..Default::default()
         };
-        let resolved = PathBuf::from("/tmp/profiles");
-        let active = PathBuf::from("/tmp/profiles");
-        let ipc = AppSettingsIpcData::from_parts(data, &resolved, &active);
+        let ipc = ipc_from(data);
         let json = serde_json::to_string(&ipc).expect("serialization must not fail");
         assert!(
             json.contains("install_nag_dismissed_at"),
@@ -655,59 +300,11 @@ mod tests {
             install_nag_dismissed_at: None,
             ..Default::default()
         };
-        let resolved = PathBuf::from("/tmp/profiles");
-        let active = PathBuf::from("/tmp/profiles");
-        let ipc = AppSettingsIpcData::from_parts(data, &resolved, &active);
+        let ipc = ipc_from(data);
         let json = serde_json::to_string(&ipc).expect("serialization must not fail");
         assert!(
             json.contains("install_nag_dismissed_at"),
             "serialized IPC DTO must always contain the install_nag_dismissed_at key (as null when unset)"
-        );
-    }
-
-    #[test]
-    fn merge_steam_deck_caveats_dismissed_at_preserves_when_absent() {
-        let current = AppSettingsData {
-            steam_deck_caveats_dismissed_at: Some("2026-04-15T12:00:00Z".to_string()),
-            ..Default::default()
-        };
-        let request = make_save_request();
-        let merged = merge_settings_from_request(request, current);
-        assert_eq!(
-            merged.steam_deck_caveats_dismissed_at,
-            Some("2026-04-15T12:00:00Z".to_string()),
-            "absent field must preserve existing timestamp"
-        );
-    }
-
-    #[test]
-    fn merge_steam_deck_caveats_dismissed_at_sets_when_value_provided() {
-        let current = AppSettingsData {
-            steam_deck_caveats_dismissed_at: None,
-            ..Default::default()
-        };
-        let mut request = make_save_request();
-        request.steam_deck_caveats_dismissed_at = Some(Some("2026-04-15T12:00:00Z".to_string()));
-        let merged = merge_settings_from_request(request, current);
-        assert_eq!(
-            merged.steam_deck_caveats_dismissed_at,
-            Some("2026-04-15T12:00:00Z".to_string()),
-            "explicit timestamp must be stored"
-        );
-    }
-
-    #[test]
-    fn merge_steam_deck_caveats_dismissed_at_clears_when_explicit_null() {
-        let current = AppSettingsData {
-            steam_deck_caveats_dismissed_at: Some("2026-04-15T12:00:00Z".to_string()),
-            ..Default::default()
-        };
-        let mut request = make_save_request();
-        request.steam_deck_caveats_dismissed_at = Some(None);
-        let merged = merge_settings_from_request(request, current);
-        assert!(
-            merged.steam_deck_caveats_dismissed_at.is_none(),
-            "explicit null must clear the stored timestamp"
         );
     }
 
@@ -718,9 +315,7 @@ mod tests {
             steam_deck_caveats_dismissed_at: Some(timestamp.clone()),
             ..Default::default()
         };
-        let resolved = PathBuf::from("/tmp/profiles");
-        let active = PathBuf::from("/tmp/profiles");
-        let ipc = AppSettingsIpcData::from_parts(data, &resolved, &active);
+        let ipc = ipc_from(data);
         let json = serde_json::to_string(&ipc).expect("serialization must not fail");
         assert!(
             json.contains("steam_deck_caveats_dismissed_at"),
@@ -739,9 +334,7 @@ mod tests {
             host_tool_dashboard_default_category_filter: Some("runtime".to_string()),
             ..Default::default()
         };
-        let resolved = PathBuf::from("/tmp/profiles");
-        let active = PathBuf::from("/tmp/profiles");
-        let ipc = AppSettingsIpcData::from_parts(data, &resolved, &active);
+        let ipc = ipc_from(data);
         assert_eq!(
             ipc.host_tool_dashboard_dismissed_hints,
             vec!["gamescope".to_string()]
