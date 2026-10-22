@@ -171,7 +171,7 @@ All external tool invocations route through `crates/crosshook-core/src/platform.
 - `runtime-helpers/steam-launch-helper.sh` — Shell helper for Steam game+trainer launch (pgrep, steam, realpath, basename)
 - `runtime-helpers/steam-host-trainer-runner.sh` — Trainer runner with gamescope fallback and env file handoff
 - `runtime-helpers/steam-launch-trainer.sh` — Trainer launcher with setsid for detached execution
-- `src-tauri/src/paths.rs` — Script path resolution with Flatpak `/app/resources/` fallback
+- `crates/crosshook-core/src/runtime_helpers/mod.rs` — Script path resolution with Flatpak `/app/resources/` fallback (moved from `src-tauri/src/paths.rs`)
 - `src-tauri/src/lib.rs` — App entry point; calls `override_xdg_for_flatpak_host_access()`
 
 ## Architectural Patterns

@@ -70,7 +70,7 @@ pub struct LaunchCommand {
     pub profile_dir: Option<PathBuf>,
 
     /// Override the helper scripts directory (default: packaged or development helper scripts)
-    #[arg(long, hide = true, value_name = "PATH")]
+    #[arg(long, value_name = "PATH")]
     pub scripts_dir: Option<PathBuf>,
 
     /// Show what would be launched without executing

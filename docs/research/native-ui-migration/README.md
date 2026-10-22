@@ -154,7 +154,7 @@ About 3,500 lines of use-case orchestration live in `src-tauri`:
 - process supervision for update and run-exe;
 - health enrichment and bootstrap;
 - the background-portal holder;
-- runtime-helper lookup via Tauri `BaseDirectory::Resource` in `paths.rs` and `execution.rs`;
+- runtime-helper lookup (Tauri `BaseDirectory::Resource` lookup replaced by `crosshook_core::runtime_helpers::resolve` in M1-29, YAN-793);
 - security checks:
   - the ProtonUp catalog URL and checksum identity check;
   - community import workspace containment;

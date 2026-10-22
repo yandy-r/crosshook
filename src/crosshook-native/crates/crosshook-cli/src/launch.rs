@@ -11,14 +11,12 @@ use crosshook_core::launch::{
 };
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::resolve_launch_method;
+use crosshook_core::runtime_helpers::{self, RuntimeHelper};
 use crosshook_core::settings::SettingsStore;
 use crosshook_core::umu_database;
 use tokio::fs::{self, OpenOptions};
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use tokio::time::{sleep, Duration};
-
-const DEFAULT_SCRIPTS_DIR: &str = "../../runtime-helpers";
-const HELPER_SCRIPT_NAME: &str = "steam-launch-helper.sh";
 
 pub(crate) async fn launch_profile(
     command: LaunchCommand,
@@ -99,7 +97,6 @@ pub(crate) async fn launch_profile(
         return Ok(());
     }
 
-    let scripts_dir = command.scripts_dir.unwrap_or_else(default_scripts_dir);
     let log_path = launch_log_path(&profile_name);
     let method = request.method.as_str();
 
@@ -111,7 +108,16 @@ pub(crate) async fn launch_profile(
 
     let mut child = match method {
         METHOD_STEAM_APPLAUNCH => {
-            let helper = scripts_dir.join(HELPER_SCRIPT_NAME);
+            let helper = match command.scripts_dir.as_deref() {
+                Some(dir) => dir.join(RuntimeHelper::SteamLaunchHelper.file_name()),
+                None => {
+                    runtime_helpers::resolve(RuntimeHelper::SteamLaunchHelper).map_err(|e| {
+                        CliError::LaunchFailure(format!(
+                            "{e}; pass --scripts-dir <dir containing steam-launch-helper.sh>"
+                        ))
+                    })?
+                }
+            };
             // C-1 mitigation: validate helper script before execution
             let meta = std::fs::metadata(&helper).map_err(|e| {
                 CliError::LaunchFailure(format!(
@@ -223,10 +229,6 @@ fn default_steam_roots() -> Vec<PathBuf> {
     }
 
     roots
-}
-
-fn default_scripts_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(DEFAULT_SCRIPTS_DIR)
 }
 
 fn launch_log_dir() -> PathBuf {
