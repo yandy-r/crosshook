@@ -366,6 +366,8 @@ crosshook launch --profile elden-ring --dry-run
 crosshook launch --profile elden-ring --dry-run --json
 ```
 
+For `steam_applaunch` profiles, non-Flatpak release builds of the CLI need `--scripts-dir path/to/src/crosshook-native/runtime-helpers`. Debug builds find the source-tree helpers automatically.
+
 ### Generate shell completions
 
 ```bash

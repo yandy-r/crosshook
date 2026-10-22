@@ -16,6 +16,7 @@ use crosshook_core::launch::{
 };
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::{resolve_trainer_launch_method, ProfileStore};
+use crosshook_core::runtime_helpers::{self, RuntimeHelper};
 use crosshook_core::settings::{AppSettingsData, SettingsStore};
 use crosshook_core::umu_database;
 use tauri::{AppHandle, Manager, State};
@@ -116,7 +117,8 @@ pub async fn launch_game(
     };
     let mut command = match method {
         METHOD_STEAM_APPLAUNCH => {
-            let script_path = resolve_script_path(&app, "steam-launch-helper.sh")?;
+            let script_path = runtime_helpers::resolve(RuntimeHelper::SteamLaunchHelper)
+                .map_err(|error| error.to_string())?;
             build_helper_command(&request, &script_path, &log_path)
                 .map_err(|error| format!("failed to build Steam helper launch: {error}"))?
         }
@@ -310,7 +312,8 @@ pub async fn launch_trainer(
                 command.stderr(Stdio::piped());
                 command
             } else {
-                let script_path = resolve_script_path(&app, "steam-launch-trainer.sh")?;
+                let script_path = runtime_helpers::resolve(RuntimeHelper::SteamLaunchTrainer)
+                    .map_err(|error| error.to_string())?;
                 build_trainer_command(&request, &script_path, &log_path)
                     .map_err(|error| format!("failed to build Steam trainer launch: {error}"))?
             }
@@ -578,38 +581,6 @@ async fn record_launch_start(
         None
     } else {
         Some(operation_id)
-    }
-}
-
-fn resolve_script_path(app: &AppHandle, script_name: &str) -> Result<PathBuf, String> {
-    for resource_name in [
-        script_name.to_string(),
-        format!("runtime-helpers/{script_name}"),
-        format!("_up_/runtime-helpers/{script_name}"),
-    ] {
-        if let Ok(path) = app
-            .path()
-            .resolve(&resource_name, tauri::path::BaseDirectory::Resource)
-        {
-            if path.exists() {
-                tracing::debug!(path = %path.display(), script_name, resource_name, "resolved bundled launch script");
-                return Ok(path);
-            }
-        }
-    }
-
-    let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .join("runtime-helpers")
-        .join(script_name);
-
-    if dev_path.exists() {
-        tracing::debug!(path = %dev_path.display(), script_name, "falling back to development launch script");
-        Ok(dev_path)
-    } else {
-        Err(format!(
-            "unable to resolve launch script '{script_name}': neither bundled nor development path exists"
-        ))
     }
 }
 

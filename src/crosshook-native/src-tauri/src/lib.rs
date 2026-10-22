@@ -1,5 +1,4 @@
 mod commands;
-mod paths;
 mod startup;
 
 pub use crosshook_app::services::{BackgroundGrantHolder, BackgroundProtectionState};
@@ -23,7 +22,6 @@ use crosshook_core::onboarding::{
 };
 use crosshook_core::profile::ProfileStore;
 use crosshook_core::settings::{AppSettingsData, RecentFilesStore, SettingsStore};
-pub use paths::resolve_script_path;
 use std::sync::{Mutex, OnceLock};
 use tauri::{Emitter, Manager};
 use tokio::time::{sleep, Duration};
@@ -149,7 +147,7 @@ pub fn run() {
                 let log_path = logging::init_logging(false, user_filter)?;
                 tracing::info!(log_path = %log_path.display(), "starting CrossHook Native");
 
-                paths::ensure_development_scripts_executable()?;
+                crosshook_core::runtime_helpers::ensure_development_scripts_executable()?;
 
                 let auto_load_profile_name =
                     startup::resolve_auto_load_profile_name(&settings_store, &profile_store)?;

@@ -76,7 +76,7 @@ modules:
       - install -Dm755 crosshook-native /app/bin/crosshook-native
 
       # Bundled runtime helper scripts (resolved via the /app/resources/
-      # fallback in src-tauri/src/paths.rs when is_flatpak() is true).
+      # candidate in crosshook_core::runtime_helpers when is_flatpak() is true).
       - install -Dm755 runtime-helpers/steam-launch-helper.sh -t /app/resources/
       - install -Dm755 runtime-helpers/steam-launch-trainer.sh -t /app/resources/
       - install -Dm755 runtime-helpers/steam-host-trainer-runner.sh -t /app/resources/

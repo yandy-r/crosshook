@@ -18,6 +18,7 @@ pub mod profile;
 pub mod protondb;
 pub mod protonup;
 pub mod run_executable;
+pub mod runtime_helpers;
 pub mod settings;
 pub mod steam;
 pub mod steam_metadata;

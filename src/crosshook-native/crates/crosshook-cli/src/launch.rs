@@ -11,14 +11,12 @@ use crosshook_core::launch::{
 };
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::resolve_launch_method;
+use crosshook_core::runtime_helpers::{self, RuntimeHelper};
 use crosshook_core::settings::SettingsStore;
 use crosshook_core::umu_database;
 use tokio::fs::{self, OpenOptions};
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use tokio::time::{sleep, Duration};
-
-const DEFAULT_SCRIPTS_DIR: &str = "../../runtime-helpers";
-const HELPER_SCRIPT_NAME: &str = "steam-launch-helper.sh";
 
 pub(crate) async fn launch_profile(
     command: LaunchCommand,
@@ -99,7 +97,6 @@ pub(crate) async fn launch_profile(
         return Ok(());
     }
 
-    let scripts_dir = command.scripts_dir.unwrap_or_else(default_scripts_dir);
     let log_path = launch_log_path(&profile_name);
     let method = request.method.as_str();
 
@@ -111,32 +108,21 @@ pub(crate) async fn launch_profile(
 
     let mut child = match method {
         METHOD_STEAM_APPLAUNCH => {
-            let helper = scripts_dir.join(HELPER_SCRIPT_NAME);
-            // C-1 mitigation: validate helper script before execution
-            let meta = std::fs::metadata(&helper).map_err(|e| {
-                CliError::LaunchFailure(format!(
-                    "helper script not found at {}: {e}",
-                    helper.display()
-                ))
-            })?;
-            if !meta.is_file() {
-                return Err(CliError::LaunchFailure(format!(
-                    "helper script is not a regular file: {}",
-                    helper.display()
-                )));
-            }
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::MetadataExt;
-                let uid = unsafe { libc::getuid() };
-                if meta.uid() != uid {
-                    return Err(CliError::LaunchFailure(format!(
-                        "helper script {} is not owned by current user (uid {})",
-                        helper.display(),
-                        uid
-                    )));
+            let helper = match command.scripts_dir.as_deref() {
+                Some(dir) => {
+                    let helper = dir.join(RuntimeHelper::SteamLaunchHelper.file_name());
+                    validate_explicit_helper(&helper)?;
+                    helper
                 }
-            }
+                // Already vetted by the core trust check.
+                None => {
+                    runtime_helpers::resolve(RuntimeHelper::SteamLaunchHelper).map_err(|e| {
+                        CliError::LaunchFailure(format!(
+                            "{e}; pass --scripts-dir <dir containing steam-launch-helper.sh>"
+                        ))
+                    })?
+                }
+            };
             spawn_helper(&request, &helper, &log_path)
                 .map_err(|e| CliError::LaunchFailure(e.to_string()))?
         }
@@ -225,8 +211,34 @@ fn default_steam_roots() -> Vec<PathBuf> {
     roots
 }
 
-fn default_scripts_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(DEFAULT_SCRIPTS_DIR)
+/// C-1 mitigation for a user-supplied `--scripts-dir`: the helper must be a
+/// regular file owned by the current user.
+fn validate_explicit_helper(helper: &Path) -> Result<(), CliError> {
+    let meta = std::fs::metadata(helper).map_err(|e| {
+        CliError::LaunchFailure(format!(
+            "helper script not found at {}: {e}",
+            helper.display()
+        ))
+    })?;
+    if !meta.is_file() {
+        return Err(CliError::LaunchFailure(format!(
+            "helper script is not a regular file: {}",
+            helper.display()
+        )));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let uid = unsafe { libc::getuid() };
+        if meta.uid() != uid {
+            return Err(CliError::LaunchFailure(format!(
+                "helper script {} is not owned by current user (uid {})",
+                helper.display(),
+                uid
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn launch_log_dir() -> PathBuf {
