@@ -10,6 +10,8 @@
 mod app;
 mod error;
 mod events;
+pub mod jobs;
+pub mod log_tail;
 pub mod presenter;
 mod runtime;
 pub mod services;

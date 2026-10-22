@@ -31,7 +31,8 @@ use super::warnings::{
     coexistence_records_from_warnings, collect_mod_coexistence_warnings_ipc,
     collect_offline_launch_warnings, collect_trainer_hash_launch_warnings_ipc,
 };
-use crate::commands::shared::{create_log_path, sanitize_display_path};
+use crate::commands::shared::sanitize_display_path;
+use crosshook_app::jobs::create_log_path;
 
 /// Thin wrapper around the core key-derivation helper so launch-registration
 /// call sites don't need to reach into `request.profile_name` directly. Both

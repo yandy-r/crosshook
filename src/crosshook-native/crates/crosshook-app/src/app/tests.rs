@@ -10,6 +10,7 @@ use std::time::Duration;
 use tokio::runtime::Handle;
 
 use super::App;
+use crate::jobs::{JobEventKind, JobSpec, Outcome};
 use crate::AppErrorKind;
 
 /// Parks the current thread until woken — a minimal std-only executor proving
@@ -162,4 +163,40 @@ fn owned_runtime_supports_timers() {
         9
     });
     assert_eq!(block_on_park(future).unwrap(), 9);
+}
+
+#[tokio::test]
+async fn app_drop_cancels_running_jobs() {
+    let app = App::with_handle(Handle::current());
+    let mut handle = app
+        .jobs()
+        .start(JobSpec::new("wait"), |ctx| async move {
+            ctx.cancelled().await;
+            Outcome::Cancelled
+        })
+        .unwrap();
+    drop(app);
+    let event = tokio::time::timeout(Duration::from_secs(5), handle.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(event.kind, JobEventKind::Finished(Outcome::Cancelled));
+}
+
+#[test]
+fn owned_app_shutdown_finishes_jobs_as_cancelled() {
+    // The job ignores cancellation; runtime shutdown drops it and the
+    // registry still publishes `Cancelled` instead of hanging the handle.
+    let app = App::new().unwrap();
+    let mut handle = app
+        .jobs()
+        .start(JobSpec::new("stuck"), |_ctx| {
+            std::future::pending::<Outcome>()
+        })
+        .unwrap();
+    assert!(!handle.cancel_token().is_cancelled());
+    drop(app);
+    assert!(handle.cancel_token().is_cancelled());
+    let event = block_on_park(handle.recv()).unwrap();
+    assert_eq!(event.kind, JobEventKind::Finished(Outcome::Cancelled));
 }

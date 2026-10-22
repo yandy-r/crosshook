@@ -8,12 +8,14 @@ use tokio_util::sync::CancellationToken;
 
 use crate::error::AppError;
 use crate::events::{EventBus, EventReceiver, DEFAULT_EVENT_CAPACITY};
+use crate::jobs::JobRegistry;
 use crate::runtime::AppRuntime;
 
 /// Shared state behind every [`App`] clone.
 struct Inner {
     runtime: AppRuntime,
     events: EventBus,
+    jobs: JobRegistry,
     shutdown: CancellationToken,
 }
 
@@ -68,24 +70,26 @@ impl App {
     /// Fails if the runtime cannot be built or `capacity` is invalid
     /// (zero or above the maximum).
     pub fn with_event_capacity(capacity: usize) -> Result<Self, AppError> {
-        Ok(Self {
-            inner: Arc::new(Inner {
-                runtime: AppRuntime::owned()?,
-                events: EventBus::new(capacity)?,
-                shutdown: CancellationToken::new(),
-            }),
-        })
+        let events = EventBus::new(capacity)?;
+        Ok(Self::from_parts(AppRuntime::owned()?, events))
     }
 
     /// Creates an app reusing an ambient Tokio runtime via its [`Handle`].
     /// The host runtime is never shut down by this app. This constructor cannot
     /// fail: the event bus uses the always-valid default capacity.
     pub fn with_handle(handle: Handle) -> Self {
+        Self::from_parts(AppRuntime::borrowed(handle), EventBus::default())
+    }
+
+    fn from_parts(runtime: AppRuntime, events: EventBus) -> Self {
+        let shutdown = CancellationToken::new();
+        let jobs = JobRegistry::for_app(runtime.handle().clone(), &shutdown);
         Self {
             inner: Arc::new(Inner {
-                runtime: AppRuntime::borrowed(handle),
-                events: EventBus::default(),
-                shutdown: CancellationToken::new(),
+                runtime,
+                events,
+                jobs,
+                shutdown,
             }),
         }
     }
@@ -93,6 +97,13 @@ impl App {
     /// Returns the shared event bus.
     pub fn events(&self) -> &EventBus {
         &self.inner.events
+    }
+
+    /// Returns the app's job registry. Jobs spawn on the app runtime and their
+    /// cancellation tokens are children of the app shutdown token, so app
+    /// shutdown cancels every running job.
+    pub fn jobs(&self) -> &JobRegistry {
+        &self.inner.jobs
     }
 
     /// Subscribes to the shared event bus.

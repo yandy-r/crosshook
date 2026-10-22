@@ -647,6 +647,7 @@ version = "0.6.0"
 dependencies = [
  "crosshook-core",
  "flate2",
+ "nix",
  "serde",
  "serde_json",
  "static_assertions",
@@ -657,6 +658,7 @@ dependencies = [
  "tokio-util",
  "toml 1.1.2+spec-1.1.0",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
