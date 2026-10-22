@@ -53,40 +53,46 @@ impl ChildExit {
 /// alive after `grace`.
 ///
 /// A child that already exited when cancellation is observed is reported as
-/// [`ChildExit::Natural`]. The child **must** have been spawned as the leader
-/// of its own process group (`Command::process_group(0)`), so that its pid is
-/// the group id; this is verified before any signal is sent. Only the direct
-/// child is reaped; grandchildren that leave the group (`setsid`/`setpgid`)
-/// are neither tracked nor signalled.
+/// [`ChildExit::Natural`]; surviving group members are then left alone. The
+/// child **must** have been spawned as the leader of its own process group
+/// (`Command::process_group(0)`), so that its pid is the group id; this is
+/// verified on entry, before waiting. Only the direct child is reaped;
+/// grandchildren that leave the group (`setsid`/`setpgid`) are neither
+/// tracked nor signalled.
+///
+/// Dropping the returned future before it resolves (task abort, runtime
+/// shutdown) `SIGKILL`s the group, unless the child already exited naturally
+/// or the final signal was already sent.
+///
+/// # Flatpak
+/// Under Flatpak a host command spawned through `flatpak-spawn --host` makes
+/// the local child the `flatpak-spawn` proxy, not the host process: these
+/// signals reach only the proxy and the sandbox-side group. The host process
+/// dies with the proxy only when it was spawned with `--watch-bus`, and the
+/// only builder that adds it
+/// (`crosshook_core::platform::host_command_with_env_and_directory_lifecycle_inner`)
+/// is crate-private to `crosshook-core`; the public `host_command*` builders
+/// do not. Until a lifecycle-bound builder is exported, supervising a host
+/// command under Flatpak can leave the host process running after cancel.
 ///
 /// # Errors
 /// - [`io::ErrorKind::InvalidInput`] when the child is not a process-group
-///   leader; nothing is signalled and the child is left running (dropped).
-/// - I/O errors from waiting, an already reaped child (no pid), or a failed
-///   `getpgid`/`killpg` other than `ESRCH` (group already gone).
+///   leader; nothing is waited on or signalled and the child is left running
+///   (dropped).
+/// - I/O errors from waiting, or a failed `getpgid`/`killpg` other than
+///   `ESRCH` (group already gone).
 pub async fn supervise_child(
     mut child: Child,
     cancel: &CancellationToken,
     grace: Duration,
 ) -> io::Result<ChildExit> {
-    // Prefer a natural exit that is already available over cancellation.
-    // `try_wait` reaps an exited child synchronously; `wait()` alone may stay
-    // pending until the SIGCHLD driver runs, even for a zombie.
-    if let Some(status) = child.try_wait()? {
-        return Ok(ChildExit::Natural(status));
-    }
-    tokio::select! {
-        biased;
-        status = child.wait() => return status.map(ChildExit::Natural),
-        () = cancel.cancelled() => {}
-    }
-    if let Some(status) = child.try_wait()? {
-        return Ok(ChildExit::Natural(status));
-    }
-
-    let pid = child
-        .id()
-        .ok_or_else(|| io::Error::other("child was already reaped"))?;
+    let Some(pid) = child.id() else {
+        // Already reaped by the caller: report its cached status.
+        return match child.try_wait()? {
+            Some(status) => Ok(ChildExit::Natural(status)),
+            None => Err(io::Error::other("child has no pid")),
+        };
+    };
     let pgid =
         Pid::from_raw(i32::try_from(pid).map_err(|_| io::Error::other("child pid out of range"))?);
     // The unreaped child (even a zombie) still answers `getpgid`.
@@ -96,6 +102,28 @@ pub async fn supervise_child(
             "child is not a process-group leader",
         ));
     }
+    let mut guard = GroupKillGuard { pgid, armed: true };
+
+    // Prefer a natural exit that is already available over cancellation.
+    // `try_wait` reaps an exited child synchronously; `wait()` alone may stay
+    // pending until the SIGCHLD driver runs, even for a zombie.
+    if let Some(status) = child.try_wait()? {
+        guard.disarm();
+        return Ok(ChildExit::Natural(status));
+    }
+    tokio::select! {
+        biased;
+        status = child.wait() => {
+            let status = status?;
+            guard.disarm();
+            return Ok(ChildExit::Natural(status));
+        }
+        () = cancel.cancelled() => {}
+    }
+    if let Some(status) = child.try_wait()? {
+        guard.disarm();
+        return Ok(ChildExit::Natural(status));
+    }
 
     let deadline = Instant::now() + grace;
     signal_group(pgid, Signal::SIGTERM)?;
@@ -104,11 +132,13 @@ pub async fn supervise_child(
         // The leader is gone; other members may still ignore `SIGTERM`.
         loop {
             if !group_alive(pgid)? {
+                guard.disarm();
                 return Ok(ChildExit::Terminated(status));
             }
             let now = Instant::now();
             if now >= deadline {
                 signal_group(pgid, Signal::SIGKILL)?;
+                guard.disarm();
                 return Ok(ChildExit::Killed(status));
             }
             tokio::time::sleep((deadline - now).min(GROUP_POLL_INTERVAL)).await;
@@ -118,7 +148,30 @@ pub async fn supervise_child(
         // No group to signal; make sure the child itself cannot hang the wait.
         let _ = child.start_kill();
     }
+    guard.disarm();
     child.wait().await.map(ChildExit::Killed)
+}
+
+/// `SIGKILL`s the supervised group when [`supervise_child`] is dropped (or
+/// errors) before reaching a final result.
+struct GroupKillGuard {
+    pgid: Pid,
+    armed: bool,
+}
+
+impl GroupKillGuard {
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for GroupKillGuard {
+    fn drop(&mut self) {
+        if self.armed {
+            // ESRCH (group gone) and other failures are not actionable here.
+            let _ = signal_group(self.pgid, Signal::SIGKILL);
+        }
+    }
 }
 
 /// Sends `signal` (`None` probes existence) to the group; `Ok(false)` when
@@ -131,9 +184,40 @@ fn signal_group(pgid: Pid, signal: impl Into<Option<Signal>>) -> io::Result<bool
     }
 }
 
-/// Whether any process remains in the group.
+/// Whether any non-zombie process remains in the group.
+///
+/// `killpg(pgid, None)` is the fast path: it fails once the group is empty,
+/// but also succeeds while only unreaped zombies (e.g. reparented members
+/// awaiting their new parent) remain. In that case `/proc/*/stat` decides.
 fn group_alive(pgid: Pid) -> io::Result<bool> {
-    signal_group(pgid, None)
+    if !signal_group(pgid, None)? {
+        return Ok(false);
+    }
+    let Ok(entries) = std::fs::read_dir("/proc") else {
+        // Cannot tell zombies apart; trust `killpg`.
+        return Ok(true);
+    };
+    let pgid = pgid.as_raw();
+    Ok(entries.flatten().any(|entry| {
+        let name = entry.file_name();
+        let Some(pid) = name
+            .to_str()
+            .filter(|name| name.bytes().all(|b| b.is_ascii_digit()))
+        else {
+            return false;
+        };
+        let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else {
+            return false;
+        };
+        // `pid (comm) state ppid pgrp ...`; `comm` may contain ')' or spaces.
+        let Some((_, fields)) = stat.rsplit_once(')') else {
+            return false;
+        };
+        let mut fields = fields.split_ascii_whitespace();
+        let state = fields.next();
+        let pgrp = fields.nth(1).and_then(|pgrp| pgrp.parse::<i32>().ok());
+        pgrp == Some(pgid) && !matches!(state, Some("Z" | "X"))
+    }))
 }
 
 /// Creates an empty `/tmp/crosshook-logs/<prefix>-<slug>-<millis>.log` file

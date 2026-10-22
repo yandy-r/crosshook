@@ -154,6 +154,39 @@ async fn exited_child_is_natural_even_if_already_cancelled() {
     assert_eq!(exit.status().code(), Some(3));
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn aborting_supervision_kills_the_group() {
+    // No `kill_on_drop`: only the supervision guard may kill it.
+    let child = Command::new("sleep")
+        .arg("30")
+        .process_group(0)
+        .spawn()
+        .expect("spawn sleep");
+    let pid = child.id().unwrap();
+    let (started, wait_started) = tokio::sync::oneshot::channel::<()>();
+    let task = tokio::spawn(async move {
+        let cancel = CancellationToken::new();
+        let mut started = Some(started);
+        tokio::select! {
+            // Polled first, so supervision is armed and pending before
+            // `started` fires.
+            biased;
+            exit = supervise_child(child, &cancel, GRACE) => exit,
+            () = std::future::poll_fn(|_| {
+                if let Some(started) = started.take() {
+                    let _ = started.send(());
+                }
+                std::task::Poll::Pending
+            }) => unreachable!(),
+        }
+    });
+    wait_started.await.unwrap();
+    assert!(!matches!(proc_state(pid), None | Some('Z')));
+    task.abort();
+    assert!(task.await.unwrap_err().is_cancelled());
+    assert!(wait_dead(pid).await, "child survived aborted supervision");
+}
+
 fn libc_sigterm() -> i32 {
     nix::sys::signal::Signal::SIGTERM as i32
 }
