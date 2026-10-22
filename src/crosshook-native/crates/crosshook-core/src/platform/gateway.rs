@@ -74,11 +74,73 @@ pub fn host_command_with_env_and_directory(
     )
 }
 
+/// Like [`host_command`], but binds the host process lifetime to the
+/// `flatpak-spawn` proxy.
+///
+/// Inside Flatpak the returned command is equivalent to
+/// `flatpak-spawn --host --watch-bus <program>`: `--watch-bus` makes Flatpak
+/// terminate the host process when the proxy dies, so killing or dropping the
+/// proxy on timeout, cancellation, or application shutdown also stops the host
+/// process. Outside Flatpak it is exactly `Command::new(program)`.
+///
+/// Supervised or cancellable jobs (`crosshook_app::jobs::supervise_child`)
+/// MUST build host commands with this function or
+/// [`host_command_with_env_and_directory_lifecycle`]; the non-lifecycle
+/// builders leave the host process running after the proxy is killed.
+///
+/// # Warning — env vars are silently dropped inside Flatpak
+///
+/// The same caveat as [`host_command`] applies: **do NOT call `.env()` or
+/// `.envs()`** on the returned `Command` inside Flatpak. Use
+/// [`host_command_with_env_and_directory_lifecycle`] to forward env vars.
+pub fn host_command_lifecycle(program: &str) -> Command {
+    host_command_lifecycle_with(program, is_flatpak())
+}
+
+/// Like [`host_command_with_env_and_directory`], but binds the host process
+/// lifetime to the `flatpak-spawn` proxy.
+///
+/// Inside Flatpak `--watch-bus` is added right after `--host`, so Flatpak
+/// terminates the host process when the proxy dies (timeout, cancellation, or
+/// application shutdown). Outside Flatpak the command is identical to
+/// [`host_command_with_env_and_directory`].
+///
+/// Supervised or cancellable jobs (`crosshook_app::jobs::supervise_child`)
+/// MUST build host commands with this function or [`host_command_lifecycle`].
+pub fn host_command_with_env_and_directory_lifecycle(
+    program: &str,
+    envs: &BTreeMap<String, String>,
+    directory: Option<&str>,
+    custom_env_vars: &BTreeMap<String, String>,
+) -> Command {
+    host_command_with_env_and_directory_lifecycle_inner(
+        program,
+        envs,
+        directory,
+        is_flatpak(),
+        custom_env_vars,
+    )
+}
+
 pub(crate) fn host_command_with(program: &str, flatpak: bool) -> Command {
     if flatpak {
         tracing::debug!(program, "wrapping command with flatpak-spawn --host");
         let mut cmd = Command::new("flatpak-spawn");
         cmd.arg("--host").arg(program);
+        cmd
+    } else {
+        Command::new(program)
+    }
+}
+
+pub(super) fn host_command_lifecycle_with(program: &str, flatpak: bool) -> Command {
+    if flatpak {
+        tracing::debug!(
+            program,
+            "wrapping command with flatpak-spawn --host --watch-bus"
+        );
+        let mut cmd = Command::new("flatpak-spawn");
+        cmd.arg("--host").arg("--watch-bus").arg(program);
         cmd
     } else {
         Command::new(program)
@@ -111,11 +173,7 @@ pub(crate) fn host_command_with_env_and_directory_inner(
     )
 }
 
-/// Build a host command whose lifetime is bound to the `flatpak-spawn` proxy.
-///
-/// `--watch-bus` ensures Flatpak terminates the host process if CrossHook kills
-/// or drops the proxy during timeout, cancellation, or application shutdown.
-pub(crate) fn host_command_with_env_and_directory_lifecycle_inner(
+pub(super) fn host_command_with_env_and_directory_lifecycle_inner(
     program: &str,
     envs: &BTreeMap<String, String>,
     directory: Option<&str>,

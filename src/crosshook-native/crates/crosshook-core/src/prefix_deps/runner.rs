@@ -16,45 +16,43 @@ use super::validation::validate_protontricks_verbs;
 use super::PrefixDepsTool;
 use crate::launch::runtime_helpers::{host_environment_map, resolve_wine_prefix_path};
 use crate::platform::{
-    host_command_with_env_and_directory_inner, host_command_with_env_and_directory_lifecycle_inner,
-    is_flatpak, normalize_flatpak_host_path,
+    host_command_with_env_and_directory, host_command_with_env_and_directory_lifecycle,
+    normalize_flatpak_host_path,
 };
 
+/// Signature shared by the env/directory-aware host command builders.
+type HostCommandBuilder =
+    fn(&str, &BTreeMap<String, String>, Option<&str>, &BTreeMap<String, String>) -> Command;
+
+/// Build a read-only prefix dependency probe (not lifecycle-bound).
 fn build_prefix_dep_command(
     binary_path: &str,
     prefix_path: &str,
 ) -> Result<(Command, PathBuf), PrefixDepsError> {
-    build_prefix_dep_command_with_platform(binary_path, prefix_path, is_flatpak())
+    build_prefix_dep_command_with(
+        binary_path,
+        prefix_path,
+        host_command_with_env_and_directory,
+    )
 }
 
-fn build_prefix_dep_command_with_platform(
-    binary_path: &str,
-    prefix_path: &str,
-    flatpak: bool,
-) -> Result<(Command, PathBuf), PrefixDepsError> {
-    build_prefix_dep_command_with_mode(binary_path, prefix_path, flatpak, false)
-}
-
+/// Build a prefix-mutating command bound to the Flatpak proxy lifetime so
+/// cancellation and timeouts also stop the host process.
 fn build_prefix_dep_mutation_command(
     binary_path: &str,
     prefix_path: &str,
 ) -> Result<(Command, PathBuf), PrefixDepsError> {
-    build_prefix_dep_mutation_command_with_platform(binary_path, prefix_path, is_flatpak())
+    build_prefix_dep_command_with(
+        binary_path,
+        prefix_path,
+        host_command_with_env_and_directory_lifecycle,
+    )
 }
 
-fn build_prefix_dep_mutation_command_with_platform(
+fn build_prefix_dep_command_with(
     binary_path: &str,
     prefix_path: &str,
-    flatpak: bool,
-) -> Result<(Command, PathBuf), PrefixDepsError> {
-    build_prefix_dep_command_with_mode(binary_path, prefix_path, flatpak, true)
-}
-
-fn build_prefix_dep_command_with_mode(
-    binary_path: &str,
-    prefix_path: &str,
-    flatpak: bool,
-    lifecycle_bound: bool,
+    builder: HostCommandBuilder,
 ) -> Result<(Command, PathBuf), PrefixDepsError> {
     let resolved_prefix = resolved_prefix_path(prefix_path)?;
     let normalized_binary = normalize_flatpak_host_path(binary_path);
@@ -63,23 +61,7 @@ fn build_prefix_dep_command_with_mode(
         "WINEPREFIX".to_string(),
         resolved_prefix.to_string_lossy().into_owned(),
     );
-    let command = if lifecycle_bound {
-        host_command_with_env_and_directory_lifecycle_inner(
-            &normalized_binary,
-            &environment,
-            None,
-            flatpak,
-            &BTreeMap::new(),
-        )
-    } else {
-        host_command_with_env_and_directory_inner(
-            &normalized_binary,
-            &environment,
-            None,
-            flatpak,
-            &BTreeMap::new(),
-        )
-    };
+    let command = builder(&normalized_binary, &environment, None, &BTreeMap::new());
     Ok((command, resolved_prefix))
 }
 
@@ -1128,32 +1110,22 @@ mod tests {
     }
 
     #[test]
-    fn flatpak_install_delegates_to_lifecycle_bound_host_with_wineprefix() {
+    fn mutation_command_targets_binary_with_resolved_wineprefix_natively() {
         let tmp = tempdir().unwrap();
         let prefix = tmp.path().join("prefix");
         fs::create_dir_all(prefix.join("pfx")).unwrap();
-        let (command, _resolved_prefix) = build_prefix_dep_mutation_command_with_platform(
-            "winetricks",
-            prefix.to_str().unwrap(),
-            true,
-        )
-        .unwrap();
+        let (command, resolved_prefix) =
+            build_prefix_dep_mutation_command("winetricks", prefix.to_str().unwrap()).unwrap();
 
-        let program = command.as_std().get_program().to_string_lossy();
-        let args = command
+        let expected_pfx = fs::canonicalize(prefix.join("pfx")).unwrap();
+        assert_eq!(resolved_prefix, expected_pfx);
+        assert_eq!(command.as_std().get_program(), "winetricks");
+        let wineprefix = command
             .as_std()
-            .get_args()
-            .map(|argument| argument.to_string_lossy().into_owned())
-            .collect::<Vec<_>>();
-        assert_eq!(program, "flatpak-spawn");
-        assert_eq!(args[0], "--host");
-        assert_eq!(args[1], "--watch-bus");
-        assert_eq!(args[2], "--clear-env");
-        assert!(args.contains(&format!(
-            "--env=WINEPREFIX={}",
-            prefix.join("pfx").display()
-        )));
-        assert_eq!(args.last().map(String::as_str), Some("winetricks"));
+            .get_envs()
+            .find(|(key, _)| *key == "WINEPREFIX")
+            .and_then(|(_, value)| value);
+        assert_eq!(wineprefix, Some(expected_pfx.as_os_str()));
     }
 
     #[test]

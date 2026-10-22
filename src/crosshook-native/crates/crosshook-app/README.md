@@ -74,10 +74,11 @@ its future is dropped (task abort, shutdown) before a final result; a natural
 exit leaves surviving members alone, and zombie-only groups count as gone.
 Under Flatpak, a host command spawned via `flatpak-spawn --host` makes the
 local child the proxy, so the signals reach only the proxy. The host process
-dies with it only when spawned with `--watch-bus`, which today only the
-crate-private `crosshook_core::platform::host_command_with_env_and_directory_lifecycle_inner`
-adds; the public `host_command*` builders do not, so cancelling such a job can
-leave the host process running until a lifecycle-bound builder is exported.
+dies with it only when spawned with `--watch-bus`, so supervised host commands
+must be built with `crosshook_core::platform::host_command_lifecycle` or
+`crosshook_core::platform::host_command_with_env_and_directory_lifecycle`. The
+other public `host_command*` builders omit `--watch-bus`, so cancelling a job
+that uses them leaves the host process running.
 
 `jobs` also hosts the process helpers used by the Tauri shell:
 `create_log_path` (`/tmp/crosshook-logs/<prefix>-<slug>-<millis>.log`),

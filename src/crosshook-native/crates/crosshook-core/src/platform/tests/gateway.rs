@@ -2,10 +2,29 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use super::super::gateway::{
-    flatpak_custom_env_directory_with, host_command_with,
+    flatpak_custom_env_directory_with, host_command_lifecycle_with, host_command_with,
     host_command_with_env_and_directory_inner, host_command_with_env_and_directory_lifecycle_inner,
     host_command_with_env_inner, host_std_command_with, host_std_command_with_env_inner,
 };
+
+fn command_args(cmd: &tokio::process::Command) -> Vec<String> {
+    cmd.as_std()
+        .get_args()
+        .map(|arg| arg.to_string_lossy().into_owned())
+        .collect()
+}
+
+fn command_envs(cmd: &tokio::process::Command) -> Vec<(String, Option<String>)> {
+    cmd.as_std()
+        .get_envs()
+        .map(|(key, value)| {
+            (
+                key.to_string_lossy().into_owned(),
+                value.map(|value| value.to_string_lossy().into_owned()),
+            )
+        })
+        .collect()
+}
 
 #[test]
 fn host_command_wraps_program_when_flatpak() {
@@ -71,25 +90,92 @@ fn host_command_with_env_and_directory_threads_directory_in_flatpak() {
 }
 
 #[test]
-fn lifecycle_bound_host_command_watches_flatpak_bus() {
-    let envs = BTreeMap::from([("WINEPREFIX".to_string(), "/games/pfx".to_string())]);
-    let cmd = host_command_with_env_and_directory_lifecycle_inner(
+fn host_command_lifecycle_watches_flatpak_bus() {
+    let cmd = host_command_lifecycle_with("ls", true);
+    assert_eq!(cmd.as_std().get_program(), "flatpak-spawn");
+    assert_eq!(command_args(&cmd), ["--host", "--watch-bus", "ls"]);
+}
+
+#[test]
+fn host_command_lifecycle_matches_host_command_when_not_flatpak() {
+    let lifecycle = host_command_lifecycle_with("ls", false);
+    let plain = host_command_with("ls", false);
+    assert_eq!(
+        lifecycle.as_std().get_program(),
+        plain.as_std().get_program()
+    );
+    assert_eq!(lifecycle.as_std().get_program(), "ls");
+    assert_eq!(command_args(&lifecycle), command_args(&plain));
+    assert!(command_args(&lifecycle).is_empty());
+}
+
+#[test]
+fn host_command_with_env_and_directory_lifecycle_inserts_watch_bus_in_flatpak() {
+    let envs = BTreeMap::from([
+        ("WINEPREFIX".to_string(), "/games/pfx".to_string()),
+        ("DXVK_ASYNC".to_string(), "1".to_string()),
+    ]);
+    let directory = Some("/run/host/mnt/games/The Witcher 3");
+    let lifecycle = host_command_with_env_and_directory_lifecycle_inner(
         "winetricks",
         &envs,
-        None,
+        directory,
         true,
         &BTreeMap::new(),
     );
-    let args = cmd
-        .as_std()
-        .get_args()
-        .map(|arg| arg.to_string_lossy().into_owned())
-        .collect::<Vec<_>>();
+    let plain = host_command_with_env_and_directory_inner(
+        "winetricks",
+        &envs,
+        directory,
+        true,
+        &BTreeMap::new(),
+    );
 
-    assert_eq!(args[0], "--host");
-    assert_eq!(args[1], "--watch-bus");
-    assert!(args.contains(&"--clear-env".to_string()));
-    assert_eq!(args.last().map(String::as_str), Some("winetricks"));
+    let mut expected = command_args(&plain);
+    assert_eq!(expected[0], "--host");
+    expected.insert(1, "--watch-bus".to_string());
+
+    assert_eq!(lifecycle.as_std().get_program(), "flatpak-spawn");
+    assert_eq!(command_args(&lifecycle), expected);
+}
+
+#[test]
+fn host_command_with_env_and_directory_lifecycle_matches_plain_when_not_flatpak() {
+    let envs = BTreeMap::from([
+        ("WINEPREFIX".to_string(), "/games/pfx".to_string()),
+        ("DXVK_ASYNC".to_string(), "1".to_string()),
+    ]);
+    let directory = Some("/tmp/workdir");
+    let lifecycle = host_command_with_env_and_directory_lifecycle_inner(
+        "winetricks",
+        &envs,
+        directory,
+        false,
+        &BTreeMap::new(),
+    );
+    let plain = host_command_with_env_and_directory_inner(
+        "winetricks",
+        &envs,
+        directory,
+        false,
+        &BTreeMap::new(),
+    );
+
+    assert_eq!(lifecycle.as_std().get_program(), "winetricks");
+    assert_eq!(
+        lifecycle.as_std().get_program(),
+        plain.as_std().get_program()
+    );
+    assert_eq!(command_args(&lifecycle), command_args(&plain));
+    assert_eq!(command_envs(&lifecycle), command_envs(&plain));
+    assert_eq!(
+        lifecycle.as_std().get_current_dir(),
+        plain.as_std().get_current_dir()
+    );
+    assert_eq!(
+        lifecycle.as_std().get_current_dir(),
+        Some(std::path::Path::new("/tmp/workdir"))
+    );
 }
 
 #[test]
