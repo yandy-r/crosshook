@@ -109,7 +109,12 @@ pub(crate) async fn launch_profile(
     let mut child = match method {
         METHOD_STEAM_APPLAUNCH => {
             let helper = match command.scripts_dir.as_deref() {
-                Some(dir) => dir.join(RuntimeHelper::SteamLaunchHelper.file_name()),
+                Some(dir) => {
+                    let helper = dir.join(RuntimeHelper::SteamLaunchHelper.file_name());
+                    validate_explicit_helper(&helper)?;
+                    helper
+                }
+                // Already vetted by the core trust check.
                 None => {
                     runtime_helpers::resolve(RuntimeHelper::SteamLaunchHelper).map_err(|e| {
                         CliError::LaunchFailure(format!(
@@ -118,31 +123,6 @@ pub(crate) async fn launch_profile(
                     })?
                 }
             };
-            // C-1 mitigation: validate helper script before execution
-            let meta = std::fs::metadata(&helper).map_err(|e| {
-                CliError::LaunchFailure(format!(
-                    "helper script not found at {}: {e}",
-                    helper.display()
-                ))
-            })?;
-            if !meta.is_file() {
-                return Err(CliError::LaunchFailure(format!(
-                    "helper script is not a regular file: {}",
-                    helper.display()
-                )));
-            }
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::MetadataExt;
-                let uid = unsafe { libc::getuid() };
-                if meta.uid() != uid {
-                    return Err(CliError::LaunchFailure(format!(
-                        "helper script {} is not owned by current user (uid {})",
-                        helper.display(),
-                        uid
-                    )));
-                }
-            }
             spawn_helper(&request, &helper, &log_path)
                 .map_err(|e| CliError::LaunchFailure(e.to_string()))?
         }
@@ -229,6 +209,36 @@ fn default_steam_roots() -> Vec<PathBuf> {
     }
 
     roots
+}
+
+/// C-1 mitigation for a user-supplied `--scripts-dir`: the helper must be a
+/// regular file owned by the current user.
+fn validate_explicit_helper(helper: &Path) -> Result<(), CliError> {
+    let meta = std::fs::metadata(helper).map_err(|e| {
+        CliError::LaunchFailure(format!(
+            "helper script not found at {}: {e}",
+            helper.display()
+        ))
+    })?;
+    if !meta.is_file() {
+        return Err(CliError::LaunchFailure(format!(
+            "helper script is not a regular file: {}",
+            helper.display()
+        )));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let uid = unsafe { libc::getuid() };
+        if meta.uid() != uid {
+            return Err(CliError::LaunchFailure(format!(
+                "helper script {} is not owned by current user (uid {})",
+                helper.display(),
+                uid
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn launch_log_dir() -> PathBuf {

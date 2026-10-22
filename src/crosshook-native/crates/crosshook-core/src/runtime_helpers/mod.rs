@@ -177,7 +177,7 @@ impl std::error::Error for RuntimeHelperError {}
 
 /// Resolves `helper` against explicit roots. The first candidate that is a
 /// regular file (and, outside `flatpak_resources`, passes the trust check)
-/// wins.
+/// wins. Non-Flatpak candidates are returned in canonical form.
 pub fn resolve_with(
     roots: &HelperRoots,
     helper: RuntimeHelper,
@@ -188,12 +188,16 @@ pub fn resolve_with(
         if !candidate.path.is_file() {
             continue;
         }
-        if candidate.requires_trust && !is_trusted(&candidate.path) {
-            tracing::warn!(path = %candidate.path.display(), helper = helper.file_name(), "skipping untrusted runtime helper");
-            untrusted.push(candidate.path.clone());
-            continue;
+        if !candidate.requires_trust {
+            return Ok(candidate.path.clone());
         }
-        return Ok(candidate.path.clone());
+        match trusted_real_path(&candidate.path) {
+            Some(real) => return Ok(real),
+            None => {
+                tracing::warn!(path = %candidate.path.display(), helper = helper.file_name(), "skipping untrusted runtime helper");
+                untrusted.push(candidate.path.clone());
+            }
+        }
     }
     Err(RuntimeHelperError::NotFound {
         helper,
@@ -209,13 +213,44 @@ pub fn resolve(helper: RuntimeHelper) -> Result<PathBuf, RuntimeHelperError> {
     Ok(path)
 }
 
-/// A helper is trusted when the file is owned by the current euid or root,
-/// and neither the file nor its parent directory is group/world-writable.
+/// Canonicalizes `path` and returns the real path when it, and every sibling
+/// helper present in the real parent directory, passes [`is_trusted`]. The
+/// helpers exec each other via `$script_dir/<name>`, so one untrusted sibling
+/// taints the whole directory.
+fn trusted_real_path(path: &Path) -> Option<PathBuf> {
+    let real = std::fs::canonicalize(path).ok()?;
+    if !is_trusted(&real) {
+        return None;
+    }
+    let dir = real.parent()?;
+    for sibling in RuntimeHelper::ALL {
+        let sibling_path = dir.join(sibling.file_name());
+        if std::fs::symlink_metadata(&sibling_path).is_err() {
+            continue;
+        }
+        let sibling_real = std::fs::canonicalize(&sibling_path).ok()?;
+        if !is_trusted(&sibling_real) {
+            return None;
+        }
+    }
+    Some(real)
+}
+
+/// A real (canonical) helper path is trusted when the file is owned by the
+/// current euid or root, and neither the file nor its parent directory is
+/// world-writable or group-writable by a group other than the current egid
+/// (user-private groups commonly leave group-write on).
 #[cfg(unix)]
 fn is_trusted(path: &Path) -> bool {
     use std::os::unix::fs::MetadataExt;
 
-    const GROUP_OTHER_WRITE: u32 = 0o022;
+    const GROUP_WRITE: u32 = 0o020;
+    const OTHER_WRITE: u32 = 0o002;
+
+    let egid = nix::unistd::getegid().as_raw();
+    let mode_ok = |meta: &std::fs::Metadata| {
+        meta.mode() & OTHER_WRITE == 0 && (meta.mode() & GROUP_WRITE == 0 || meta.gid() == egid)
+    };
 
     let Ok(file) = std::fs::metadata(path) else {
         return false;
@@ -224,16 +259,13 @@ fn is_trusted(path: &Path) -> bool {
     if file.uid() != euid && file.uid() != 0 {
         return false;
     }
-    if file.mode() & GROUP_OTHER_WRITE != 0 {
+    if !mode_ok(&file) {
         return false;
     }
     let Some(parent) = path.parent() else {
         return false;
     };
-    match std::fs::metadata(parent) {
-        Ok(dir) => dir.mode() & GROUP_OTHER_WRITE == 0,
-        Err(_) => false,
-    }
+    std::fs::metadata(parent).is_ok_and(|dir| mode_ok(&dir))
 }
 
 #[cfg(not(unix))]
@@ -283,7 +315,7 @@ fn ensure_executable(_path: &Path) -> std::io::Result<()> {
 mod tests {
     use super::*;
     use std::fs;
-    use std::os::unix::fs::PermissionsExt;
+    use std::os::unix::fs::{symlink, PermissionsExt};
     use tempfile::TempDir;
 
     const HELPER: RuntimeHelper = RuntimeHelper::SteamLaunchHelper;
@@ -304,16 +336,14 @@ mod tests {
         fn dev(&self) -> &Path {
             self.roots.dev_dir.as_deref().unwrap()
         }
-        fn exe_resources_candidate(&self) -> PathBuf {
-            self.exe_dir()
-                .join("..")
-                .join("resources")
-                .join(HELPER.file_name())
-        }
     }
 
     fn chmod(path: &Path, mode: u32) {
         fs::set_permissions(path, fs::Permissions::from_mode(mode)).unwrap();
+    }
+
+    fn real(path: &Path) -> PathBuf {
+        fs::canonicalize(path).unwrap()
     }
 
     /// Layout: `<tmp>/flatpak`, `<tmp>/app/bin` (exe dir), `<tmp>/app/resources`,
@@ -339,11 +369,20 @@ mod tests {
         }
     }
 
-    fn place(dir: &Path) -> PathBuf {
-        let path = dir.join(HELPER.file_name());
+    fn place_named(dir: &Path, helper: RuntimeHelper) -> PathBuf {
+        let path = dir.join(helper.file_name());
         fs::write(&path, "#!/bin/sh\n").unwrap();
         chmod(&path, 0o755);
         path
+    }
+
+    fn place(dir: &Path) -> PathBuf {
+        place_named(dir, HELPER)
+    }
+
+    fn untrusted_of(error: RuntimeHelperError) -> Vec<PathBuf> {
+        let RuntimeHelperError::NotFound { untrusted, .. } = error;
+        untrusted
     }
 
     #[test]
@@ -356,23 +395,22 @@ mod tests {
     #[test]
     fn exe_relative_resources_wins_when_only_it_has_file() {
         let f = fixture();
-        place(&f.exe_resources);
-        let resolved = resolve_with(&f.roots, HELPER).unwrap();
-        assert_eq!(resolved, f.exe_resources_candidate());
+        let expected = place(&f.exe_resources);
+        assert_eq!(resolve_with(&f.roots, HELPER).unwrap(), real(&expected));
     }
 
     #[test]
     fn exe_dir_wins_when_only_it_has_file() {
         let f = fixture();
         let expected = place(f.exe_dir());
-        assert_eq!(resolve_with(&f.roots, HELPER).unwrap(), expected);
+        assert_eq!(resolve_with(&f.roots, HELPER).unwrap(), real(&expected));
     }
 
     #[test]
     fn dev_dir_wins_when_only_it_has_file() {
         let f = fixture();
         let expected = place(f.dev());
-        assert_eq!(resolve_with(&f.roots, HELPER).unwrap(), expected);
+        assert_eq!(resolve_with(&f.roots, HELPER).unwrap(), real(&expected));
     }
 
     #[test]
@@ -386,12 +424,9 @@ mod tests {
     #[test]
     fn exe_relative_resources_beats_exe_dir() {
         let f = fixture();
-        place(&f.exe_resources);
+        let expected = place(&f.exe_resources);
         place(f.exe_dir());
-        assert_eq!(
-            resolve_with(&f.roots, HELPER).unwrap(),
-            f.exe_resources_candidate()
-        );
+        assert_eq!(resolve_with(&f.roots, HELPER).unwrap(), real(&expected));
     }
 
     #[test]
@@ -399,7 +434,7 @@ mod tests {
         let f = fixture();
         let expected = place(f.exe_dir());
         place(f.dev());
-        assert_eq!(resolve_with(&f.roots, HELPER).unwrap(), expected);
+        assert_eq!(resolve_with(&f.roots, HELPER).unwrap(), real(&expected));
     }
 
     #[test]
@@ -407,21 +442,33 @@ mod tests {
         let f = fixture();
         fs::create_dir(f.flatpak().join(HELPER.file_name())).unwrap();
         let expected = place(f.dev());
-        assert_eq!(resolve_with(&f.roots, HELPER).unwrap(), expected);
+        assert_eq!(resolve_with(&f.roots, HELPER).unwrap(), real(&expected));
     }
 
     #[test]
     fn writable_helper_file_is_rejected_and_later_candidate_wins() {
         let f = fixture();
-        let group_writable = place(f.exe_dir());
-        chmod(&group_writable, 0o775);
+        let world_writable = place(f.exe_dir());
+        chmod(&world_writable, 0o757);
         let expected = place(f.dev());
-        assert_eq!(resolve_with(&f.roots, HELPER).unwrap(), expected);
+        assert_eq!(resolve_with(&f.roots, HELPER).unwrap(), real(&expected));
 
         chmod(&expected, 0o666);
-        let RuntimeHelperError::NotFound { untrusted, .. } =
-            resolve_with(&f.roots, HELPER).unwrap_err();
-        assert_eq!(untrusted, vec![group_writable, expected]);
+        let untrusted = untrusted_of(resolve_with(&f.roots, HELPER).unwrap_err());
+        assert_eq!(untrusted, vec![world_writable, expected]);
+    }
+
+    #[test]
+    fn group_writable_with_own_egid_is_accepted() {
+        let f = fixture();
+        let helper = place(f.dev());
+        let egid = nix::unistd::getegid();
+        for path in [helper.as_path(), f.dev()] {
+            nix::unistd::chown(path, None, Some(egid)).unwrap();
+        }
+        chmod(&helper, 0o775);
+        chmod(f.dev(), 0o775);
+        assert_eq!(resolve_with(&f.roots, HELPER).unwrap(), real(&helper));
     }
 
     #[test]
@@ -430,11 +477,36 @@ mod tests {
         let helper = place(f.dev());
         chmod(f.dev(), 0o777);
         let error = resolve_with(&f.roots, HELPER).unwrap_err();
-        let RuntimeHelperError::NotFound { untrusted, .. } = &error;
-        assert_eq!(untrusted, &vec![helper.clone()]);
         let message = error.to_string();
         assert!(message.contains("rejected"), "{message}");
         assert!(message.contains(&helper.display().to_string()), "{message}");
+        assert_eq!(untrusted_of(error), vec![helper]);
+    }
+
+    #[test]
+    fn symlink_into_world_writable_dir_is_rejected() {
+        let f = fixture();
+        let tmp = TempDir::new().unwrap();
+        let open_dir = tmp.path().join("open");
+        fs::create_dir(&open_dir).unwrap();
+        let target = place(&open_dir);
+        chmod(&open_dir, 0o777);
+        let link = f.dev().join(HELPER.file_name());
+        symlink(&target, &link).unwrap();
+
+        let untrusted = untrusted_of(resolve_with(&f.roots, HELPER).unwrap_err());
+        assert_eq!(untrusted, vec![link]);
+    }
+
+    #[test]
+    fn untrusted_sibling_helper_rejects_directory() {
+        let f = fixture();
+        let helper = place(f.dev());
+        let runner = place_named(f.dev(), RuntimeHelper::SteamHostTrainerRunner);
+        chmod(&runner, 0o666);
+
+        let untrusted = untrusted_of(resolve_with(&f.roots, HELPER).unwrap_err());
+        assert_eq!(untrusted, vec![helper]);
     }
 
     #[test]
@@ -452,7 +524,7 @@ mod tests {
         let name = HELPER.file_name();
         let expected = vec![
             f.flatpak().join(name),
-            f.exe_resources_candidate(),
+            f.exe_dir().join("..").join("resources").join(name),
             f.exe_dir().join(name),
             f.dev().join(name),
         ];
