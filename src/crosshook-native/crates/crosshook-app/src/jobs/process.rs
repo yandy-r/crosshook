@@ -68,12 +68,12 @@ impl ChildExit {
 /// Under Flatpak a host command spawned through `flatpak-spawn --host` makes
 /// the local child the `flatpak-spawn` proxy, not the host process: these
 /// signals reach only the proxy and the sandbox-side group. The host process
-/// dies with the proxy only when it was spawned with `--watch-bus`, and the
-/// only builder that adds it
-/// (`crosshook_core::platform::host_command_with_env_and_directory_lifecycle_inner`)
-/// is crate-private to `crosshook-core`; the public `host_command*` builders
-/// do not. Until a lifecycle-bound builder is exported, supervising a host
-/// command under Flatpak can leave the host process running after cancel.
+/// dies with the proxy only when it was spawned with `--watch-bus`, so host
+/// commands supervised here must be built with
+/// [`crosshook_core::platform::host_command_lifecycle`] or
+/// [`crosshook_core::platform::host_command_with_env_and_directory_lifecycle`].
+/// The other public `host_command*` builders omit `--watch-bus` and leave the
+/// host process running after cancel.
 ///
 /// # Errors
 /// - [`io::ErrorKind::InvalidInput`] when the child is not a process-group

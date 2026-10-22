@@ -16,7 +16,8 @@ mod xdg;
 
 pub use detect::{is_flatpak, normalize_flatpak_host_path};
 pub use gateway::{
-    host_command, host_command_exists, host_command_with_env, host_command_with_env_and_directory,
+    host_command, host_command_exists, host_command_lifecycle, host_command_with_env,
+    host_command_with_env_and_directory, host_command_with_env_and_directory_lifecycle,
     host_std_command, host_std_command_with_env, host_std_command_with_env_and_directory,
 };
 pub use host_fs::{
@@ -31,8 +32,7 @@ pub use xdg::override_xdg_for_flatpak_host_access;
 
 pub(crate) use env::{EnvSink, SystemEnv};
 pub(crate) use gateway::{
-    host_command_with_env_and_directory_inner, host_command_with_env_and_directory_lifecycle_inner,
-    is_safe_host_path_lookup_name,
+    host_command_with_env_and_directory_inner, is_safe_host_path_lookup_name,
 };
 pub(crate) use steam_deck::read_host_os_release_body;
 

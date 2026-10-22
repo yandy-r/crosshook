@@ -356,7 +356,9 @@ describe('LibraryPage', () => {
         },
       });
       await screen.findByText('Add your first game');
-      expect(lastReady()).toBe(true);
+      // The empty-state CTA renders from the profile list, which can settle
+      // before the summaries fetch does; wait for the ready signal itself.
+      await waitFor(() => expect(lastReady()).toBe(true));
     });
 
     it('never becomes ready when the summaries fetch fails', async () => {
