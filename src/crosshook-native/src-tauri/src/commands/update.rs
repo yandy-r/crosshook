@@ -7,7 +7,7 @@ use crosshook_core::update::{
 use tauri::{AppHandle, Manager};
 
 use super::log_stream::spawn_log_stream;
-use super::shared::{create_log_path, slugify_target};
+use crosshook_app::jobs::{create_log_path, slugify_target};
 
 pub struct UpdateProcessState {
     pid: Mutex<Option<u32>>,

@@ -4,7 +4,7 @@ use crosshook_core::install::{
     InstallGameRequest, InstallGameResult,
 };
 
-use super::shared::{create_log_path, slugify_target};
+use crosshook_app::jobs::{create_log_path, slugify_target};
 
 #[tauri::command]
 pub async fn install_default_prefix_path(profile_name: String) -> Result<String, String> {

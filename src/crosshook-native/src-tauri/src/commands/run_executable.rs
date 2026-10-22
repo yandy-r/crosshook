@@ -12,7 +12,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
 use super::log_stream::spawn_log_stream;
-use super::shared::{create_log_path, kill_processes_using_prefix, slugify_target};
+use crosshook_app::jobs::{create_log_path, kill_processes_using_prefix, slugify_target};
 
 #[derive(Debug, Clone)]
 struct RunningProcessInfo {
