@@ -25,7 +25,7 @@ duplicates.
 ### Prerequisites
 
 - **Rust** (stable toolchain)
-- **Node.js** 20+ and **npm**
+- **Node.js** 24.22.1+ and **npm** (Node.js 20 is end of life and does not receive the October 2026 security fixes; 22.23.4 and 26.12.1 are the other patched lines, and CI pins 24.22.1)
 - **System libraries**: GTK3, WebKit2GTK 4.1, libsoup3, OpenSSL, patchelf
 - **Optional**: [direnv](https://direnv.net/) (an `.envrc` is provided)
 
