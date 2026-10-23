@@ -3,8 +3,80 @@
 All notable changes to this project will be documented in this file.
 
 This file is generated with `git-cliff` from the repository history and release tags.
+## [v0.6.1] - 2026-10-23
+
+
+### Bug Fixes
+
+- **launch:** Support dual-GPU trainer dependencies ([`bcceba8`](https://github.com/yandy-r/crosshook/commit/bcceba8da5aff52a0d04ad462b9c196d8a3f1ded))
+
+- **prefix:** Add version restore journal ([`5683c8a`](https://github.com/yandy-r/crosshook/commit/5683c8af2925cc3f814580c24dd99d04da4b602d))
+
+- **prefix:** Recover interrupted dependency version changes ([`8d220e1`](https://github.com/yandy-r/crosshook/commit/8d220e19673b8d71212a40fda13d04c0d625b319))
+
+- **core:** Preserve unknown settings keys and write settings atomically ([#508](https://github.com/yandy-r/crosshook/issues/508)) ([`5338ab3`](https://github.com/yandy-r/crosshook/commit/5338ab34bc9542b0de7eebdaa8df4edfa4fdb6af))
+
+- **metadata:** Guard future schemas and back up migrations ([`6f38c4e`](https://github.com/yandy-r/crosshook/commit/6f38c4ec66536b195a29b932e494071b62b5ba87))
+
+- **flatpak:** Install native build dependencies ([`11eb062`](https://github.com/yandy-r/crosshook/commit/11eb062a7f85ae6732e7cab40c511fb8f49aef0c))
+
+- **build:** Pin Node.js 24.22.1 for the October 2026 security releases ([`478a8df`](https://github.com/yandy-r/crosshook/commit/478a8df93f5769aec44f24496866c07b8c4eae5c))
+
+
+### Build
+
+- **flatpak:** Add setup script for first-time install ([`541807f`](https://github.com/yandy-r/crosshook/commit/541807f695dfd25a301f2b08a890d8a887131fd9))
+
+
+### CI
+
+- **gateway:** Extend host-gateway enforcement to native UI crates ([#515](https://github.com/yandy-r/crosshook/issues/515)) ([`b138bb3`](https://github.com/yandy-r/crosshook/commit/b138bb3ca6ad02c3bab4678f5253531bbde6414c))
+
+
+### Documentation
+
+- **roadmap:** Point open issues at GitHub after Forgejo move ([`2e784de`](https://github.com/yandy-r/crosshook/commit/2e784de8df09c9eaaacb3c1fe2d1c64b6d5db019))
+
+- Add RELEASING.md ([`29d92b6`](https://github.com/yandy-r/crosshook/commit/29d92b60499d137865114733d77f1e63d9e7615c))
+
+- Track release targets via Linear crosshook release label group ([`18daca8`](https://github.com/yandy-r/crosshook/commit/18daca89db53e9d888ceebcc730e83f2d6d0d2c9))
+
+
+### Features
+
+- **launch:** Pipeline env/wrapper breakdown and Install & Run preview ([#29](https://github.com/yandy-r/crosshook/issues/29)) ([`d2fd2a5`](https://github.com/yandy-r/crosshook/commit/d2fd2a5e5d7c1672832fefd9c35a6cbbd4fc4f05))
+
+- **ui:** Accessibility preferences for contrast and motion, authored labels, skip link and roving focus ([#30](https://github.com/yandy-r/crosshook/issues/30)) ([`96714b7`](https://github.com/yandy-r/crosshook/commit/96714b771451b55f1f00c3319f8a96b6bdd52cdb))
+
+- **profiles:** Aggregated cross-tap trainer catalog with facets and shared ranking ([#31](https://github.com/yandy-r/crosshook/issues/31)) ([`c33eb0a`](https://github.com/yandy-r/crosshook/commit/c33eb0ad16b7947d4374e67d3f39c1857cee9e3c))
+
+- **profiles:** Mod coexistence registry with detection assist and trainer conflict advisories ([#32](https://github.com/yandy-r/crosshook/issues/32)) ([`ea91e9e`](https://github.com/yandy-r/crosshook/commit/ea91e9ed9046146e0aa1f9a6ae6249c066d64e69))
+
+- **app:** Add toolkit-independent service scaffold ([#513](https://github.com/yandy-r/crosshook/issues/513)) ([`a132028`](https://github.com/yandy-r/crosshook/commit/a13202864749c9ca28ba0ab0c7cde9994e4f29f6))
+
+- **profiles:** Sign config history revisions with HMAC-SHA256 ([#518](https://github.com/yandy-r/crosshook/issues/518)) ([`28a023b`](https://github.com/yandy-r/crosshook/commit/28a023b74de624b3cb6939fb891aa6dc4df4dbfd))
+
+- **app:** Add generic job registry with incremental log tailing ([#522](https://github.com/yandy-r/crosshook/issues/522)) ([`03d4b86`](https://github.com/yandy-r/crosshook/commit/03d4b8624495517c873ee1fbc1dcb3b5c5647914))
+
+
+### Refactoring
+
+- **app:** Move settings, catalog, recent files, diagnostics and background portal services ([#517](https://github.com/yandy-r/crosshook/issues/517)) ([`dfbd7e0`](https://github.com/yandy-r/crosshook/commit/dfbd7e0b88d058e56424e79ac0acb1bc0ac40a0d))
+
+- **core:** Add LaunchRequest::from_profile and unify launch method resolution ([#520](https://github.com/yandy-r/crosshook/issues/520)) ([`ad23309`](https://github.com/yandy-r/crosshook/commit/ad2330967f465043cb32c74e5bbf95e3b843849d))
+
+- **core:** Add runtime_helpers::resolve to replace Tauri resource paths ([#526](https://github.com/yandy-r/crosshook/issues/526)) ([`6f0924a`](https://github.com/yandy-r/crosshook/commit/6f0924a2018f5049701520e9ea82894359abb736))
+
+
+### Tests
+
+- **protonup:** Skip read-only probe assertion when running as root ([`d769905`](https://github.com/yandy-r/crosshook/commit/d7699059cdeae159cddcc59ea226e7deab4f505e))
+
+- **bench:** Add deterministic benchmark fixtures and isolated XDG harness ([#512](https://github.com/yandy-r/crosshook/issues/512)) ([`a5a05fc`](https://github.com/yandy-r/crosshook/commit/a5a05fcd66071a63e1e4d8a28f4d25360033c200))
+
 
 ## [v0.6.0] - 2026-07-02
+
 
 ### Bug Fixes
 
@@ -17,6 +89,12 @@ This file is generated with `git-cliff` from the repository history and release 
 - **profiles:** Persist custom env var edits from the launch options page ([`72c8dd9`](https://github.com/yandy-r/crosshook/commit/72c8dd91bab2efe61f566644f3c40eb30d2ad18a))
 
 - **launch:** Restore launch status reset for game and trainer sessions ([`f66f108`](https://github.com/yandy-r/crosshook/commit/f66f108a1eb5032db4469882d355f1864e75235b))
+
+
+### Build
+
+- **flatpak:** Point AppStream metadata at public GitHub URLs ([`860d2b9`](https://github.com/yandy-r/crosshook/commit/860d2b95be3e443b05dc702a1ebc1bd42cd1dfb6))
+
 
 ### CI
 
@@ -38,9 +116,13 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - Fix Forgejo rustup component install syntax ([`46853ee`](https://github.com/yandy-r/crosshook/commit/46853eebdf87a9978124f00fa081f4266fdf3ee0))
 
+- **release:** Make Forgejo release workflow resolve third-party actions ([`0f76e4a`](https://github.com/yandy-r/crosshook/commit/0f76e4aef50345eb921799e4c93c0bdc3d784252))
+
+
 ### Documentation
 
 - Refresh ROADMAP for Forgejo issues and v0.5.0 ([`289cd27`](https://github.com/yandy-r/crosshook/commit/289cd27b7fe4219a5bcc65958edf41bc4a0e77c1))
+
 
 ### Features
 
@@ -52,31 +134,40 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **profiles:** Import Lutris game configs as profiles ([`52aedc4`](https://github.com/yandy-r/crosshook/commit/52aedc4de178f00dc9abaa4493f3179f5af5f1a4))
 
+
 ## [v0.5.0] - 2026-06-12
+
 
 ### Bug Fixes
 
 - **profiles:** Use effective steam path for proton ([`940182e`](https://github.com/yandy-r/crosshook/commit/940182e16eb16171943561b9762169d013cccf84))
 
+
 ### Build
 
 - **release:** Remove AppImage distribution ([#503](https://github.com/yandy-r/crosshook/issues/503)) ([`3fff5f0`](https://github.com/yandy-r/crosshook/commit/3fff5f0c1411286f0ce41e17b8e0b819e01788e1))
+
 
 ### Documentation
 
 - **roadmap:** Retire completed Flatpak target ([`382c931`](https://github.com/yandy-r/crosshook/commit/382c931bbbec51108a3311a2de0f02febe0a34d5))
 
+
 ### Features
 
 - **ui:** Declutter hero detail profile and launch action toolbars ([`0d44239`](https://github.com/yandy-r/crosshook/commit/0d442396c488c20a038e82d2e056ce55e3eb9f9d))
 
+
 ## [v0.4.1] - 2026-06-08
+
 
 ### Bug Fixes
 
 - **launch:** Allow Steam hook optimizations ([`2d662a6`](https://github.com/yandy-r/crosshook/commit/2d662a64c2380d211fe291bc3fd506606bc49022))
 
+
 ## [v0.4.0] - 2026-06-08
+
 
 ### Documentation
 
@@ -86,19 +177,24 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **roadmap:** Move Do next to top and refresh priorities ([`b40069c`](https://github.com/yandy-r/crosshook/commit/b40069c41b0535f25c8de20585346b46bd849548))
 
+
 ### Features
 
 - **library:** Add trainer tab editor ([#501](https://github.com/yandy-r/crosshook/issues/501)) ([`985e5bf`](https://github.com/yandy-r/crosshook/commit/985e5bf9e4a1192e37b61462d72f93ac787ac69f))
 
 - **launch:** Add umu GAMEID lookup resolver ([#502](https://github.com/yandy-r/crosshook/issues/502)) ([`6474d50`](https://github.com/yandy-r/crosshook/commit/6474d50d3b88f1905b29abf93b8dbb022763dcf6))
 
+
 ## [v0.3.1] - 2026-06-05
+
 
 ### Build
 
 - **native:** Upgrade deps for Tauri 2.11 and TypeScript 6 ([#500](https://github.com/yandy-r/crosshook/issues/500)) ([`3f56204`](https://github.com/yandy-r/crosshook/commit/3f56204ddc605dfda53d7bea3e1b1a1a0eae1d07))
 
+
 ## [v0.3.0] - 2026-06-05
+
 
 ### Bug Fixes
 
@@ -118,7 +214,7 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - Refactor documentation and simplify path check in host_fs.rs ([#341](https://github.com/yandy-r/crosshook/issues/341)) ([`fe39771`](https://github.com/yandy-r/crosshook/commit/fe397718cb5ff20ad126ba25da61c8031eb36258))
 
-- Refactor to use shared METHOD\_\* constants in resolve_launch_method ([#336](https://github.com/yandy-r/crosshook/issues/336)) ([`02f7f3e`](https://github.com/yandy-r/crosshook/commit/02f7f3e846774cae4f7a7a1e678b933f8905d392))
+- Refactor to use shared METHOD_* constants in resolve_launch_method ([#336](https://github.com/yandy-r/crosshook/issues/336)) ([`02f7f3e`](https://github.com/yandy-r/crosshook/commit/02f7f3e846774cae4f7a7a1e678b933f8905d392))
 
 - Path safety in launcher_store for symlink verification ([#340](https://github.com/yandy-r/crosshook/issues/340)) ([`c9fb074`](https://github.com/yandy-r/crosshook/commit/c9fb0746869863082dda19ebe0cc40b9197afaa1))
 
@@ -140,6 +236,7 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **ui:** Strip dev-mock sentinel from production bundle ([`6a41595`](https://github.com/yandy-r/crosshook/commit/6a41595a8d758c186945e5fda96f21553639516e))
 
+
 ### CI
 
 - Add copilot agent setup-steps workflow and document firewall guidance ([`41ac950`](https://github.com/yandy-r/crosshook/commit/41ac950064eb59e792e2d889e91751e367e91f86))
@@ -152,6 +249,7 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - Normalize Conventional Commit prefix in PR title autofix ([#394](https://github.com/yandy-r/crosshook/issues/394)) ([`123df62`](https://github.com/yandy-r/crosshook/commit/123df62dec55574c301122636467ef434e2b2573))
 
+
 ### Documentation
 
 - **prp:** Add frontend test framework PRD; update umu deferred issue status ([`945bfde`](https://github.com/yandy-r/crosshook/commit/945bfde7c90c03cbc29b9840a77c05c591a0d724))
@@ -163,6 +261,7 @@ This file is generated with `git-cliff` from the repository history and release 
 - **prp:** Add Phase 4 library inspector plan; mark PRD phase 4 in-progress ([`574c3bd`](https://github.com/yandy-r/crosshook/commit/574c3bd236e95f9375531ad86018cd74843341f0))
 
 - Add ROADMAP.md with prioritized next steps ([`b3ffc01`](https://github.com/yandy-r/crosshook/commit/b3ffc01ff38801a66d0c6512c69d9cc3f248d59e))
+
 
 ### Features
 
@@ -255,6 +354,7 @@ This file is generated with `git-cliff` from the repository history and release 
 - **ui:** Unify shell column chrome and library inspector layout ([`5cbbaae`](https://github.com/yandy-r/crosshook/commit/5cbbaaebac2a41b2ffda18f79264ac44e8b103b6))
 
 - **launch:** Execute profile pre/post launch hooks ([#499](https://github.com/yandy-r/crosshook/issues/499)) ([`1385b2a`](https://github.com/yandy-r/crosshook/commit/1385b2aa6646164912ecef2b293848ae7eabbc4e))
+
 
 ### Refactoring
 
@@ -356,6 +456,7 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **ui:** Split CommunityBrowser into sibling sections ([`a28a20c`](https://github.com/yandy-r/crosshook/commit/a28a20c1d6780c2d3388fd7d3b411b8dd9658746))
 
+
 ### Tests
 
 - **frontend:** Add vitest and rtl seed suite ([#350](https://github.com/yandy-r/crosshook/issues/350)) ([`e3f1f97`](https://github.com/yandy-r/crosshook/commit/e3f1f97caf2367a01feda391e40b02ba95ef2c9f))
@@ -374,7 +475,9 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **ui:** Phase 12 responsive smoke + sweep expansion ([#424](https://github.com/yandy-r/crosshook/issues/424)) ([`56b695c`](https://github.com/yandy-r/crosshook/commit/56b695caa3d9c021c6f870f6a259ed896bb11fa8))
 
+
 ## [v0.2.11] - 2026-04-15
+
 
 ### Bug Fixes
 
@@ -386,11 +489,13 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **ui:** A11y pass and biome lint cleanup ([#232](https://github.com/yandy-r/crosshook/issues/232)) ([`63ec452`](https://github.com/yandy-r/crosshook/commit/63ec452824dd742b1af47c422d27c2086e7e8c98))
 
+
 ### Documentation
 
 - **prps:** Add auto-trainer gamescope plan and spec ([`69dca48`](https://github.com/yandy-r/crosshook/commit/69dca480e1ebe8cffcd81dc54f9b4b4e3aeae203))
 
 - **prd:** Add GitHub issue tables to umu-launcher migration PRD ([`92ac832`](https://github.com/yandy-r/crosshook/commit/92ac832052334fd2a5e23137d8906e91317a60b5))
+
 
 ### Features
 
@@ -404,7 +509,9 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **launch:** Add umu opt-in for non-Steam launches (Phase 3) ([#264](https://github.com/yandy-r/crosshook/issues/264)) ([`d8a851c`](https://github.com/yandy-r/crosshook/commit/d8a851c4e282485b9e6af5a1710944dcee6c5817))
 
+
 ## [v0.2.10-flatpak] - 2026-04-13
+
 
 ### Bug Fixes
 
@@ -418,15 +525,18 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **launch:** Align Steam trainer with proton_run and Flatpak parity ([#227](https://github.com/yandy-r/crosshook/issues/227)) ([`7fd52b2`](https://github.com/yandy-r/crosshook/commit/7fd52b2b8708ecc392864a18a634e20c84c71a50))
 
+
 ### Build
 
 - **icons:** Automate AppImage icon sync pipeline ([`bf56733`](https://github.com/yandy-r/crosshook/commit/bf567336f00afce8eb0ee3acf2903a3d387449cd))
 
 - **lint:** Add code quality tooling standard ([`cada9bb`](https://github.com/yandy-r/crosshook/commit/cada9bbde1c575d03efbc7753920cccddc36843a))
 
+
 ### Documentation
 
 - Add issue asset and task log for trainer gamescope tracking ([`5e33353`](https://github.com/yandy-r/crosshook/commit/5e33353c939f541320563517844de4deccd8cdc6))
+
 
 ### Features
 
@@ -442,13 +552,16 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **flatpak:** Harden phase 3 process execution ([#214](https://github.com/yandy-r/crosshook/issues/214)) ([`f8eada9`](https://github.com/yandy-r/crosshook/commit/f8eada95e7a843e1010f91cedad78e2b10313ee0))
 
+
 ## [v0.2.9] - 2026-04-09
+
 
 ### Bug Fixes
 
 - **build:** Resolve blank AppImage on Intel+NVIDIA hybrid GPU systems ([`67bd326`](https://github.com/yandy-r/crosshook/commit/67bd3262c7256115c859b23f19e21147aed4bd98))
 
 - **build:** Rename plugin-stub sentinel prefix to avoid CI mock-code check ([`157b884`](https://github.com/yandy-r/crosshook/commit/157b884f943b82688dbef5ea78e7f864d5fba86d))
+
 
 ### Features
 
@@ -474,11 +587,14 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **ui:** Profile collections polish, integration tests, Steam Deck validation — Phase 5 ([#181](https://github.com/yandy-r/crosshook/issues/181)) ([#186](https://github.com/yandy-r/crosshook/issues/186)) ([`842e70a`](https://github.com/yandy-r/crosshook/commit/842e70aa757f007ccfecd461144e1a46af7c250a))
 
+
 ## [v0.2.8] - 2026-04-07
+
 
 ### Bug Fixes
 
 - **discovery:** Harden external search and trainer-source validation ([`6cdf96d`](https://github.com/yandy-r/crosshook/commit/6cdf96d4c72ad33b771f40eefd1b5d7beeed515e))
+
 
 ### Features
 
@@ -500,11 +616,14 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **protonup:** In-app Proton runtime management ([#159](https://github.com/yandy-r/crosshook/issues/159)) ([`4b86144`](https://github.com/yandy-r/crosshook/commit/4b86144375cc194a6ebb9a94a012cf38a9c45a9e))
 
+
 ## [v0.2.7] - 2026-04-04
+
 
 ### Bug Fixes
 
 - **launch:** Revert umu-run preference, use direct proton for all launch paths ([`e5f182c`](https://github.com/yandy-r/crosshook/commit/e5f182cf6d2781adfa5f7ef482c42a24154a02f3))
+
 
 ### Features
 
@@ -522,7 +641,9 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **launch:** Protontricks/winetricks integration for prefix dependencies ([#151](https://github.com/yandy-r/crosshook/issues/151)) ([`4a2ce3d`](https://github.com/yandy-r/crosshook/commit/4a2ce3d30e91b3fed39a8f1c8c602b744490c653))
 
+
 ## [v0.2.6] - 2026-04-02
+
 
 ### Bug Fixes
 
@@ -531,6 +652,7 @@ This file is generated with `git-cliff` from the repository history and release 
 - **ui:** Route layout, panel decor, and polish across routes ([#138](https://github.com/yandy-r/crosshook/issues/138)) ([`883b622`](https://github.com/yandy-r/crosshook/commit/883b622812dce93472c13bac7b6a9238845967a0))
 
 - **cli:** Include mangohud in LaunchRequest from profile ([`6bb5010`](https://github.com/yandy-r/crosshook/commit/6bb5010631ea56c09f6e30430b2e4b682a809b96))
+
 
 ### Features
 
@@ -552,7 +674,9 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **ui:** Add Library Home page with poster art grid ([#139](https://github.com/yandy-r/crosshook/issues/139)) ([`1aff9c0`](https://github.com/yandy-r/crosshook/commit/1aff9c08f64195103f50b33e0d9583d0502cdbdb))
 
+
 ## [v0.2.5] - 2026-03-31
+
 
 ### Bug Fixes
 
@@ -566,9 +690,11 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **branchlet:** Update terminal command in .branchlet.json to use GUI editor ([`e0ece59`](https://github.com/yandy-r/crosshook/commit/e0ece592fe73c54766af83de2ca3c5c62c057a6e))
 
+
 ### Documentation
 
 - **ref:** Add feature specification and research documents for CLI command wiring ([`08bb988`](https://github.com/yandy-r/crosshook/commit/08bb9885b0d92e07e82f54034271d467475e5925))
+
 
 ### Features
 
@@ -596,7 +722,9 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **cli:** Wire all placeholder commands to crosshook-core and extend launch support ([#127](https://github.com/yandy-r/crosshook/issues/127)) ([`2cba5f1`](https://github.com/yandy-r/crosshook/commit/2cba5f1d4be8f48dfbdadac05b8e1625c5a8db30))
 
+
 ## [v0.2.4] - 2026-03-29
+
 
 ### Bug Fixes
 
@@ -608,6 +736,7 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **ui:** Smooth launcher preview modal scrolling ([#97](https://github.com/yandy-r/crosshook/issues/97)) ([`3123cdd`](https://github.com/yandy-r/crosshook/commit/3123cdd243d569725674c554048ca286306b075f))
 
+
 ### Documentation
 
 - **profile-health:** Revise health dashboard spec and integrate SQLite metadata layer ([`ed0bd03`](https://github.com/yandy-r/crosshook/commit/ed0bd03d853061be8750ff7347346d52fa5b720b))
@@ -615,6 +744,7 @@ This file is generated with `git-cliff` from the repository history and release 
 - **health:** Add Health Dashboard Page for profile diagnostics ([`5aca99e`](https://github.com/yandy-r/crosshook/commit/5aca99e7c05a8c7f01e82d73b6308613e6239f66))
 
 - **health:** Add implementation plan for Health Dashboard Page ([`70ae03e`](https://github.com/yandy-r/crosshook/commit/70ae03e9ac6730c410e019d46008b9997d0030b9))
+
 
 ### Features
 
@@ -652,11 +782,14 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **diagnostics:** Add diagnostic bundle export ([`01dd2ac`](https://github.com/yandy-r/crosshook/commit/01dd2ac339f734b3b55a00d7681d30fc8b692625))
 
+
 ## [v0.2.3] - 2026-03-27
+
 
 ### Bug Fixes
 
 - **launch:** Add actionable validation guidance and reset page scroll ([#79](https://github.com/yandy-r/crosshook/issues/79)) ([`98fdf18`](https://github.com/yandy-r/crosshook/commit/98fdf1840dc09ca86d4a0dacc66e28827e047b64))
+
 
 ### Features
 
@@ -674,7 +807,9 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **profile:** Add rename with overwrite protection and launcher cascade ([#83](https://github.com/yandy-r/crosshook/issues/83)) ([`5866808`](https://github.com/yandy-r/crosshook/commit/5866808e3a4d0c4f2067b447593783f28b87f0e8))
 
+
 ## [v0.2.2] - 2026-03-26
+
 
 ### Bug Fixes
 
@@ -690,6 +825,7 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **ui:** Adjust padding and border styles for content areas ([`1ab02da`](https://github.com/yandy-r/crosshook/commit/1ab02da9f3a07f55b9daaf6952633a496370f5ba))
 
+
 ### Features
 
 - **profile:** Add install review modal flow ([#29](https://github.com/yandy-r/crosshook/issues/29)) ([`62a8f08`](https://github.com/yandy-r/crosshook/commit/62a8f08d585ebb6ed5c862b3647cc04213c4ea22))
@@ -702,7 +838,9 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **launch:** Add per-profile trainer loading modes ([#35](https://github.com/yandy-r/crosshook/issues/35)) ([`86949dd`](https://github.com/yandy-r/crosshook/commit/86949dd8dd5c22a617cd82c4b4a6355c4b639b3d))
 
+
 ## [v0.2.1] - 2026-03-25
+
 
 ### Bug Fixes
 
@@ -712,13 +850,16 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **release:** Restore and validate native workspace manifest ([`6bd2589`](https://github.com/yandy-r/crosshook/commit/6bd25893d972f7b95dc0fbc21b3b1ccfca8e1fa7))
 
+
 ### Features
 
 - **native:** Implement install game workflow ([#23](https://github.com/yandy-r/crosshook/issues/23)) ([`704c478`](https://github.com/yandy-r/crosshook/commit/704c4780f32b721d1c72f0b25149bebcf3cb5517))
 
 - **launcher:** Implement launcher lifecycle management ([#25](https://github.com/yandy-r/crosshook/issues/25)) ([`fa51a74`](https://github.com/yandy-r/crosshook/commit/fa51a74f22762749ba2de7c6375050102c3fa62c))
 
+
 ## [v0.2.0] - 2026-03-23
+
 
 ### Bug Fixes
 
@@ -726,11 +867,14 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **native:** Restore workspace release manifest ([`9275fce`](https://github.com/yandy-r/crosshook/commit/9275fceaeed943e525422147b00a680eba0dfebe))
 
+
 ### Features
 
 - Implement the platform-native-ui native app feature set ([#20](https://github.com/yandy-r/crosshook/issues/20)) ([`84242d4`](https://github.com/yandy-r/crosshook/commit/84242d482a399f19abb0cefe5a42bc82dfd7ba7a))
 
+
 ## [v0.1.1] - 2026-03-23
+
 
 ### Features
 
@@ -740,6 +884,8 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - Expand platform-native UI analysis and documentation ([`ca1bc92`](https://github.com/yandy-r/crosshook/commit/ca1bc927e7b0e620e83d26ec9efcf91f5e4e2a5f))
 
+
 ## [v0.1.0] - 2026-03-19
+
 
 <!-- generated by git-cliff -->
