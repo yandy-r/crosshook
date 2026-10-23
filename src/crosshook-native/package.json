@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=20.19.0"
+    "node": ">=24.22.1"
   },
   "x-tauri-deps-versioning": "caret ^2.x on all @tauri-apps/* packages for semver-aligned minor/patch updates with the Tauri 2.x stack (Rust: tauri 2 in src-tauri/Cargo.toml).",
   "scripts": {
@@ -49,12 +49,12 @@
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^5.2.0",
-    "@vitest/coverage-v8": "^4.1.8",
+    "@vitest/coverage-v8": "^4.1.12",
     "happy-dom": "^20.10.1",
     "jest-axe": "^10.0.0",
     "prettier": "^3.8.3",
     "typescript": "^6.0.3",
-    "vite": "^8.0.16",
-    "vitest": "^4.1.8"
+    "vite": "^8.1.6",
+    "vitest": "^4.1.12"
   }
 }

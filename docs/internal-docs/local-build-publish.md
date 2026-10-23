@@ -7,7 +7,7 @@ artifact; the Tauri release binary is an internal packaging input.
 ## Prerequisites
 
 - Rust toolchain (stable)
-- Node.js 20+ and npm
+- Node.js 24.22.1+ and npm (CI pins 24.22.1; Node.js 20 is end of life)
 - Linux build dependencies: GTK3, WebKit2GTK 4.1, libsoup3, OpenSSL, patchelf
 - Flatpak packaging tools: `flatpak`, `flatpak-builder`, `desktop-file-utils`,
   `appstreamcli`, `rsvg-convert`, and ImageMagick
@@ -117,7 +117,7 @@ The release workflow `.github/workflows/release.yml` runs on `v*` tag push to Gi
 
 The workflow:
 
-1. Sets up Node.js 20 and Rust stable
+1. Sets up Node.js 24.22.1 and Rust stable
 2. Installs release-binary and Flatpak packaging prerequisites
 3. Runs `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core`
 4. Builds the release binary with `./scripts/build-release-binary.sh`
