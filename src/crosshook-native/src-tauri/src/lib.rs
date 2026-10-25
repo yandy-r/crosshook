@@ -42,6 +42,7 @@ pub fn run() {
         .manage(services.recent_files.clone())
         .manage(services.diagnostics.clone())
         .manage(services.health.clone())
+        .manage(services.profiles.clone())
         .manage(services.background.clone())
         .manage(core.clone())
         .setup(move |app| {

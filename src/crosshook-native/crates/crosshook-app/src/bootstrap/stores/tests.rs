@@ -124,7 +124,7 @@ fn services_new_builds_bundle_from_stores() {
     let settings = init_settings(&roots).unwrap();
     let (stores, _) = init_remaining(&roots, &settings, &AppSettingsData::default()).unwrap();
 
-    let services = Services::new(&stores);
+    let services = Services::new(&stores, crate::EventBus::default());
 
     // Bundle is built; clones are cheap and Arc-shared background holder.
     let cloned = services.clone();

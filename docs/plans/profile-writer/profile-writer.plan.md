@@ -58,6 +58,8 @@ Tasks grouped by dependency for parallel execution. Tasks within the same batch 
 
 Ownership rule: no two tasks in the same batch touch the same file. Cross-slice Rust signatures (D8 helpers, D5 primitive) are frozen verbatim in Task 0.2's contract list; B1 slices implement/call them against that contract, and the main agent compiles/verifies once after all of B1 lands (repo hand-off policy: subagents skip builds mid-flight).
 
+**B0 outcome (binding for B1):** [`b0-contracts.md`](./b0-contracts.md) records the final signatures, module files and per-task file ownership. Main approved moving the D5 primitive (`MetadataStore::invalidate_health_snapshot`) into B0, so Task 1.1 no longer includes it. `commit` is generic over a crate-private `ProfileMutation` trait rather than an enum, so slices never share a dispatch file.
+
 ## UX Design
 
 ### Before

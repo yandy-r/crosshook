@@ -156,3 +156,33 @@ fn pending_and_running_jobs_emit_nothing() {
         .iter()
         .all(|kind| finished_payload(*kind, &jobs).is_none()));
 }
+
+#[test]
+fn profiles_changed_payload_is_an_object_with_tagged_reason() {
+    let renamed = ProfilesChangedPayload {
+        reason: ProfileChangeReason::Renamed {
+            from: "Alpha".into(),
+        },
+        names: vec!["Beta".into()],
+    };
+    assert_eq!(
+        serde_json::to_value(renamed).unwrap(),
+        json!({"reason": {"kind": "renamed", "from": "Alpha"}, "names": ["Beta"]})
+    );
+    let favorite = ProfilesChangedPayload {
+        reason: ProfileChangeReason::FavoriteToggled,
+        names: vec!["Alpha".into()],
+    };
+    assert_eq!(
+        serde_json::to_value(favorite).unwrap(),
+        json!({"reason": {"kind": "favorite_toggled"}, "names": ["Alpha"]})
+    );
+}
+
+#[test]
+fn resync_emits_conservative_saved_with_no_names() {
+    assert_eq!(
+        serde_json::to_value(profiles_resync_payload()).unwrap(),
+        json!({"reason": {"kind": "saved"}, "names": []})
+    );
+}
