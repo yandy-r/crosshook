@@ -1,16 +1,11 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
-import type {
-  GameProfile,
-  LauncherInfo,
-  SerializedDuplicateProfileResult,
-  SerializedGameProfile,
-} from '../../types';
+import type { GameProfile, LauncherInfo, SerializedDuplicateProfileResult, SerializedGameProfile } from '../../types';
 import type { OptimizationEntry } from '../../utils/optimization-catalog';
 import { createEmptyProfile } from './createEmptyProfile';
 import { mergeLiveLaunchSections } from './mergeLiveLaunchSections';
-import { normalizeProfileForEdit, normalizeProfileForSave } from './profileNormalize';
 import { clearLastUsedProfileIfDeleted, syncProfileMetadata } from './profileMetadataSync';
+import { normalizeProfileForEdit, normalizeProfileForSave } from './profileNormalize';
 import { validateProfileForSave } from './profileValidation';
 
 export interface PendingDelete {

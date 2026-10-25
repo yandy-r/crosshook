@@ -172,8 +172,14 @@ export function useOfflineReadiness() {
     return () => {
       active = false;
       controller.abort();
-      void unlistenScan.then((u) => u(), () => {});
-      void unlistenFinished.then((u) => u(), () => {});
+      void unlistenScan.then(
+        (u) => u(),
+        () => {}
+      );
+      void unlistenFinished.then(
+        (u) => u(),
+        () => {}
+      );
     };
   }, [batchCheck]);
 

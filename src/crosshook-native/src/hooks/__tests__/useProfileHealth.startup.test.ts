@@ -26,7 +26,16 @@ vi.mock('@/lib/events', async (importOriginal) => {
 });
 
 const summary: EnrichedHealthSummary = {
-  profiles: [{ name: 'Alpha', status: 'healthy', launch_method: 'steam', issues: [], checked_at: '2020-01-01T00:00:00.000Z', metadata: null }],
+  profiles: [
+    {
+      name: 'Alpha',
+      status: 'healthy',
+      launch_method: 'steam',
+      issues: [],
+      checked_at: '2020-01-01T00:00:00.000Z',
+      metadata: null,
+    },
+  ],
   healthy_count: 1,
   stale_count: 0,
   broken_count: 0,
@@ -81,7 +90,9 @@ describe('useProfileHealth startup report', () => {
     await settleReport();
     expect(result.current.summary).toBeNull();
     expect(batchCalls()).toHaveLength(0);
-    await act(async () => { emitMockEvent('profile-health-batch-complete', summary); });
+    await act(async () => {
+      emitMockEvent('profile-health-batch-complete', summary);
+    });
     expect(result.current.summary).toEqual(summary);
   });
 
@@ -107,7 +118,11 @@ describe('useProfileHealth startup report', () => {
 
   it('retains success delivered before a late running report resolves', async () => {
     let resolveReport!: (report: StartupReport) => void;
-    mockCommands(new Promise((resolve) => { resolveReport = resolve; }));
+    mockCommands(
+      new Promise((resolve) => {
+        resolveReport = resolve;
+      })
+    );
     const { result } = renderHook(() => useProfileHealth());
     await waitFor(() => expect(mockCallCommand).toHaveBeenCalledWith('get_startup_report'));
     await act(async () => {
@@ -123,7 +138,9 @@ describe('useProfileHealth startup report', () => {
     await fetchStartupReport();
     const first = renderHook(() => useProfileHealth());
     await settleReport();
-    await act(async () => { emitMockEvent('profile-health-batch-complete', summary); });
+    await act(async () => {
+      emitMockEvent('profile-health-batch-complete', summary);
+    });
     first.unmount();
     mockCommands(reportWith({ state: 'complete', data: summary }));
     const second = renderHook(() => useProfileHealth());
@@ -134,14 +151,18 @@ describe('useProfileHealth startup report', () => {
 
   it('does not read the report until listener registration completes', async () => {
     let register!: () => void;
-    subscription.gate = new Promise((resolve) => { register = resolve; });
+    subscription.gate = new Promise((resolve) => {
+      register = resolve;
+    });
     mockCommands(reportWith({ state: 'complete', data: summary }));
     const { result } = renderHook(() => useProfileHealth());
     await waitFor(() => expect(mockCallCommand).toHaveBeenCalledWith('get_cached_health_snapshots'));
     vi.useFakeTimers();
     await act(() => vi.runAllTimersAsync());
     expect(mockCallCommand).not.toHaveBeenCalledWith('get_startup_report');
-    await act(async () => { register(); });
+    await act(async () => {
+      register();
+    });
     vi.useRealTimers();
     await waitFor(() => expect(result.current.summary).toEqual(summary));
   });

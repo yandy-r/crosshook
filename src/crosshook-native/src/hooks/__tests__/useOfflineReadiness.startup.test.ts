@@ -23,10 +23,17 @@ vi.mock('@/lib/events', async (importOriginal) => {
   };
 });
 
-const reports: OfflineReadinessReport[] = [{
-  profile_name: 'Alpha', score: 90, readiness_state: 'ready', trainer_type: 'standalone',
-  checks: [], blocking_reasons: [], checked_at: '2020-01-01T00:00:00.000Z',
-}];
+const reports: OfflineReadinessReport[] = [
+  {
+    profile_name: 'Alpha',
+    score: 90,
+    readiness_state: 'ready',
+    trainer_type: 'standalone',
+    checks: [],
+    blocking_reasons: [],
+    checked_at: '2020-01-01T00:00:00.000Z',
+  },
+];
 
 function reportWith(job: StartupReport['jobs']['offline_readiness']): StartupReport {
   const report = makeStartupReport();
@@ -74,7 +81,9 @@ describe('useOfflineReadiness startup report', () => {
     const { result } = renderHook(() => useOfflineReadiness());
     await settleReport();
     expect(batchCalls()).toHaveLength(0);
-    await act(async () => { emitMockEvent('offline-readiness-scan-complete', { total_profiles: 1 }); });
+    await act(async () => {
+      emitMockEvent('offline-readiness-scan-complete', { total_profiles: 1 });
+    });
     await waitFor(() => expect(result.current.reports).toEqual(reports));
     expect(batchCalls()).toHaveLength(1);
   });
@@ -101,7 +110,11 @@ describe('useOfflineReadiness startup report', () => {
 
   it('deduplicates an event delivered before a complete report resolves', async () => {
     let resolveReport!: (report: StartupReport) => void;
-    mockCommands(new Promise((resolve) => { resolveReport = resolve; }));
+    mockCommands(
+      new Promise((resolve) => {
+        resolveReport = resolve;
+      })
+    );
     const { result } = renderHook(() => useOfflineReadiness());
     await waitFor(() => expect(mockCallCommand).toHaveBeenCalledWith('get_startup_report'));
     await act(async () => {
@@ -115,7 +128,11 @@ describe('useOfflineReadiness startup report', () => {
 
   it('handles success delivered before a late running report resolves', async () => {
     let resolveReport!: (report: StartupReport) => void;
-    mockCommands(new Promise((resolve) => { resolveReport = resolve; }));
+    mockCommands(
+      new Promise((resolve) => {
+        resolveReport = resolve;
+      })
+    );
     const { result } = renderHook(() => useOfflineReadiness());
     await waitFor(() => expect(mockCallCommand).toHaveBeenCalledWith('get_startup_report'));
     await act(async () => {
@@ -131,7 +148,9 @@ describe('useOfflineReadiness startup report', () => {
     await fetchStartupReport();
     const first = renderHook(() => useOfflineReadiness());
     await settleReport();
-    await act(async () => { emitMockEvent('offline-readiness-scan-complete', { total_profiles: 1 }); });
+    await act(async () => {
+      emitMockEvent('offline-readiness-scan-complete', { total_profiles: 1 });
+    });
     first.unmount();
     mockCommands(reportWith({ state: 'complete', data: { total_profiles: 1 } }));
     const second = renderHook(() => useOfflineReadiness());
@@ -142,14 +161,18 @@ describe('useOfflineReadiness startup report', () => {
 
   it('does not read the report until listener registration completes', async () => {
     let register!: () => void;
-    subscription.gate = new Promise((resolve) => { register = resolve; });
+    subscription.gate = new Promise((resolve) => {
+      register = resolve;
+    });
     mockCommands(reportWith({ state: 'complete', data: { total_profiles: 1 } }));
     const { result } = renderHook(() => useOfflineReadiness());
     await waitFor(() => expect(mockCallCommand).toHaveBeenCalledWith('get_cached_offline_readiness_snapshots'));
     vi.useFakeTimers();
     await act(() => vi.runAllTimersAsync());
     expect(mockCallCommand).not.toHaveBeenCalledWith('get_startup_report');
-    await act(async () => { register(); });
+    await act(async () => {
+      register();
+    });
     vi.useRealTimers();
     await waitFor(() => expect(result.current.reports).toEqual(reports));
   });

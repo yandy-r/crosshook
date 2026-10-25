@@ -21,4 +21,3 @@ export function makeStartupReport(overrides: Partial<StartupReport> = {}): Start
     ...overrides,
   };
 }
-

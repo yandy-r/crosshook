@@ -1,5 +1,5 @@
-import * as React from 'react';
 import { act, screen, waitFor } from '@testing-library/react';
+import * as React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppShell } from '@/components/layout/AppShell';
 import { CollectionsProvider } from '@/context/CollectionsContext';

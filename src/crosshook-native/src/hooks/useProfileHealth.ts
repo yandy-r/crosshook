@@ -203,8 +203,14 @@ export function useProfileHealth() {
     return () => {
       active = false;
       controller.abort();
-      void unlistenBatchComplete.then((unlisten) => unlisten(), () => {});
-      void unlistenFinished.then((unlisten) => unlisten(), () => {});
+      void unlistenBatchComplete.then(
+        (unlisten) => unlisten(),
+        () => {}
+      );
+      void unlistenFinished.then(
+        (unlisten) => unlisten(),
+        () => {}
+      );
     };
   }, [batchValidate]);
 
