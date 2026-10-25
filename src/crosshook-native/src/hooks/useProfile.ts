@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { type MutableRefObject, useCallback, useEffect, useMemo, useRef } from 'react';
 import { subscribeEvent } from '@/lib/events';
 import type {
   BundledOptimizationPreset,
@@ -77,6 +77,12 @@ export interface UseProfileResult {
       throwOnFailure?: boolean;
     }
   ) => Promise<void>;
+  /**
+   * True once any named `selectProfile`/`loadProfile` request has started, set
+   * synchronously before the first await. Lets ProfileContext keep the startup
+   * auto-load from racing an in-flight user-initiated load.
+   */
+  selectionRequestedRef: MutableRefObject<boolean>;
   hydrateProfile: (name: string, profile: GameProfile) => void;
   updateProfile: (updater: (current: GameProfile) => GameProfile) => void;
   updateLaunchSetting: (updater: (current: GameProfile) => GameProfile) => void;
@@ -213,9 +219,9 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   setErrorRef.current = setError;
 
   // Run the initial list/favorites fetch once on mount. `refreshProfiles` changes
-  // identity when `selectedProfile` updates (e.g. after `auto-load-profile`), and
-  // re-running this effect would call `refreshProfiles` again with an empty list,
-  // wiping the auto-loaded profile state.
+  // identity when `selectedProfile` updates (e.g. after the startup report auto-loads
+  // a profile), and re-running this effect would call `refreshProfiles` again with an
+  // empty list, wiping the auto-loaded profile state.
   useEffect(() => {
     void refreshProfilesRef.current().catch((err: unknown) => {
       setErrorRef.current(err instanceof Error ? err.message : String(err));
@@ -266,6 +272,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     historyError: history.historyError,
     setProfileName: crud.setProfileName,
     selectProfile: crud.loadProfile,
+    selectionRequestedRef: crud.selectionRequestedRef,
     hydrateProfile: crud.hydrateProfile,
     updateProfile: crud.updateProfile,
     updateLaunchSetting: crud.updateLaunchSetting,

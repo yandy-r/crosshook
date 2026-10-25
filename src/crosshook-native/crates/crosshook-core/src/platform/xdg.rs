@@ -27,6 +27,8 @@ use super::env::{EnvSink, SystemEnv};
 /// (opt-in shared mode). The default Flatpak startup path uses per-app
 /// isolation + first-run migration — see ADR-0004 and
 /// `crosshook_core::flatpak_migration::run()`.
+/// The gate invokes this from `crosshook_app::bootstrap::pre_runtime`, before
+/// any base-directory lookup, runtime, UI builder, or spawned thread.
 ///
 /// # Safety
 ///

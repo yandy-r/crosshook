@@ -1,400 +1,59 @@
 mod commands;
-mod startup;
+mod env_policy;
+mod fatal;
+mod startup_bridge;
 
 pub use crosshook_app::services::{BackgroundGrantHolder, BackgroundProtectionState};
 
-use crosshook_app::services::{
-    DiagnosticsService, RecentFilesService, SettingsService, XdgBackgroundPortal,
-};
-use crosshook_core::app_id_migration::migrate_legacy_tauri_app_id_xdg_directories;
-use crosshook_core::community::CommunityTapStore;
-use crosshook_core::flatpak_migration::{is_host_xdg_opt_in, MigrationOutcome};
-use crosshook_core::launch::{
-    initialize_catalog, initialize_command_argument_catalog, load_catalog,
-    load_command_argument_catalog,
-};
-use crosshook_core::logging;
-use crosshook_core::metadata::MetadataStore;
-use crosshook_core::offline::{initialize_trainer_type_catalog, load_trainer_type_catalog};
-use crosshook_core::onboarding::{
-    initialize_capability_map, initialize_readiness_catalog, load_capability_map,
-    load_readiness_catalog,
-};
-use crosshook_core::profile::ProfileStore;
-use crosshook_core::settings::{AppSettingsData, RecentFilesStore, SettingsStore};
-use std::sync::{Mutex, OnceLock};
-use tauri::{Emitter, Manager};
-use tokio::time::{sleep, Duration};
-
-static FLATPAK_MIGRATION_OUTCOME: OnceLock<Mutex<Option<MigrationOutcome>>> = OnceLock::new();
-
-#[derive(serde::Serialize)]
-struct FlatpakMigrationCompletePayload {
-    imported_config: bool,
-    imported_subtrees: Vec<String>,
-    skipped_subtrees: Vec<String>,
-}
+use crosshook_app::bootstrap::{pre_runtime, BootstrapOptions, PreRuntimeOptions, UmuRefresh};
+use crosshook_app::App;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Flatpak startup gate (Phase 4, ADR-0004): isolation by default, host-share on opt-in.
-    //
-    // This decision MUST run before any `BaseDirs::new()` call (including the
-    // migration that follows and every `*Store::try_new`) because the directories
-    // crate reads XDG env vars at construction time.
-    if crosshook_core::platform::is_flatpak() {
-        if is_host_xdg_opt_in() {
-            tracing::info!(mode = "host-xdg-shared", "flatpak startup mode");
-            eprintln!("CrossHook: flatpak host-XDG shared mode (opt-in)");
-            // SAFETY: single-threaded startup, before Tauri builder; matches Phase 1 contract.
-            unsafe { crosshook_core::platform::override_xdg_for_flatpak_host_access() };
+    let context = tauri::generate_context!();
+    let pre =
+        match pre_runtime(PreRuntimeOptions::new().with_env_policy(env_policy::WebKitEnvPolicy)) {
+            Ok(pre) => pre,
+            Err(error) => fatal::show_and_exit(context, error),
+        };
+    let options = BootstrapOptions::new()
+        .with_runtime_handle(tauri::async_runtime::handle().inner().clone())
+        .with_umu_refresh(if commands::bench::bench_enabled() {
+            UmuRefresh::Skip {
+                reason: "CROSSHOOK_BENCH=1",
+            }
         } else {
-            tracing::info!(mode = "per-app-isolation", "flatpak startup mode");
-            eprintln!("CrossHook: flatpak per-app isolation mode");
-            match crosshook_core::flatpak_migration::run() {
-                Ok(outcome) => {
-                    let slot = FLATPAK_MIGRATION_OUTCOME.get_or_init(|| Mutex::new(None));
-                    if let Ok(mut guard) = slot.lock() {
-                        *guard = Some(outcome);
-                    }
-                }
-                Err(err) => {
-                    tracing::warn!(error = %err, "flatpak first-run migration failed");
-                    eprintln!("CrossHook: flatpak first-run migration failed: {err}");
-                }
-            }
-        }
-    }
-
-    // One-time XDG root migration after Tauri app `identifier` change (legacy -> current).
-    migrate_legacy_tauri_app_id_xdg_directories();
-
-    // Prevent GBM EGL display creation failures on multi-GPU systems (e.g. eGPU setups)
-    // by disabling WebKitGTK's DMA-BUF renderer before WebKit initializes.
-    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
-        // SAFETY: single-threaded startup, before Tauri builder; no other threads read the env.
-        unsafe { std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1") };
-    }
-
-    // With WebKitGTK 2.44+, native Wayland is more reliable and avoids EGL
-    // rendering failures on Intel+NVIDIA hybrid GPU systems where XWayland
-    // compositing can fail silently. Allow Wayland sessions to use the native
-    // backend when a stale environment forced X11.
-    if std::env::var_os("WAYLAND_DISPLAY").is_some()
-        && std::env::var("GDK_BACKEND").ok().as_deref() == Some("x11")
-    {
-        // SAFETY: single-threaded startup, before Tauri builder; no other threads read the env.
-        unsafe { std::env::remove_var("GDK_BACKEND") };
-    }
-
-    let settings_store = SettingsStore::try_new().unwrap_or_else(|error| {
-        eprintln!("CrossHook: failed to initialize settings store: {error}");
-        std::process::exit(1);
-    });
-    let initial_settings: AppSettingsData = settings_store
-        .load()
-        .unwrap_or_else(|_| AppSettingsData::default());
-    let profile_store =
-        ProfileStore::try_new_with_settings_data(&initial_settings, &settings_store.base_path)
-            .unwrap_or_else(|error| {
-                eprintln!("CrossHook: failed to initialize profile store: {error}");
-                std::process::exit(1);
-            });
-    let recent_files_store = RecentFilesStore::try_new().unwrap_or_else(|error| {
-        eprintln!("CrossHook: failed to initialize recent files store: {error}");
-        std::process::exit(1);
-    });
-    let community_tap_store = CommunityTapStore::try_new().unwrap_or_else(|error| {
-        eprintln!("CrossHook: failed to initialize community tap store: {error}");
-        std::process::exit(1);
-    });
-    let metadata_store = MetadataStore::try_new().unwrap_or_else(|error| {
-        tracing::warn!(%error, "metadata store unavailable — SQLite features disabled");
-        MetadataStore::disabled()
-    });
-    let metadata_for_startup = metadata_store.clone();
-
-    // Initialize the optimization catalog before any command handler runs.
-    // Merge order: embedded default → user override (~/.config/crosshook/optimization_catalog.toml).
-    let catalog = load_catalog(Some(&settings_store.base_path), &[]);
-    initialize_catalog(catalog);
-
-    // Command-argument catalog: embedded default → optional user override only (no SQLite).
-    let command_argument_catalog =
-        load_command_argument_catalog(Some(&settings_store.base_path), &[]);
-    initialize_command_argument_catalog(command_argument_catalog);
-
-    let trainer_type_catalog = load_trainer_type_catalog(Some(&settings_store.base_path), &[]);
-    initialize_trainer_type_catalog(trainer_type_catalog);
-
-    let readiness_catalog = load_readiness_catalog(Some(&settings_store.base_path));
-    initialize_readiness_catalog(readiness_catalog);
-    let capability_map = load_capability_map(Some(&settings_store.base_path));
-    initialize_capability_map(capability_map);
-
+            UmuRefresh::Enabled
+        });
+    let (core, _) = match App::bootstrap(pre, options) {
+        Ok(result) => result,
+        Err(error) => fatal::show_and_exit(context, error),
+    };
+    let startup_events = core.subscribe();
+    let stores = core.stores();
+    let services = core.services();
     tauri::Builder::default()
-        .setup({
-            let profile_store = profile_store.clone();
-            let settings_store = settings_store.clone();
-            let metadata_for_startup = metadata_for_startup.clone();
-
-            move |app| {
-                let settings_for_log = settings_store
-                    .load()
-                    .unwrap_or_else(|_| AppSettingsData::default());
-                let lf = settings_for_log.log_filter.trim();
-                let user_filter = if lf.is_empty() { None } else { Some(lf) };
-                let log_path = logging::init_logging(false, user_filter)?;
-                tracing::info!(log_path = %log_path.display(), "starting CrossHook Native");
-
-                crosshook_core::runtime_helpers::ensure_development_scripts_executable()?;
-
-                let auto_load_profile_name =
-                    startup::resolve_auto_load_profile_name(&settings_store, &profile_store)?;
-
-                if metadata_for_startup.status() == crosshook_core::metadata::MetadataStatus::Ok {
-                    if let Err(error) =
-                        startup::run_metadata_reconciliation(&metadata_for_startup, &profile_store)
-                    {
-                        tracing::warn!(%error, "startup metadata reconciliation failed");
-                    }
-
-                    {
-                        let catalog = crosshook_core::launch::global_catalog();
-                        if let Err(error) = metadata_for_startup.persist_optimization_catalog(
-                            &catalog.entries,
-                            catalog.catalog_version,
-                        ) {
-                            tracing::warn!(%error, "failed to persist optimization catalog to metadata db");
-                        }
-                    }
-
-                    {
-                        let rc = crosshook_core::onboarding::global_readiness_catalog();
-                        if let Err(error) = metadata_for_startup.persist_readiness_catalog(
-                            &rc.entries,
-                            rc.catalog_version,
-                        ) {
-                            tracing::warn!(%error, "failed to persist readiness catalog to metadata db");
-                        }
-                    }
-
-                    {
-                        let settings = settings_store
-                            .load()
-                            .unwrap_or_else(|_| AppSettingsData::default());
-                        if metadata_for_startup.is_available() {
-                            if settings.install_nag_dismissed_at.is_some() {
-                                if let Err(error) = metadata_for_startup.dismiss_readiness_nag("umu_run", 36500) {
-                                    tracing::warn!(%error, "failed to persist legacy umu nag dismissal");
-                                }
-                            }
-                            if settings.steam_deck_caveats_dismissed_at.is_some() {
-                                if let Err(error) = metadata_for_startup.dismiss_readiness_nag("steam_deck_caveats", 36500) {
-                                    tracing::warn!(%error, "failed to persist legacy Steam Deck nag dismissal");
-                                }
-                            }
-                        }
-                    }
-
-                } else {
-                    tracing::warn!(status = ?metadata_for_startup.status(), "metadata read-only or unavailable; optional startup writes skipped");
-                }
-
-                if let Some(profile_name) = auto_load_profile_name {
-                    let app_handle = app.handle().clone();
-                    tauri::async_runtime::spawn(async move {
-                        sleep(Duration::from_millis(350)).await;
-                        if let Err(error) = app_handle.emit("auto-load-profile", &profile_name) {
-                            tracing::warn!(
-                                %error,
-                                profile_name,
-                                "failed to emit auto-load-profile event"
-                            );
-                        }
-                    });
-                }
-
-                {
-                    let show_onboarding = settings_store
-                        .load()
-                        .map(|s| !s.onboarding_completed)
-                        .unwrap_or(true);
-                    let has_profiles = profile_store
-                        .list()
-                        .map(|p| !p.is_empty())
-                        .unwrap_or(false);
-                    let app_handle = app.handle().clone();
-                    tauri::async_runtime::spawn(async move {
-                        sleep(Duration::from_millis(350)).await;
-
-                        #[derive(serde::Serialize)]
-                        struct OnboardingCheckPayload {
-                            show: bool,
-                            has_profiles: bool,
-                        }
-
-                        if let Err(error) = app_handle.emit(
-                            "onboarding-check",
-                            &OnboardingCheckPayload {
-                                show: show_onboarding,
-                                has_profiles,
-                            },
-                        ) {
-                            tracing::warn!(%error, "failed to emit onboarding-check event");
-                        }
-                    });
-                }
-
-                {
-                    let app_handle = app.handle().clone();
-                    tauri::async_runtime::spawn(async move {
-                        sleep(Duration::from_millis(500)).await;
-                        let store = app_handle.state::<ProfileStore>();
-                        let metadata_store = app_handle.state::<MetadataStore>();
-                        let summary = commands::health::build_enriched_health_summary(
-                            &store,
-                            &metadata_store,
-                        );
-                        match app_handle.emit("profile-health-batch-complete", &summary) {
-                            Ok(()) => {
-                                tracing::info!(
-                                    total = summary.total_count,
-                                    healthy = summary.healthy_count,
-                                    stale = summary.stale_count,
-                                    broken = summary.broken_count,
-                                    "startup health scan complete"
-                                );
-                            }
-                            Err(error) => {
-                                tracing::warn!(
-                                    %error,
-                                    "failed to emit profile-health-batch-complete event"
-                                );
-                            }
-                        }
-                        #[derive(serde::Serialize)]
-                        struct OfflineReadinessScanComplete {
-                            total_profiles: usize,
-                        }
-                        if let Err(error) = app_handle.emit(
-                            "offline-readiness-scan-complete",
-                            &OfflineReadinessScanComplete {
-                                total_profiles: summary.total_count,
-                            },
-                        ) {
-                            tracing::warn!(
-                                %error,
-                                "failed to emit offline-readiness-scan-complete event"
-                            );
-                        }
-                    });
-                }
-
-                {
-                    let app_handle = app.handle().clone();
-                    tauri::async_runtime::spawn(async move {
-                        sleep(Duration::from_millis(2000)).await;
-                        startup::run_version_scan(app_handle).await;
-                    });
-                }
-
-                if commands::bench::bench_enabled() {
-                    tracing::info!("umu-database startup refresh skipped (CROSSHOOK_BENCH=1)");
-                } else {
-                    tauri::async_runtime::spawn(async {
-                        match crosshook_core::umu_database::refresh_umu_database().await {
-                            Ok(status) => tracing::info!(?status, "umu-database startup refresh complete"),
-                            Err(err) => tracing::warn!(%err, "umu-database startup refresh failed"),
-                        }
-                    });
-                }
-
-                // Flatpak first-run migration completion event (Phase 4, ADR-0004).
-                // Emit `flatpak-migration-complete` when the startup migration imported
-                // at least one item so the frontend can surface a one-time toast to the
-                // user. The outcome was stashed in `FLATPAK_MIGRATION_OUTCOME` before
-                // the Tauri builder ran; take it here synchronously so we only fire
-                // once, then emit from an async task after a short delay so the
-                // frontend listener has time to attach (matches the 350–500ms pattern
-                // used for `auto-load-profile`, `onboarding-check`, etc.).
-                let pending_flatpak_payload = FLATPAK_MIGRATION_OUTCOME
-                    .get()
-                    .and_then(|slot| slot.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take())
-                    .and_then(|outcome| {
-                        let should_emit =
-                            outcome.imported_config || !outcome.imported_subtrees.is_empty();
-                        if !should_emit {
-                            return None;
-                        }
-                        Some(FlatpakMigrationCompletePayload {
-                            imported_config: outcome.imported_config,
-                            imported_subtrees: outcome
-                                .imported_subtrees
-                                .iter()
-                                .map(|s| (*s).to_string())
-                                .collect(),
-                            skipped_subtrees: outcome
-                                .skipped_subtrees
-                                .iter()
-                                .map(|s| (*s).to_string())
-                                .collect(),
-                        })
-                    });
-                if let Some(payload) = pending_flatpak_payload {
-                    let app_handle = app.handle().clone();
-                    tauri::async_runtime::spawn(async move {
-                        sleep(Duration::from_millis(350)).await;
-                        if let Err(error) =
-                            app_handle.emit("flatpak-migration-complete", &payload)
-                        {
-                            tracing::warn!(
-                                %error,
-                                "failed to emit flatpak-migration-complete"
-                            );
-                        }
-                    });
-                }
-
-                // Flatpak Background portal (ADR-0002 § Background portal
-                // contract). Request once at startup so the sandbox-side
-                // `gamescope_watchdog` survives the user minimizing the
-                // Tauri window during long game sessions.
-                // Native builds short-circuit inside the portal request and
-                // make zero D-Bus calls.
-                {
-                    let app_handle = app.handle().clone();
-                    tauri::async_runtime::spawn(async move {
-                        let holder = app_handle.state::<BackgroundGrantHolder>();
-                        holder.request_and_store(&XdgBackgroundPortal).await;
-                    });
-                }
-
-                Ok(())
-            }
+        .manage(stores.settings.clone())
+        .manage(stores.profiles.clone())
+        .manage(stores.recent_files.clone())
+        .manage(stores.community_taps.clone())
+        .manage(stores.metadata.clone())
+        .manage(services.settings.clone())
+        .manage(services.recent_files.clone())
+        .manage(services.diagnostics.clone())
+        .manage(services.health.clone())
+        .manage(services.background.clone())
+        .manage(core.clone())
+        .setup(move |app| {
+            startup_bridge::spawn(app.handle().clone(), core.startup(), startup_events);
+            Ok(())
         })
-        .manage(BackgroundGrantHolder::new())
-        .manage(SettingsService::new(
-            settings_store.clone(),
-            profile_store.base_path.clone(),
-        ))
-        .manage(RecentFilesService::new(
-            settings_store.clone(),
-            recent_files_store,
-        ))
-        .manage(DiagnosticsService::new(
-            profile_store.clone(),
-            settings_store.clone(),
-            metadata_store.clone(),
-        ))
-        .manage(profile_store)
-        .manage(settings_store)
-        .manage(community_tap_store)
-        .manage(metadata_store)
         .manage(commands::update::UpdateProcessState::new())
         .manage(commands::run_executable::RunExecutableProcessState::new())
         .manage(commands::prefix_deps::PrefixDepsInstallState::new())
-        .manage(std::sync::Arc::new(commands::protonup::ProtonInstallRegistry::default()))
+        .manage(std::sync::Arc::new(
+            commands::protonup::ProtonInstallRegistry::default(),
+        ))
         .manage(std::sync::Arc::new(
             crosshook_core::launch::LaunchSessionRegistry::new(),
         ))
@@ -403,6 +62,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
             commands::bench::bench_ready,
+            commands::startup::get_startup_report,
             commands::export::export_launchers,
             commands::export::validate_launcher_export,
             commands::export::check_launcher_exists,
@@ -569,6 +229,6 @@ pub fn run() {
             commands::umu_database::check_umu_coverage,
             commands::umu_database::clear_umu_gameid_lookup_cache,
         ])
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("error while running CrossHook Native");
 }

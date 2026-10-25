@@ -30,6 +30,11 @@ impl Drop for Inner {
 /// Application owner handle. Cheap to [`Clone`]; all clones share one runtime
 /// and event bus. Dropping the last clone shuts the app down.
 ///
+/// Shells construct the fully initialized application with [`App::bootstrap`],
+/// which returns a [`BootstrappedApp`](crate::bootstrap::BootstrappedApp). The
+/// runtime-only constructors remain useful for embedded jobs and do not
+/// initialize stores or startup snapshots.
+///
 /// # Shutdown
 /// - Owned runtime ([`App::new`]): the runtime is consumed with
 ///   [`tokio::runtime::Runtime::shutdown_background`] when the last clone
@@ -57,6 +62,8 @@ impl Clone for App {
 impl App {
     /// Creates an app owning a new multi-thread Tokio runtime with the
     /// default event-bus capacity.
+    /// This creates a runtime-only owner; use [`App::bootstrap`] for stores
+    /// and services after completing pre-runtime initialization.
     ///
     /// # Errors
     /// Fails if the runtime cannot be built (e.g. thread spawn failure).
@@ -144,5 +151,6 @@ impl App {
     }
 }
 
+static_assertions::assert_impl_all!(App: Send, Sync);
 #[cfg(test)]
 mod tests;

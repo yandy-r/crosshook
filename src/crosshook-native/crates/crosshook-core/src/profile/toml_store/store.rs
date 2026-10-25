@@ -1,7 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use directories::BaseDirs;
 use serde::{Deserialize, Serialize};
 
 use crate::launch::command_arguments::{
@@ -43,7 +42,7 @@ impl Default for ProfileStore {
 
 impl ProfileStore {
     pub fn try_new() -> Result<Self, String> {
-        let config_dir = BaseDirs::new()
+        let config_dir = crate::platform::base_dirs()
             .ok_or("home directory not found — CrossHook requires a user home directory")?
             .config_dir()
             .join("crosshook");

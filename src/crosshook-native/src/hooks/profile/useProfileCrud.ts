@@ -1,17 +1,10 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
-import type {
-  AppSettingsData,
-  GameProfile,
-  LauncherInfo,
-  RecentFilesData,
-  SerializedDuplicateProfileResult,
-  SerializedGameProfile,
-} from '../../types';
-import { toSettingsSaveRequest } from '../../types/settings';
+import type { GameProfile, LauncherInfo, SerializedDuplicateProfileResult, SerializedGameProfile } from '../../types';
 import type { OptimizationEntry } from '../../utils/optimization-catalog';
 import { createEmptyProfile } from './createEmptyProfile';
-import { mergeRecentPaths } from './mergeRecentPaths';
+import { mergeLiveLaunchSections } from './mergeLiveLaunchSections';
+import { clearLastUsedProfileIfDeleted, syncProfileMetadata } from './profileMetadataSync';
 import { normalizeProfileForEdit, normalizeProfileForSave } from './profileNormalize';
 import { validateProfileForSave } from './profileValidation';
 
@@ -48,21 +41,6 @@ interface UseProfileCrudOptions {
   flushPendingLaunchSectionSaves?: FlushPendingLaunchSectionSaves;
 }
 
-/** Merges launch subsection fields that have dedicated autosave writers from live editor state. */
-export function mergeLiveLaunchSections(draftProfile: GameProfile, liveProfile: GameProfile): GameProfile {
-  return {
-    ...draftProfile,
-    launch: {
-      ...draftProfile.launch,
-      command_arguments: liveProfile.launch.command_arguments,
-      optimizations: liveProfile.launch.optimizations,
-      gamescope: liveProfile.launch.gamescope,
-      trainer_gamescope: liveProfile.launch.trainer_gamescope,
-      mangohud: liveProfile.launch.mangohud,
-    },
-  };
-}
-
 export function useProfileCrud({
   optionsById,
   catalogLoaded,
@@ -88,6 +66,17 @@ export function useProfileCrud({
 
   const profileRef = useRef(profile);
   profileRef.current = profile;
+  const selectedProfileRef = useRef(selectedProfile);
+  selectedProfileRef.current = selectedProfile;
+  // Monotonic request id for `loadProfile`. Only the latest request may change
+  // load state, so an out-of-order response (the startup auto-load racing a
+  // user pick) cannot overwrite the newer selection.
+  const loadSeqRef = useRef(0);
+  // Set synchronously at the start of every named `loadProfile` request, before
+  // any await. ProfileContext reads it to keep the startup auto-load from
+  // racing an in-flight user-initiated load (`selectedProfile` is only written
+  // after `profile_load` resolves, so it is too late as a guard).
+  const selectionRequestedRef = useRef(false);
 
   const hasExistingSavedProfile = useMemo(() => {
     const trimmedName = profileName.trim();
@@ -103,27 +92,6 @@ export function useProfileCrud({
   hasExistingSavedProfileRef.current = hasExistingSavedProfile;
 
   const profileExists = useMemo(() => profiles.includes(profileName.trim()), [profileName, profiles]);
-
-  const syncProfileMetadata = useCallback(async (name: string, currentProfile: GameProfile) => {
-    const settings = await callCommand<AppSettingsData>('settings_load');
-    await callCommand('settings_save', {
-      data: toSettingsSaveRequest({ ...settings, last_used_profile: name }),
-    });
-
-    const recentFiles = await callCommand<RecentFilesData>('recent_files_load');
-    const canonicalDllPaths = currentProfile.injection.loaded_hooks.map((hook) => hook.path);
-    const dllPaths = [
-      ...canonicalDllPaths,
-      ...currentProfile.injection.dll_paths.filter((dllPath) => !canonicalDllPaths.includes(dllPath)),
-    ];
-    await callCommand('recent_files_save', {
-      data: {
-        game_paths: mergeRecentPaths(recentFiles.game_paths, currentProfile.game.executable_path),
-        trainer_paths: mergeRecentPaths(recentFiles.trainer_paths, currentProfile.trainer.path),
-        dll_paths: dllPaths.reduce((paths, dllPath) => mergeRecentPaths(paths, dllPath), recentFiles.dll_paths),
-      } satisfies RecentFilesData,
-    });
-  }, []);
 
   const loadFavorites = useCallback(async () => {
     try {
@@ -151,14 +119,27 @@ export function useProfileCrud({
     async (name: string, loadOptions?: ProfileLoadOptions) => {
       const trimmed = name.trim();
       if (!trimmed) {
+        // An explicit deselection also supersedes any in-flight load: it bumps
+        // the sequence so a late response stays inert, and completes
+        // synchronously, so it owns clearing the loading flag.
+        loadSeqRef.current += 1;
         const empty = createEmptyProfile();
         setSelectedProfile('');
         setProfileName('');
         setProfile(empty);
         setDirty(false);
         setLastSavedProfileSnapshot(empty);
+        setLoading(false);
         return;
       }
+
+      // Only the newest request may change load state; a slower response that
+      // started earlier must not overwrite a newer selection (auto-load racing
+      // a user pick, or two rapid user picks). Any named request also marks a
+      // selection as requested, which suppresses the startup auto-load.
+      const requestId = ++loadSeqRef.current;
+      selectionRequestedRef.current = true;
+      const isStale = () => requestId !== loadSeqRef.current;
 
       setLoading(true);
       setError(null);
@@ -170,6 +151,9 @@ export function useProfileCrud({
           name: trimmed,
           collectionId,
         });
+        if (isStale()) {
+          return;
+        }
         const normalized = normalizeProfileForEdit(loaded, optionsById, catalogLoaded);
         setSelectedProfile(trimmed);
         setProfileName(trimmed);
@@ -181,11 +165,17 @@ export function useProfileCrud({
           await syncProfileMetadata(trimmed, normalized);
         } catch (syncErr) {
           console.error('Failed to sync profile metadata (last-used profile, recent files)', syncErr);
+          if (isStale()) {
+            return;
+          }
           setError(
             `Profile loaded, but preferences sync failed: ${syncErr instanceof Error ? syncErr.message : String(syncErr)}`
           );
         }
       } catch (err) {
+        if (isStale()) {
+          return;
+        }
         const msg = formatLoadError(err);
         const fullMsg = loadOptions?.loadErrorContext ? `${loadOptions.loadErrorContext}: ${msg}` : msg;
         setError(fullMsg);
@@ -193,10 +183,14 @@ export function useProfileCrud({
           throw fullMsg;
         }
       } finally {
-        setLoading(false);
+        // A newer request owns the loading flag; leave it untouched so it can
+        // set `false` itself when its own response lands.
+        if (!isStale()) {
+          setLoading(false);
+        }
       }
     },
-    [catalogLoaded, optionsById, setLastSavedProfileSnapshot, syncProfileMetadata]
+    [catalogLoaded, optionsById, setLastSavedProfileSnapshot]
   );
 
   const refreshProfiles = useCallback(async () => {
@@ -205,9 +199,11 @@ export function useProfileCrud({
       setProfiles(names);
 
       if (names.length === 0) {
-        // Preserve an in-flight or completed auto-load when the list is still empty
-        // (startup race: `auto-load-profile` can finish before `profile_list` returns).
-        if (selectedProfile.trim()) {
+        // Preserve a completed auto-load selection when the list is still empty
+        // (startup race: `profile_load` from the startup report can resolve before
+        // `profile_list` returns). In-flight loads are covered by `loadProfile`'s
+        // request counter, which suppresses state changes from stale responses.
+        if (selectedProfileRef.current.trim()) {
           return;
         }
 
@@ -235,12 +231,7 @@ export function useProfileCrud({
   const finalizeProfileDeletion = useCallback(
     async (name: string) => {
       const trimmedDeleted = name.trim();
-      const settings = await callCommand<AppSettingsData>('settings_load');
-      if (settings.last_used_profile === name) {
-        await callCommand('settings_save', {
-          data: toSettingsSaveRequest({ ...settings, last_used_profile: '' }),
-        });
-      }
+      await clearLastUsedProfileIfDeleted(name);
       const names = await callCommand<string[]>('profile_list');
       setProfiles(names);
       void loadFavorites();
@@ -353,7 +344,6 @@ export function useProfileCrud({
       optionsById,
       refreshProfiles,
       setLastSavedProfileSnapshot,
-      syncProfileMetadata,
     ]
   );
 
@@ -482,6 +472,7 @@ export function useProfileCrud({
     loadFavorites,
     toggleFavorite,
     loadProfile,
+    selectionRequestedRef,
     refreshProfiles,
     hydrateProfile,
     updateProfile,

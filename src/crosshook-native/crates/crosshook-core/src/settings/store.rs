@@ -1,4 +1,3 @@
-use directories::BaseDirs;
 use std::fmt;
 use std::fs;
 use std::path::PathBuf;
@@ -57,7 +56,7 @@ impl Default for SettingsStore {
 
 impl SettingsStore {
     pub fn try_new() -> Result<Self, String> {
-        let base_path = BaseDirs::new()
+        let base_path = crate::platform::base_dirs()
             .ok_or("home directory not found — CrossHook requires a user home directory")?
             .config_dir()
             .join("crosshook");

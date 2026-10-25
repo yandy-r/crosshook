@@ -8,13 +8,17 @@
 //! submodules.
 
 mod detect;
+mod dirs;
 mod env;
 mod gateway;
 mod host_fs;
 mod steam_deck;
+#[doc(hidden)]
+pub mod trace;
 mod xdg;
 
 pub use detect::{is_flatpak, normalize_flatpak_host_path};
+pub use dirs::base_dirs;
 pub use gateway::{
     host_command, host_command_exists, host_command_lifecycle, host_command_with_env,
     host_command_with_env_and_directory, host_command_with_env_and_directory_lifecycle,

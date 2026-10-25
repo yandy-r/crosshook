@@ -40,7 +40,7 @@ pub(super) fn filename_for(
 }
 
 pub(super) fn image_cache_base_dir() -> Result<PathBuf, String> {
-    directories::BaseDirs::new()
+    crate::platform::base_dirs()
         .ok_or_else(|| "home directory not found".to_string())
         .map(|dirs| {
             dirs.data_local_dir()

@@ -1,6 +1,5 @@
 import type { TrainerGuidanceContent } from '../../../types/onboarding';
 import { getStore } from '../store';
-import { maybeSynthesizeOnboardingEvent } from './onboarding-events';
 import {
   applyReadinessOverlays,
   buildBaseReadinessPayload,
@@ -21,11 +20,7 @@ import {
 import { buildTrainerGuidanceContent } from './onboarding-trainer';
 import type { Handler } from './types';
 
-maybeSynthesizeOnboardingEvent();
-
 export function registerOnboarding(map: Map<string, Handler>): void {
-  maybeSynthesizeOnboardingEvent();
-
   map.set('check_readiness', async () => {
     return buildMockReadinessResult();
   });

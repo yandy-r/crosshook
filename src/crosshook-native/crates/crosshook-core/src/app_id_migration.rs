@@ -169,7 +169,7 @@ pub fn migrate_one_app_id_root(
 /// Runs migration for config, local data, and cache roots. Best-effort: logs warnings and continues.
 #[cfg(target_os = "linux")]
 pub fn migrate_legacy_tauri_app_id_xdg_directories() {
-    let Some(dirs) = directories::BaseDirs::new() else {
+    let Some(dirs) = crate::platform::base_dirs() else {
         tracing::warn!("app-id migration skipped: could not resolve base directories");
         return;
     };

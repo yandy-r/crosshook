@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { subscribeEvent } from '@/lib/events';
 import { callCommand } from '@/lib/ipc';
+import { fetchStartupReport } from '@/lib/startupReport';
+import type { StartupJobFinished } from '@/types/startup';
 
 import type {
   CachedOfflineReadinessSnapshot,
@@ -78,7 +80,6 @@ function snapshotToReport(row: CachedOfflineReadinessSnapshot): OfflineReadiness
 export function useOfflineReadiness() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [cachedByProfileName, setCachedByProfileName] = useState<Record<string, CachedOfflineReadinessSnapshot>>({});
-  const startupEventReceivedRef = useRef(false);
   /** True after a live `batch_offline_readiness` run completed successfully; blocks stale cache hydration. */
   const liveBatchCompletedRef = useRef(false);
 
@@ -116,12 +117,18 @@ export function useOfflineReadiness() {
   useEffect(() => {
     let active = true;
     const controller = new AbortController();
-    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
-
+    let startupBatchStarted = false;
+    const startBatch = () => {
+      if (!active || startupBatchStarted) return;
+      startupBatchStarted = true;
+      void batchCheck(controller.signal);
+    };
     const unlistenScan = subscribeEvent<OfflineReadinessScanCompletePayload>('offline-readiness-scan-complete', () => {
-      startupEventReceivedRef.current = true;
-      if (active) {
-        void batchCheck(controller.signal);
+      startBatch();
+    });
+    const unlistenFinished = subscribeEvent<StartupJobFinished>('startup-job-finished', ({ payload }) => {
+      if (payload.job === 'offline_readiness') {
+        startBatch();
       }
     });
 
@@ -143,12 +150,21 @@ export function useOfflineReadiness() {
       } catch {
         // cache is advisory
       }
-      fallbackTimer = setTimeout(() => {
-        if (!active || startupEventReceivedRef.current) {
+      try {
+        await Promise.all([unlistenScan, unlistenFinished]);
+        if (!active) return;
+        const report = await fetchStartupReport({ fresh: true });
+        if (!active) {
           return;
         }
-        void batchCheck(controller.signal);
-      }, 900);
+        const job = report.jobs.offline_readiness;
+        if (job.state === 'complete' || job.state === 'failed' || job.state === 'skipped') {
+          startBatch();
+        }
+        // pending/running: listen for both successful scans and terminal failure.
+      } catch {
+        startBatch();
+      }
     };
 
     void run();
@@ -156,10 +172,14 @@ export function useOfflineReadiness() {
     return () => {
       active = false;
       controller.abort();
-      if (fallbackTimer !== null) {
-        clearTimeout(fallbackTimer);
-      }
-      void unlistenScan.then((u) => u());
+      void unlistenScan.then(
+        (u) => u(),
+        () => {}
+      );
+      void unlistenFinished.then(
+        (u) => u(),
+        () => {}
+      );
     };
   }, [batchCheck]);
 

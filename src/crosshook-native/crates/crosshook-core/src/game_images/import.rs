@@ -9,7 +9,7 @@ use super::models::GameImageType;
 ///
 /// Resolves to `~/.local/share/crosshook/media` on Linux.
 fn media_base_dir() -> Result<PathBuf, String> {
-    directories::BaseDirs::new()
+    crate::platform::base_dirs()
         .ok_or_else(|| "home directory not found".to_string())
         .map(|dirs| dirs.data_local_dir().join("crosshook").join("media"))
 }

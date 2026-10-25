@@ -13,9 +13,9 @@
 //      `[dev-mock] forced error` message. Reads ALWAYS succeed so the app
 //      shell can render and exercise the failure UI for write paths only.
 //
-// The `?onboarding=show` toggle is NOT handled here; it is an event-emission
-// side effect implemented inline in `handlers/onboarding.ts` because it must
-// fire once at module init, not on every handler invocation.
+// The `?onboarding=show` toggle is NOT handled here; it forces
+// `report.onboarding.show` in the mock `get_startup_report` handler
+// (see `handlers/startup.ts`).
 
 import { getActiveToggles } from '../toggles';
 import type { Handler } from './handlers/types';
@@ -33,6 +33,7 @@ export const SHELL_CRITICAL_READS: ReadonlySet<string> = new Set([
   'default_steam_client_install_path',
   'profile_list',
   'profile_list_summaries',
+  'get_startup_report',
 ]);
 
 /**

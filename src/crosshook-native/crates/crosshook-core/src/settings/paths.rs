@@ -1,4 +1,3 @@
-use directories::BaseDirs;
 use std::path::{Path, PathBuf};
 
 use super::AppSettingsData;
@@ -16,7 +15,7 @@ pub fn resolve_profiles_directory_from_config(
 }
 
 fn current_user_home() -> Result<PathBuf, String> {
-    BaseDirs::new()
+    crate::platform::base_dirs()
         .ok_or_else(|| {
             "home directory not found — CrossHook requires a user home directory".to_string()
         })

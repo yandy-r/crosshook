@@ -609,7 +609,7 @@ fn spawn_gamescope_watchdog(
         if crosshook_core::platform::portals::background::background_supported() {
             let holder_handle = app.clone();
             Some(tauri::async_runtime::spawn(async move {
-                let holder = holder_handle.state::<crate::BackgroundGrantHolder>();
+                let holder = holder_handle.state::<std::sync::Arc<crate::BackgroundGrantHolder>>();
                 let state = holder
                     .wait_for_initialization(std::time::Duration::from_millis(500))
                     .await;

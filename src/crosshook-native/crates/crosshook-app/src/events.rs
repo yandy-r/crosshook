@@ -10,6 +10,22 @@ pub const DEFAULT_EVENT_CAPACITY: usize = 256;
 /// Largest capacity [`EventBus::new`] accepts.
 pub const MAX_EVENT_CAPACITY: usize = 1 << 20;
 
+/// A startup task whose result is retained in the startup report.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StartupJobKind {
+    /// Enriched profile health batch.
+    HealthBatch,
+    /// Offline readiness scan notification.
+    OfflineReadiness,
+    /// Steam and trainer version correlation scan.
+    VersionScan,
+    /// Refresh of the umu compatibility database.
+    UmuRefresh,
+    /// Initial Flatpak background portal request.
+    BackgroundPortal,
+}
+
 /// Event delivered to subscribers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -19,11 +35,16 @@ pub enum AppEvent {
         /// Number of events the subscriber missed.
         missed: u64,
     },
+    /// A job result is available in the live startup snapshot.
+    StartupJobFinished {
+        /// Completed startup task.
+        job: StartupJobKind,
+    },
 }
 
 /// Bounded broadcast bus. Slow subscribers lose the oldest events and are told
 /// via [`AppEvent::Resync`]; publishers never block.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct EventBus {
     tx: broadcast::Sender<AppEvent>,
 }

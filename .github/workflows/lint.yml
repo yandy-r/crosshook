@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   rust:
-    name: Rust (clippy + fmt)
+    name: Rust (clippy + fmt + bootstrap tests)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -47,6 +47,18 @@ jobs:
 
       - name: Run clippy
         run: cargo clippy --manifest-path src/crosshook-native/Cargo.toml --all-targets -- -D warnings
+
+      - name: Run application and native bootstrap tests
+        run: cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-app -p crosshook-native
+
+      - name: Release build must not enable bootstrap-trace
+        run: |
+          set -euo pipefail
+          tree="$(cargo tree --manifest-path src/crosshook-native/Cargo.toml -e features -p crosshook-native --edges normal)"
+          if grep -F 'bootstrap-trace' <<<"$tree"; then
+            echo "error: bootstrap-trace is enabled in the release (normal-edge) feature graph" >&2
+            exit 1
+          fi
 
   typescript:
     name: TypeScript (biome + tsc)
@@ -108,6 +120,12 @@ jobs:
 
       - name: Schema-version check selftest
         run: ./scripts/check-schema-version.sh --selftest
+
+      - name: Startup-path guardrail
+        run: ./scripts/check-startup-path.sh
+
+      - name: Startup-path guardrail self-test
+        run: ./scripts/check-startup-path.sh --selftest
 
       - name: Mock coverage contract gate
         run: ./scripts/check-mock-coverage.sh

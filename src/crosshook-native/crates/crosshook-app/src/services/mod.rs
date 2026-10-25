@@ -9,6 +9,7 @@ use crate::AppError;
 pub mod background;
 pub mod catalog;
 pub mod diagnostics;
+pub mod health;
 pub mod recent_files;
 pub mod settings;
 
@@ -21,6 +22,7 @@ pub use catalog::{CatalogService, CommandArgumentCatalogSnapshot, OptimizationCa
 pub use diagnostics::{
     DiagnosticAttachment, DiagnosticsExport, DiagnosticsRequest, DiagnosticsService,
 };
+pub use health::HealthService;
 pub use recent_files::{RecentFileKind, RecentFilesService};
 pub use settings::{merge_save_request, SettingsSaveRequest, SettingsService, SettingsSnapshot};
 

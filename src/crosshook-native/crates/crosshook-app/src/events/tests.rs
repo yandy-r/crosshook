@@ -71,3 +71,22 @@ async fn recv_returns_none_when_bus_is_gone() {
     drop(bus);
     assert_eq!(subscriber.recv().await, None);
 }
+
+#[tokio::test]
+async fn startup_completion_preserves_kind_for_all_subscribers() {
+    use crate::StartupJobKind;
+    let bus = EventBus::default();
+    let mut receiver = bus.subscribe();
+    let kinds = [
+        StartupJobKind::HealthBatch,
+        StartupJobKind::OfflineReadiness,
+        StartupJobKind::VersionScan,
+        StartupJobKind::UmuRefresh,
+        StartupJobKind::BackgroundPortal,
+    ];
+    for job in kinds {
+        let event = AppEvent::StartupJobFinished { job };
+        bus.publish(event.clone());
+        assert_eq!(receiver.recv().await, Some(event));
+    }
+}

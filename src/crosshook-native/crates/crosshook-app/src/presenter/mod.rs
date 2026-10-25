@@ -2,6 +2,26 @@
 
 use std::path::Path;
 
+/// Renders paths inside the current home directory using the legacy `~/`
+/// form. Lexical path-component matching preserves the health IPC contract.
+pub fn display_path_tilde(path: &str) -> String {
+    display_path_tilde_with_home(path, std::env::var("HOME").ok().as_deref())
+}
+
+fn display_path_tilde_with_home(path: &str, home: Option<&str>) -> String {
+    match home {
+        Some(home) => {
+            let path = Path::new(path);
+            match path.strip_prefix(Path::new(home)) {
+                Ok(suffix) if suffix.as_os_str().is_empty() => "~/".to_string(),
+                Ok(suffix) => format!("~/{}", suffix.display()),
+                Err(_) => path.display().to_string(),
+            }
+        }
+        None => path.to_string(),
+    }
+}
+
 /// Placeholder substituted for the redacted home directory.
 pub(crate) const HOME_PLACEHOLDER: &str = "$HOME";
 
