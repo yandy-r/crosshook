@@ -25,16 +25,16 @@ No external service APIs are introduced. The refactor uses only in-workspace cra
 
 All already in the workspace; **no new Rust or npm dependencies** (verified against `Cargo.lock` and `package.json`).
 
-| Library | Version | Purpose | Installation |
-| ------- | ------- | ------- | ------------ |
-| `tokio` | 1.51.0 | `spawn_blocking` commit pipeline, broadcast bus, `#[tokio::test]` | present (`crosshook-app` deps) |
-| `serde` + derive | 1 | `#[serde(tag = "kind", rename_all = "snake_case")]` on `ProfileChangeReason` | present |
-| `serde_json` | 1.0.149 | wire-shape assertions; promoted from dev-dep to dep in `crosshook-app` | edit `crates/crosshook-app/Cargo.toml` |
-| `toml` | 1.1.x | revision snapshot serialization (`to_string_pretty`); promoted from dev-dep to dep in `crosshook-app` | edit `crates/crosshook-app/Cargo.toml` |
-| `sha2` via `crosshook_core::metadata::sha256_hex` | — | revision content hashing; do **not** add `sha2` to `crosshook-app` | re-export exists |
-| `tempfile` | 3 (dev) | tempdir `ProfileStore` + in-memory/disabled `MetadataStore` tests | present |
-| `vitest` | ^4.1.12 | listener call-counter tests | present |
-| `@playwright/test` | ^1.60.0 | `npm run test:smoke` against browser mocks | present |
+| Library                                           | Version | Purpose                                                                                               | Installation                           |
+| ------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `tokio`                                           | 1.51.0  | `spawn_blocking` commit pipeline, broadcast bus, `#[tokio::test]`                                     | present (`crosshook-app` deps)         |
+| `serde` + derive                                  | 1       | `#[serde(tag = "kind", rename_all = "snake_case")]` on `ProfileChangeReason`                          | present                                |
+| `serde_json`                                      | 1.0.149 | wire-shape assertions; promoted from dev-dep to dep in `crosshook-app`                                | edit `crates/crosshook-app/Cargo.toml` |
+| `toml`                                            | 1.1.x   | revision snapshot serialization (`to_string_pretty`); promoted from dev-dep to dep in `crosshook-app` | edit `crates/crosshook-app/Cargo.toml` |
+| `sha2` via `crosshook_core::metadata::sha256_hex` | —       | revision content hashing; do **not** add `sha2` to `crosshook-app`                                    | re-export exists                       |
+| `tempfile`                                        | 3 (dev) | tempdir `ProfileStore` + in-memory/disabled `MetadataStore` tests                                     | present                                |
+| `vitest`                                          | ^4.1.12 | listener call-counter tests                                                                           | present                                |
+| `@playwright/test`                                | ^1.60.0 | `npm run test:smoke` against browser mocks                                                            | present                                |
 
 Considered and rejected: `insta`, `expect-test`, `goldenfile` (not in `Cargo.lock`; the repo's golden convention is plain fixture files + byte equality), `mockall`/`tokio-test` (call counters are satisfied on both sides without them).
 
@@ -79,22 +79,22 @@ Considered and rejected: `insta`, `expect-test`, `goldenfile` (not in `Cargo.loc
 
 ### Edge Cases
 
-| Scenario | Expected Behavior | Notes |
-| -------- | ----------------- | ----- |
-| Same-name rename | Store no-op `Ok(())`; observe/cleanup/display-name steps still run; **no event** | D4: no event for no-op rename |
-| Duplicate of missing source | `NotFound`; nothing written | `ProfileStore::duplicate` semantics |
-| Rollback to snapshot whose hash equals the latest | File restored, event emitted, `new_revision_id: None` (dedupe) | Absent id is not an error; never warn for dedupe |
-| Rollback with tampered snapshot / HMAC mismatch | Fails before any disk write (`IntegrityCheckFailed`) | A-2; disk unchanged |
-| Section/optimization/command-arg save when post-save reload fails | TOML already written; observe/revision skipped; command still `Ok` | Preserve today's fail-soft order |
-| Favorite of an unknown or disabled-metadata profile | Explicit `Unavailable` error (D6), not silent success | Today it silently succeeds and writes nothing |
-| Migration `AlreadyValid` / `Failed` | No observe, no health step, no event | Batch counts preserved; applied-only names emitted |
-| Batch migration preflight failure | `Err`, zero writes, no events | W-4 all-before-any-write |
-| Bus lag (receiver behind) | Bridge re-emits startup jobs **and** emits `{reason:{kind:"saved"},names:[]}` (D14) | Conservative resync; never masquerades as favorite |
-| Malformed `profiles-changed` payload in TS | `parseProfilesChanged` returns resync semantics; health revalidates | D13 safe default |
-| New-profile save with settings load failure | Save fails (existing rule); creation defaults never clobber non-empty fields or an explicit wizard preset | `creation_defaults.rs` |
-| Custom-art import failure | Original path kept, warn; save proceeds | Three independent fail-soft paths |
-| Legacy import overwrites an existing `{stem}.toml` | Preserved (pre-existing behavior); revision uses the stem | A-7 recorded as known edge |
-| `profile_export_toml` with newline in name | `InvalidName` validation error | D12 / W-2 fix |
+| Scenario                                                          | Expected Behavior                                                                                         | Notes                                              |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| Same-name rename                                                  | Store no-op `Ok(())`; observe/cleanup/display-name steps still run; **no event**                          | D4: no event for no-op rename                      |
+| Duplicate of missing source                                       | `NotFound`; nothing written                                                                               | `ProfileStore::duplicate` semantics                |
+| Rollback to snapshot whose hash equals the latest                 | File restored, event emitted, `new_revision_id: None` (dedupe)                                            | Absent id is not an error; never warn for dedupe   |
+| Rollback with tampered snapshot / HMAC mismatch                   | Fails before any disk write (`IntegrityCheckFailed`)                                                      | A-2; disk unchanged                                |
+| Section/optimization/command-arg save when post-save reload fails | TOML already written; observe/revision skipped; command still `Ok`                                        | Preserve today's fail-soft order                   |
+| Favorite of an unknown or disabled-metadata profile               | Explicit `Unavailable` error (D6), not silent success                                                     | Today it silently succeeds and writes nothing      |
+| Migration `AlreadyValid` / `Failed`                               | No observe, no health step, no event                                                                      | Batch counts preserved; applied-only names emitted |
+| Batch migration preflight failure                                 | `Err`, zero writes, no events                                                                             | W-4 all-before-any-write                           |
+| Bus lag (receiver behind)                                         | Bridge re-emits startup jobs **and** emits `{reason:{kind:"saved"},names:[]}` (D14)                       | Conservative resync; never masquerades as favorite |
+| Malformed `profiles-changed` payload in TS                        | `parseProfilesChanged` returns resync semantics; health revalidates                                       | D13 safe default                                   |
+| New-profile save with settings load failure                       | Save fails (existing rule); creation defaults never clobber non-empty fields or an explicit wizard preset | `creation_defaults.rs`                             |
+| Custom-art import failure                                         | Original path kept, warn; save proceeds                                                                   | Three independent fail-soft paths                  |
+| Legacy import overwrites an existing `{stem}.toml`                | Preserved (pre-existing behavior); revision uses the stem                                                 | A-7 recorded as known edge                         |
+| `profile_export_toml` with newline in name                        | `InvalidName` validation error                                                                            | D12 / W-2 fix                                      |
 
 ### Success Criteria
 
@@ -108,7 +108,7 @@ Considered and rejected: `insta`, `expect-test`, `goldenfile` (not in `Cargo.loc
 
 ### Architecture Overview
 
-```text
+````text
 React listeners (5)                src-tauri (thin)                    crosshook-app
 ┌──────────────────┐   invoke    ┌────────────────────┐   async     ┌──────────────────────────┐
 │ useProfileHealth │ ──────────▶ │ profile_save …     │ ──────────▶ │ services/profiles/       │
@@ -349,3 +349,4 @@ All architectural decisions are settled by [decisions.md](./decisions.md) (D1–
 - [research-security.md](./research-security.md) — threat model, findings W-1…W-6, advisories, invariants checklist, test hooks.
 - [research-practices.md](./research-practices.md) — reuse inventory, module boundaries, KISS assessment, testability patterns, persistence classification.
 - [research-recommendations.md](./research-recommendations.md) — phasing, wire shape, risk register, parallel ownership table, acceptance-to-test allocation.
+````

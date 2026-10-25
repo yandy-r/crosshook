@@ -46,11 +46,11 @@ Today the write sequence (validate → load → mutate → save → observe → 
 
 Tasks grouped by dependency for parallel execution. Tasks within the same batch run concurrently; batches run in order. **B0 is executed strictly sequentially by the single integration owner** (both tasks, in ID order) before any B1 task starts; internal batches may be temporarily incomplete, but the final branch must be fully cut over (one PR).
 
-| Batch | Tasks | Depends On | Parallel Width |
-| ----- | ----- | ---------- | -------------- |
-| B0 | 0.1, 0.2 | — | 1 (sequential; one integration owner) |
-| B1 | 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7 | B0 | 7 |
-| B2 | 2.1 | B1 | 1 (integration owner) |
+| Batch | Tasks                             | Depends On | Parallel Width                        |
+| ----- | --------------------------------- | ---------- | ------------------------------------- |
+| B0    | 0.1, 0.2                          | —          | 1 (sequential; one integration owner) |
+| B1    | 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7 | B0         | 7                                     |
+| B2    | 2.1                               | B1         | 1 (integration owner)                 |
 
 - **Total tasks**: 10
 - **Total batches**: 3
@@ -81,43 +81,43 @@ profiles-changed {reason:{kind,…},names} ──▶ per-reason policy:
 
 ### Interaction Changes
 
-| Touchpoint | Before | After | Notes |
-| ---------- | ------ | ----- | ----- |
-| Favorite star | instant optimistic + full health rescan after event | instant optimistic + favorites-only refresh; Health Dashboard star/ordering update from `ProfileContext.favoriteProfiles` projection | no new optimistic UI |
-| Save/rename/duplicate/rollback | some paths silent | one typed event each; no duplicate success toasts | rename keeps `had_launcher` bool → re-export banner |
-| Metadata unavailable | silent revision skip | banner explains "profile files still save, but configuration snapshots are not recorded" | session dismissal respected |
-| History/diff/rollback with metadata down | explicit error | unchanged explicit `Unavailable` error | |
+| Touchpoint                               | Before                                              | After                                                                                                                                | Notes                                               |
+| ---------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------- |
+| Favorite star                            | instant optimistic + full health rescan after event | instant optimistic + favorites-only refresh; Health Dashboard star/ordering update from `ProfileContext.favoriteProfiles` projection | no new optimistic UI                                |
+| Save/rename/duplicate/rollback           | some paths silent                                   | one typed event each; no duplicate success toasts                                                                                    | rename keeps `had_launcher` bool → re-export banner |
+| Metadata unavailable                     | silent revision skip                                | banner explains "profile files still save, but configuration snapshots are not recorded"                                             | session dismissal respected                         |
+| History/diff/rollback with metadata down | explicit error                                      | unchanged explicit `Unavailable` error                                                                                               |                                                     |
 
 ## Mandatory Reading
 
-| Priority | File | Lines | Why |
-| -------- | ---- | ----- | --- |
-| P0 (critical) | `docs/plans/profile-writer/issue.md` | all | Authoritative acceptance criteria |
-| P0 (critical) | `docs/plans/profile-writer/decisions.md` | all | Binding decisions D1–D15 |
-| P0 (critical) | `docs/plans/profile-writer/feature-spec.md` | all | Synthesized spec, storage boundary, risks |
-| P0 (critical) | `src/crosshook-native/crates/crosshook-app/src/services/health/mod.rs` | all | Service pattern to mirror exactly |
-| P0 (critical) | `src/crosshook-native/crates/crosshook-app/src/services/mod.rs` | all | `run_blocking` helper (crate-private) |
-| P0 (critical) | `src/crosshook-native/crates/crosshook-app/src/events.rs` | all | `AppEvent`/`EventBus` to extend |
-| P0 (critical) | `src/crosshook-native/src-tauri/src/commands/profile/shared.rs` | all | Helpers being moved/deleted |
-| P0 (critical) | `src/crosshook-native/src-tauri/src/commands/profile/lifecycle.rs` | all | Save/delete/duplicate/rename/import logic to move |
-| P0 (critical) | `src/crosshook-native/src-tauri/src/commands/profile/config_history.rs` | all | History/diff/rollback/known-good to move |
-| P1 (important) | `src/crosshook-native/src-tauri/src/startup_bridge.rs` | all | Bridge gaining the `ProfilesChanged` arm |
+| Priority       | File                                                                         | Lines  | Why                                                |
+| -------------- | ---------------------------------------------------------------------------- | ------ | -------------------------------------------------- |
+| P0 (critical)  | `docs/plans/profile-writer/issue.md`                                         | all    | Authoritative acceptance criteria                  |
+| P0 (critical)  | `docs/plans/profile-writer/decisions.md`                                     | all    | Binding decisions D1–D15                           |
+| P0 (critical)  | `docs/plans/profile-writer/feature-spec.md`                                  | all    | Synthesized spec, storage boundary, risks          |
+| P0 (critical)  | `src/crosshook-native/crates/crosshook-app/src/services/health/mod.rs`       | all    | Service pattern to mirror exactly                  |
+| P0 (critical)  | `src/crosshook-native/crates/crosshook-app/src/services/mod.rs`              | all    | `run_blocking` helper (crate-private)              |
+| P0 (critical)  | `src/crosshook-native/crates/crosshook-app/src/events.rs`                    | all    | `AppEvent`/`EventBus` to extend                    |
+| P0 (critical)  | `src/crosshook-native/src-tauri/src/commands/profile/shared.rs`              | all    | Helpers being moved/deleted                        |
+| P0 (critical)  | `src/crosshook-native/src-tauri/src/commands/profile/lifecycle.rs`           | all    | Save/delete/duplicate/rename/import logic to move  |
+| P0 (critical)  | `src/crosshook-native/src-tauri/src/commands/profile/config_history.rs`      | all    | History/diff/rollback/known-good to move           |
+| P1 (important) | `src/crosshook-native/src-tauri/src/startup_bridge.rs`                       | all    | Bridge gaining the `ProfilesChanged` arm           |
 | P1 (important) | `src/crosshook-native/crates/crosshook-core/src/profile/toml_store/store.rs` | 79-312 | Single serializer, section saves, duplicate naming |
-| P1 (important) | `src/crosshook-native/src-tauri/src/commands/health/batch.rs` | all | Thin-command delegate pattern |
-| P1 (important) | `src/crosshook-native/src/hooks/__tests__/useProfileHealth.startup.test.ts` | 1-118 | Vitest call-counter harness to copy |
-| P1 (important) | `src/crosshook-native/crates/crosshook-core/tests/launch_request_golden.rs` | 38-101 | Golden-fixture convention |
-| P2 (reference) | `docs/plans/profile-writer/research-recommendations.md` | all | Phasing, ownership table, risk register |
-| P2 (reference) | `docs/plans/profile-writer/research-business.md` | all | Per-command behavior inventory + edge cases |
-| P2 (reference) | `src/crosshook-native/crates/crosshook-app/src/bootstrap/stores.rs` | 42-78 | `Services` bundle to extend |
+| P1 (important) | `src/crosshook-native/src-tauri/src/commands/health/batch.rs`                | all    | Thin-command delegate pattern                      |
+| P1 (important) | `src/crosshook-native/src/hooks/__tests__/useProfileHealth.startup.test.ts`  | 1-118  | Vitest call-counter harness to copy                |
+| P1 (important) | `src/crosshook-native/crates/crosshook-core/tests/launch_request_golden.rs`  | 38-101 | Golden-fixture convention                          |
+| P2 (reference) | `docs/plans/profile-writer/research-recommendations.md`                      | all    | Phasing, ownership table, risk register            |
+| P2 (reference) | `docs/plans/profile-writer/research-business.md`                             | all    | Per-command behavior inventory + edge cases        |
+| P2 (reference) | `src/crosshook-native/crates/crosshook-app/src/bootstrap/stores.rs`          | 42-78  | `Services` bundle to extend                        |
 
 ## External Documentation
 
-| Topic | Source | Key Takeaway |
-| ----- | ------ | ------------ |
-| tokio `spawn_blocking` | https://docs.rs/tokio/1.51.0/tokio/task/fn.spawn_blocking.html | Non-abortable once started → publish the event inside the closure (D4) |
-| tokio `sync::broadcast` | https://docs.rs/tokio/1.51.0/tokio/sync/broadcast/index.html | Drop-oldest lag → `RecvError::Lagged` → `AppEvent::Resync` |
-| serde enum representations | https://serde.rs/enum-representations.html | Internally tagged: struct variants only; unit variants → `{"kind":"…"}` |
-| Tauri v2 events | https://v2.tauri.app/develop/calling-frontend/ | Payloads JSON; `unlisten` is a Promise; no compat shim allowed |
+| Topic                      | Source                                                         | Key Takeaway                                                            |
+| -------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| tokio `spawn_blocking`     | https://docs.rs/tokio/1.51.0/tokio/task/fn.spawn_blocking.html | Non-abortable once started → publish the event inside the closure (D4)  |
+| tokio `sync::broadcast`    | https://docs.rs/tokio/1.51.0/tokio/sync/broadcast/index.html   | Drop-oldest lag → `RecvError::Lagged` → `AppEvent::Resync`              |
+| serde enum representations | https://serde.rs/enum-representations.html                     | Internally tagged: struct variants only; unit variants → `{"kind":"…"}` |
+| Tauri v2 events            | https://v2.tauri.app/develop/calling-frontend/                 | Payloads JSON; `unlisten` is a Promise; no compat shim allowed          |
 
 ## Patterns to Mirror
 
@@ -214,106 +214,105 @@ async fn batch_and_cached_snapshots_work_without_metadata() {
 
 ```ts
 // SOURCE: src/crosshook-native/src/hooks/__tests__/useProfileHealth.startup.test.ts:60-62
-const batchCalls = () =>
-  mockCallCommand.mock.calls.filter((c) => c[0] === 'batch_validate_profiles');
+const batchCalls = () => mockCallCommand.mock.calls.filter((c) => c[0] === 'batch_validate_profiles');
 ```
 
 ## Files to Change
 
 CREATE rows are skipped by path validation (files do not exist yet); every UPDATE row exists (verified in the worktree).
 
-| File | Action | Justification |
-| ---- | ------ | ------------- |
-| `src/crosshook-native/crates/crosshook-app/tests/fixtures/profile_writer/save.toml` | CREATE | D15 pre-refactor golden (Task 0.1) |
-| `src/crosshook-native/crates/crosshook-app/tests/fixtures/profile_writer/rename.toml` | CREATE | D15 golden incl. display-name rewrite |
-| `src/crosshook-native/crates/crosshook-app/tests/fixtures/profile_writer/duplicate.toml` | CREATE | D15 golden for the copy |
-| `src/crosshook-native/crates/crosshook-app/tests/fixtures/profile_writer/rollback.toml` | CREATE | D15 golden for restored snapshot re-save |
-| `src/crosshook-native/crates/crosshook-app/tests/profile_writer_golden.rs` | CREATE | Byte-for-byte comparison vs fixtures (Task 2.1) |
-| `src/crosshook-native/crates/crosshook-app/src/services/profiles/mod.rs` | CREATE | `ProfileWriter` struct, `new`, module tree, re-exports |
-| `src/crosshook-native/crates/crosshook-app/src/services/profiles/writer.rs` | CREATE | Private `commit` pipeline + D3 lock + reason validation |
-| `src/crosshook-native/crates/crosshook-app/src/services/profiles/types.rs` | CREATE | `ProfileMutation`, `ProfileCommit`, `ImportedProfileWrite`, moved non-history DTOs |
-| `src/crosshook-native/crates/crosshook-app/src/services/profiles/history_types.rs` | CREATE | Moved history/diff DTOs, serde unchanged |
-| `src/crosshook-native/crates/crosshook-app/src/services/profiles/revisions.rs` | CREATE | Moved revision capture + retention resolver + D6 warning |
-| `src/crosshook-native/crates/crosshook-app/src/services/profiles/launcher_cleanup.rs` | CREATE | Moved path derivation + cleanup delegation |
-| `src/crosshook-native/crates/crosshook-app/src/services/profiles/defaults_art.rs` | CREATE | Moved creation defaults + art auto-import |
-| `src/crosshook-native/crates/crosshook-app/src/services/profiles/lifecycle.rs` | CREATE | Save/delete/duplicate/rename/import/export facades |
-| `src/crosshook-native/crates/crosshook-app/src/services/profiles/reads.rs` | CREATE | List/load/summaries/favorites |
-| `src/crosshook-native/crates/crosshook-app/src/services/profiles/sections.rs` | CREATE | Optimizations/MangoHud/gamescope/trainer-gamescope/arguments |
-| `src/crosshook-native/crates/crosshook-app/src/services/profiles/presets.rs` | CREATE | Bundled + manual presets |
-| `src/crosshook-native/crates/crosshook-app/src/services/profiles/history.rs` | CREATE | History/diff/rollback/known-good |
-| `src/crosshook-native/crates/crosshook-app/src/services/profiles/suggestions.rs` | CREATE | ProtonDB accept |
-| `src/crosshook-native/crates/crosshook-app/src/services/profiles/migration.rs` | CREATE | Proton migration apply/batch |
-| `src/crosshook-native/crates/crosshook-app/src/services/profiles/imports.rs` | CREATE | `record_imports` for Lutris (D10) |
-| `src/crosshook-native/crates/crosshook-app/src/services/profiles/tests/mod.rs` | CREATE | Test module declarations + shared harness |
-| `src/crosshook-native/crates/crosshook-app/src/services/profiles/tests/helpers.rs` | CREATE | tempdir writer harness, metadata enabled/disabled, steam fixture |
-| `src/crosshook-native/crates/crosshook-app/src/services/profiles/tests/events.rs` | CREATE | Event/reason/wire assertions |
-| `src/crosshook-native/crates/crosshook-app/src/services/profiles/tests/lifecycle.rs` | CREATE | Lifecycle + launcher cleanup tests |
-| `src/crosshook-native/crates/crosshook-app/src/services/profiles/tests/sections.rs` | CREATE | Section/preset tests |
-| `src/crosshook-native/crates/crosshook-app/src/services/profiles/tests/history.rs` | CREATE | History/rollback tests |
-| `src/crosshook-native/crates/crosshook-app/src/services/profiles/tests/suggestions.rs` | CREATE | ProtonDB accept tests |
-| `src/crosshook-native/crates/crosshook-app/src/services/profiles/tests/migration.rs` | CREATE | Migration preflight/isolation tests |
-| `src/crosshook-native/crates/crosshook-core/src/profile/mutations/mod.rs` | CREATE | D8 extraction root |
-| `src/crosshook-native/crates/crosshook-core/src/profile/mutations/optimizations.rs` | CREATE | `apply_launch_optimizations`, `materialize_launch_optimization_preset`, `apply_manual_optimization_preset` |
-| `src/crosshook-native/crates/crosshook-core/src/profile/mutations/command_arguments.rs` | CREATE | `apply_command_arguments` |
-| `src/crosshook-native/src/types/profile-events.ts` | CREATE | D13 TS union + payload type |
-| `src/crosshook-native/src/lib/profileEvents.ts` | CREATE | `parseProfilesChanged`, `profileChangeAffectsHealth` |
-| `src/crosshook-native/src/lib/__tests__/profileEvents.test.ts` | CREATE | Parser/policy unit tests |
-| `src/crosshook-native/src/hooks/__tests__/useProfileHealth.profilesChanged.test.ts` | CREATE | Favorite-skips-batch call-counter test + saved control |
-| `src/crosshook-native/src-tauri/src/commands/profile/tests/contract.rs` | CREATE | IPC name contract test |
-| `src/crosshook-native/crates/crosshook-app/src/events.rs` | UPDATE | `ProfileChangeReason`, `AppEvent::ProfilesChanged` |
-| `src/crosshook-native/crates/crosshook-app/src/events/tests.rs` | UPDATE | Wire-shape/lag/equality tests |
-| `src/crosshook-native/crates/crosshook-app/src/services/mod.rs` | UPDATE | Declare/re-export `profiles` |
-| `src/crosshook-native/crates/crosshook-app/Cargo.toml` | UPDATE | Promote `toml`, `serde_json` to deps |
-| `src/crosshook-native/crates/crosshook-app/src/bootstrap/stores.rs` | UPDATE | `Services::new(&Stores, EventBus)`, `profiles` field |
-| `src/crosshook-native/crates/crosshook-app/src/bootstrap/app_bootstrap.rs` | UPDATE | Pass `app.events().clone()` |
-| `src/crosshook-native/crates/crosshook-app/src/bootstrap/stores/tests.rs` | UPDATE | Supply a bus in bundle test |
-| `src/crosshook-native/crates/crosshook-app/src/lib.rs` | UPDATE | Re-export `ProfileChangeReason`, `ProfileWriter` |
-| `src/crosshook-native/crates/crosshook-app/README.md` | UPDATE | Services table row + event doc |
-| `src/crosshook-native/crates/crosshook-core/src/metadata/health_ops.rs` | UPDATE | D5 `invalidate_health_snapshot` + tests |
-| `src/crosshook-native/crates/crosshook-core/src/metadata/health_store.rs` | UPDATE | Parameterized DELETE |
-| `src/crosshook-native/crates/crosshook-core/src/profile/mod.rs` | UPDATE | `pub mod mutations;` + re-exports |
-| `src/crosshook-native/crates/crosshook-core/src/profile/toml_store/store.rs` | UPDATE | Delegate to mutations; add `save_without_companion`, `unique_copy_name` |
-| `src/crosshook-native/crates/crosshook-core/src/profile/toml_store/tests/optimizations.rs` | UPDATE | Pin extraction parity |
-| `src/crosshook-native/crates/crosshook-core/src/profile/toml_store/tests/command_arguments.rs` | UPDATE | Pin extraction parity |
-| `src/crosshook-native/crates/crosshook-core/src/profile/migration/apply.rs` | UPDATE | Extract `prepare_profile_migration`; use `save_without_companion` |
-| `src/crosshook-native/crates/crosshook-core/src/profile/migration/mod.rs` | UPDATE | Re-export `prepare_profile_migration` |
-| `src/crosshook-native/crates/crosshook-core/src/profile/migration/tests.rs` | UPDATE | Preparation/no-companion regression tests |
-| `src/crosshook-native/src-tauri/src/lib.rs` | UPDATE | `.manage(services.profiles.clone())` |
-| `src/crosshook-native/src-tauri/src/startup_bridge.rs` | UPDATE | `ProfilesChanged` arm + Resync sentinel (D14) |
-| `src/crosshook-native/src-tauri/src/startup_bridge/tests.rs` | UPDATE | Object emission + lag tests |
-| `src/crosshook-native/src-tauri/src/commands/profile/lifecycle.rs` | UPDATE | Async delegates to writer |
-| `src/crosshook-native/src-tauri/src/commands/profile/favorites.rs` | UPDATE | Async delegates |
-| `src/crosshook-native/src-tauri/src/commands/profile/optimizations.rs` | UPDATE | Async delegates |
-| `src/crosshook-native/src-tauri/src/commands/profile/command_arguments.rs` | UPDATE | Async delegate |
-| `src/crosshook-native/src-tauri/src/commands/profile/config_history.rs` | UPDATE | Async delegates |
-| `src/crosshook-native/src-tauri/src/commands/profile/mod.rs` | UPDATE | Drop helper re-exports (B2) |
-| `src/crosshook-native/src-tauri/src/commands/profile/shared.rs` | UPDATE | Keep only `apply_collection_defaults` (+ glue) after B2 |
-| `src/crosshook-native/src-tauri/src/commands/profile/tests/mod.rs` | UPDATE | `mod contract;`, drop moved test mods |
-| `src/crosshook-native/src-tauri/src/commands/profile/tests/lifecycle.rs` | UPDATE | Migrate cleanup tests to service harness |
-| `src/crosshook-native/src-tauri/src/commands/profile/tests/optimizations.rs` | UPDATE | Migrate two helper tests; keep collection tests |
-| `src/crosshook-native/src-tauri/src/commands/protondb.rs` | UPDATE | Accept delegates; delete `observe_suggestion_apply` |
-| `src/crosshook-native/src-tauri/src/commands/migration.rs` | UPDATE | Apply commands delegate |
-| `src/crosshook-native/src-tauri/src/commands/lutris.rs` | UPDATE | Use `record_imports` |
-| `src/crosshook-native/src/hooks/useProfileHealth.ts` | UPDATE | Reason policy, favorite skip |
-| `src/crosshook-native/src/hooks/useProfile.ts` | UPDATE | Favorite → favorites-only reload |
-| `src/crosshook-native/src/hooks/useProfileSummaries.ts` | UPDATE | Skip favorite refetch |
-| `src/crosshook-native/src/hooks/useLibrarySummaries.ts` | UPDATE | Skip favorite refetch |
-| `src/crosshook-native/src/hooks/useCommunityProfiles.ts` | UPDATE | Skip favorite rescan |
-| `src/crosshook-native/src/components/pages/HealthDashboardPage.tsx` | UPDATE | Favorite overlay from `favoriteProfiles` |
-| `src/crosshook-native/src/components/pages/health-dashboard/useHealthDashboardState.ts` | UPDATE | Overlay projection without health IPC |
-| `src/crosshook-native/src/components/layout/MetadataStatusBanner.tsx` | UPDATE | D6 copy (snapshots skipped) |
-| `src/crosshook-native/src/components/layout/__tests__/MetadataStatusBanner.test.tsx` | UPDATE | Copy assertions |
-| `src/crosshook-native/src/types/index.ts` | UPDATE | Re-export profile-events types |
-| `src/crosshook-native/src/hooks/__tests__/useProfileSummaries.test.ts` | UPDATE | Object payloads, favorite no-refetch |
-| `src/crosshook-native/src/components/pages/__tests__/LibraryPage.test.tsx` | UPDATE | Object payloads, favorite assertions |
-| `src/crosshook-native/src/lib/mocks/handlers/profile-mutations.ts` | UPDATE | Typed publisher, real reasons/names |
-| `src/crosshook-native/src/lib/mocks/handlers/profile-presets.ts` | UPDATE | `preset_applied` events |
-| `src/crosshook-native/src/lib/mocks/handlers/profile-history.ts` | UPDATE | `rolled_back` event |
-| `src/crosshook-native/src/lib/mocks/handlers/protondb.ts` | UPDATE | Accept emits `saved` |
-| `src/crosshook-native/src/lib/mocks/handlers/proton.ts` | UPDATE | Applied migrations emit `migrated` |
-| `src/crosshook-native/src/lib/mocks/handlers/lutris.ts` | UPDATE | Successful imports emit `imported` |
-| `src/crosshook-native/src/lib/mocks/handlers/profile-utils.ts` | UPDATE | One typed `emitProfilesChanged` helper |
-| `src/crosshook-native/src/lib/mocks/README.md` | UPDATE | Event shape + parity doc |
+| File                                                                                           | Action | Justification                                                                                              |
+| ---------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------- |
+| `src/crosshook-native/crates/crosshook-app/tests/fixtures/profile_writer/save.toml`            | CREATE | D15 pre-refactor golden (Task 0.1)                                                                         |
+| `src/crosshook-native/crates/crosshook-app/tests/fixtures/profile_writer/rename.toml`          | CREATE | D15 golden incl. display-name rewrite                                                                      |
+| `src/crosshook-native/crates/crosshook-app/tests/fixtures/profile_writer/duplicate.toml`       | CREATE | D15 golden for the copy                                                                                    |
+| `src/crosshook-native/crates/crosshook-app/tests/fixtures/profile_writer/rollback.toml`        | CREATE | D15 golden for restored snapshot re-save                                                                   |
+| `src/crosshook-native/crates/crosshook-app/tests/profile_writer_golden.rs`                     | CREATE | Byte-for-byte comparison vs fixtures (Task 2.1)                                                            |
+| `src/crosshook-native/crates/crosshook-app/src/services/profiles/mod.rs`                       | CREATE | `ProfileWriter` struct, `new`, module tree, re-exports                                                     |
+| `src/crosshook-native/crates/crosshook-app/src/services/profiles/writer.rs`                    | CREATE | Private `commit` pipeline + D3 lock + reason validation                                                    |
+| `src/crosshook-native/crates/crosshook-app/src/services/profiles/types.rs`                     | CREATE | `ProfileMutation`, `ProfileCommit`, `ImportedProfileWrite`, moved non-history DTOs                         |
+| `src/crosshook-native/crates/crosshook-app/src/services/profiles/history_types.rs`             | CREATE | Moved history/diff DTOs, serde unchanged                                                                   |
+| `src/crosshook-native/crates/crosshook-app/src/services/profiles/revisions.rs`                 | CREATE | Moved revision capture + retention resolver + D6 warning                                                   |
+| `src/crosshook-native/crates/crosshook-app/src/services/profiles/launcher_cleanup.rs`          | CREATE | Moved path derivation + cleanup delegation                                                                 |
+| `src/crosshook-native/crates/crosshook-app/src/services/profiles/defaults_art.rs`              | CREATE | Moved creation defaults + art auto-import                                                                  |
+| `src/crosshook-native/crates/crosshook-app/src/services/profiles/lifecycle.rs`                 | CREATE | Save/delete/duplicate/rename/import/export facades                                                         |
+| `src/crosshook-native/crates/crosshook-app/src/services/profiles/reads.rs`                     | CREATE | List/load/summaries/favorites                                                                              |
+| `src/crosshook-native/crates/crosshook-app/src/services/profiles/sections.rs`                  | CREATE | Optimizations/MangoHud/gamescope/trainer-gamescope/arguments                                               |
+| `src/crosshook-native/crates/crosshook-app/src/services/profiles/presets.rs`                   | CREATE | Bundled + manual presets                                                                                   |
+| `src/crosshook-native/crates/crosshook-app/src/services/profiles/history.rs`                   | CREATE | History/diff/rollback/known-good                                                                           |
+| `src/crosshook-native/crates/crosshook-app/src/services/profiles/suggestions.rs`               | CREATE | ProtonDB accept                                                                                            |
+| `src/crosshook-native/crates/crosshook-app/src/services/profiles/migration.rs`                 | CREATE | Proton migration apply/batch                                                                               |
+| `src/crosshook-native/crates/crosshook-app/src/services/profiles/imports.rs`                   | CREATE | `record_imports` for Lutris (D10)                                                                          |
+| `src/crosshook-native/crates/crosshook-app/src/services/profiles/tests/mod.rs`                 | CREATE | Test module declarations + shared harness                                                                  |
+| `src/crosshook-native/crates/crosshook-app/src/services/profiles/tests/helpers.rs`             | CREATE | tempdir writer harness, metadata enabled/disabled, steam fixture                                           |
+| `src/crosshook-native/crates/crosshook-app/src/services/profiles/tests/events.rs`              | CREATE | Event/reason/wire assertions                                                                               |
+| `src/crosshook-native/crates/crosshook-app/src/services/profiles/tests/lifecycle.rs`           | CREATE | Lifecycle + launcher cleanup tests                                                                         |
+| `src/crosshook-native/crates/crosshook-app/src/services/profiles/tests/sections.rs`            | CREATE | Section/preset tests                                                                                       |
+| `src/crosshook-native/crates/crosshook-app/src/services/profiles/tests/history.rs`             | CREATE | History/rollback tests                                                                                     |
+| `src/crosshook-native/crates/crosshook-app/src/services/profiles/tests/suggestions.rs`         | CREATE | ProtonDB accept tests                                                                                      |
+| `src/crosshook-native/crates/crosshook-app/src/services/profiles/tests/migration.rs`           | CREATE | Migration preflight/isolation tests                                                                        |
+| `src/crosshook-native/crates/crosshook-core/src/profile/mutations/mod.rs`                      | CREATE | D8 extraction root                                                                                         |
+| `src/crosshook-native/crates/crosshook-core/src/profile/mutations/optimizations.rs`            | CREATE | `apply_launch_optimizations`, `materialize_launch_optimization_preset`, `apply_manual_optimization_preset` |
+| `src/crosshook-native/crates/crosshook-core/src/profile/mutations/command_arguments.rs`        | CREATE | `apply_command_arguments`                                                                                  |
+| `src/crosshook-native/src/types/profile-events.ts`                                             | CREATE | D13 TS union + payload type                                                                                |
+| `src/crosshook-native/src/lib/profileEvents.ts`                                                | CREATE | `parseProfilesChanged`, `profileChangeAffectsHealth`                                                       |
+| `src/crosshook-native/src/lib/__tests__/profileEvents.test.ts`                                 | CREATE | Parser/policy unit tests                                                                                   |
+| `src/crosshook-native/src/hooks/__tests__/useProfileHealth.profilesChanged.test.ts`            | CREATE | Favorite-skips-batch call-counter test + saved control                                                     |
+| `src/crosshook-native/src-tauri/src/commands/profile/tests/contract.rs`                        | CREATE | IPC name contract test                                                                                     |
+| `src/crosshook-native/crates/crosshook-app/src/events.rs`                                      | UPDATE | `ProfileChangeReason`, `AppEvent::ProfilesChanged`                                                         |
+| `src/crosshook-native/crates/crosshook-app/src/events/tests.rs`                                | UPDATE | Wire-shape/lag/equality tests                                                                              |
+| `src/crosshook-native/crates/crosshook-app/src/services/mod.rs`                                | UPDATE | Declare/re-export `profiles`                                                                               |
+| `src/crosshook-native/crates/crosshook-app/Cargo.toml`                                         | UPDATE | Promote `toml`, `serde_json` to deps                                                                       |
+| `src/crosshook-native/crates/crosshook-app/src/bootstrap/stores.rs`                            | UPDATE | `Services::new(&Stores, EventBus)`, `profiles` field                                                       |
+| `src/crosshook-native/crates/crosshook-app/src/bootstrap/app_bootstrap.rs`                     | UPDATE | Pass `app.events().clone()`                                                                                |
+| `src/crosshook-native/crates/crosshook-app/src/bootstrap/stores/tests.rs`                      | UPDATE | Supply a bus in bundle test                                                                                |
+| `src/crosshook-native/crates/crosshook-app/src/lib.rs`                                         | UPDATE | Re-export `ProfileChangeReason`, `ProfileWriter`                                                           |
+| `src/crosshook-native/crates/crosshook-app/README.md`                                          | UPDATE | Services table row + event doc                                                                             |
+| `src/crosshook-native/crates/crosshook-core/src/metadata/health_ops.rs`                        | UPDATE | D5 `invalidate_health_snapshot` + tests                                                                    |
+| `src/crosshook-native/crates/crosshook-core/src/metadata/health_store.rs`                      | UPDATE | Parameterized DELETE                                                                                       |
+| `src/crosshook-native/crates/crosshook-core/src/profile/mod.rs`                                | UPDATE | `pub mod mutations;` + re-exports                                                                          |
+| `src/crosshook-native/crates/crosshook-core/src/profile/toml_store/store.rs`                   | UPDATE | Delegate to mutations; add `save_without_companion`, `unique_copy_name`                                    |
+| `src/crosshook-native/crates/crosshook-core/src/profile/toml_store/tests/optimizations.rs`     | UPDATE | Pin extraction parity                                                                                      |
+| `src/crosshook-native/crates/crosshook-core/src/profile/toml_store/tests/command_arguments.rs` | UPDATE | Pin extraction parity                                                                                      |
+| `src/crosshook-native/crates/crosshook-core/src/profile/migration/apply.rs`                    | UPDATE | Extract `prepare_profile_migration`; use `save_without_companion`                                          |
+| `src/crosshook-native/crates/crosshook-core/src/profile/migration/mod.rs`                      | UPDATE | Re-export `prepare_profile_migration`                                                                      |
+| `src/crosshook-native/crates/crosshook-core/src/profile/migration/tests.rs`                    | UPDATE | Preparation/no-companion regression tests                                                                  |
+| `src/crosshook-native/src-tauri/src/lib.rs`                                                    | UPDATE | `.manage(services.profiles.clone())`                                                                       |
+| `src/crosshook-native/src-tauri/src/startup_bridge.rs`                                         | UPDATE | `ProfilesChanged` arm + Resync sentinel (D14)                                                              |
+| `src/crosshook-native/src-tauri/src/startup_bridge/tests.rs`                                   | UPDATE | Object emission + lag tests                                                                                |
+| `src/crosshook-native/src-tauri/src/commands/profile/lifecycle.rs`                             | UPDATE | Async delegates to writer                                                                                  |
+| `src/crosshook-native/src-tauri/src/commands/profile/favorites.rs`                             | UPDATE | Async delegates                                                                                            |
+| `src/crosshook-native/src-tauri/src/commands/profile/optimizations.rs`                         | UPDATE | Async delegates                                                                                            |
+| `src/crosshook-native/src-tauri/src/commands/profile/command_arguments.rs`                     | UPDATE | Async delegate                                                                                             |
+| `src/crosshook-native/src-tauri/src/commands/profile/config_history.rs`                        | UPDATE | Async delegates                                                                                            |
+| `src/crosshook-native/src-tauri/src/commands/profile/mod.rs`                                   | UPDATE | Drop helper re-exports (B2)                                                                                |
+| `src/crosshook-native/src-tauri/src/commands/profile/shared.rs`                                | UPDATE | Keep only `apply_collection_defaults` (+ glue) after B2                                                    |
+| `src/crosshook-native/src-tauri/src/commands/profile/tests/mod.rs`                             | UPDATE | `mod contract;`, drop moved test mods                                                                      |
+| `src/crosshook-native/src-tauri/src/commands/profile/tests/lifecycle.rs`                       | UPDATE | Migrate cleanup tests to service harness                                                                   |
+| `src/crosshook-native/src-tauri/src/commands/profile/tests/optimizations.rs`                   | UPDATE | Migrate two helper tests; keep collection tests                                                            |
+| `src/crosshook-native/src-tauri/src/commands/protondb.rs`                                      | UPDATE | Accept delegates; delete `observe_suggestion_apply`                                                        |
+| `src/crosshook-native/src-tauri/src/commands/migration.rs`                                     | UPDATE | Apply commands delegate                                                                                    |
+| `src/crosshook-native/src-tauri/src/commands/lutris.rs`                                        | UPDATE | Use `record_imports`                                                                                       |
+| `src/crosshook-native/src/hooks/useProfileHealth.ts`                                           | UPDATE | Reason policy, favorite skip                                                                               |
+| `src/crosshook-native/src/hooks/useProfile.ts`                                                 | UPDATE | Favorite → favorites-only reload                                                                           |
+| `src/crosshook-native/src/hooks/useProfileSummaries.ts`                                        | UPDATE | Skip favorite refetch                                                                                      |
+| `src/crosshook-native/src/hooks/useLibrarySummaries.ts`                                        | UPDATE | Skip favorite refetch                                                                                      |
+| `src/crosshook-native/src/hooks/useCommunityProfiles.ts`                                       | UPDATE | Skip favorite rescan                                                                                       |
+| `src/crosshook-native/src/components/pages/HealthDashboardPage.tsx`                            | UPDATE | Favorite overlay from `favoriteProfiles`                                                                   |
+| `src/crosshook-native/src/components/pages/health-dashboard/useHealthDashboardState.ts`        | UPDATE | Overlay projection without health IPC                                                                      |
+| `src/crosshook-native/src/components/layout/MetadataStatusBanner.tsx`                          | UPDATE | D6 copy (snapshots skipped)                                                                                |
+| `src/crosshook-native/src/components/layout/__tests__/MetadataStatusBanner.test.tsx`           | UPDATE | Copy assertions                                                                                            |
+| `src/crosshook-native/src/types/index.ts`                                                      | UPDATE | Re-export profile-events types                                                                             |
+| `src/crosshook-native/src/hooks/__tests__/useProfileSummaries.test.ts`                         | UPDATE | Object payloads, favorite no-refetch                                                                       |
+| `src/crosshook-native/src/components/pages/__tests__/LibraryPage.test.tsx`                     | UPDATE | Object payloads, favorite assertions                                                                       |
+| `src/crosshook-native/src/lib/mocks/handlers/profile-mutations.ts`                             | UPDATE | Typed publisher, real reasons/names                                                                        |
+| `src/crosshook-native/src/lib/mocks/handlers/profile-presets.ts`                               | UPDATE | `preset_applied` events                                                                                    |
+| `src/crosshook-native/src/lib/mocks/handlers/profile-history.ts`                               | UPDATE | `rolled_back` event                                                                                        |
+| `src/crosshook-native/src/lib/mocks/handlers/protondb.ts`                                      | UPDATE | Accept emits `saved`                                                                                       |
+| `src/crosshook-native/src/lib/mocks/handlers/proton.ts`                                        | UPDATE | Applied migrations emit `migrated`                                                                         |
+| `src/crosshook-native/src/lib/mocks/handlers/lutris.ts`                                        | UPDATE | Successful imports emit `imported`                                                                         |
+| `src/crosshook-native/src/lib/mocks/handlers/profile-utils.ts`                                 | UPDATE | One typed `emitProfilesChanged` helper                                                                     |
+| `src/crosshook-native/src/lib/mocks/README.md`                                                 | UPDATE | Event shape + parity doc                                                                                   |
 
 `CLAUDE.md` / `AGENTS.md` are intentionally **not** modified: no agent rule changes (no new startup contract, no schema bump, no new label).
 
@@ -435,21 +434,21 @@ CREATE rows are skipped by path validation (files do not exist yet); every UPDAT
 
 ### Unit Tests
 
-| Test | Input | Expected Output | Edge Case? |
-| ---- | ----- | --------------- | ---------- |
-| Reason wire shapes (app `events/tests.rs`) | each `ProfileChangeReason` | exact `serde_json::to_value` objects incl. `{"kind":"renamed","from":…}` | yes — tag collision guard |
-| Bridge emission (`startup_bridge/tests.rs`) | `ProfilesChanged`, `Resync` | object payload emitted; resync ⇒ `{kind:"saved"},names:[]` + startup replay | yes |
-| Favorite purity (`tests/events.rs`) | `set_favorite` enabled+disabled metadata | exactly one `FavoriteToggled`; no TOML/revision/health row change; disabled ⇒ `Unavailable` | yes |
-| Golden bytes (`tests/profile_writer_golden.rs`) | writer save/rename/duplicate/rollback | bytes == pre-refactor fixtures | yes |
-| Dedupe/lineage (`tests/history.rs`) | two identical commits; rollback to older; foreign id; tampered HMAC | 1 row; lineage row retained; scoped rejection; disk unchanged on tamper | yes |
-| Diff caps (`tests/history.rs`) | >2000-line sides, >512 KiB diff, invalid TOML semantic | `truncated` true, byte cap respected, unified fallback + `semantic_parse_failed` | yes |
-| Degraded metadata (`tests/lifecycle.rs`, `tests/sections.rs`) | `MetadataStore::disabled()` | save succeeds, revision skipped with warning surfaced, banner test renders | yes |
-| Launcher cleanup (`tests/lifecycle.rs`) | native / watermarked / adversarial names / failing cleanup | skip, `had_launcher` bool, deletion confined to launcher dirs, primary op succeeds | yes |
-| Migration (`core` + `tests/migration.rs`) | preflight miss; mixed outcomes; already-valid | zero writes; isolated counts; no event/no companion rewrite | yes |
-| Extraction parity (`core toml_store/tests/*`) | same payloads as before | identical behavior/bytes via delegated methods | no |
-| TS parser (`profileEvents.test.ts`) | valid/unknown/malformed payloads | typed payload / null resync; health predicate table | yes |
-| Listener counters (`useProfileHealth.profilesChanged.test.ts`) | favorite vs saved vs malformed | 0 / +1 / +1 `batch_validate_profiles` calls | yes |
-| Mock parity | every changed mock handler | emits exact object payload; no-op paths silent | yes |
+| Test                                                           | Input                                                               | Expected Output                                                                             | Edge Case?                |
+| -------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------- |
+| Reason wire shapes (app `events/tests.rs`)                     | each `ProfileChangeReason`                                          | exact `serde_json::to_value` objects incl. `{"kind":"renamed","from":…}`                    | yes — tag collision guard |
+| Bridge emission (`startup_bridge/tests.rs`)                    | `ProfilesChanged`, `Resync`                                         | object payload emitted; resync ⇒ `{kind:"saved"},names:[]` + startup replay                 | yes                       |
+| Favorite purity (`tests/events.rs`)                            | `set_favorite` enabled+disabled metadata                            | exactly one `FavoriteToggled`; no TOML/revision/health row change; disabled ⇒ `Unavailable` | yes                       |
+| Golden bytes (`tests/profile_writer_golden.rs`)                | writer save/rename/duplicate/rollback                               | bytes == pre-refactor fixtures                                                              | yes                       |
+| Dedupe/lineage (`tests/history.rs`)                            | two identical commits; rollback to older; foreign id; tampered HMAC | 1 row; lineage row retained; scoped rejection; disk unchanged on tamper                     | yes                       |
+| Diff caps (`tests/history.rs`)                                 | >2000-line sides, >512 KiB diff, invalid TOML semantic              | `truncated` true, byte cap respected, unified fallback + `semantic_parse_failed`            | yes                       |
+| Degraded metadata (`tests/lifecycle.rs`, `tests/sections.rs`)  | `MetadataStore::disabled()`                                         | save succeeds, revision skipped with warning surfaced, banner test renders                  | yes                       |
+| Launcher cleanup (`tests/lifecycle.rs`)                        | native / watermarked / adversarial names / failing cleanup          | skip, `had_launcher` bool, deletion confined to launcher dirs, primary op succeeds          | yes                       |
+| Migration (`core` + `tests/migration.rs`)                      | preflight miss; mixed outcomes; already-valid                       | zero writes; isolated counts; no event/no companion rewrite                                 | yes                       |
+| Extraction parity (`core toml_store/tests/*`)                  | same payloads as before                                             | identical behavior/bytes via delegated methods                                              | no                        |
+| TS parser (`profileEvents.test.ts`)                            | valid/unknown/malformed payloads                                    | typed payload / null resync; health predicate table                                         | yes                       |
+| Listener counters (`useProfileHealth.profilesChanged.test.ts`) | favorite vs saved vs malformed                                      | 0 / +1 / +1 `batch_validate_profiles` calls                                                 | yes                       |
+| Mock parity                                                    | every changed mock handler                                          | emits exact object payload; no-op paths silent                                              | yes                       |
 
 ### Edge Cases Checklist
 
@@ -526,19 +525,19 @@ EXPECT: Typecheck clean (both tsconfigs), Vitest green (listener/parser/banner/m
 
 ## Risks
 
-| Risk | Likelihood | Impact | Mitigation |
-| ---- | ---------- | ------ | ---------- |
-| TOML byte drift (wrong serializer, extras lost, defaults on existing profiles, rollback re-filtered) | Medium | High | single serializer via core; D15 goldens; rollback restores wholesale; revision hash asserted separately |
-| Event contract breakage (serde mismatch, bridge wildcard, dual emission) | Medium | High | wire tests all 9 reasons both sides; D14 arm + sentinel; all string producers deleted in-PR |
-| Favorite still triggers batch | Medium | High | SQLite-only facade; Vitest counter + saved control; Rust purity test |
-| Mock/real payload divergence | High | Medium | one typed publisher; smoke exercises parser; parity documented |
-| Revision/rollback integrity regression | Low | High | core SQL/HMAC untouched; dedupe/foreign/tamper/lineage tests |
-| Migration drift (companion rewrite, preflight bypass) | Low | High | `save_without_companion` only; preflight order tests |
-| Shared-file collisions in B1 | Medium | Medium | exclusive ownership (audited); B0 pre-declares module tree; frozen signatures |
-| Concurrent write reordering after async move | Medium | Medium | D3 lock inside closure; publish-in-closure (D4) |
-| Coverage silently dropped with helper deletion | Medium | Medium | tests migrate with slices; collection tests stay; B2 greps for dead imports |
-| Rename event-before-response auto-selection race | Medium | Medium | `useProfileCrud` keeps explicit post-command selection; listeners never auto-select on `Renamed` |
-| Schema/version accidental bump | Low | High | `check-schema-version.sh` in gates; no migration files touched |
+| Risk                                                                                                 | Likelihood | Impact | Mitigation                                                                                              |
+| ---------------------------------------------------------------------------------------------------- | ---------- | ------ | ------------------------------------------------------------------------------------------------------- |
+| TOML byte drift (wrong serializer, extras lost, defaults on existing profiles, rollback re-filtered) | Medium     | High   | single serializer via core; D15 goldens; rollback restores wholesale; revision hash asserted separately |
+| Event contract breakage (serde mismatch, bridge wildcard, dual emission)                             | Medium     | High   | wire tests all 9 reasons both sides; D14 arm + sentinel; all string producers deleted in-PR             |
+| Favorite still triggers batch                                                                        | Medium     | High   | SQLite-only facade; Vitest counter + saved control; Rust purity test                                    |
+| Mock/real payload divergence                                                                         | High       | Medium | one typed publisher; smoke exercises parser; parity documented                                          |
+| Revision/rollback integrity regression                                                               | Low        | High   | core SQL/HMAC untouched; dedupe/foreign/tamper/lineage tests                                            |
+| Migration drift (companion rewrite, preflight bypass)                                                | Low        | High   | `save_without_companion` only; preflight order tests                                                    |
+| Shared-file collisions in B1                                                                         | Medium     | Medium | exclusive ownership (audited); B0 pre-declares module tree; frozen signatures                           |
+| Concurrent write reordering after async move                                                         | Medium     | Medium | D3 lock inside closure; publish-in-closure (D4)                                                         |
+| Coverage silently dropped with helper deletion                                                       | Medium     | Medium | tests migrate with slices; collection tests stay; B2 greps for dead imports                             |
+| Rename event-before-response auto-selection race                                                     | Medium     | Medium | `useProfileCrud` keeps explicit post-command selection; listeners never auto-select on `Renamed`        |
+| Schema/version accidental bump                                                                       | Low        | High   | `check-schema-version.sh` in gates; no migration files touched                                          |
 
 ## Notes
 

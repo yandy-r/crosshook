@@ -22,39 +22,39 @@ There is no `services/profiles/` module and no `AppEvent::ProfilesChanged` yet (
 
 Registered from `commands/profile/mod.rs` and `src-tauri/src/lib.rs`. “Emit” is the exact string passed to `emit_profiles_changed`, or “none”.
 
-| # | Command | File:lines | Mutates | Observe | Revision source | Health snapshot | Emit | Target `ProfileChangeReason` |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `profile_list` | `lifecycle.rs:21-23` | no | — | — | — | none | none (read) |
-| 2 | `profile_load` | `lifecycle.rs:38-55` | no (read + collection merge + `clear_extra`) | — | — | — | none | none (read) |
-| 3 | `profile_list_summaries` | `lifecycle.rs:58-100` | no | — | — | — | none | none (read) |
-| 4 | `profile_save` | `lifecycle.rs:103-226` | TOML via `store.save` | `AppWrite` | `ManualSave` | no | `"saved"` | `Saved` |
-| 5 | `profile_delete` | `lifecycle.rs:229-251` | deletes TOML + best-effort launcher files | `observe_profile_delete` | none | no | `"deleted"` | `Deleted` |
-| 6 | `profile_duplicate` | `lifecycle.rs:268-290` | new TOML via `store.duplicate` | `AppDuplicate` + source profile id | **none** | no | **none** (no `AppHandle`) | `Duplicated` |
-| 7 | `profile_rename` | `lifecycle.rs:293-347` | `store.rename`, then a second `store.save` of `display_name`, plus `settings.toml` `last_used_profile` | `observe_profile_rename` only (the display-name save is **not** observed) | **none** | no | **none** (no `AppHandle`) | `Renamed { from }` |
-| 8 | `profile_import_legacy` | `lifecycle.rs:350-384` | `store.import_legacy` | `SyncSource::Import` | `Import` | no | `"imported-legacy"` | `Imported` |
-| 9 | `profile_export_toml` | `lifecycle.rs:389-397` | no (in-memory → string) | — | — | — | none | none (pure serialize) |
-| 10 | `profile_save_launch_optimizations` | `optimizations.rs:69-108` | `save_launch_optimizations` then reload | `AppWrite` (only if reload succeeds) | `LaunchOptimizationSave` | no | **none** | `Saved` (content change; see health note) |
-| 11 | `profile_save_mangohud_config` | `optimizations.rs:112-128` | `save_profile_section` | `AppWrite` | `ManualSave` | no | **none** | `Saved` |
-| 12 | `profile_save_gamescope_config` | `optimizations.rs:132-148` | same | `AppWrite` | `ManualSave` | no | **none** | `Saved` |
-| 13 | `profile_save_trainer_gamescope_config` | `optimizations.rs:152-168` | same, writes `launch.trainer_gamescope` | `AppWrite` | `ManualSave` | no | **none** | `Saved` |
-| 14 | `profile_list_bundled_optimization_presets` | `optimizations.rs:172-185` | no; empty vec if metadata unavailable | — | — | — | none | none (read) |
-| 15 | `profile_apply_bundled_optimization_preset` | `optimizations.rs:189-270` | `materialize_launch_optimization_preset(..., set_as_active=true)` | `observe_profile_write_launch_change` (`AppWrite`) | `PresetApply` | no | `"bundled-optimization-preset"` | `PresetApplied` |
-| 16 | `profile_save_manual_optimization_preset` | `optimizations.rs:273-343` | `save_manual_launch_optimization_preset` | same | `PresetApply` | no | `"manual-optimization-preset"` | `PresetApplied` |
-| 17 | `profile_save_command_arguments` | `command_arguments.rs:25-66` | `save_command_arguments` | `AppWrite` if reload succeeds | `LaunchCommandArgumentsSave` | no | **none** | `Saved` |
-| 18 | `profile_config_history` | `config_history.rs:107-145` | no | — | — | — | none | none (read; errors if metadata unavailable) |
-| 19 | `profile_config_diff` | `config_history.rs:152-254` | no | — | — | — | none | none (read) |
-| 20 | `profile_config_rollback` | `config_history.rs:260-338` | `store.save` of parsed snapshot | `AppWrite` | `RollbackApply` with `source_revision_id` | no | `"rollback"` | `RolledBack` |
-| 21 | `profile_mark_known_good` | `config_history.rs:343-374` | SQLite flag only | — | — | — | **none** | none (not a profile-content change) |
-| 22 | `profile_set_favorite` | `favorites.rs:7-18` | `profiles.is_favorite` only | — | — | — | `"favorite-updated"` | `FavoriteToggled` |
-| 23 | `profile_list_favorites` | `favorites.rs:21-26` | no | — | — | — | none | none (read) |
+| #   | Command                                     | File:lines                   | Mutates                                                                                                | Observe                                                                   | Revision source                           | Health snapshot | Emit                            | Target `ProfileChangeReason`                |
+| --- | ------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- | ----------------------------------------- | --------------- | ------------------------------- | ------------------------------------------- |
+| 1   | `profile_list`                              | `lifecycle.rs:21-23`         | no                                                                                                     | —                                                                         | —                                         | —               | none                            | none (read)                                 |
+| 2   | `profile_load`                              | `lifecycle.rs:38-55`         | no (read + collection merge + `clear_extra`)                                                           | —                                                                         | —                                         | —               | none                            | none (read)                                 |
+| 3   | `profile_list_summaries`                    | `lifecycle.rs:58-100`        | no                                                                                                     | —                                                                         | —                                         | —               | none                            | none (read)                                 |
+| 4   | `profile_save`                              | `lifecycle.rs:103-226`       | TOML via `store.save`                                                                                  | `AppWrite`                                                                | `ManualSave`                              | no              | `"saved"`                       | `Saved`                                     |
+| 5   | `profile_delete`                            | `lifecycle.rs:229-251`       | deletes TOML + best-effort launcher files                                                              | `observe_profile_delete`                                                  | none                                      | no              | `"deleted"`                     | `Deleted`                                   |
+| 6   | `profile_duplicate`                         | `lifecycle.rs:268-290`       | new TOML via `store.duplicate`                                                                         | `AppDuplicate` + source profile id                                        | **none**                                  | no              | **none** (no `AppHandle`)       | `Duplicated`                                |
+| 7   | `profile_rename`                            | `lifecycle.rs:293-347`       | `store.rename`, then a second `store.save` of `display_name`, plus `settings.toml` `last_used_profile` | `observe_profile_rename` only (the display-name save is **not** observed) | **none**                                  | no              | **none** (no `AppHandle`)       | `Renamed { from }`                          |
+| 8   | `profile_import_legacy`                     | `lifecycle.rs:350-384`       | `store.import_legacy`                                                                                  | `SyncSource::Import`                                                      | `Import`                                  | no              | `"imported-legacy"`             | `Imported`                                  |
+| 9   | `profile_export_toml`                       | `lifecycle.rs:389-397`       | no (in-memory → string)                                                                                | —                                                                         | —                                         | —               | none                            | none (pure serialize)                       |
+| 10  | `profile_save_launch_optimizations`         | `optimizations.rs:69-108`    | `save_launch_optimizations` then reload                                                                | `AppWrite` (only if reload succeeds)                                      | `LaunchOptimizationSave`                  | no              | **none**                        | `Saved` (content change; see health note)   |
+| 11  | `profile_save_mangohud_config`              | `optimizations.rs:112-128`   | `save_profile_section`                                                                                 | `AppWrite`                                                                | `ManualSave`                              | no              | **none**                        | `Saved`                                     |
+| 12  | `profile_save_gamescope_config`             | `optimizations.rs:132-148`   | same                                                                                                   | `AppWrite`                                                                | `ManualSave`                              | no              | **none**                        | `Saved`                                     |
+| 13  | `profile_save_trainer_gamescope_config`     | `optimizations.rs:152-168`   | same, writes `launch.trainer_gamescope`                                                                | `AppWrite`                                                                | `ManualSave`                              | no              | **none**                        | `Saved`                                     |
+| 14  | `profile_list_bundled_optimization_presets` | `optimizations.rs:172-185`   | no; empty vec if metadata unavailable                                                                  | —                                                                         | —                                         | —               | none                            | none (read)                                 |
+| 15  | `profile_apply_bundled_optimization_preset` | `optimizations.rs:189-270`   | `materialize_launch_optimization_preset(..., set_as_active=true)`                                      | `observe_profile_write_launch_change` (`AppWrite`)                        | `PresetApply`                             | no              | `"bundled-optimization-preset"` | `PresetApplied`                             |
+| 16  | `profile_save_manual_optimization_preset`   | `optimizations.rs:273-343`   | `save_manual_launch_optimization_preset`                                                               | same                                                                      | `PresetApply`                             | no              | `"manual-optimization-preset"`  | `PresetApplied`                             |
+| 17  | `profile_save_command_arguments`            | `command_arguments.rs:25-66` | `save_command_arguments`                                                                               | `AppWrite` if reload succeeds                                             | `LaunchCommandArgumentsSave`              | no              | **none**                        | `Saved`                                     |
+| 18  | `profile_config_history`                    | `config_history.rs:107-145`  | no                                                                                                     | —                                                                         | —                                         | —               | none                            | none (read; errors if metadata unavailable) |
+| 19  | `profile_config_diff`                       | `config_history.rs:152-254`  | no                                                                                                     | —                                                                         | —                                         | —               | none                            | none (read)                                 |
+| 20  | `profile_config_rollback`                   | `config_history.rs:260-338`  | `store.save` of parsed snapshot                                                                        | `AppWrite`                                                                | `RollbackApply` with `source_revision_id` | no              | `"rollback"`                    | `RolledBack`                                |
+| 21  | `profile_mark_known_good`                   | `config_history.rs:343-374`  | SQLite flag only                                                                                       | —                                                                         | —                                         | —               | **none**                        | none (not a profile-content change)         |
+| 22  | `profile_set_favorite`                      | `favorites.rs:7-18`          | `profiles.is_favorite` only                                                                            | —                                                                         | —                                         | —               | `"favorite-updated"`            | `FavoriteToggled`                           |
+| 23  | `profile_list_favorites`                    | `favorites.rs:21-26`         | no                                                                                                     | —                                                                         | —                                         | —               | none                            | none (read)                                 |
 
 ### Also in scope, outside the 23
 
-| Command | File:lines | What it does | Observe | Revision | Health | Emit | Target reason |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `protondb_accept_suggestion` | `commands/protondb.rs:108-234` | Catalog: append `enabled_option_ids` if missing. EnvVar: insert `launch.custom_env_vars`. Both `ProfileStore::save`. | `AppWrite` via `observe_suggestion_apply` (`protondb.rs:18-48`) | `ProtonDbSuggestionApply` | no | **none** (no `AppHandle`) | `Saved` (revision source stays `ProtonDbSuggestionApply`) |
-| `apply_proton_migration` | `commands/migration.rs:63-147` | `apply_single_migration` (`profile/migration/apply.rs:12-108`) writes TOML with `write_atomic` on `storage_profile()`, **not** `ProfileStore::save` | `SyncSource::AppMigration` only when outcome is `Applied` | **none** (`ConfigRevisionSource::Migration` exists at `metadata/models.rs:475-496` and is unused) | **yes**: recompute `check_profile_health` and `upsert_health_snapshot` (`migration.rs:108-136`) | **none** | `Migrated` |
-| `apply_batch_migration` | `commands/migration.rs:157-265` | Preflight all paths + loads, then per-item `apply_single_migration`. One failure does not abort the rest. | same, per applied item | none | same upsert, per applied item | **none** | one `Migrated` for the applied names |
+| Command                      | File:lines                      | What it does                                                                                                                                        | Observe                                                         | Revision                                                                                          | Health                                                                                          | Emit                      | Target reason                                             |
+| ---------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------- | --------------------------------------------------------- |
+| `protondb_accept_suggestion` | `commands/protondb.rs:108-234`  | Catalog: append `enabled_option_ids` if missing. EnvVar: insert `launch.custom_env_vars`. Both `ProfileStore::save`.                                | `AppWrite` via `observe_suggestion_apply` (`protondb.rs:18-48`) | `ProtonDbSuggestionApply`                                                                         | no                                                                                              | **none** (no `AppHandle`) | `Saved` (revision source stays `ProtonDbSuggestionApply`) |
+| `apply_proton_migration`     | `commands/migration.rs:63-147`  | `apply_single_migration` (`profile/migration/apply.rs:12-108`) writes TOML with `write_atomic` on `storage_profile()`, **not** `ProfileStore::save` | `SyncSource::AppMigration` only when outcome is `Applied`       | **none** (`ConfigRevisionSource::Migration` exists at `metadata/models.rs:475-496` and is unused) | **yes**: recompute `check_profile_health` and `upsert_health_snapshot` (`migration.rs:108-136`) | **none**                  | `Migrated`                                                |
+| `apply_batch_migration`      | `commands/migration.rs:157-265` | Preflight all paths + loads, then per-item `apply_single_migration`. One failure does not abort the rest.                                           | same, per applied item                                          | none                                                                                              | same upsert, per applied item                                                                   | **none**                  | one `Migrated` for the applied names                      |
 
 `check_proton_migrations` (`migration.rs:24-57`) is read-only and stays a scan.
 
@@ -62,11 +62,11 @@ Registered from `commands/profile/mod.rs` and `src-tauri/src/lib.rs`. “Emit”
 
 These are not named in the issue’s command list, but they import `capture_config_revision` / `emit_profiles_changed` or call `observe_profile_write`. Deleting the shell helpers without migrating them breaks the build.
 
-| Command | File:lines | Notes |
-| --- | --- | --- |
-| `lutris_import_profiles` | `commands/lutris.rs:28-80` | For each `Imported` entry: `observe_profile_write(..., LutrisImport)`, then `capture_config_revision(..., Import)`. Emits `"lutris-import"` once if `imported_count > 0`. Maps to `Imported`. |
-| `community_import_profile` | `commands/community.rs:104-177` | `observe_profile_write(..., Import)` plus a version-snapshot seed. **No** revision capture, **no** event. |
-| Launch success hook | `commands/launch/streaming.rs:380-418` | After a clean/indeterminate exit, `set_known_good_revision` on the latest revision. Not a profile write. Independent of `profile_mark_known_good`. |
+| Command                    | File:lines                             | Notes                                                                                                                                                                                         |
+| -------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lutris_import_profiles`   | `commands/lutris.rs:28-80`             | For each `Imported` entry: `observe_profile_write(..., LutrisImport)`, then `capture_config_revision(..., Import)`. Emits `"lutris-import"` once if `imported_count > 0`. Maps to `Imported`. |
+| `community_import_profile` | `commands/community.rs:104-177`        | `observe_profile_write(..., Import)` plus a version-snapshot seed. **No** revision capture, **no** event.                                                                                     |
+| Launch success hook        | `commands/launch/streaming.rs:380-418` | After a clean/indeterminate exit, `set_known_good_revision` on the latest revision. Not a profile write. Independent of `profile_mark_known_good`.                                            |
 
 `crosshook-cli` and `crosshook-app` bootstrap do not call `observe_profile_write` or `ProfileStore::save`.
 
@@ -196,17 +196,17 @@ Batch (`migration.rs:157-265`): every `new_path` must exist and every profile mu
 
 `MetadataStore::disabled()` (`metadata/store.rs:68-78`) has `available=false`. `with_conn` / `with_conn_mut` return `Ok(T::default())` (`store.rs:216-247`):
 
-| Call | Disabled result | User-visible effect today |
-| --- | --- | --- |
-| `observe_profile_*` | `Ok(())` | save still succeeds; no profiles row |
-| `lookup_profile_id` | `Ok(None)` | revision capture warns “profile_id not found” (only if capture didn’t return at step 1 first — it does, so this warn is skipped) |
-| `insert_config_revision` | `Ok(None)` | no row |
-| `set_profile_favorite` / `list_favorite_profiles` | `Ok(())` / `Ok(vec![])` | favorite command **succeeds and emits**, but the flag is not stored; list is empty |
-| `set_known_good_revision` | `Ok(())` | command succeeds without marking anything — **except** the command checks `is_available()` first and returns an error (`config_history.rs:348-351`) |
-| `upsert_health_snapshot` | `Ok(())` | migration’s lookup returns `None`, so the upsert is not even called |
-| history / diff / rollback | command-level `is_available()` check | hard error, no write |
-| bundled preset apply | hard error | no TOML write |
-| manual preset | TOML write proceeds; metadata upsert skipped | preset exists only in the profile file |
+| Call                                              | Disabled result                              | User-visible effect today                                                                                                                           |
+| ------------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `observe_profile_*`                               | `Ok(())`                                     | save still succeeds; no profiles row                                                                                                                |
+| `lookup_profile_id`                               | `Ok(None)`                                   | revision capture warns “profile_id not found” (only if capture didn’t return at step 1 first — it does, so this warn is skipped)                    |
+| `insert_config_revision`                          | `Ok(None)`                                   | no row                                                                                                                                              |
+| `set_profile_favorite` / `list_favorite_profiles` | `Ok(())` / `Ok(vec![])`                      | favorite command **succeeds and emits**, but the flag is not stored; list is empty                                                                  |
+| `set_known_good_revision`                         | `Ok(())`                                     | command succeeds without marking anything — **except** the command checks `is_available()` first and returns an error (`config_history.rs:348-351`) |
+| `upsert_health_snapshot`                          | `Ok(())`                                     | migration’s lookup returns `None`, so the upsert is not even called                                                                                 |
+| history / diff / rollback                         | command-level `is_available()` check         | hard error, no write                                                                                                                                |
+| bundled preset apply                              | hard error                                   | no TOML write                                                                                                                                       |
+| manual preset                                     | TOML write proceeds; metadata upsert skipped | preset exists only in the profile file                                                                                                              |
 
 Saves must keep succeeding when the store is disabled. History, diff, rollback, mark-known-good, and bundled-preset apply must keep failing closed.
 
@@ -214,16 +214,16 @@ Saves must keep succeeding when the store is disabled. History, diff, rollback, 
 
 Producer (`shared.rs:68-72`): payload is a JSON string. Emit failure is a warning; the command still returns success.
 
-| Literal | Producer |
-| --- | --- |
-| `"saved"` | `profile_save` only |
-| `"deleted"` | `profile_delete` |
-| `"imported-legacy"` | `profile_import_legacy` |
-| `"rollback"` | `profile_config_rollback` |
-| `"bundled-optimization-preset"` | `profile_apply_bundled_optimization_preset` |
-| `"manual-optimization-preset"` | `profile_save_manual_optimization_preset` |
-| `"favorite-updated"` | `profile_set_favorite` |
-| `"lutris-import"` | `lutris_import_profiles` when `imported_count > 0` |
+| Literal                         | Producer                                           |
+| ------------------------------- | -------------------------------------------------- |
+| `"saved"`                       | `profile_save` only                                |
+| `"deleted"`                     | `profile_delete`                                   |
+| `"imported-legacy"`             | `profile_import_legacy`                            |
+| `"rollback"`                    | `profile_config_rollback`                          |
+| `"bundled-optimization-preset"` | `profile_apply_bundled_optimization_preset`        |
+| `"manual-optimization-preset"`  | `profile_save_manual_optimization_preset`          |
+| `"favorite-updated"`            | `profile_set_favorite`                             |
+| `"lutris-import"`               | `lutris_import_profiles` when `imported_count > 0` |
 
 Not emitted, despite a TOML or metadata change: duplicate, rename, all four section/optimization/command-arg saves, ProtonDB accept, both migration commands, community import, mark-known-good. Mocks **do** emit for the silent profile commands (`profile-mutations.ts`, `profile-presets.ts`, `profile-history.ts`) with `{ name, action }`. Real Tauri and the mock bus disagree; listeners ignore the body so browser dev still refreshes.
 
@@ -233,29 +233,29 @@ Target object (issue, not implemented): `AppEvent::ProfilesChanged { reason, nam
 
 Suggested `names` from current identity rules:
 
-| Reason | Names |
-| --- | --- |
-| `Saved` | the saved profile name (trimmed where the command already trims) |
-| `Deleted` | the deleted name |
-| `Renamed { from }` | `from` = old name; `names` = new name (`profile_rename` returns no event today, so this is new) |
-| `Duplicated` | the generated copy name, not the source |
-| `FavoriteToggled` | the toggled name |
-| `RolledBack` | the restored profile name |
-| `PresetApplied` | the profile name (bundled and manual share one reason; the old strings differed) |
-| `Imported` | legacy stem, each Lutris imported name, and [INFERENCE] a community import if that path starts emitting |
-| `Migrated` | applied profile names only; `AlreadyValid` / `Failed` / preflight `Err` emit nothing |
+| Reason             | Names                                                                                                   |
+| ------------------ | ------------------------------------------------------------------------------------------------------- |
+| `Saved`            | the saved profile name (trimmed where the command already trims)                                        |
+| `Deleted`          | the deleted name                                                                                        |
+| `Renamed { from }` | `from` = old name; `names` = new name (`profile_rename` returns no event today, so this is new)         |
+| `Duplicated`       | the generated copy name, not the source                                                                 |
+| `FavoriteToggled`  | the toggled name                                                                                        |
+| `RolledBack`       | the restored profile name                                                                               |
+| `PresetApplied`    | the profile name (bundled and manual share one reason; the old strings differed)                        |
+| `Imported`         | legacy stem, each Lutris imported name, and [INFERENCE] a community import if that path starts emitting |
+| `Migrated`         | applied profile names only; `AlreadyValid` / `Failed` / preflight `Err` emit nothing                    |
 
 ## Five React listeners
 
 All ignore the payload. All treat any emission, including a favorite toggle, as “rescan”.
 
-| # | Hook | Subscribe | On event | Calls `batch_validate_profiles`? | Mounted from |
-| --- | --- | --- | --- | --- | --- |
-| 1 | `src/hooks/useProfileHealth.ts:238-259` | line 241, `subscribeEvent<string>` | line 243 `void batchValidate()` → `callCommand('batch_validate_profiles')` (`useProfileHealth.ts:117-131`) | **yes, every reason** | `ProfileHealthProvider` (`context/ProfileHealthContext.tsx:16`), so it is global. Also revalidates on `launch-complete` (line 245) and `version-scan-complete` (line 249); those stay. |
-| 2 | `src/hooks/useProfile.ts:232-252` | line 234 | `refreshProfiles()` (`useProfileCrud.ts:196`, invokes `profile_list`, and clears the open profile if the list is empty unless a selection is in flight) and `loadFavorites()` (`useProfileCrud.ts:96`, invokes `profile_list_favorites`) | no | `ProfileProvider` (`context/ProfileContext.tsx:33`) |
-| 3 | `src/hooks/useProfileSummaries.ts:38-53` | line 40 | line 44 `fetchSummaries()` → `profile_list_summaries` with the current `collectionId` | no | `GameDetail.tsx:52` |
-| 4 | `src/hooks/useLibrarySummaries.ts:63-77` | line 65 | line 69 `fetchSummaries()` → `profile_list_summaries`, then stamps `isFavorite` from a ref | no | `LibraryPage.tsx:70`, `CollectionViewModal.tsx:51`. A separate effect at lines 82-86 updates favorite flags from the `favoriteProfiles` prop with **no IPC**. |
-| 5 | `src/hooks/useCommunityProfiles.ts:432-455` | line 434 | line 439 `refreshImportedProfileNames()` (`useCommunityProfiles.ts:248-251`) → `profile_list`, stored as a `Set` of sanitized names. It does **not** refetch the community index. | no | `CommunityPage.tsx:8`, `CompatibilityPage.tsx:34`, `CommunityBrowser.tsx:64` |
+| #   | Hook                                        | Subscribe                          | On event                                                                                                                                                                                                                                 | Calls `batch_validate_profiles`? | Mounted from                                                                                                                                                                           |
+| --- | ------------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `src/hooks/useProfileHealth.ts:238-259`     | line 241, `subscribeEvent<string>` | line 243 `void batchValidate()` → `callCommand('batch_validate_profiles')` (`useProfileHealth.ts:117-131`)                                                                                                                               | **yes, every reason**            | `ProfileHealthProvider` (`context/ProfileHealthContext.tsx:16`), so it is global. Also revalidates on `launch-complete` (line 245) and `version-scan-complete` (line 249); those stay. |
+| 2   | `src/hooks/useProfile.ts:232-252`           | line 234                           | `refreshProfiles()` (`useProfileCrud.ts:196`, invokes `profile_list`, and clears the open profile if the list is empty unless a selection is in flight) and `loadFavorites()` (`useProfileCrud.ts:96`, invokes `profile_list_favorites`) | no                               | `ProfileProvider` (`context/ProfileContext.tsx:33`)                                                                                                                                    |
+| 3   | `src/hooks/useProfileSummaries.ts:38-53`    | line 40                            | line 44 `fetchSummaries()` → `profile_list_summaries` with the current `collectionId`                                                                                                                                                    | no                               | `GameDetail.tsx:52`                                                                                                                                                                    |
+| 4   | `src/hooks/useLibrarySummaries.ts:63-77`    | line 65                            | line 69 `fetchSummaries()` → `profile_list_summaries`, then stamps `isFavorite` from a ref                                                                                                                                               | no                               | `LibraryPage.tsx:70`, `CollectionViewModal.tsx:51`. A separate effect at lines 82-86 updates favorite flags from the `favoriteProfiles` prop with **no IPC**.                          |
+| 5   | `src/hooks/useCommunityProfiles.ts:432-455` | line 434                           | line 439 `refreshImportedProfileNames()` (`useCommunityProfiles.ts:248-251`) → `profile_list`, stored as a `Set` of sanitized names. It does **not** refetch the community index.                                                        | no                               | `CommunityPage.tsx:8`, `CompatibilityPage.tsx:34`, `CommunityBrowser.tsx:64`                                                                                                           |
 
 `batch_validate_profiles` (`commands/health/batch.rs:6-10`) delegates to `HealthService::batch_summary` (`services/health/mod.rs:40-44`), which `spawn_blocking`s `batch::build_enriched_health_summary`. That walk **writes** `health_snapshots` for every profile it can resolve (`services/health/batch.rs:96-114`). So a favorite toggle today causes a full health recompute and snapshot rewrite, on the main-thread command path from the listener’s point of view (the command itself is async and the work is on the blocking pool).
 
@@ -339,13 +339,13 @@ Core rules to preserve follow.
 
 ## Success criteria (issue) and where the current behavior lives
 
-| Criterion | Preserve | Evidence to pin tests to |
-| --- | --- | --- |
-| Golden TOML for save, rename, duplicate, rollback | `ProfileStore::save` / `storage_profile` bytes, including the rename display-name second save and rollback’s re-save. Not the revision snapshot string. | `toml_store/store.rs:95-122`, `lifecycle.rs:293-334`, `config_history.rs:297-299`. No goldens exist yet. |
-| SHA-256 dedupe, diff cap, semantic diff | Latest-hash skip; 2000 / 512 KiB / 500; semantic fallback. | `config_history_store/mod.rs:46-64`, `profile/config_diff.rs`, `profile/config_semantic_diff.rs`, command mapping `config_history.rs:195-249`. Core unit tests already cover the algorithms; the service tests have to prove the command still calls them. |
-| Favorite toggle does not call `batch_validate_profiles` | No TOML, no revision, no health upsert on the write. Listener must branch on `FavoriteToggled`. | `favorites.rs:7-18`. No such test today. Pattern: `useProfileHealth.startup.test.ts:60-62`. |
-| Rename and delete keep launcher cleanup and re-export | Native skip, best-effort cleanup, `bool` return, UI timer + `export_launchers`. | `shared.rs:44-65`, `lifecycle.rs:229-251` and `313-325`, `useProfileNotifications.ts:145-172`, `useLauncherExport.ts:96-114`. Shell tests only cover the helper: `commands/profile/tests/lifecycle.rs:35-68`. |
-| Tauri commands delegate; React smoke passes | Command names and serde shapes stay (`oldName`/`newName`, `revisionId`, `presetId`, `collectionId`, camelCase `ProfileSummary`). | `profile/mod.rs` re-exports, `tests/smoke.spec.ts`. |
+| Criterion                                               | Preserve                                                                                                                                                | Evidence to pin tests to                                                                                                                                                                                                                                   |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Golden TOML for save, rename, duplicate, rollback       | `ProfileStore::save` / `storage_profile` bytes, including the rename display-name second save and rollback’s re-save. Not the revision snapshot string. | `toml_store/store.rs:95-122`, `lifecycle.rs:293-334`, `config_history.rs:297-299`. No goldens exist yet.                                                                                                                                                   |
+| SHA-256 dedupe, diff cap, semantic diff                 | Latest-hash skip; 2000 / 512 KiB / 500; semantic fallback.                                                                                              | `config_history_store/mod.rs:46-64`, `profile/config_diff.rs`, `profile/config_semantic_diff.rs`, command mapping `config_history.rs:195-249`. Core unit tests already cover the algorithms; the service tests have to prove the command still calls them. |
+| Favorite toggle does not call `batch_validate_profiles` | No TOML, no revision, no health upsert on the write. Listener must branch on `FavoriteToggled`.                                                         | `favorites.rs:7-18`. No such test today. Pattern: `useProfileHealth.startup.test.ts:60-62`.                                                                                                                                                                |
+| Rename and delete keep launcher cleanup and re-export   | Native skip, best-effort cleanup, `bool` return, UI timer + `export_launchers`.                                                                         | `shared.rs:44-65`, `lifecycle.rs:229-251` and `313-325`, `useProfileNotifications.ts:145-172`, `useLauncherExport.ts:96-114`. Shell tests only cover the helper: `commands/profile/tests/lifecycle.rs:35-68`.                                              |
+| Tauri commands delegate; React smoke passes             | Command names and serde shapes stay (`oldName`/`newName`, `revisionId`, `presetId`, `collectionId`, camelCase `ProfileSummary`).                        | `profile/mod.rs` re-exports, `tests/smoke.spec.ts`.                                                                                                                                                                                                        |
 
 ## Relevant files
 

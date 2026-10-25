@@ -12,19 +12,19 @@ The acceptance criteria in [issue.md](issue.md) are authoritative. Source was re
 
 ### Relevant current implementation
 
-| Location | Verified behavior to preserve |
-| --- | --- |
-| `src-tauri/src/commands/profile/lifecycle.rs:19–402` | List/load/summaries; full save, new-profile settings and default bundled preset, three art imports; delete cleanup; duplicate metadata ancestry; rename launcher cleanup, display-name and last-used-setting update; legacy import; shareable TOML export. |
-| `commands/profile/shared.rs:12–162,223–280` | Launcher path derivation; string event emitter; fail-soft observation/revision helpers; retention fallback; section saves preserve unknown on-disk keys. |
-| `commands/profile/shared.rs:164–221` | `apply_collection_defaults`: absent/empty ID is no-op, corrupt defaults fail loudly, other metadata errors fail open. **Excluded from this move.** |
-| `commands/profile/optimizations.rs:15–328` | DTOs, optimization/preset updates, bundled/user origin metadata. Several saves currently emit no event. |
-| `commands/profile/command_arguments.rs:12–68`, `favorites.rs:1–27` | Argument payload and core validation; favorite is SQLite-only and emits a reason string. |
-| `commands/profile/config_history.rs:17–376` | History DTOs, capped list/diff, scoped rollback integrity verification, rollback lineage, known-good marking. |
-| `commands/protondb.rs:15–48,108–233` | Two accept branches; revalidate catalog env pairs and direct env suggestion at write time, then observe/capture. |
-| `commands/migration.rs:63–265` | Single replacement existence check; batch validates every replacement and loads every profile before any write; per-item failure isolation; current so-called invalidation actually recomputes health synchronously. |
-| `crates/crosshook-core/src/profile/toml_store/store.rs:88–125,129–314,347–491,534–605` | Storage-form TOML, atomic replace, companion-file policies, existing mutation validation/normalization, duplicate naming and rename side effects. |
-| `crates/crosshook-core/src/profile/migration/apply.rs:11–110` | Replacement must be a regular file; valid old path means `AlreadyValid`; direct atomic storage-form write deliberately does **not** update MangoHud companion. |
-| `crates/crosshook-core/src/metadata/config_history_ops.rs:12–145` | Dedupe insertion and HMAC/SHA verification, profile-scoped revision reads and known-good updates. |
+| Location                                                                               | Verified behavior to preserve                                                                                                                                                                                                                              |
+| -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src-tauri/src/commands/profile/lifecycle.rs:19–402`                                   | List/load/summaries; full save, new-profile settings and default bundled preset, three art imports; delete cleanup; duplicate metadata ancestry; rename launcher cleanup, display-name and last-used-setting update; legacy import; shareable TOML export. |
+| `commands/profile/shared.rs:12–162,223–280`                                            | Launcher path derivation; string event emitter; fail-soft observation/revision helpers; retention fallback; section saves preserve unknown on-disk keys.                                                                                                   |
+| `commands/profile/shared.rs:164–221`                                                   | `apply_collection_defaults`: absent/empty ID is no-op, corrupt defaults fail loudly, other metadata errors fail open. **Excluded from this move.**                                                                                                         |
+| `commands/profile/optimizations.rs:15–328`                                             | DTOs, optimization/preset updates, bundled/user origin metadata. Several saves currently emit no event.                                                                                                                                                    |
+| `commands/profile/command_arguments.rs:12–68`, `favorites.rs:1–27`                     | Argument payload and core validation; favorite is SQLite-only and emits a reason string.                                                                                                                                                                   |
+| `commands/profile/config_history.rs:17–376`                                            | History DTOs, capped list/diff, scoped rollback integrity verification, rollback lineage, known-good marking.                                                                                                                                              |
+| `commands/protondb.rs:15–48,108–233`                                                   | Two accept branches; revalidate catalog env pairs and direct env suggestion at write time, then observe/capture.                                                                                                                                           |
+| `commands/migration.rs:63–265`                                                         | Single replacement existence check; batch validates every replacement and loads every profile before any write; per-item failure isolation; current so-called invalidation actually recomputes health synchronously.                                       |
+| `crates/crosshook-core/src/profile/toml_store/store.rs:88–125,129–314,347–491,534–605` | Storage-form TOML, atomic replace, companion-file policies, existing mutation validation/normalization, duplicate naming and rename side effects.                                                                                                          |
+| `crates/crosshook-core/src/profile/migration/apply.rs:11–110`                          | Replacement must be a regular file; valid old path means `AlreadyValid`; direct atomic storage-form write deliberately does **not** update MangoHud companion.                                                                                             |
+| `crates/crosshook-core/src/metadata/config_history_ops.rs:12–145`                      | Dedupe insertion and HMAC/SHA verification, profile-scoped revision reads and known-good updates.                                                                                                                                                          |
 
 ## Ownership and async execution
 
@@ -226,19 +226,19 @@ Reuse `crosshook_app::{AppError, AppErrorKind}`; do not add `ProfileServiceError
 
 Reason/revision mapping:
 
-| Mutation | Reason | Revision source |
-| --- | --- | --- |
-| Full/section save | `Saved` | `ManualSave` |
-| Optimization save/switch | `Saved` | `LaunchOptimizationSave` |
-| Argument save | `Saved` | `LaunchCommandArgumentsSave` |
-| Bundled/manual preset | `PresetApplied` | `PresetApply` |
-| Rollback | `RolledBack` | `RollbackApply` + lineage |
-| Legacy import | `Imported` | `Import` |
-| ProtonDB accept | `Saved` | `ProtonDbSuggestionApply` |
-| Proton migration | `Migrated` | `Migration` |
-| Duplicate | `Duplicated` | `ManualSave` (no dedicated existing enum; no schema change) |
-| Rename/display-name update | `Renamed { from }` | `ManualSave` |
-| Delete/favorite | `Deleted` / `FavoriteToggled` | None |
+| Mutation                   | Reason                        | Revision source                                             |
+| -------------------------- | ----------------------------- | ----------------------------------------------------------- |
+| Full/section save          | `Saved`                       | `ManualSave`                                                |
+| Optimization save/switch   | `Saved`                       | `LaunchOptimizationSave`                                    |
+| Argument save              | `Saved`                       | `LaunchCommandArgumentsSave`                                |
+| Bundled/manual preset      | `PresetApplied`               | `PresetApply`                                               |
+| Rollback                   | `RolledBack`                  | `RollbackApply` + lineage                                   |
+| Legacy import              | `Imported`                    | `Import`                                                    |
+| ProtonDB accept            | `Saved`                       | `ProtonDbSuggestionApply`                                   |
+| Proton migration           | `Migrated`                    | `Migration`                                                 |
+| Duplicate                  | `Duplicated`                  | `ManualSave` (no dedicated existing enum; no schema change) |
+| Rename/display-name update | `Renamed { from }`            | `ManualSave`                                                |
+| Delete/favorite            | `Deleted` / `FavoriteToggled` | None                                                        |
 
 Duplicate/rename currently do not capture revisions or emit events; adding those is the issue's unified-flow behavior, not an existing fact. Document this explicitly in implementation/release notes.
 
@@ -345,13 +345,13 @@ Add a small shared event-policy/parser utility under `src/lib/profileEvents.ts`:
 
 Five listeners and their policies:
 
-| Listener | Current location | New behavior |
-| --- | --- | --- |
-| `useProfileHealth` | `src/hooks/useProfileHealth.ts:239–266` | Guard favorite before any validation IPC; retain state; content reasons validate affected names or existing batch path; conservative resync batches. Launch/version listeners unchanged. |
-| `useProfile` | `src/hooks/useProfile.ts:232–254` | Favorite refreshes favorites only, not profile-name list. Other changes retain list/favorite refresh. Do not reload editor drafts merely because any save event arrived. |
-| `useLibrarySummaries` | `src/hooks/useLibrarySummaries.ts:63–77` | Skip summary refetch for favorite; existing favorite-prop effect updates cards locally (`:80–83`). |
-| `useProfileSummaries` | `src/hooks/useProfileSummaries.ts:38–52` | Skip favorite; refresh summary data for content/membership changes. |
-| `useCommunityProfiles` | `src/hooks/useCommunityProfiles.ts:432–454` | Favorite cannot change imported membership: skip; retain refresh on other reasons conservatively. |
+| Listener               | Current location                            | New behavior                                                                                                                                                                             |
+| ---------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `useProfileHealth`     | `src/hooks/useProfileHealth.ts:239–266`     | Guard favorite before any validation IPC; retain state; content reasons validate affected names or existing batch path; conservative resync batches. Launch/version listeners unchanged. |
+| `useProfile`           | `src/hooks/useProfile.ts:232–254`           | Favorite refreshes favorites only, not profile-name list. Other changes retain list/favorite refresh. Do not reload editor drafts merely because any save event arrived.                 |
+| `useLibrarySummaries`  | `src/hooks/useLibrarySummaries.ts:63–77`    | Skip summary refetch for favorite; existing favorite-prop effect updates cards locally (`:80–83`).                                                                                       |
+| `useProfileSummaries`  | `src/hooks/useProfileSummaries.ts:38–52`    | Skip favorite; refresh summary data for content/membership changes.                                                                                                                      |
+| `useCommunityProfiles` | `src/hooks/useCommunityProfiles.ts:432–454` | Favorite cannot change imported membership: skip; retain refresh on other reasons conservatively.                                                                                        |
 
 Preserve rename's **bool** IPC result. `useProfileCrud.ts:376–406` returns `{ok,hadLauncher}`, and `useProfileNotifications.ts:129–174` sets the existing launcher re-export banner after rename/undo. Do not replace this with automatic backend export or remove the response because the event now has names. Add regression tests for the banner path.
 
@@ -359,7 +359,7 @@ Mocks must stop emitting the current incompatible `{name,action}` shape. Update 
 
 ## Tauri adapter signatures and command inventory
 
-All 25 actual profile commands become async (the issue text says 23; the present exports enumerate **25**). Retain snake_case names and exact JS argument names/response shapes. State parameters become `State<'_, ProfileWriter>` named `service`; no profile command needs `AppHandle` solely for emission. For each method above, the adapter signature is exactly:
+All 25 actual profile commands become async (the issue text says 23; the present exports enumerate **25**). Retain snake*case names and exact JS argument names/response shapes. State parameters become `State<'*, ProfileWriter>`named`service`; no profile command needs `AppHandle` solely for emission. For each method above, the adapter signature is exactly:
 
 ```rust
 #[tauri::command]
@@ -370,31 +370,31 @@ pub async fn profile_save(
 
 The full mapping, with all non-state arguments and successful result types, is:
 
-| Command | Arguments before `service` | `Ok` type / method |
-| --- | --- | --- |
-| `profile_list` | none | `Vec<String>` / `list` |
-| `profile_load` | `name: String, collection_id: Option<String>` | `GameProfile` / `load` + excluded composition |
-| `profile_list_summaries` | `collection_id: Option<String>` | `Vec<ProfileSummary>` / `list_summaries` + excluded branch |
-| `profile_save` | `name: String, data: GameProfile` | `()` / `save` |
-| `profile_delete` | `name: String` | `()` / `delete` |
-| `profile_duplicate` | `name: String` | `DuplicateProfileResult` / `duplicate` |
-| `profile_rename` | `old_name: String, new_name: String` | `bool` / `rename` |
-| `profile_import_legacy` | `path: String` | `GameProfile` / `import_legacy` |
-| `profile_export_toml` | `name: String, data: GameProfile, include_hooks: Option<bool>` | `String` / `export_toml` |
-| `profile_set_favorite` | `name: String, favorite: bool` | `()` / `set_favorite` |
-| `profile_list_favorites` | none | `Vec<String>` / `list_favorites` |
-| `profile_save_launch_optimizations` | `name: String, optimizations: LaunchOptimizationsPayload` | `()` / same suffix method |
-| `profile_save_mangohud_config` | `name: String, config: MangoHudConfig` | `()` / same suffix method |
-| `profile_save_gamescope_config` | `name: String, config: GamescopeConfig` | `()` / same suffix method |
-| `profile_save_trainer_gamescope_config` | `name: String, config: GamescopeConfig` | `()` / same suffix method |
-| `profile_save_command_arguments` | `name: String, command_arguments: CommandArgumentsPayload, resolved_launch_method: Option<String>` | `()` / `save_command_arguments` |
-| `profile_list_bundled_optimization_presets` | none | `Vec<BundledOptimizationPresetDto>` / same suffix method |
-| `profile_apply_bundled_optimization_preset` | `name: String, preset_id: String` | `GameProfile` / same suffix method |
-| `profile_save_manual_optimization_preset` | `name: String, preset_name: String, enabled_option_ids: Vec<String>` | `GameProfile` / same suffix method |
-| `profile_config_history` | `name: String, limit: Option<usize>` | `Vec<ConfigRevisionSummary>` / `config_history` |
-| `profile_config_diff` | `name: String, revision_id: i64, right_revision_id: Option<i64>, mode: Option<String>` | `ConfigDiffResult` / `config_diff` |
-| `profile_config_rollback` | `name: String, revision_id: i64` | `ConfigRollbackResult` / `config_rollback` |
-| `profile_mark_known_good` | `name: String, revision_id: i64` | `()` / `mark_known_good` |
+| Command                                     | Arguments before `service`                                                                         | `Ok` type / method                                         |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `profile_list`                              | none                                                                                               | `Vec<String>` / `list`                                     |
+| `profile_load`                              | `name: String, collection_id: Option<String>`                                                      | `GameProfile` / `load` + excluded composition              |
+| `profile_list_summaries`                    | `collection_id: Option<String>`                                                                    | `Vec<ProfileSummary>` / `list_summaries` + excluded branch |
+| `profile_save`                              | `name: String, data: GameProfile`                                                                  | `()` / `save`                                              |
+| `profile_delete`                            | `name: String`                                                                                     | `()` / `delete`                                            |
+| `profile_duplicate`                         | `name: String`                                                                                     | `DuplicateProfileResult` / `duplicate`                     |
+| `profile_rename`                            | `old_name: String, new_name: String`                                                               | `bool` / `rename`                                          |
+| `profile_import_legacy`                     | `path: String`                                                                                     | `GameProfile` / `import_legacy`                            |
+| `profile_export_toml`                       | `name: String, data: GameProfile, include_hooks: Option<bool>`                                     | `String` / `export_toml`                                   |
+| `profile_set_favorite`                      | `name: String, favorite: bool`                                                                     | `()` / `set_favorite`                                      |
+| `profile_list_favorites`                    | none                                                                                               | `Vec<String>` / `list_favorites`                           |
+| `profile_save_launch_optimizations`         | `name: String, optimizations: LaunchOptimizationsPayload`                                          | `()` / same suffix method                                  |
+| `profile_save_mangohud_config`              | `name: String, config: MangoHudConfig`                                                             | `()` / same suffix method                                  |
+| `profile_save_gamescope_config`             | `name: String, config: GamescopeConfig`                                                            | `()` / same suffix method                                  |
+| `profile_save_trainer_gamescope_config`     | `name: String, config: GamescopeConfig`                                                            | `()` / same suffix method                                  |
+| `profile_save_command_arguments`            | `name: String, command_arguments: CommandArgumentsPayload, resolved_launch_method: Option<String>` | `()` / `save_command_arguments`                            |
+| `profile_list_bundled_optimization_presets` | none                                                                                               | `Vec<BundledOptimizationPresetDto>` / same suffix method   |
+| `profile_apply_bundled_optimization_preset` | `name: String, preset_id: String`                                                                  | `GameProfile` / same suffix method                         |
+| `profile_save_manual_optimization_preset`   | `name: String, preset_name: String, enabled_option_ids: Vec<String>`                               | `GameProfile` / same suffix method                         |
+| `profile_config_history`                    | `name: String, limit: Option<usize>`                                                               | `Vec<ConfigRevisionSummary>` / `config_history`            |
+| `profile_config_diff`                       | `name: String, revision_id: i64, right_revision_id: Option<i64>, mode: Option<String>`             | `ConfigDiffResult` / `config_diff`                         |
+| `profile_config_rollback`                   | `name: String, revision_id: i64`                                                                   | `ConfigRollbackResult` / `config_rollback`                 |
+| `profile_mark_known_good`                   | `name: String, revision_id: i64`                                                                   | `()` / `mark_known_good`                                   |
 
 **Count correction:** the table is 23 commands, matching the issue; count the exported functions, not their duplicated Tauri macro re-exports. Additional named cutover commands are `protondb_accept_suggestion(request: AcceptSuggestionRequest, service: State<'_, ProfileWriter>) -> Result<AcceptSuggestionResult,String>`, `apply_proton_migration(request: ApplyMigrationRequest, service: State<'_, ProfileWriter>) -> Result<MigrationApplyResult,String>` and `apply_batch_migration(request: BatchMigrationRequest, service: State<'_, ProfileWriter>) -> Result<BatchMigrationResult,String>`, all `pub async fn`. `profile_load`/summary collection branch additionally retain `metadata_store: State<'_, MetadataStore>` for the excluded helper. `lutris_import_profiles` retains its established input/importer stores and adds service state for `record_imports`; making that adapter async is required to await it.
 

@@ -14,20 +14,20 @@ unless they start with `docs/`. All repo facts were read from the worktree
 **Bottom line: the refactor needs zero new crates (Rust or npm).** Every pattern the issue asks for is
 already established in this repo, and each has a direct precedent to copy.
 
-| Question | Answer | Precedent in repo |
-|---|---|---|
-| Wrap sync stores in async API | `tokio::task::spawn_blocking`; panics/cancellation → `AppError` via `From<JoinError>` | `crates/crosshook-app/src/services/mod.rs:31-37` (`run_blocking`), `error.rs:68-77` |
-| Event bus lag | `tokio::sync::broadcast` bounded (256); lagged receiver gets `RecvError::Lagged(n)`, mapped to `AppEvent::Resync { missed }` | `crates/crosshook-app/src/events.rs`, tests in `events/tests.rs` (`lag_yields_resync_then_retained_tail`) |
-| `ProfileChangeReason` serialization | `#[serde(tag = "kind", rename_all = "snake_case")]` internally-tagged enum; `Renamed { from }` → `{"kind":"renamed","from":"Old"}` | `JobState` (`bootstrap/report.rs:120-122`, `tag="state"`), `AcceptSuggestionRequest` (`crosshook-core/src/protondb/suggestions.rs:73-75`, `tag="kind"`), `MetadataStatus` |
-| Tauri v2 `emit` of objects | `Emitter::emit(event, payload)` takes any `Serialize + Clone`; JSON-serialized; JS `listen<T>` gets the parsed object as `event.payload` | `src-tauri/src/startup_bridge.rs` emits `FinishedPayload { job, state }` the same way |
-| Golden-file testing | **Plain fixture files + `fs::read` + `assert_eq!`** — `insta`/`expect-test`/`goldenfile` are **not** in `Cargo.lock` or any `Cargo.toml`; the repo already has one golden test | `crates/crosshook-core/tests/launch_request_golden.rs` + `tests/fixtures/launch_request/*.json` |
-| Vitest listener tests | Two repo patterns: (a) `vi.mock('@/lib/events')` capturing handlers; (b) real `@/lib/events` adapter + `emitMockEvent` / `resetBrowserEventBus`. Call-counter = `mockCallCommand.mock.calls.filter(c => c[0] === 'batch_validate_profiles')` | `src/hooks/__tests__/useProfileSummaries.test.ts`, `useProfileHealth.startup.test.ts` |
+| Question                            | Answer                                                                                                                                                                                                                                       | Precedent in repo                                                                                                                                                         |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Wrap sync stores in async API       | `tokio::task::spawn_blocking`; panics/cancellation → `AppError` via `From<JoinError>`                                                                                                                                                        | `crates/crosshook-app/src/services/mod.rs:31-37` (`run_blocking`), `error.rs:68-77`                                                                                       |
+| Event bus lag                       | `tokio::sync::broadcast` bounded (256); lagged receiver gets `RecvError::Lagged(n)`, mapped to `AppEvent::Resync { missed }`                                                                                                                 | `crates/crosshook-app/src/events.rs`, tests in `events/tests.rs` (`lag_yields_resync_then_retained_tail`)                                                                 |
+| `ProfileChangeReason` serialization | `#[serde(tag = "kind", rename_all = "snake_case")]` internally-tagged enum; `Renamed { from }` → `{"kind":"renamed","from":"Old"}`                                                                                                           | `JobState` (`bootstrap/report.rs:120-122`, `tag="state"`), `AcceptSuggestionRequest` (`crosshook-core/src/protondb/suggestions.rs:73-75`, `tag="kind"`), `MetadataStatus` |
+| Tauri v2 `emit` of objects          | `Emitter::emit(event, payload)` takes any `Serialize + Clone`; JSON-serialized; JS `listen<T>` gets the parsed object as `event.payload`                                                                                                     | `src-tauri/src/startup_bridge.rs` emits `FinishedPayload { job, state }` the same way                                                                                     |
+| Golden-file testing                 | **Plain fixture files + `fs::read` + `assert_eq!`** — `insta`/`expect-test`/`goldenfile` are **not** in `Cargo.lock` or any `Cargo.toml`; the repo already has one golden test                                                               | `crates/crosshook-core/tests/launch_request_golden.rs` + `tests/fixtures/launch_request/*.json`                                                                           |
+| Vitest listener tests               | Two repo patterns: (a) `vi.mock('@/lib/events')` capturing handlers; (b) real `@/lib/events` adapter + `emitMockEvent` / `resetBrowserEventBus`. Call-counter = `mockCallCommand.mock.calls.filter(c => c[0] === 'batch_validate_profiles')` | `src/hooks/__tests__/useProfileSummaries.test.ts`, `useProfileHealth.startup.test.ts`                                                                                     |
 
 Highest-value findings for the plan (details in later sections):
 
 1. **Publish the event from inside the blocking closure (or accept that a dropped caller future skips it).**
    A `spawn_blocking` closure keeps running after the awaiting future is dropped
-   (`abort` is a no-op once started). Anything done *after* `.await` is not guaranteed to run.
+   (`abort` is a no-op once started). Anything done _after_ `.await` is not guaranteed to run.
    `EventBus::publish` is synchronous, so it can be called from the closure.
 2. **`Resync` currently has no profile-change meaning.** `startup_bridge.rs:121-130` handles `Resync`
    only by re-emitting startup-job terminal events. A lagged bridge would silently drop
@@ -36,9 +36,9 @@ Highest-value findings for the plan (details in later sections):
 3. **All writes to one profile must be serialized.** `ProfileStore` docs say "the last completed write
    wins" (`store.rs:128-129,191`). With every command now on the blocking pool, concurrent
    load→mutate→save sequences for the same profile can interleave. Put a writer-level
-   `std::sync::Mutex<()>` *inside* the blocking closure.
+   `std::sync::Mutex<()>` _inside_ the blocking closure.
 4. **The real wire payload changes shape (string → object); the browser mocks already emit a
-   *different* object (`{name, action}`) and listeners are typed `subscribeEvent<string>`.** Five hooks
+   _different_ object (`{name, action}`) and listeners are typed `subscribeEvent<string>`.** Five hooks
    plus ~15 mock call sites must move to one shared type + parser.
 5. **Golden fixtures must be captured from pre-refactor code**, then committed as plain files. Since
    `ProfileWriter` still calls `ProfileStore::save` (`toml::to_string_pretty(&storage_profile)` →
@@ -56,34 +56,34 @@ No external service APIs: the refactor uses only in-workspace crates (tokio, ser
 
 ### Already in the workspace — use these
 
-| Crate / package | Version (lock) | Where declared | Use in this refactor |
-|---|---|---|---|
-| `tokio` | 1.51.0 | `crosshook-app` deps: `rt-multi-thread, sync, time, macros, process`; dev: `test-util, macros, rt, io-util` | `spawn_blocking`, `broadcast`, `#[tokio::test]` |
-| `serde` (+`derive`) | 1 | `crosshook-app` deps | `Serialize` on `ProfileChangeReason` and the Tauri payload struct |
-| `serde_json` | 1.0.149 | `crosshook-app` **dev-deps only**; `src-tauri` deps | wire-shape tests (`serde_json::to_value`) as in `startup_bridge/tests.rs` and `health/tests.rs::health_wire_shape_*` |
-| `toml` | 1.1.2 (`1.1.0` req) | `crosshook-app` **dev-deps**; core deps | read fixtures / compare parsed form in diagnostics only; byte equality is asserted on raw bytes |
-| `tempfile` | 3 | `crosshook-app` dev-deps | tempdir `ProfileStore` + `MetadataStore::try_new` DB (enabled) |
-| `sha2` 0.11 via `crosshook_core::metadata::sha256_hex` | — | re-exported at `metadata/mod.rs:150` | recompute expected revision hash in tests; do **not** add `sha2` to `crosshook-app` |
-| `similar` | 2.7.0 | `crosshook-core` deps (`profile/config_diff.rs`) | unified diff + 2000-line / 512 KiB caps already implemented in core (`DIFF_MAX_LINES`, `MAX_DIFF_OUTPUT_BYTES`, `cap_diff_output_bytes`); the service only calls it inside `spawn_blocking` |
-| `thiserror`, `tracing` | 2 / 0.1 | `crosshook-app` deps | error mapping, "revisions skipped" warning |
+| Crate / package                                        | Version (lock)      | Where declared                                                                                              | Use in this refactor                                                                                                                                                                        |
+| ------------------------------------------------------ | ------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tokio`                                                | 1.51.0              | `crosshook-app` deps: `rt-multi-thread, sync, time, macros, process`; dev: `test-util, macros, rt, io-util` | `spawn_blocking`, `broadcast`, `#[tokio::test]`                                                                                                                                             |
+| `serde` (+`derive`)                                    | 1                   | `crosshook-app` deps                                                                                        | `Serialize` on `ProfileChangeReason` and the Tauri payload struct                                                                                                                           |
+| `serde_json`                                           | 1.0.149             | `crosshook-app` **dev-deps only**; `src-tauri` deps                                                         | wire-shape tests (`serde_json::to_value`) as in `startup_bridge/tests.rs` and `health/tests.rs::health_wire_shape_*`                                                                        |
+| `toml`                                                 | 1.1.2 (`1.1.0` req) | `crosshook-app` **dev-deps**; core deps                                                                     | read fixtures / compare parsed form in diagnostics only; byte equality is asserted on raw bytes                                                                                             |
+| `tempfile`                                             | 3                   | `crosshook-app` dev-deps                                                                                    | tempdir `ProfileStore` + `MetadataStore::try_new` DB (enabled)                                                                                                                              |
+| `sha2` 0.11 via `crosshook_core::metadata::sha256_hex` | —                   | re-exported at `metadata/mod.rs:150`                                                                        | recompute expected revision hash in tests; do **not** add `sha2` to `crosshook-app`                                                                                                         |
+| `similar`                                              | 2.7.0               | `crosshook-core` deps (`profile/config_diff.rs`)                                                            | unified diff + 2000-line / 512 KiB caps already implemented in core (`DIFF_MAX_LINES`, `MAX_DIFF_OUTPUT_BYTES`, `cap_diff_output_bytes`); the service only calls it inside `spawn_blocking` |
+| `thiserror`, `tracing`                                 | 2 / 0.1             | `crosshook-app` deps                                                                                        | error mapping, "revisions skipped" warning                                                                                                                                                  |
 
 ### Frontend (already present)
 
-| Package | Version | Use |
-|---|---|---|
-| `vitest` | ^4.1.12 (`happy-dom` env; `vitest.config.ts`) | listener tests |
-| `@testing-library/react` | ^16.3.2 | `renderHook`, `act`, `waitFor` |
-| `@tauri-apps/api` | ^2.11.0 | `listen` (dynamically imported by `src/lib/events.ts:7-12`) |
-| `@playwright/test` | ^1.60.0 | `npm run test:smoke` (browser mocks) |
+| Package                  | Version                                       | Use                                                         |
+| ------------------------ | --------------------------------------------- | ----------------------------------------------------------- |
+| `vitest`                 | ^4.1.12 (`happy-dom` env; `vitest.config.ts`) | listener tests                                              |
+| `@testing-library/react` | ^16.3.2                                       | `renderHook`, `act`, `waitFor`                              |
+| `@tauri-apps/api`        | ^2.11.0                                       | `listen` (dynamically imported by `src/lib/events.ts:7-12`) |
+| `@playwright/test`       | ^1.60.0                                       | `npm run test:smoke` (browser mocks)                        |
 
 ### Considered and **not recommended**
 
-| Candidate | Why not |
-|---|---|
-| `insta` (snapshot testing, https://insta.rs/docs/quickstart/) | Not in `Cargo.lock` (grep for `insta`, `expect-test`, `goldenfile`, `pretty_assertions`, `proptest` → no matches). Adds a dev-dep, `.snap` metadata headers and a `cargo-insta` review workflow; the acceptance criterion is *byte-identical TOML*, and insta stores text with a YAML front-matter header and normalizes trailing newlines for text snapshots — not suitable as a byte oracle without extra care [INFERENCE from insta docs; not tested]. The repo's existing golden test uses plain files. Also CI behaviour depends on `CI` env var. |
-| `expect-test`, `goldenfile` | Same: new dependency for something three lines of `fs::read` + `assert_eq!` do. |
-| `tokio-test`, `mockall` | Not needed; the call-counter requirement is satisfied on the frontend (Vitest) and by asserting published events on the Rust side (see below). |
-| `rayon` / semaphore for blocking pool | Tokio docs recommend a semaphore for *many CPU-bound* blocking tasks; profile writes are short and I/O bound (single TOML file + SQLite). A per-writer mutex (below) is the only limiter needed. |
+| Candidate                                                     | Why not                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `insta` (snapshot testing, https://insta.rs/docs/quickstart/) | Not in `Cargo.lock` (grep for `insta`, `expect-test`, `goldenfile`, `pretty_assertions`, `proptest` → no matches). Adds a dev-dep, `.snap` metadata headers and a `cargo-insta` review workflow; the acceptance criterion is _byte-identical TOML_, and insta stores text with a YAML front-matter header and normalizes trailing newlines for text snapshots — not suitable as a byte oracle without extra care [INFERENCE from insta docs; not tested]. The repo's existing golden test uses plain files. Also CI behaviour depends on `CI` env var. |
+| `expect-test`, `goldenfile`                                   | Same: new dependency for something three lines of `fs::read` + `assert_eq!` do.                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `tokio-test`, `mockall`                                       | Not needed; the call-counter requirement is satisfied on the frontend (Vitest) and by asserting published events on the Rust side (see below).                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `rayon` / semaphore for blocking pool                         | Tokio docs recommend a semaphore for _many CPU-bound_ blocking tasks; profile writes are short and I/O bound (single TOML file + SQLite). A per-writer mutex (below) is the only limiter needed.                                                                                                                                                                                                                                                                                                                                                       |
 
 ---
 
@@ -133,7 +133,7 @@ Semantics that matter for the writer (tokio `spawn_blocking` docs):
   (`metadata/store.rs:187-189`). So: **a panic in a revision-capture path degrades all later metadata
   operations until restart** — the writer must not `unwrap()`/`expect()` inside closures that hold or
   call the store.
-- **Ordering/atomicity of the pipeline** must live in *one* closure: validate → load → mutate →
+- **Ordering/atomicity of the pipeline** must live in _one_ closure: validate → load → mutate →
   save → `observe_profile_write` → `capture_config_revision` → health invalidate → publish. Splitting
   it across multiple `run_blocking` calls (each `await`) opens races and drop-points.
 
@@ -150,17 +150,17 @@ Semantics that matter for the writer (tokio `spawn_blocking` docs):
 
 **Recommended additions** (all inside existing conventions):
 
-- Log panics *server-side* before sanitizing. `From<JoinError>` cannot log (no context). Either
+- Log panics _server-side_ before sanitizing. `From<JoinError>` cannot log (no context). Either
   add a `run_blocking`-adjacent helper `run_blocking_named(op: &'static str, …)` that logs
   `tracing::error!(op, is_panic = e.is_panic(), "…")` on `Err(JoinError)` before converting, or
   accept the status quo (`bootstrap/scans.rs:10-13` logs raw join errors at the call site).
-  *Open question 1.*
+  _Open question 1._
 - **Per-writer lock.** Since every public fn becomes async and Tauri commands run concurrently
   (Tauri async commands run on its runtime), two quick `Save`+`Favorite` calls on the same profile
   can interleave their load/save halves. `ProfileStore` explicitly does not serialize
   (`store.rs:128-129`, `:191`: "writes to the same profile are not synchronized; the last completed
   write wins"). Hold a `std::sync::Mutex<()>` (global, or keyed per name via
-  `Mutex<HashMap<String, Arc<Mutex<()>>>>`) *inside* the closure. Use
+  `Mutex<HashMap<String, Arc<Mutex<()>>>>`) _inside_ the closure. Use
   `lock().unwrap_or_else(std::sync::PoisonError::into_inner)` — the guarded value is `()`, so
   poisoning carries no invariant. A `tokio::sync::Mutex` held across the `.await` also works but
   would be held while the caller waits for the pool; the in-closure std mutex only blocks a pool thread.
@@ -173,8 +173,8 @@ Semantics that matter for the writer (tokio `spawn_blocking` docs):
 Facts (tokio `sync::broadcast` docs + repo implementation):
 
 - Bounded ring of `capacity` messages; **a send when full drops the oldest**; the slow receiver's
-  next `recv` returns `Err(RecvError::Lagged(n))` and its cursor jumps to the *oldest retained*
-  value; the next `recv` returns that value. New receivers see only events sent *after* `subscribe`.
+  next `recv` returns `Err(RecvError::Lagged(n))` and its cursor jumps to the _oldest retained_
+  value; the next `recv` returns that value. New receivers see only events sent _after_ `subscribe`.
 - Values are stored once and **cloned per receiver on demand** → `AppEvent: Clone` is required (it
   is; `events.rs` derives `Debug, Clone, PartialEq, Eq` and `#[non_exhaustive]`). Keep
   `ProfilesChanged.names: Vec<String>` small; bulk operations should emit **one** event with many
@@ -185,8 +185,8 @@ Facts (tokio `sync::broadcast` docs + repo implementation):
   `Some(AppEvent::Resync { missed })` and `Closed` to `None`. Default capacity
   `DEFAULT_EVENT_CAPACITY = 256`, max `1 << 20`.
 - Existing consumer: `src-tauri/src/startup_bridge.rs:119-135` — `while let Some(event) =
-  rx.recv().await { match event { StartupJobFinished{job} => …, Resync{..} => re-emit all bridged
-  jobs, _ => {} } }`. The receiver is created **before** `tauri::Builder` in `src-tauri/src/lib.rs:32`
+rx.recv().await { match event { StartupJobFinished{job} => …, Resync{..} => re-emit all bridged
+jobs, _ => {} } }`. The receiver is created **before** `tauri::Builder` in `src-tauri/src/lib.rs:32`
   (`core.subscribe()`) and moved into the `.setup()` closure (`lib.rs:46-48`), so events published
   during bootstrap are not lost to a late subscribe.
 
@@ -194,7 +194,7 @@ Implications for `ProfilesChanged`:
 
 - **Add a `ProfilesChanged` arm to the same bridge loop (or a second receiver/bridge).** One bridge
   with one receiver is simplest and keeps `Resync` handling in one place; two receivers each see the
-  same `Resync` independently, which is also fine. *Open question 2.*
+  same `Resync` independently, which is also fine. _Open question 2._
 - **Define `Resync` → profiles behaviour.** After a lag the bridge cannot know which profiles
   changed. Recommended: on `Resync`, additionally `emit("profiles-changed", { reason: {kind:"saved"}… })`
   is wrong semantically; better to either (a) add a `ProfileChangeReason::Resync`-style variant (not
@@ -203,12 +203,12 @@ Implications for `ProfilesChanged`:
   startup jobs only; without this, profile UIs could stay stale after a burst (e.g. a Lutris import
   of >256 profiles emitting per-profile events; one coalesced event avoids this).
 - **Ordering vs. IPC response.** Previously `emit_profiles_changed(&app, …)` ran synchronously
-  inside the command, *before* the `invoke` result was returned
+  inside the command, _before_ the `invoke` result was returned
   (`commands/profile/lifecycle.rs:224`, `favorites.rs:16`, …). With publish → broadcast → bridge task →
-  `app.emit`, the event is emitted asynchronously, so it may arrive *after* the `invoke` promise
+  `app.emit`, the event is emitted asynchronously, so it may arrive _after_ the `invoke` promise
   resolves. Frontend hooks that call `save()` then rely on the event to refetch are fine (they
   refetch on arrival); hooks that assume the event already fired when the promise resolves are not.
-  I did not audit all call sites (`useProfile.ts:233` and the mock handlers only). *Open question 3.*
+  I did not audit all call sites (`useProfile.ts:233` and the mock handlers only). _Open question 3._
 - Tauri's own caveat: listeners are called in registration order but async listeners processing
   rapid events may complete out of order (Tauri docs, "Event ordering and async listeners"). For
   `profiles-changed` listeners that just `void refetch()` this is harmless.
@@ -216,23 +216,23 @@ Implications for `ProfilesChanged`:
 ### 3. Serde tagged enum for `ProfileChangeReason`
 
 Serde representations (serde.rs/enum-representations): internally tagged
-(`#[serde(tag = "kind")]`) puts the tag *inside* the object next to variant fields; works for
+(`#[serde(tag = "kind")]`) puts the tag _inside_ the object next to variant fields; works for
 struct, newtype-of-struct/map, and **unit** variants; a tuple variant is a **compile-time error**.
 So `Renamed { from: String }` must be a struct variant (not `Renamed(String)`), which matches the
 issue (`Renamed { from }`).
 
 Repo conventions for tagged enums crossing IPC:
 
-| Type | Attributes | Wire |
-|---|---|---|
-| `JobState<T>` (`crosshook-app/src/bootstrap/report.rs:120-122`) | `Serialize`, `#[serde(tag="state", rename_all="snake_case")]` | `{"state":"complete","data":…}` |
-| `MetadataStatus` (`crosshook-core/src/metadata/models.rs:47-49`) | `tag="state", rename_all="snake_case"` | `{"state":"newer_schema","found":…}` |
-| `AcceptSuggestionRequest` (`crosshook-core/src/protondb/suggestions.rs:73-75`) | `tag="kind", rename_all="snake_case"` | + per-variant `rename_all="camelCase"` on fields |
-| `StartupJobKind` (`events.rs`) | `rename_all="snake_case"` on a unit enum | `"health_batch"` |
-| `startup-job-finished` payload | `FinishedPayload { job, state }` (snake_case fields) | `{"job":"health_batch","state":"complete"}` |
+| Type                                                                           | Attributes                                                    | Wire                                             |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------- | ------------------------------------------------ |
+| `JobState<T>` (`crosshook-app/src/bootstrap/report.rs:120-122`)                | `Serialize`, `#[serde(tag="state", rename_all="snake_case")]` | `{"state":"complete","data":…}`                  |
+| `MetadataStatus` (`crosshook-core/src/metadata/models.rs:47-49`)               | `tag="state", rename_all="snake_case"`                        | `{"state":"newer_schema","found":…}`             |
+| `AcceptSuggestionRequest` (`crosshook-core/src/protondb/suggestions.rs:73-75`) | `tag="kind", rename_all="snake_case"`                         | + per-variant `rename_all="camelCase"` on fields |
+| `StartupJobKind` (`events.rs`)                                                 | `rename_all="snake_case"` on a unit enum                      | `"health_batch"`                                 |
+| `startup-job-finished` payload                                                 | `FinishedPayload { job, state }` (snake_case fields)          | `{"job":"health_batch","state":"complete"}`      |
 
 **Recommended shape** (matches `tag="kind"` precedent from `AcceptSuggestionRequest`, snake_case
-variant *and* field names, matching the other bridge events and the health/startup TS types which use
+variant _and_ field names, matching the other bridge events and the health/startup TS types which use
 `snake_case`; `ProfileSummary` is the camelCase exception — don't copy it):
 
 ```jsonc
@@ -244,7 +244,7 @@ variant *and* field names, matching the other bridge events and the health/start
 
 Serde gotchas relevant here:
 
-- `rename_all` on the enum renames *variants*; variant struct *fields* need a separate
+- `rename_all` on the enum renames _variants_; variant struct _fields_ need a separate
   `#[serde(rename_all = "snake_case")]` on the variant (already snake in Rust, so a no-op for `from`).
 - Internally tagged enums are `Serialize`-only for our needs. Deserialization (needed only if
   Rust tests round-trip) buffers content; fine for a test but unnecessary — assert with
@@ -256,7 +256,7 @@ Serde gotchas relevant here:
   variant — but Tauri `emit` needs `Clone`) **in `src-tauri`**, like `FinishedPayload`.
 - Tag-name collisions: a struct variant field called `kind` would collide with `tag = "kind"` — avoid.
 - Keep `Eq` derivable: `ProfileChangeReason` contains only `String`s.
-- Unit variants under `tag="kind"` serialize as `{"kind":"saved"}` — an *object*, never a bare string.
+- Unit variants under `tag="kind"` serialize as `{"kind":"saved"}` — an _object_, never a bare string.
   That is deliberate (uniform type for TS discriminated unions) and the reason the old string payload
   `"saved"` is not wire-compatible.
 
@@ -266,7 +266,7 @@ From https://v2.tauri.app/develop/calling-frontend/ and docs.rs `tauri::Emitter`
 
 - `Emitter::emit<S: Serialize + Clone>(&self, event: &str, payload: S) -> tauri::Result<()>` emits
   to **all targets** (global event). `emit_str(event, String)` takes an already-serialized JSON
-  string ("payload is json serialized") — the way to serialize *once* and emit to multiple targets.
+  string ("payload is json serialized") — the way to serialize _once_ and emit to multiple targets.
   (The `Serialize + Clone` bound is from the Tauri guide text "any serializable type that also
   implements Clone"; docs.rs's rustdoc-JSON rendering omitted the bounds.)
 - "Event payloads are always JSON strings" on the wire; the JS side's `listen<T>(name, cb)` gives
@@ -292,7 +292,7 @@ From https://v2.tauri.app/develop/calling-frontend/ and docs.rs `tauri::Emitter`
   sorted, with `assert!(!paths.is_empty())` so an empty/missing dir fails loudly.
 - Shared with a TS test (`src/utils/__tests__/launchRequestGolden.test.ts`) — fixture is the contract.
 - No regenerate-on-env mechanism was visible in the portion I read (lines 38-100 of the file; the
-  middle `check_case` body was elided in my view) — *unverified*.
+  middle `check_case` body was elided in my view) — _unverified_.
 
 **Plan for profile goldens** (crosshook-app integration or unit tests; both dev-deps exist):
 
@@ -313,7 +313,7 @@ From https://v2.tauri.app/develop/calling-frontend/ and docs.rs `tauri::Emitter`
 - Deterministic inputs only: profiles with fixed fields; `GameProfile::storage_profile()` strips
   runtime-only data; `toml::to_string_pretty` ordering is struct-field order (deterministic).
   **Avoid** fixtures that include `HashMap`-typed fields with >1 entry unless confirmed sorted
-  (BTreeMap) — *unverified; check `GameProfile` field types when writing fixtures.*
+  (BTreeMap) — _unverified; check `GameProfile` field types when writing fixtures._
 - SHA-256 dedupe: assert against `crosshook_core::metadata::sha256_hex(fixture_bytes)` and
   `MetadataStore::list_config_revisions` row count after two identical commits = 1
   (`insert_config_revision` dedupes against `ORDER BY id DESC LIMIT 1`,
@@ -326,7 +326,7 @@ From https://v2.tauri.app/develop/calling-frontend/ and docs.rs `tauri::Emitter`
   and surfaced" criterion must assert whatever signal the service returns, not infer it from errors.
   (Mirrors `health/tests.rs::batch_and_cached_snapshots_work_without_metadata`.)
 
-If a human-reviewable text snapshot of *non-byte* structures is later wanted (semantic diff output,
+If a human-reviewable text snapshot of _non-byte_ structures is later wanted (semantic diff output,
 event JSON), `similar` is already present; `insta` would be the standard choice, but it is an extra
 dependency decision for the user, not this issue.
 
@@ -341,9 +341,9 @@ Two patterns already in the repo:
 
 1. **Capture handlers via module mock** — `src/hooks/__tests__/useProfileSummaries.test.ts`:
    `vi.mock('@/lib/events', () => ({ subscribeEvent: vi.fn((name, handler) => { …push to
-   capturedHandlers…; return Promise.resolve(mockUnlisten); }) }))`; helper
+capturedHandlers…; return Promise.resolve(mockUnlisten); }) }))`; helper
    `emitProfilesChanged()` iterates handlers calling `handler({event:'profiles-changed', id:0,
-   payload:''})` (lines 12-17, 51-56). Needs `await act(async () => { await Promise.resolve(); })`
+payload:''})` (lines 12-17, 51-56). Needs `await act(async () => { await Promise.resolve(); })`
    so the `subscribeEvent` promise resolves before emitting (lines 98-101). Also asserts `unlisten`
    is called on unmount.
 2. **Real adapter + `emitMockEvent`** — `useProfileHealth.startup.test.ts` (imports
@@ -373,7 +373,7 @@ it('skips batch_validate_profiles for favorite_toggled but runs it for saved', a
     emitMockEvent('profiles-changed', { reason: { kind: 'favorite_toggled' }, names: ['Alpha'] });
   });
   await settleReport();
-  expect(batchCalls()).toHaveLength(0);          // negative: needs a drain, not just waitFor
+  expect(batchCalls()).toHaveLength(0); // negative: needs a drain, not just waitFor
 
   await act(async () => {
     emitMockEvent('profiles-changed', { reason: { kind: 'saved' }, names: ['Alpha'] });
@@ -384,20 +384,20 @@ it('skips batch_validate_profiles for favorite_toggled but runs it for saved', a
 
 Notes:
 
-- A *negative* assertion needs a drain (`settleReport()` pattern or `vi.runAllTimersAsync`), else it
+- A _negative_ assertion needs a drain (`settleReport()` pattern or `vi.runAllTimersAsync`), else it
   passes vacuously before the handler could have run. The positive control (same test, `saved` →
   1 call) proves the harness actually delivers events.
 - `useProfileHealth.ts:241-244` is the only `profiles-changed` listener that calls `batchValidate()`
   (verified); the other four (`useProfile.ts:233`, `useLibrarySummaries.ts:64`,
   `useProfileSummaries.ts:39`, `useCommunityProfiles.ts:433`) refetch lists. A favorite toggle must
-  *still* refresh summary/library hooks (favorite state is shown in the library) — the skip applies to
+  _still_ refresh summary/library hooks (favorite state is shown in the library) — the skip applies to
   health only. Whether `useProfile` and `useCommunityProfiles` should react to `FavoriteToggled` is
-  not determinable from the listener lines alone — *Open question 4*.
+  not determinable from the listener lines alone — _Open question 4_.
 - Existing tests emit `''` (`useProfileSummaries.test.ts:54`, `LibraryPage.test.tsx:475`) and the
   `EventHandler` type there is `payload: string` — those must be updated to the object shape, or the
   shared parser must treat a non-object payload as "unknown → refresh everything" (safe default).
   Recommend one `parseProfilesChanged(payload: unknown): { reason: ProfileChangeReason | null;
-  names: string[] }` plus an exported predicate, e.g. `reasonAffectsHealth(reason)`, in a shared
+names: string[] }` plus an exported predicate, e.g. `reasonAffectsHealth(reason)`, in a shared
   module, with its own unit test.
 - Mock handlers in `src/lib/mocks/handlers/profile-mutations.ts` (lines 29, 61, 91, 111, 131, 151,
   173, 206, 251, 267, 304, 321, 345), `profile-history.ts:104`, `profile-presets.ts:72,107` currently
@@ -432,7 +432,7 @@ Hard (from repo rules and code):
    (`useProfileSummaries.test.ts`, `LibraryPage.test.tsx`). `Cargo`/npm side: nothing to install.
 8. **Collections / `apply_collection_defaults` out of scope (M1-35).** `lifecycle.rs` imports
    `apply_collection_defaults` from `shared` (line 16) — the service must call into whatever remains
-   in `shared` for now without moving it. *(Interface decision for the design agent.)*
+   in `shared` for now without moving it. _(Interface decision for the design agent.)_
 9. **`insta`-style review tooling cannot be assumed** (`cargo-insta` not a project dependency).
 10. **Frontend**: new `overflow-y: auto` containers → `useScrollEnhance` SCROLLABLE selector (n/a
     unless UI changes); no raw `invoke()`/`listen()` — use `callCommand`/`subscribeEvent`.
@@ -583,7 +583,7 @@ async fn favorite_toggle_publishes_one_named_event() {
 ```
 
 The Rust-side analogue of the "no `batch_validate_profiles` on favorite" counter is: assert the
-*only* event published for a favorite toggle is `FavoriteToggled` (exactly one `recv`, then
+_only_ event published for a favorite toggle is `FavoriteToggled` (exactly one `recv`, then
 `try`-style no second event) — `batch_validate_profiles` is a frontend-triggered command, so the
 authoritative counter is the Vitest `batchCalls()` test above.
 
@@ -611,13 +611,24 @@ async fn save_matches_pre_refactor_golden() {
 ```ts
 // src/types/profileEvents.ts
 export type ProfileChangeReason =
-  | { kind: 'saved' } | { kind: 'deleted' } | { kind: 'renamed'; from: string }
-  | { kind: 'duplicated' } | { kind: 'favorite_toggled' } | { kind: 'rolled_back' }
-  | { kind: 'preset_applied' } | { kind: 'imported' } | { kind: 'migrated' };
-export interface ProfilesChangedPayload { reason: ProfileChangeReason; names: string[] }
+  | { kind: 'saved' }
+  | { kind: 'deleted' }
+  | { kind: 'renamed'; from: string }
+  | { kind: 'duplicated' }
+  | { kind: 'favorite_toggled' }
+  | { kind: 'rolled_back' }
+  | { kind: 'preset_applied' }
+  | { kind: 'imported' }
+  | { kind: 'migrated' };
+export interface ProfilesChangedPayload {
+  reason: ProfileChangeReason;
+  names: string[];
+}
 
 // Unknown/legacy payloads (e.g. '') => null => callers must refresh everything.
-export function parseProfilesChanged(payload: unknown): ProfilesChangedPayload | null { /* runtime guard */ }
+export function parseProfilesChanged(payload: unknown): ProfilesChangedPayload | null {
+  /* runtime guard */
+}
 export const reasonAffectsHealth = (p: ProfilesChangedPayload | null): boolean =>
   p === null || p.reason.kind !== 'favorite_toggled';
 ```
@@ -656,27 +667,27 @@ export const reasonAffectsHealth = (p: ProfilesChangedPayload | null): boolean =
 
 ## Sources
 
-| Source | URL | Notes |
-|---|---|---|
-| tokio `spawn_blocking` | https://docs.rs/tokio/1.51.0/tokio/task/fn.spawn_blocking.html | docs for tokio 1.51.0 (matches `Cargo.lock`); retrieved 2026-10-25; abort / shutdown / pool-size semantics |
-| tokio `JoinError` | https://docs.rs/tokio/1.51.0/tokio/task/struct.JoinError.html | `is_cancelled`, `is_panic`, `into_panic` |
-| tokio `sync::broadcast` | https://docs.rs/tokio/1.51.0/tokio/sync/broadcast/index.html | lagging / closing semantics, subscribe-from-now |
-| tokio `broadcast::Sender` | https://docs.rs/tokio/1.51.0/tokio/sync/broadcast/struct.Sender.html | `send`, `subscribe`, `receiver_count` |
-| tokio `RecvError` | https://docs.rs/tokio/1.51.0/tokio/sync/broadcast/error/enum.RecvError.html | `Closed`, `Lagged` |
-| tokio runtime `Builder` | https://docs.rs/tokio/1.51.0/tokio/runtime/struct.Builder.html#method.max_blocking_threads | blocking-thread cap method exists (details not rendered in the fetched page) |
-| serde enum representations | https://serde.rs/enum-representations.html | internally tagged: no tuple variants |
-| Tauri v2 — Calling the Frontend from Rust | https://v2.tauri.app/develop/calling-frontend/ | event payload rules, `listen`/`unlisten` pitfalls, ordering caveat (first 300 of 578 lines read) |
-| docs.rs `tauri::Emitter` 2.11.2 | https://docs.rs/tauri/2.11.2/tauri/trait.Emitter.html | `emit`, `emit_str`, `emit_to`, `emit_filter` |
-| serde_json `to_value` | https://docs.rs/serde_json/1.0.149/serde_json/fn.to_value.html | wire-shape tests |
-| insta (docs.rs) | https://docs.rs/insta/latest/insta/ | not recommended (not a dependency); `INSTA_UPDATE` modes, CI behaviour |
-| insta quickstart | https://insta.rs/docs/quickstart/ | `CI` env var behaviour; `cargo-insta` optional |
-| Vitest `vi` API | https://vitest.dev/api/vi.html | `vi.mock` hoisting, `vi.hoisted`, `importOriginal` (first 300 of 1776 lines read) |
-| Repo: event bus | `src/crosshook-native/crates/crosshook-app/src/events.rs`, `events/tests.rs` | |
-| Repo: services helper | `crates/crosshook-app/src/services/mod.rs`, `error.rs` | |
-| Repo: bridge | `src-tauri/src/startup_bridge.rs`, `lib.rs:19-83` | |
-| Repo: emit sites | `src-tauri/src/commands/profile/shared.rs:68-72`; callers in `lifecycle.rs`, `favorites.rs`, `config_history.rs`, `optimizations.rs`, `commands/lutris.rs` | |
-| Repo: golden test | `crates/crosshook-core/tests/launch_request_golden.rs` | |
-| Repo: Vitest | `src/hooks/__tests__/useProfileSummaries.test.ts`, `useProfileHealth.startup.test.ts`, `src/components/pages/__tests__/LibraryPage.test.tsx:449-480`, `src/lib/events.ts` | |
+| Source                                    | URL                                                                                                                                                                       | Notes                                                                                                      |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| tokio `spawn_blocking`                    | https://docs.rs/tokio/1.51.0/tokio/task/fn.spawn_blocking.html                                                                                                            | docs for tokio 1.51.0 (matches `Cargo.lock`); retrieved 2026-10-25; abort / shutdown / pool-size semantics |
+| tokio `JoinError`                         | https://docs.rs/tokio/1.51.0/tokio/task/struct.JoinError.html                                                                                                             | `is_cancelled`, `is_panic`, `into_panic`                                                                   |
+| tokio `sync::broadcast`                   | https://docs.rs/tokio/1.51.0/tokio/sync/broadcast/index.html                                                                                                              | lagging / closing semantics, subscribe-from-now                                                            |
+| tokio `broadcast::Sender`                 | https://docs.rs/tokio/1.51.0/tokio/sync/broadcast/struct.Sender.html                                                                                                      | `send`, `subscribe`, `receiver_count`                                                                      |
+| tokio `RecvError`                         | https://docs.rs/tokio/1.51.0/tokio/sync/broadcast/error/enum.RecvError.html                                                                                               | `Closed`, `Lagged`                                                                                         |
+| tokio runtime `Builder`                   | https://docs.rs/tokio/1.51.0/tokio/runtime/struct.Builder.html#method.max_blocking_threads                                                                                | blocking-thread cap method exists (details not rendered in the fetched page)                               |
+| serde enum representations                | https://serde.rs/enum-representations.html                                                                                                                                | internally tagged: no tuple variants                                                                       |
+| Tauri v2 — Calling the Frontend from Rust | https://v2.tauri.app/develop/calling-frontend/                                                                                                                            | event payload rules, `listen`/`unlisten` pitfalls, ordering caveat (first 300 of 578 lines read)           |
+| docs.rs `tauri::Emitter` 2.11.2           | https://docs.rs/tauri/2.11.2/tauri/trait.Emitter.html                                                                                                                     | `emit`, `emit_str`, `emit_to`, `emit_filter`                                                               |
+| serde_json `to_value`                     | https://docs.rs/serde_json/1.0.149/serde_json/fn.to_value.html                                                                                                            | wire-shape tests                                                                                           |
+| insta (docs.rs)                           | https://docs.rs/insta/latest/insta/                                                                                                                                       | not recommended (not a dependency); `INSTA_UPDATE` modes, CI behaviour                                     |
+| insta quickstart                          | https://insta.rs/docs/quickstart/                                                                                                                                         | `CI` env var behaviour; `cargo-insta` optional                                                             |
+| Vitest `vi` API                           | https://vitest.dev/api/vi.html                                                                                                                                            | `vi.mock` hoisting, `vi.hoisted`, `importOriginal` (first 300 of 1776 lines read)                          |
+| Repo: event bus                           | `src/crosshook-native/crates/crosshook-app/src/events.rs`, `events/tests.rs`                                                                                              |                                                                                                            |
+| Repo: services helper                     | `crates/crosshook-app/src/services/mod.rs`, `error.rs`                                                                                                                    |                                                                                                            |
+| Repo: bridge                              | `src-tauri/src/startup_bridge.rs`, `lib.rs:19-83`                                                                                                                         |                                                                                                            |
+| Repo: emit sites                          | `src-tauri/src/commands/profile/shared.rs:68-72`; callers in `lifecycle.rs`, `favorites.rs`, `config_history.rs`, `optimizations.rs`, `commands/lutris.rs`                |                                                                                                            |
+| Repo: golden test                         | `crates/crosshook-core/tests/launch_request_golden.rs`                                                                                                                    |                                                                                                            |
+| Repo: Vitest                              | `src/hooks/__tests__/useProfileSummaries.test.ts`, `useProfileHealth.startup.test.ts`, `src/components/pages/__tests__/LibraryPage.test.tsx:449-480`, `src/lib/events.ts` |                                                                                                            |
 
 Not verified (no fetch): Tauri JS `@tauri-apps/api/event` reference page and serde container-attribute
 reference (https://serde.rs/container-attrs.html) were not retrieved; statements about `rename_all`
