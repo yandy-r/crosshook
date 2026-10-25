@@ -1,4 +1,6 @@
-use crosshook_app::services::profiles::{BundledOptimizationPresetDto, LaunchOptimizationsPayload};
+use crosshook_app::services::profiles::{
+    BundledOptimizationPresetDto, LaunchOptimizationsPayload, ProfileCommit,
+};
 use crosshook_app::{AppErrorKind, ProfileWriter};
 use crosshook_core::profile::{GameProfile, GamescopeConfig, MangoHudConfig};
 use tauri::State;
@@ -12,7 +14,7 @@ pub async fn profile_save_launch_optimizations(
     writer
         .save_launch_optimizations(name, optimizations)
         .await
-        .map(|commit| commit.into_output())
+        .map(ProfileCommit::into_output)
         .map_err(|error| error.to_string())
 }
 
@@ -25,7 +27,7 @@ pub async fn profile_save_mangohud_config(
     writer
         .save_mangohud_config(name, config)
         .await
-        .map(|commit| commit.into_output())
+        .map(ProfileCommit::into_output)
         .map_err(|error| error.to_string())
 }
 
@@ -38,7 +40,7 @@ pub async fn profile_save_gamescope_config(
     writer
         .save_gamescope_config(name, config)
         .await
-        .map(|commit| commit.into_output())
+        .map(ProfileCommit::into_output)
         .map_err(|error| error.to_string())
 }
 
@@ -51,7 +53,7 @@ pub async fn profile_save_trainer_gamescope_config(
     writer
         .save_trainer_gamescope_config(name, config)
         .await
-        .map(|commit| commit.into_output())
+        .map(ProfileCommit::into_output)
         .map_err(|error| error.to_string())
 }
 
@@ -77,7 +79,7 @@ pub async fn profile_apply_bundled_optimization_preset(
     writer
         .apply_bundled_optimization_preset(name, preset_id)
         .await
-        .map(|commit| commit.into_output())
+        .map(ProfileCommit::into_output)
         .map_err(|error| error.to_string())
 }
 
@@ -91,6 +93,6 @@ pub async fn profile_save_manual_optimization_preset(
     writer
         .save_manual_optimization_preset(name, preset_name, enabled_option_ids)
         .await
-        .map(|commit| commit.into_output())
+        .map(ProfileCommit::into_output)
         .map_err(|error| error.to_string())
 }

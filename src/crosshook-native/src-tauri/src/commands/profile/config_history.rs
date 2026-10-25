@@ -1,5 +1,5 @@
 use crosshook_app::services::profiles::{
-    ConfigDiffResult, ConfigRevisionSummary, ConfigRollbackResult,
+    ConfigDiffResult, ConfigRevisionSummary, ConfigRollbackResult, ProfileCommit,
 };
 use crosshook_app::ProfileWriter;
 use tauri::State;
@@ -49,7 +49,7 @@ pub async fn profile_config_rollback(
     writer
         .config_rollback(name, revision_id)
         .await
-        .map(|commit| commit.into_output())
+        .map(ProfileCommit::into_output)
         .map_err(|e| e.to_string())
 }
 

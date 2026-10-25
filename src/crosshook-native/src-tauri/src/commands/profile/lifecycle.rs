@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crosshook_app::services::profiles::ProfileSummary;
+use crosshook_app::services::profiles::{ProfileCommit, ProfileSummary};
 use crosshook_app::ProfileWriter;
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::{DuplicateProfileResult, GameProfile};
@@ -58,7 +58,7 @@ pub async fn profile_save(
     writer
         .save(name, data)
         .await
-        .map(|commit| commit.into_output())
+        .map(ProfileCommit::into_output)
         .map_err(|error| error.to_string())
 }
 
@@ -67,7 +67,7 @@ pub async fn profile_delete(name: String, writer: State<'_, ProfileWriter>) -> R
     writer
         .delete(name)
         .await
-        .map(|commit| commit.into_output())
+        .map(ProfileCommit::into_output)
         .map_err(|error| error.to_string())
 }
 
@@ -92,7 +92,7 @@ pub async fn profile_duplicate(
     writer
         .duplicate(name)
         .await
-        .map(|commit| commit.into_output())
+        .map(ProfileCommit::into_output)
         .map_err(|error| error.to_string())
 }
 
@@ -106,7 +106,7 @@ pub async fn profile_rename(
     writer
         .rename(old_name, new_name)
         .await
-        .map(|commit| commit.into_output())
+        .map(ProfileCommit::into_output)
         .map_err(|error| error.to_string())
 }
 
@@ -118,7 +118,7 @@ pub async fn profile_import_legacy(
     writer
         .import_legacy(PathBuf::from(path))
         .await
-        .map(|commit| commit.into_output())
+        .map(ProfileCommit::into_output)
         .map_err(|error| error.to_string())
 }
 

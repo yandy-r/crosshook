@@ -100,6 +100,7 @@ feature checks in CI and `scripts/lint.sh` reject `bootstrap-trace` in shipped b
 | `DiagnosticsService`    | `export(DiagnosticsRequest) -> DiagnosticsExport` (absolute + sanitized display path); `DiagnosticAttachment`s are archived under `app/`                                     | `export_diagnostics`                                                                                                           |
 | `HealthService`         | `batch_summary()`, `profile_health(name)`, `cached_health_snapshots()`, `cached_offline_readiness_snapshots()` (blocking I/O on the pool; wire types keep their serde names) | `batch_validate_profiles`, `get_profile_health`, `get_cached_health_snapshots`, `get_cached_offline_readiness_snapshots`       |
 | `BackgroundGrantHolder` | `request_and_store(&impl BackgroundPortal)`, `store_result`, `protection_state`, `wait_for_initialization`; `XdgBackgroundPortal` is the production portal                   | `get_background_protection_state`; the background-portal startup job runs `request_and_store`, the launch watchdog awaits init |
+| `ProfileWriter`         | Async profile facades (`save`, `delete`, `duplicate`, `rename`, `set_favorite`, section/optimization/command-argument saves, bundled/manual presets, `config_history`/`config_diff`/`config_rollback`/`mark_known_good`, `import_legacy`, `export_toml`, `record_imports`, ProtonDB accept, Proton migration apply) plus lock-free reads (`list`, `load`, `list_summaries`, `list_favorites`, `list_bundled_optimization_presets`); mutations return `ProfileCommit<T> { output, new_revision_id, warnings }` | The 23 `profile_*` commands, `protondb_accept_suggestion`, `apply_proton_migration`, `apply_batch_migration`, `lutris_import_profiles` |
 
 Attachment names must be a single relative file name (no `/`, `\`, `..`, NUL,
 or empty); invalid names fail with `Validation { field: "attachments" }` before
@@ -110,6 +111,42 @@ home-path redacted.
 and `push` through any clone are serialized. Writers outside it (another
 process, the CLI, or a separately constructed service) are not covered; the
 file write itself stays atomic, so the worst case is a lost update.
+
+### ProfileWriter
+
+Every profile write goes through `ProfileWriter`; shells never call
+`ProfileStore` mutators, metadata observe or revision helpers themselves.
+Each mutating facade funnels into one crate-private commit pipeline:
+validate → load → mutate → persist the TOML **once** → observe the write →
+capture a config revision (SHA-256 dedupe against the latest row) →
+invalidate the cached health snapshot → publish
+`AppEvent::ProfilesChanged { reason, names }`. The facade picks the
+`ProfileChangeReason`, so callers cannot mislabel provenance.
+
+- **Write lock.** Clones share one `Arc<Mutex<()>>`; every mutation takes it
+  inside `spawn_blocking` (a poisoned lock is recovered), so an autosave
+  cannot interleave with a full save. Reads do not take it. Writers outside
+  the service (another process, the CLI) are not covered: last completed
+  write wins.
+- **Event.** Published inside the blocking closure once the TOML persisted,
+  even if advisory metadata effects fail, so a dropped caller future cannot
+  lose it. Nothing is published for validation or write failures, a no-op
+  rename, or migration `AlreadyValid`/`Failed`. Rename sends `names: [new]`
+  with `reason.from: old`; delete the removed name; duplicate the copy.
+  `names: []` is reserved for the bridge's `Resync`. `FavoriteToggled` is
+  metadata-only (no TOML, revision or health change), so listeners skip
+  health re-validation for it.
+- **Degraded metadata.** A TOML write still succeeds; observe, revision and
+  health steps are skipped and reported once as
+  `CommitWarning::MetadataUnavailable`. History, diff, rollback, known-good,
+  bundled presets and favorites return `Unavailable` instead.
+- **Rollback** verifies the stored revision (SHA-256, plus HMAC when a key is
+  loaded) before writing, then records a `RollbackApply` revision with
+  lineage.
+
+On-disk bytes for save, rename, duplicate and rollback are pinned against
+pre-refactor fixtures in `tests/profile_writer_golden.rs`; the fixtures are
+frozen and are never regenerated from the writer.
 
 ## Jobs
 
@@ -160,7 +197,13 @@ prefix sweep via the host gateway `kill`).
 - **TOML settings:** `settings.toml` (`SettingsService`) and `recent.toml`
   (`RecentFilesService`). Formats are unchanged, unknown keys are preserved,
   and writes are atomic. No migration.
-- **SQLite metadata:** none written; diagnostics reads metadata status only.
+- **SQLite metadata:** `ProfileWriter` writes existing rows only (no new
+  tables, schema unchanged): `profiles` (sync state and `is_favorite`),
+  `profile_name_history`, `config_revisions`,
+  `profile_launch_preset_metadata`, and deletes the cached `health_snapshots`
+  row on write. Diagnostics reads metadata status only.
+- **Profile TOML:** `<profiles>/<name>.toml` through `ProfileStore`, format
+  unchanged and byte-identical to the pre-service commands.
 - **User-requested export:** the diagnostics `.tar.gz`, written to the chosen
   directory (system temp by default).
 - **Runtime-only:** the Background portal grant and its protection state;
@@ -177,6 +220,6 @@ UI; the diagnostics archive is a regular file the user chose to create.
 
 `crosshook-core`, `tokio` (rt-multi-thread, sync, time, macros, process),
 `tokio-util` (rt), `nix` (signal), `uuid` (v4), `thiserror`, `serde` (derive),
-`tracing`, and `static_assertions`. Dev: `tempfile`, `serde_json`, `toml`,
+`serde_json`, `toml`, `tracing`, and `static_assertions`. Dev: `tempfile`,
 `tar`, `flate2`, `tokio` (test-util, macros, rt, io-util).
 `scripts/check-app-deps.sh` guards against UI-toolkit leakage.

@@ -1,2 +1,2 @@
-mod helpers;
+mod contract;
 mod optimizations;

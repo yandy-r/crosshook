@@ -1,3 +1,4 @@
+use crosshook_app::services::profiles::ProfileCommit;
 use crosshook_app::ProfileWriter;
 use tauri::State;
 
@@ -10,7 +11,7 @@ pub async fn profile_set_favorite(
     writer
         .set_favorite(name, favorite)
         .await
-        .map(|commit| commit.into_output())
+        .map(ProfileCommit::into_output)
         .map_err(|error| error.to_string())
 }
 

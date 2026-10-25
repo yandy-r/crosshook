@@ -6,13 +6,6 @@
 //! Writes are serialized by a writer-wide lock; reads do not take it.
 //! See `docs/plans/profile-writer/b0-contracts.md` for module ownership.
 
-// B0 (YAN-811) freezes the pipeline before the B1 facade slices call it.
-// Remove this expectation once every B1 slice has landed.
-#![expect(
-    dead_code,
-    reason = "commit pipeline and moved helpers are wired by the B1 facade slices"
-)]
-
 mod defaults_art;
 mod history;
 mod history_types;

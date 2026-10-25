@@ -1,4 +1,4 @@
-use crosshook_app::services::profiles::CommandArgumentsPayload;
+use crosshook_app::services::profiles::{CommandArgumentsPayload, ProfileCommit};
 use crosshook_app::ProfileWriter;
 use tauri::State;
 
@@ -12,6 +12,6 @@ pub async fn profile_save_command_arguments(
     writer
         .save_command_arguments(name, command_arguments, resolved_launch_method)
         .await
-        .map(|commit| commit.into_output())
+        .map(ProfileCommit::into_output)
         .map_err(|error| error.to_string())
 }
