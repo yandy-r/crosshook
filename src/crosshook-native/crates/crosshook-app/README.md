@@ -10,14 +10,14 @@ through the two-phase `bootstrap` contract below (`pre_runtime` →
 
 ## Design
 
-| Piece        | What it is                                                                                                                                         |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `App`        | Cloneable owner handle. Last-clone drop cancels app tasks and (owned) shuts the runtime down with `shutdown_background`.                           |
-| `App::spawn` | Eagerly spawns on the app runtime; returns a `Send + 'static` future usable from any executor. Shutdown resolves it to `Cancelled`.                |
+| Piece        | What it is                                                                                                                                                                                                                                        |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `App`        | Cloneable owner handle. Last-clone drop cancels app tasks and (owned) shuts the runtime down with `shutdown_background`.                                                                                                                          |
+| `App::spawn` | Eagerly spawns on the app runtime; returns a `Send + 'static` future usable from any executor. Shutdown resolves it to `Cancelled`.                                                                                                               |
 | `EventBus`   | Bounded broadcast bus; slow subscribers get `AppEvent::Resync { missed }` and the retained tail. `#[non_exhaustive]`: `Resync` and `StartupJobFinished { job: StartupJobKind }` (published after a startup job's result is stored in the report). |
-| `AppError`   | Sanitized presenter error: stable `AppErrorKind` + message with home paths redacted. Panic payloads and store paths never leak.                    |
-| `presenter`  | Public `sanitize_display_path` / `sanitize_display_path_with_home` for redacting `$HOME` in displayed paths.                                       |
-| `services`   | Async services below. Blocking store I/O runs in `spawn_blocking`; panics and cancellations map to `AppError`.                                     |
+| `AppError`   | Sanitized presenter error: stable `AppErrorKind` + message with home paths redacted. Panic payloads and store paths never leak.                                                                                                                   |
+| `presenter`  | Public `sanitize_display_path` / `sanitize_display_path_with_home` for redacting `$HOME` in displayed paths.                                                                                                                                      |
+| `services`   | Async services below. Blocking store I/O runs in `spawn_blocking`; panics and cancellations map to `AppError`.                                                                                                                                    |
 
 Limits: non-abortable blocking work inside spawned tasks is unsupported (tasks
 are dropped at shutdown); callers must not capture an `App` clone inside a
@@ -91,14 +91,14 @@ bundles.
 
 ## Services
 
-| Service                 | API                                                                                                                                                                   | Delegating Tauri commands                                                                                  |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `SettingsService`       | `load() -> SettingsSnapshot` (data + profiles-dir restart state), `update(closure)` (atomic, normalized), `save_request(SettingsSaveRequest)`, `save_steamgriddb_key` | `settings_load`, `settings_save`, `settings_save_steamgriddb_key`                                          |
-| `RecentFilesService`    | `load()`, `save(data)` (unknown keys preserved), `push(RecentFileKind, path)` (move to front, dedupe, cap at `recent_files_limit`)                                    | `recent_files_load`, `recent_files_save`                                                                   |
-| `CatalogService`        | `optimization_catalog()`, `command_argument_catalog()`, `mangohud_presets()` (in-memory reads)                                                                        | `get_optimization_catalog`, `get_command_argument_catalog`, `get_mangohud_presets`                         |
-| `DiagnosticsService`    | `export(DiagnosticsRequest) -> DiagnosticsExport` (absolute + sanitized display path); `DiagnosticAttachment`s are archived under `app/`                              | `export_diagnostics`                                                                                       |
+| Service                 | API                                                                                                                                                                          | Delegating Tauri commands                                                                                                |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `SettingsService`       | `load() -> SettingsSnapshot` (data + profiles-dir restart state), `update(closure)` (atomic, normalized), `save_request(SettingsSaveRequest)`, `save_steamgriddb_key`        | `settings_load`, `settings_save`, `settings_save_steamgriddb_key`                                                        |
+| `RecentFilesService`    | `load()`, `save(data)` (unknown keys preserved), `push(RecentFileKind, path)` (move to front, dedupe, cap at `recent_files_limit`)                                           | `recent_files_load`, `recent_files_save`                                                                                 |
+| `CatalogService`        | `optimization_catalog()`, `command_argument_catalog()`, `mangohud_presets()` (in-memory reads)                                                                               | `get_optimization_catalog`, `get_command_argument_catalog`, `get_mangohud_presets`                                       |
+| `DiagnosticsService`    | `export(DiagnosticsRequest) -> DiagnosticsExport` (absolute + sanitized display path); `DiagnosticAttachment`s are archived under `app/`                                     | `export_diagnostics`                                                                                                     |
 | `HealthService`         | `batch_summary()`, `profile_health(name)`, `cached_health_snapshots()`, `cached_offline_readiness_snapshots()` (blocking I/O on the pool; wire types keep their serde names) | `batch_validate_profiles`, `get_profile_health`, `get_cached_health_snapshots`, `get_cached_offline_readiness_snapshots` |
-| `BackgroundGrantHolder` | `request_and_store(&impl BackgroundPortal)`, `store_result`, `protection_state`, `wait_for_initialization`; `XdgBackgroundPortal` is the production portal            | `get_background_protection_state`; Tauri setup spawns `request_and_store`, the launch watchdog awaits init |
+| `BackgroundGrantHolder` | `request_and_store(&impl BackgroundPortal)`, `store_result`, `protection_state`, `wait_for_initialization`; `XdgBackgroundPortal` is the production portal                   | `get_background_protection_state`; Tauri setup spawns `request_and_store`, the launch watchdog awaits init               |
 
 Attachment names must be a single relative file name (no `/`, `\`, `..`, NUL,
 or empty); invalid names fail with `Validation { field: "attachments" }` before
