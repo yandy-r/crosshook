@@ -6,7 +6,7 @@
 
 use std::path::PathBuf;
 
-use crosshook_core::metadata::{ConfigRevisionSource, SyncSource};
+use crosshook_core::metadata::{ConfigRevisionSource, ProfileLaunchPresetOrigin, SyncSource};
 use crosshook_core::profile::GameProfile;
 use serde::{Deserialize, Serialize};
 
@@ -103,6 +103,8 @@ pub enum CommitWarning {
     RevisionSkipped,
     /// Cached health snapshot invalidation failed.
     HealthInvalidationFailed,
+    /// Launch preset origin row upsert failed.
+    PresetOriginFailed,
 }
 
 /// Result of a committed profile mutation.
@@ -174,4 +176,13 @@ pub(crate) enum Effect {
     /// Drops the cached health snapshot of the profile currently named `name`.
     /// Order it before `ObserveDelete` for deletes.
     InvalidateHealth { name: String },
+    /// `MetadataStore::upsert_profile_launch_preset_metadata` for the profile
+    /// currently named `name`. Order it after `ObserveWrite` so a profile not
+    /// yet indexed gets its id first.
+    UpsertPresetOrigin {
+        name: String,
+        preset_name: String,
+        origin: ProfileLaunchPresetOrigin,
+        source_bundled_preset_id: Option<String>,
+    },
 }

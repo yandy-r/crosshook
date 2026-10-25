@@ -2,7 +2,7 @@ use crosshook_core::metadata::{
     sha256_hex, ConfigRevisionSource, MetadataStore, MetadataStoreError, SyncSource,
     MAX_CONFIG_REVISIONS_PER_PROFILE,
 };
-use crosshook_core::profile::{GameProfile, ProfileStoreError};
+use crosshook_core::profile::{CollectionDefaultsSection, GameProfile, ProfileStoreError};
 use crosshook_core::settings::{config_history_max_revisions_from_settings, SettingsStore};
 use tauri::{AppHandle, Emitter};
 
@@ -202,12 +202,30 @@ pub(super) fn apply_collection_defaults(
     metadata_store: &MetadataStore,
     collection_id: Option<&str>,
 ) -> Result<GameProfile, MetadataStoreError> {
+    // Without defaults the merge is the identity on a loaded profile (its
+    // `local_override` known fields are already baked in and cleared).
+    Ok(
+        match resolve_collection_defaults(metadata_store, collection_id)? {
+            Some(defaults) => profile.effective_profile_with(Some(&defaults)),
+            None => profile,
+        },
+    )
+}
+
+/// Resolves the launch-defaults layer of `collection_id` with the fail-open
+/// policy documented on [`apply_collection_defaults`]: `Ok(None)` when there
+/// is no collection context, no defaults, or a non-corrupt lookup failure;
+/// `Err(Corrupt)` for corrupt defaults.
+pub(super) fn resolve_collection_defaults(
+    metadata_store: &MetadataStore,
+    collection_id: Option<&str>,
+) -> Result<Option<CollectionDefaultsSection>, MetadataStoreError> {
     let Some(cid) = collection_id.map(str::trim).filter(|s| !s.is_empty()) else {
-        return Ok(profile);
+        return Ok(None);
     };
 
     match metadata_store.get_collection_defaults(cid) {
-        Ok(defaults) => Ok(profile.effective_profile_with(defaults.as_ref())),
+        Ok(defaults) => Ok(defaults),
         Err(MetadataStoreError::Corrupt(msg)) => {
             tracing::warn!(
                 collection_id = %cid,
@@ -222,7 +240,7 @@ pub(super) fn apply_collection_defaults(
                 error = %other,
                 "failed to load collection defaults; launching with raw profile"
             );
-            Ok(profile)
+            Ok(None)
         }
     }
 }

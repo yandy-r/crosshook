@@ -533,14 +533,8 @@ mod tests {
                 Option<String>,
                 State<'_, crosshook_core::profile::ProfileStore>,
             ) -> Result<crosshook_core::profile::LutrisImportPreview, String>;
-        let _ = crate::commands::lutris::lutris_import_profiles
-            as fn(
-                Vec<crosshook_core::profile::LutrisImportEntry>,
-                State<'_, crosshook_core::profile::ProfileStore>,
-                State<'_, crosshook_core::settings::SettingsStore>,
-                State<'_, crosshook_core::metadata::MetadataStore>,
-                tauri::AppHandle,
-            ) -> Result<crosshook_core::profile::LutrisImportResult, String>;
+        // Async command: pin the name (an `async fn` has no nameable `fn` pointer type).
+        let _ = crate::commands::lutris::lutris_import_profiles;
     }
 
     #[test]

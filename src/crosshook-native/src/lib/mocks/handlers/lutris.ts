@@ -1,5 +1,8 @@
 import type { LutrisImportEntry, LutrisImportPreview, LutrisImportResult } from '../../../hooks/useLutrisImport';
 import { createDefaultProfile } from '../../../types/profile';
+import { getStore } from '../store';
+import { appendRevision } from './profile-history';
+import { emitProfilesChanged } from './profile-utils';
 import type { Handler } from './types';
 
 const MOCK_LUTRIS_ROOT = '/mock/lutris';
@@ -34,6 +37,14 @@ const MOCK_ENTRIES: LutrisImportEntry[] = [
   makeMockEntry('Broken Fixture', 'broken-fixture', false, ['Missing game executable']),
 ];
 
+/** Mirrors core `derive_unique_profile_name`: `base`, then `base-2`, `base-3`, … */
+function uniqueProfileName(base: string, taken: ReadonlySet<string>): string {
+  if (!taken.has(base)) return base;
+  let index = 2;
+  while (taken.has(`${base}-${index}`)) index++;
+  return `${base}-${index}`;
+}
+
 export function registerLutris(map: Map<string, Handler>): void {
   map.set('lutris_prepare_import', async (args): Promise<LutrisImportPreview> => {
     const { directory } = args as { directory: string | null };
@@ -62,7 +73,10 @@ export function registerLutris(map: Map<string, Handler>): void {
       throw new Error('[dev-mock] lutris_import_profiles: entries is required');
     }
 
-    const results = entries.map((entry) => {
+    // Mirrors the backend: each importable entry is saved under a unique name,
+    // then one `imported` event carries only the names actually written.
+    const store = getStore();
+    const results: LutrisImportResult['results'] = entries.map((entry) => {
       if (!entry.importable) {
         return {
           entry,
@@ -73,21 +87,29 @@ export function registerLutris(map: Map<string, Handler>): void {
         };
       }
 
+      const profileName = uniqueProfileName(entry.suggested_name, new Set(store.profiles.keys()));
+      store.profiles.set(profileName, structuredClone(entry.mapped));
+      appendRevision(profileName, 'import');
       return {
         entry,
         outcome: 'imported' as const,
-        profile_name: entry.suggested_name,
-        profile_path: `/mock/profiles/${entry.suggested_name}.toml`,
+        profile_name: profileName,
+        profile_path: `/mock/profiles/${profileName}.toml`,
         error: null,
       };
     });
 
-    const imported_count = results.filter((result) => result.outcome === 'imported').length;
+    const importedNames = results.flatMap((result) =>
+      result.outcome === 'imported' && result.profile_name !== null ? [result.profile_name] : []
+    );
     const skipped_count = results.filter((result) => result.outcome === 'skipped').length;
+    if (importedNames.length > 0) {
+      emitProfilesChanged({ reason: { kind: 'imported' }, names: importedNames });
+    }
 
     return {
       results,
-      imported_count,
+      imported_count: importedNames.length,
       skipped_count,
       failed_count: 0,
     };

@@ -10,6 +10,7 @@ mod exchange;
 mod legacy;
 pub mod lutris_import;
 mod models;
+pub mod mutations;
 mod toml_store;
 
 pub use collection_exchange::{

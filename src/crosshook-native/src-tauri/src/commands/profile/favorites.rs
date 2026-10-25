@@ -1,27 +1,25 @@
-use crosshook_core::metadata::MetadataStore;
-use tauri::{AppHandle, State};
-
-use super::shared::emit_profiles_changed;
+use crosshook_app::ProfileWriter;
+use tauri::State;
 
 #[tauri::command]
-pub fn profile_set_favorite(
+pub async fn profile_set_favorite(
     name: String,
     favorite: bool,
-    app: AppHandle,
-    metadata_store: State<'_, MetadataStore>,
+    writer: State<'_, ProfileWriter>,
 ) -> Result<(), String> {
-    metadata_store
-        .set_profile_favorite(&name, favorite)
-        .map_err(|e| e.to_string())?;
-    emit_profiles_changed(&app, "favorite-updated");
-    Ok(())
+    writer
+        .set_favorite(name, favorite)
+        .await
+        .map(|commit| commit.into_output())
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
-pub fn profile_list_favorites(
-    metadata_store: State<'_, MetadataStore>,
+pub async fn profile_list_favorites(
+    writer: State<'_, ProfileWriter>,
 ) -> Result<Vec<String>, String> {
-    metadata_store
-        .list_favorite_profiles()
-        .map_err(|e| e.to_string())
+    writer
+        .list_favorites()
+        .await
+        .map_err(|error| error.to_string())
 }

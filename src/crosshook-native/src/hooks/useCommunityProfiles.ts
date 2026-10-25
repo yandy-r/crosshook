@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { subscribeEvent } from '@/lib/events';
 import { callCommand } from '@/lib/ipc';
+import { parseProfilesChanged } from '@/lib/profileEvents';
 import type { AppSettingsData, GameProfile } from '../types';
 import type { CatalogEntry } from '../types/discovery';
+import type { ProfilesChangedPayload } from '../types/profile-events';
 import { toSettingsSaveRequest } from '../types/settings';
 
 export type CommunityCompatibilityRating = 'unknown' | 'broken' | 'partial' | 'working' | 'platinum';
@@ -431,8 +433,12 @@ export function useCommunityProfiles(_options: UseCommunityProfilesOptions): Use
 
   useEffect(() => {
     let active = true;
-    const unlistenPromise = subscribeEvent<string>('profiles-changed', () => {
+    const unlistenPromise = subscribeEvent<ProfilesChangedPayload | null>('profiles-changed', (event) => {
       if (!active) {
+        return;
+      }
+      // Favorite toggles cannot change imported profile names; malformed payloads (null) resync.
+      if (parseProfilesChanged(event.payload)?.reason.kind === 'favorite_toggled') {
         return;
       }
 

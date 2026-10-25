@@ -106,6 +106,45 @@ If you need a specific starting state for manual testing, seed it directly in
 
 ---
 
+## `profiles-changed` Event Shape
+
+Profile mock handlers emit `profiles-changed` only through
+`emitProfilesChanged()` in `handlers/profile-utils.ts`. The payload is the shared
+`ProfilesChangedPayload` from `types/profile-events.ts`, which is the same object the
+Tauri bridge sends. Do not call `emitMockEvent('profiles-changed', …)` directly, and do
+not add a second payload schema. The legacy `{ name, action }` and bare-string forms
+are gone. `parseProfilesChanged()` treats them as a conservative resync.
+
+```ts
+{ reason: { kind: 'renamed', from: 'Old Name' }, names: ['New Name'] }
+```
+
+| Handler(s)                                                                           | `reason.kind`      | `names`             |
+| ------------------------------------------------------------------------------------ | ------------------ | ------------------- |
+| `profile_save`, section saves, optimizations, command arguments, `_mock_add_profile` | `saved`            | `[profile]`         |
+| `protondb_accept_suggestion` (catalog and env var)                                   | `saved`            | `[profile]`         |
+| `profile_delete`, `_mock_remove_profile`                                             | `deleted`          | `[removed]`         |
+| `profile_duplicate`                                                                  | `duplicated`       | `[copy]`            |
+| `profile_rename`                                                                     | `renamed` + `from` | `[new]`             |
+| `profile_set_favorite`                                                               | `favorite_toggled` | `[profile]`         |
+| `profile_config_rollback`                                                            | `rolled_back`      | `[profile]`         |
+| bundled and manual optimization presets                                              | `preset_applied`   | `[profile]`         |
+| `profile_import_legacy`, `lutris_import_profiles`                                    | `imported`         | imported names only |
+| `apply_proton_migration`, `apply_batch_migration`                                    | `migrated`         | applied names only  |
+
+These rules mirror the backend:
+
+- An event is emitted only after the mock state mutation succeeds.
+- Validation failures, not-found errors, a same-name rename, failed or skipped
+  migrations, and Lutris imports where nothing was imported emit nothing.
+- A batch emits exactly one event.
+- `names: []` is reserved for the bridge's resync, so mocks never send it.
+- `profile_rename` returns a realistic `hadLauncher`. It is `true` for non-native
+  profiles that have a trainer path, because those are the profiles that can have
+  exported launchers.
+
+---
+
 ## Fixture Content Policy
 
 All synthetic data must satisfy these constraints (BR-7):

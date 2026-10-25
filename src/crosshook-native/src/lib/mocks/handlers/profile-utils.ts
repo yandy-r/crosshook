@@ -4,7 +4,9 @@
 // sentinel.
 
 import type { GameProfile } from '../../../types/profile';
+import type { ProfilesChangedPayload } from '../../../types/profile-events';
 import { getActiveFixture } from '../../fixture';
+import { emitMockEvent } from '../eventBus';
 import type { Handler } from './types';
 
 // ---------------------------------------------------------------------------
@@ -57,6 +59,16 @@ export function withProfileFixtureGate(commandName: string, impl: Handler): Hand
     if (fixture === 'loading') return neverResolving<unknown>();
     return impl(args);
   };
+}
+
+/**
+ * The single seam for mock `profiles-changed` emissions. The payload uses the
+ * shared `ProfilesChangedPayload` so mocks match the Tauri bridge wire shape.
+ * Call it only after the mock state mutation succeeded, with concrete names;
+ * `names: []` is reserved for the bridge's conservative resync.
+ */
+export function emitProfilesChanged(payload: ProfilesChangedPayload): void {
+  emitMockEvent('profiles-changed', payload);
 }
 
 // ---------------------------------------------------------------------------

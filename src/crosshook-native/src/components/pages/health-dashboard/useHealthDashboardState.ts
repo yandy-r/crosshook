@@ -33,6 +33,27 @@ interface UseHealthDashboardStateParams {
   error: string | null;
   batchValidate: () => Promise<void>;
   cachedSnapshots: Record<string, CachedHealthSnapshot>;
+  /** Live favorites from `ProfileContext`; overrides the health snapshot's `is_favorite`. */
+  favoriteProfiles: readonly string[];
+}
+
+/**
+ * Overlays live favorite state onto the retained health reports. Pure
+ * projection: health status, counts and `checked_at` are untouched, and
+ * reports whose favorite flag already matches keep their identity. Reports
+ * without metadata stay as-is (favorites require the metadata store).
+ */
+export function overlayFavorites(
+  profiles: readonly EnrichedProfileHealthReport[],
+  favoriteProfiles: readonly string[]
+): EnrichedProfileHealthReport[] {
+  const favoriteSet = new Set(favoriteProfiles);
+  return profiles.map((report) => {
+    if (report.metadata === null) return report;
+    const isFavorite = favoriteSet.has(report.name);
+    if ((report.metadata.is_favorite ?? false) === isFavorite) return report;
+    return { ...report, metadata: { ...report.metadata, is_favorite: isFavorite } };
+  });
 }
 
 export function useHealthDashboardState({
@@ -41,6 +62,7 @@ export function useHealthDashboardState({
   error,
   batchValidate,
   cachedSnapshots,
+  favoriteProfiles,
 }: UseHealthDashboardStateParams): HealthDashboardStateReturn {
   const offlineReadiness = useOfflineReadiness();
 
@@ -69,9 +91,14 @@ export function useHealthDashboardState({
     return sortDirection === 'asc' ? 'ascending' : 'descending';
   }
 
+  const profiles = useMemo(
+    () => overlayFavorites(summary?.profiles ?? [], favoriteProfiles),
+    [summary?.profiles, favoriteProfiles]
+  );
+
   const allProfiles = useMemo(() => {
-    return (summary?.profiles ?? []).filter((r) => r.name !== '<unknown>');
-  }, [summary?.profiles]);
+    return profiles.filter((r) => r.name !== '<unknown>');
+  }, [profiles]);
 
   const missingProtonCount = useMemo(() => {
     return allProfiles.filter((r) => r.issues.some((issue) => categorizeIssue(issue) === 'missing_proton')).length;
@@ -151,7 +178,7 @@ export function useHealthDashboardState({
     return result;
   }, [allProfiles, sortField, sortDirection, statusFilter, deferredSearch, offlineReadiness]);
 
-  const hasUnknownSentinel = (summary?.profiles ?? []).some((r) => r.name === '<unknown>');
+  const hasUnknownSentinel = profiles.some((r) => r.name === '<unknown>');
 
   const cachedSnapshotList = useMemo(() => {
     return Object.values(cachedSnapshots)
@@ -164,11 +191,11 @@ export function useHealthDashboardState({
   }, [cachedSnapshots]);
 
   const recentFailures = useMemo(() => {
-    return (summary?.profiles ?? [])
+    return profiles
       .filter((r) => (r.metadata?.failure_count_30d ?? 0) > 0)
       .slice()
       .sort((a, b) => (b.metadata?.failure_count_30d ?? 0) - (a.metadata?.failure_count_30d ?? 0));
-  }, [summary?.profiles]);
+  }, [profiles]);
 
   const cardTrends = useMemo<{ healthy: CardTrend; stale: CardTrend; broken: CardTrend }>(() => {
     const snaps = Object.values(cachedSnapshots);

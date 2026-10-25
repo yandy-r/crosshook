@@ -314,3 +314,84 @@ fn switch_preset_preserves_active_and_preset_extras_after_reload() {
         profile.launch.presets["other"]
     );
 }
+
+/// D8 parity: the in-memory rule produces exactly what the store wrapper persists.
+#[test]
+fn apply_launch_optimizations_matches_store_wrapper() {
+    let dir = tempdir().unwrap();
+    let store = ProfileStore::with_base_path(dir.path().join("profiles"));
+    let mut profile = sample_profile();
+    profile.launch.presets.insert(
+        "a".into(),
+        LaunchOptimizationsSection {
+            enabled_option_ids: vec!["use_gamemode".into()],
+            extra: toml::Table::new(),
+        },
+    );
+    profile.launch.active_preset = "a".into();
+    store.save("p", &profile).unwrap();
+    let ids = vec!["  use_ntsync ".to_string(), String::new()];
+
+    let mut in_memory = store.load("p").unwrap();
+    in_memory
+        .apply_launch_optimizations(ids.clone(), None)
+        .unwrap();
+    store.save_launch_optimizations("p", ids, None).unwrap();
+
+    assert_eq!(store.load("p").unwrap(), in_memory);
+    assert_eq!(
+        in_memory.launch.presets["a"].enabled_option_ids,
+        vec!["use_ntsync".to_string()]
+    );
+}
+
+#[test]
+fn apply_launch_optimizations_rejects_unknown_ids_without_mutating() {
+    let mut profile = sample_profile();
+    let before = profile.clone();
+
+    let result = profile.apply_launch_optimizations(vec!["nope".into()], None);
+
+    assert!(matches!(
+        result,
+        Err(ProfileStoreError::InvalidLaunchOptimizationId(id)) if id == "nope"
+    ));
+    assert_eq!(profile, before);
+}
+
+#[test]
+fn apply_manual_optimization_preset_activates_trimmed_name_in_memory() {
+    let mut profile = sample_profile();
+
+    profile
+        .apply_manual_optimization_preset("  Mine  ", vec!["use_gamemode".into()])
+        .unwrap();
+
+    assert_eq!(profile.launch.active_preset, "Mine");
+    assert_eq!(
+        profile.launch.optimizations.enabled_option_ids,
+        vec!["use_gamemode".to_string()]
+    );
+    assert_eq!(
+        profile.launch.presets["Mine"].enabled_option_ids,
+        vec!["use_gamemode".to_string()]
+    );
+    assert!(matches!(
+        profile.apply_manual_optimization_preset("bundled/x", vec![]),
+        Err(ProfileStoreError::ReservedLaunchPresetName(_))
+    ));
+}
+
+#[test]
+fn materialize_launch_optimization_preset_validates_before_load() {
+    let dir = tempdir().unwrap();
+    let store = ProfileStore::with_base_path(dir.path().join("profiles"));
+
+    let result =
+        store.materialize_launch_optimization_preset("missing", "k", vec!["nope".into()], true);
+
+    assert!(matches!(
+        result,
+        Err(ProfileStoreError::InvalidLaunchOptimizationId(id)) if id == "nope"
+    ));
+}

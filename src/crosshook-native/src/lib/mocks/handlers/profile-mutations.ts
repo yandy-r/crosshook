@@ -7,11 +7,10 @@
 import type { LaunchCommandArguments } from '../../../types/launch-command-arguments';
 import type { DuplicateProfileResult, GameProfile, GamescopeConfig, MangoHudConfig } from '../../../types/profile';
 import { createDefaultProfile } from '../../../types/profile';
-import { emitMockEvent } from '../eventBus';
 import { getStore } from '../store';
 import { profileFavorites, seedDemoProfiles } from './profile-core';
 import { appendRevision } from './profile-history';
-import { withProfileFixtureGate } from './profile-utils';
+import { emitProfilesChanged, withProfileFixtureGate } from './profile-utils';
 import type { Handler } from './types';
 
 export function registerProfileMutations(map: Map<string, Handler>): void {
@@ -26,7 +25,7 @@ export function registerProfileMutations(map: Map<string, Handler>): void {
       const store = getStore();
       store.profiles.set(trimmed, structuredClone(data));
       appendRevision(trimmed, 'manual_save');
-      emitMockEvent('profiles-changed', { name: trimmed, action: 'save' });
+      emitProfilesChanged({ reason: { kind: 'saved' }, names: [trimmed] });
       return null;
     })
   );
@@ -58,7 +57,7 @@ export function registerProfileMutations(map: Map<string, Handler>): void {
       };
       store.profiles.set(trimmed, updated);
       appendRevision(trimmed, 'launch_command_arguments_save');
-      emitMockEvent('profiles-changed', { name: trimmed, action: 'save-command-arguments' });
+      emitProfilesChanged({ reason: { kind: 'saved' }, names: [trimmed] });
       return null;
     })
   );
@@ -88,7 +87,7 @@ export function registerProfileMutations(map: Map<string, Handler>): void {
       };
       store.profiles.set(trimmed, updated);
       appendRevision(trimmed, 'launch_optimization_save');
-      emitMockEvent('profiles-changed', { name: trimmed, action: 'save-launch-optimizations' });
+      emitProfilesChanged({ reason: { kind: 'saved' }, names: [trimmed] });
       return null;
     })
   );
@@ -108,7 +107,7 @@ export function registerProfileMutations(map: Map<string, Handler>): void {
         launch: { ...existing.launch, gamescope: structuredClone(config) },
       });
       appendRevision(trimmed, 'manual_save');
-      emitMockEvent('profiles-changed', { name: trimmed, action: 'save-gamescope-config' });
+      emitProfilesChanged({ reason: { kind: 'saved' }, names: [trimmed] });
       return null;
     })
   );
@@ -128,7 +127,7 @@ export function registerProfileMutations(map: Map<string, Handler>): void {
         launch: { ...existing.launch, trainer_gamescope: structuredClone(config) },
       });
       appendRevision(trimmed, 'manual_save');
-      emitMockEvent('profiles-changed', { name: trimmed, action: 'save-trainer-gamescope-config' });
+      emitProfilesChanged({ reason: { kind: 'saved' }, names: [trimmed] });
       return null;
     })
   );
@@ -148,7 +147,7 @@ export function registerProfileMutations(map: Map<string, Handler>): void {
         launch: { ...existing.launch, mangohud: structuredClone(config) },
       });
       appendRevision(trimmed, 'manual_save');
-      emitMockEvent('profiles-changed', { name: trimmed, action: 'save-mangohud-config' });
+      emitProfilesChanged({ reason: { kind: 'saved' }, names: [trimmed] });
       return null;
     })
   );
@@ -170,7 +169,7 @@ export function registerProfileMutations(map: Map<string, Handler>): void {
       if (store.activeProfileId === trimmed) {
         store.activeProfileId = store.profiles.size > 0 ? (store.profiles.keys().next().value ?? null) : null;
       }
-      emitMockEvent('profiles-changed', { name: trimmed, action: 'delete' });
+      emitProfilesChanged({ reason: { kind: 'deleted' }, names: [trimmed] });
       return null;
     })
   );
@@ -203,7 +202,7 @@ export function registerProfileMutations(map: Map<string, Handler>): void {
         name: copyName,
         profile: structuredClone(copy),
       };
-      emitMockEvent('profiles-changed', { name: copyName, action: 'duplicate' });
+      emitProfilesChanged({ reason: { kind: 'duplicated' }, names: [copyName] });
       return result;
     })
   );
@@ -222,9 +221,17 @@ export function registerProfileMutations(map: Map<string, Handler>): void {
       if (!existing) {
         throw new Error(`[dev-mock] profile_rename: profile not found: ${trimmedOld}`);
       }
+      // Same-name rename is a backend no-op: no write, no launcher cleanup, no event.
+      if (trimmedNew === trimmedOld) {
+        return false;
+      }
       if (store.profiles.has(trimmedNew)) {
         throw new Error(`[dev-mock] profile_rename: a profile named "${trimmedNew}" already exists`);
       }
+
+      // Mirrors backend launcher cleanup: native profiles never export launchers, and
+      // an exported launcher requires a trainer path.
+      const hadLauncher = existing.launch.method !== 'native' && existing.trainer.path.trim() !== '';
 
       const renamed = structuredClone(existing);
       renamed.game = { ...renamed.game, name: trimmedNew };
@@ -248,9 +255,8 @@ export function registerProfileMutations(map: Map<string, Handler>): void {
         store.activeProfileId = trimmedNew;
       }
 
-      emitMockEvent('profiles-changed', { name: trimmedNew, action: 'rename' });
-      // Returns had_launcher boolean (always false in mock — no real launcher files)
-      return false;
+      emitProfilesChanged({ reason: { kind: 'renamed', from: trimmedOld }, names: [trimmedNew] });
+      return hadLauncher;
     })
   );
 
@@ -264,7 +270,7 @@ export function registerProfileMutations(map: Map<string, Handler>): void {
       } else {
         profileFavorites.delete(trimmed);
       }
-      emitMockEvent('profiles-changed', { name: trimmed, action: 'favorite' });
+      emitProfilesChanged({ reason: { kind: 'favorite_toggled' }, names: [trimmed] });
       return null;
     })
   );
@@ -301,7 +307,7 @@ export function registerProfileMutations(map: Map<string, Handler>): void {
       proton_path: existingRuntime.proton_path || '/home/devuser/.steam/root/compatibilitytools.d/GE-Proton',
     };
     store.profiles.set(trimmedProfileName, profile);
-    emitMockEvent('profiles-changed', { name: trimmedProfileName, action: 'mock-add' });
+    emitProfilesChanged({ reason: { kind: 'saved' }, names: [trimmedProfileName] });
     return null;
   });
 
@@ -318,7 +324,7 @@ export function registerProfileMutations(map: Map<string, Handler>): void {
     if (store.activeProfileId === trimmedProfileName) {
       store.activeProfileId = store.profiles.size > 0 ? (store.profiles.keys().next().value ?? null) : null;
     }
-    emitMockEvent('profiles-changed', { name: trimmedProfileName, action: 'mock-remove' });
+    emitProfilesChanged({ reason: { kind: 'deleted' }, names: [trimmedProfileName] });
     return null;
   });
 
@@ -342,7 +348,7 @@ export function registerProfileMutations(map: Map<string, Handler>): void {
       };
       store.profiles.set(stem, imported);
       appendRevision(stem, 'import');
-      emitMockEvent('profiles-changed', { name: stem, action: 'import' });
+      emitProfilesChanged({ reason: { kind: 'imported' }, names: [stem] });
       return structuredClone(imported);
     })
   );

@@ -32,16 +32,17 @@ describe('MetadataStatusBanner', () => {
     });
     const banner = await screen.findByRole('status');
     expect(banner).toHaveTextContent(
-      'This data was written by a newer CrossHook (schema v99). History, health and catalogs are read-only until you update CrossHook.'
+      'This data was written by a newer CrossHook (schema v99). History, health and catalogs are read-only until you update CrossHook. Profile files still save, but configuration snapshots are not recorded.'
     );
   });
 
-  it('renders the disabled warning with the reason', async () => {
+  it('renders the disabled warning when metadata is unavailable (D6)', async () => {
     renderWithMocks(<MetadataStatusBanner />, {
       handlerOverrides: { metadata_store_status: disabledStatus },
     });
     const banner = await screen.findByRole('status');
     expect(banner).toHaveTextContent('Metadata storage is unavailable');
+    expect(banner).toHaveTextContent('Profile files still save, but configuration snapshots are not recorded.');
     expect(banner).toHaveTextContent('disk is gone');
   });
 

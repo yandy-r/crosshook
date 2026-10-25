@@ -1,344 +1,96 @@
-use crosshook_core::metadata::{
-    BundledOptimizationPresetRow, ConfigRevisionSource, MetadataStore, ProfileLaunchPresetOrigin,
-};
-use crosshook_core::profile::{
-    bundled_optimization_preset_toml_key, GamescopeConfig, MangoHudConfig, ProfileStore,
-};
-use crosshook_core::settings::SettingsStore;
-use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, State};
-
-use super::shared::{
-    capture_config_revision, emit_profiles_changed, map_error, observe_profile_write_launch_change,
-    resolve_config_history_max_revisions, save_profile_section,
-};
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct BundledOptimizationPresetDto {
-    pub preset_id: String,
-    pub display_name: String,
-    pub vendor: String,
-    pub mode: String,
-    pub enabled_option_ids: Vec<String>,
-    pub catalog_version: i64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
-pub struct LaunchOptimizationsPayload {
-    #[serde(
-        rename = "enabled_option_ids",
-        default,
-        skip_serializing_if = "Vec::is_empty"
-    )]
-    pub enabled_option_ids: Vec<String>,
-    /// When set, selects that named preset from `launch.presets` and ignores `enabled_option_ids`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub switch_active_preset: Option<String>,
-}
-
-fn bundled_row_to_dto(
-    row: BundledOptimizationPresetRow,
-) -> Result<BundledOptimizationPresetDto, String> {
-    let enabled_option_ids: Vec<String> = serde_json::from_str(&row.option_ids_json)
-        .map_err(|e| format!("corrupt bundled preset {} option list: {e}", row.preset_id))?;
-    Ok(BundledOptimizationPresetDto {
-        preset_id: row.preset_id,
-        display_name: row.display_name,
-        vendor: row.vendor,
-        mode: row.mode,
-        enabled_option_ids,
-        catalog_version: row.catalog_version,
-    })
-}
-
-pub(super) fn save_launch_optimizations_for_profile(
-    name: &str,
-    optimizations: &LaunchOptimizationsPayload,
-    store: &ProfileStore,
-) -> Result<(), String> {
-    store
-        .save_launch_optimizations(
-            name,
-            optimizations.enabled_option_ids.clone(),
-            optimizations.switch_active_preset.clone(),
-        )
-        .map_err(map_error)
-}
+use crosshook_app::services::profiles::{BundledOptimizationPresetDto, LaunchOptimizationsPayload};
+use crosshook_app::{AppErrorKind, ProfileWriter};
+use crosshook_core::profile::{GameProfile, GamescopeConfig, MangoHudConfig};
+use tauri::State;
 
 #[tauri::command]
-pub fn profile_save_launch_optimizations(
+pub async fn profile_save_launch_optimizations(
     name: String,
     optimizations: LaunchOptimizationsPayload,
-    store: State<'_, ProfileStore>,
-    metadata_store: State<'_, MetadataStore>,
-    settings_store: State<'_, SettingsStore>,
+    writer: State<'_, ProfileWriter>,
 ) -> Result<(), String> {
-    let profile_name = name.trim();
-    if profile_name.is_empty() {
-        return Err("profile name is required".to_string());
-    }
-    save_launch_optimizations_for_profile(profile_name, &optimizations, &store)?;
-
-    if let Ok(updated) = store.load(profile_name) {
-        let profile_path = store.base_path.join(format!("{profile_name}.toml"));
-        if let Err(e) = metadata_store.observe_profile_write(
-            profile_name,
-            &updated,
-            &profile_path,
-            crosshook_core::metadata::SyncSource::AppWrite,
-            None,
-        ) {
-            tracing::warn!(
-                %e,
-                profile_name = %profile_name,
-                "metadata sync after save_launch_optimizations failed"
-            );
-        }
-        let max_revisions = resolve_config_history_max_revisions(&settings_store);
-        capture_config_revision(
-            profile_name,
-            &updated,
-            ConfigRevisionSource::LaunchOptimizationSave,
-            None,
-            &metadata_store,
-            max_revisions,
-        );
-    }
-
-    Ok(())
+    writer
+        .save_launch_optimizations(name, optimizations)
+        .await
+        .map(|commit| commit.into_output())
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
-pub fn profile_save_mangohud_config(
+pub async fn profile_save_mangohud_config(
     name: String,
     config: MangoHudConfig,
-    store: State<'_, ProfileStore>,
-    metadata_store: State<'_, MetadataStore>,
-    settings_store: State<'_, SettingsStore>,
+    writer: State<'_, ProfileWriter>,
 ) -> Result<(), String> {
-    save_profile_section(
-        &name,
-        &store,
-        &metadata_store,
-        &settings_store,
-        ConfigRevisionSource::ManualSave,
-        |profile| {
-            profile.launch.mangohud = config;
-        },
-    )
+    writer
+        .save_mangohud_config(name, config)
+        .await
+        .map(|commit| commit.into_output())
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
-pub fn profile_save_gamescope_config(
+pub async fn profile_save_gamescope_config(
     name: String,
     config: GamescopeConfig,
-    store: State<'_, ProfileStore>,
-    metadata_store: State<'_, MetadataStore>,
-    settings_store: State<'_, SettingsStore>,
+    writer: State<'_, ProfileWriter>,
 ) -> Result<(), String> {
-    save_profile_section(
-        &name,
-        &store,
-        &metadata_store,
-        &settings_store,
-        ConfigRevisionSource::ManualSave,
-        |profile| {
-            profile.launch.gamescope = config;
-        },
-    )
+    writer
+        .save_gamescope_config(name, config)
+        .await
+        .map(|commit| commit.into_output())
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
-pub fn profile_save_trainer_gamescope_config(
+pub async fn profile_save_trainer_gamescope_config(
     name: String,
     config: GamescopeConfig,
-    store: State<'_, ProfileStore>,
-    metadata_store: State<'_, MetadataStore>,
-    settings_store: State<'_, SettingsStore>,
+    writer: State<'_, ProfileWriter>,
 ) -> Result<(), String> {
-    save_profile_section(
-        &name,
-        &store,
-        &metadata_store,
-        &settings_store,
-        ConfigRevisionSource::ManualSave,
-        |profile| {
-            profile.launch.trainer_gamescope = config;
-        },
-    )
+    writer
+        .save_trainer_gamescope_config(name, config)
+        .await
+        .map(|commit| commit.into_output())
+        .map_err(|error| error.to_string())
 }
 
+/// Lists bundled presets; an unavailable metadata store yields an empty list,
+/// as the editor treats "no presets" and "no metadata" alike.
 #[tauri::command]
-pub fn profile_list_bundled_optimization_presets(
-    metadata_store: State<'_, MetadataStore>,
+pub async fn profile_list_bundled_optimization_presets(
+    writer: State<'_, ProfileWriter>,
 ) -> Result<Vec<BundledOptimizationPresetDto>, String> {
-    if !metadata_store.is_available() {
-        return Ok(Vec::new());
+    match writer.list_bundled_optimization_presets().await {
+        Ok(presets) => Ok(presets),
+        Err(error) if error.kind() == AppErrorKind::Unavailable => Ok(Vec::new()),
+        Err(error) => Err(error.to_string()),
     }
-    let rows = metadata_store
-        .list_bundled_optimization_presets()
-        .map_err(|e| e.to_string())?;
-    let mut out = Vec::with_capacity(rows.len());
-    for row in rows {
-        out.push(bundled_row_to_dto(row)?);
-    }
-    Ok(out)
 }
 
 #[tauri::command]
-pub fn profile_apply_bundled_optimization_preset(
+pub async fn profile_apply_bundled_optimization_preset(
     name: String,
     preset_id: String,
-    app: AppHandle,
-    store: State<'_, ProfileStore>,
-    metadata_store: State<'_, MetadataStore>,
-    settings_store: State<'_, SettingsStore>,
-) -> Result<crosshook_core::profile::GameProfile, String> {
-    if !metadata_store.is_available() {
-        return Err("metadata store is unavailable — cannot apply bundled presets".to_string());
-    }
-
-    let profile_name = name.trim();
-    if profile_name.is_empty() {
-        return Err("profile name is required".to_string());
-    }
-
-    let pid = preset_id.trim();
-    if pid.is_empty() {
-        return Err("preset_id is required".to_string());
-    }
-
-    let row = metadata_store
-        .get_bundled_optimization_preset(pid)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("unknown bundled preset: {pid}"))?;
-
-    let enabled_option_ids: Vec<String> =
-        serde_json::from_str(&row.option_ids_json).map_err(|e| e.to_string())?;
-
-    let toml_key = bundled_optimization_preset_toml_key(&row.preset_id);
-    store
-        .materialize_launch_optimization_preset(profile_name, &toml_key, enabled_option_ids, true)
-        .map_err(map_error)?;
-
-    let updated = store.load(profile_name).map_err(map_error)?;
-    observe_profile_write_launch_change(profile_name, &store, &metadata_store, &updated);
-    let max_revisions = resolve_config_history_max_revisions(&settings_store);
-    capture_config_revision(
-        profile_name,
-        &updated,
-        ConfigRevisionSource::PresetApply,
-        None,
-        &metadata_store,
-        max_revisions,
-    );
-
-    match metadata_store.lookup_profile_id(profile_name) {
-        Ok(Some(profile_id)) => {
-            if let Err(e) = metadata_store.upsert_profile_launch_preset_metadata(
-                &profile_id,
-                &toml_key,
-                ProfileLaunchPresetOrigin::Bundled,
-                Some(row.preset_id.as_str()),
-            ) {
-                tracing::warn!(
-                    %e,
-                    profile_name = %profile_name,
-                    "failed to upsert bundled preset metadata row"
-                );
-            }
-        }
-        Ok(None) => {
-            tracing::debug!(
-                profile_name = %profile_name,
-                "profile_id not yet indexed — skipping preset metadata upsert"
-            );
-        }
-        Err(e) => {
-            tracing::warn!(
-                %e,
-                profile_name = %profile_name,
-                "lookup_profile_id failed during preset metadata upsert"
-            );
-        }
-    }
-
-    emit_profiles_changed(&app, "bundled-optimization-preset");
-    let mut updated = updated;
-    updated.clear_extra();
-    Ok(updated)
+    writer: State<'_, ProfileWriter>,
+) -> Result<GameProfile, String> {
+    writer
+        .apply_bundled_optimization_preset(name, preset_id)
+        .await
+        .map(|commit| commit.into_output())
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
-pub fn profile_save_manual_optimization_preset(
+pub async fn profile_save_manual_optimization_preset(
     name: String,
     preset_name: String,
     enabled_option_ids: Vec<String>,
-    app: AppHandle,
-    store: State<'_, ProfileStore>,
-    metadata_store: State<'_, MetadataStore>,
-    settings_store: State<'_, SettingsStore>,
-) -> Result<crosshook_core::profile::GameProfile, String> {
-    let profile_name = name.trim();
-    if profile_name.is_empty() {
-        return Err("profile name is required".to_string());
-    }
-
-    let key = preset_name.trim();
-    if key.is_empty() {
-        return Err("preset name must not be empty".to_string());
-    }
-
-    store
-        .save_manual_launch_optimization_preset(profile_name, key, enabled_option_ids)
-        .map_err(map_error)?;
-
-    let updated = store.load(profile_name).map_err(map_error)?;
-    observe_profile_write_launch_change(profile_name, &store, &metadata_store, &updated);
-    let max_revisions = resolve_config_history_max_revisions(&settings_store);
-    capture_config_revision(
-        profile_name,
-        &updated,
-        ConfigRevisionSource::PresetApply,
-        None,
-        &metadata_store,
-        max_revisions,
-    );
-
-    if metadata_store.is_available() {
-        match metadata_store.lookup_profile_id(profile_name) {
-            Ok(Some(profile_id)) => {
-                if let Err(e) = metadata_store.upsert_profile_launch_preset_metadata(
-                    &profile_id,
-                    key,
-                    ProfileLaunchPresetOrigin::User,
-                    None,
-                ) {
-                    tracing::warn!(
-                        %e,
-                        profile_name = %profile_name,
-                        "failed to upsert user preset metadata row"
-                    );
-                }
-            }
-            Ok(None) => {
-                tracing::debug!(
-                    profile_name = %profile_name,
-                    "profile_id not yet indexed — skipping preset metadata upsert"
-                );
-            }
-            Err(e) => {
-                tracing::warn!(
-                    %e,
-                    profile_name = %profile_name,
-                    "lookup_profile_id failed during preset metadata upsert"
-                );
-            }
-        }
-    }
-
-    emit_profiles_changed(&app, "manual-optimization-preset");
-    let mut updated = updated;
-    updated.clear_extra();
-    Ok(updated)
+    writer: State<'_, ProfileWriter>,
+) -> Result<GameProfile, String> {
+    writer
+        .save_manual_optimization_preset(name, preset_name, enabled_option_ids)
+        .await
+        .map(|commit| commit.into_output())
+        .map_err(|error| error.to_string())
 }

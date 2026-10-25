@@ -5,9 +5,8 @@
 // sentinel.
 
 import type { ConfigDiffResult, ConfigRevisionSummary, ConfigRollbackResult } from '../../../types/profile-history';
-import { emitMockEvent } from '../eventBus';
 import { getStore } from '../store';
-import { withProfileFixtureGate } from './profile-utils';
+import { emitProfilesChanged, withProfileFixtureGate } from './profile-utils';
 import type { Handler } from './types';
 
 // Lightweight config revision history (profile name → ordered summaries, newest first)
@@ -101,7 +100,7 @@ export function registerProfileHistory(map: Map<string, Handler>): void {
       const restored = structuredClone(existing);
       const newRevision = appendRevision(trimmed, 'rollback_apply');
       newRevision.source_revision_id = revisionId;
-      emitMockEvent('profiles-changed', { name: trimmed, action: 'rollback' });
+      emitProfilesChanged({ reason: { kind: 'rolled_back' }, names: [trimmed] });
       return {
         restored_revision_id: revisionId,
         new_revision_id: newRevision.id,

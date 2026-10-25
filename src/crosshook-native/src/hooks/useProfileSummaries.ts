@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { subscribeEvent } from '@/lib/events';
 import { callCommand } from '@/lib/ipc';
+import { parseProfilesChanged } from '@/lib/profileEvents';
 
 import type { ProfileSummary } from '../types/library';
+import type { ProfilesChangedPayload } from '../types/profile-events';
 
 export interface UseProfileSummariesResult {
   summaries: ProfileSummary[];
@@ -37,8 +39,12 @@ export function useProfileSummaries(_profiles: string[], collectionId?: string |
 
   useEffect(() => {
     let active = true;
-    const unlistenPromise = subscribeEvent<string>('profiles-changed', () => {
+    const unlistenPromise = subscribeEvent<ProfilesChangedPayload | null>('profiles-changed', (event) => {
       if (!active) {
+        return;
+      }
+      // Summaries carry no favorite state; malformed payloads (null) resync.
+      if (parseProfilesChanged(event.payload)?.reason.kind === 'favorite_toggled') {
         return;
       }
       void fetchSummaries();

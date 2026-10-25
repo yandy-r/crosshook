@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeEvent } from '@/lib/events';
 import { callCommand } from '@/lib/ipc';
+import { parseProfilesChanged } from '@/lib/profileEvents';
 
 import type { LibraryCardData, ProfileSummary } from '../types/library';
+import type { ProfilesChangedPayload } from '../types/profile-events';
 
 export interface UseLibrarySummariesResult {
   summaries: LibraryCardData[];
@@ -62,8 +64,12 @@ export function useLibrarySummaries(
 
   useEffect(() => {
     let active = true;
-    const unlistenPromise = subscribeEvent<string>('profiles-changed', () => {
+    const unlistenPromise = subscribeEvent<ProfilesChangedPayload | null>('profiles-changed', (event) => {
       if (!active) {
+        return;
+      }
+      // The `favoriteProfiles` effect below patches card stars; malformed payloads (null) resync.
+      if (parseProfilesChanged(event.payload)?.reason.kind === 'favorite_toggled') {
         return;
       }
       void fetchSummaries();

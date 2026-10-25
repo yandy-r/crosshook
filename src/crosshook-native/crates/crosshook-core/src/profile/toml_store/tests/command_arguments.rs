@@ -276,3 +276,60 @@ fn save_command_arguments_accepts_steam_applaunch_override_and_persists() {
         vec!["force_vulkan".to_string()]
     );
 }
+
+/// D8 parity: the in-memory rule produces exactly what the store wrapper persists.
+#[test]
+fn apply_command_arguments_matches_store_wrapper() {
+    let temp_dir = tempdir().unwrap();
+    let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+    store.save("elden-ring", &sample_profile()).unwrap();
+    let ids = vec!["  force_vulkan ".to_string()];
+    let custom = vec![" -windowed ".to_string(), "  ".to_string()];
+
+    let mut in_memory = store.load("elden-ring").unwrap();
+    in_memory
+        .apply_command_arguments(ids.clone(), custom.clone(), None)
+        .unwrap();
+    store
+        .save_command_arguments("elden-ring", ids, custom, None)
+        .unwrap();
+
+    assert_eq!(store.load("elden-ring").unwrap(), in_memory);
+    assert_eq!(
+        in_memory.launch.command_arguments.custom_args,
+        vec!["-windowed".to_string()]
+    );
+}
+
+#[test]
+fn apply_command_arguments_rejects_native_without_mutating() {
+    let mut profile = sample_profile();
+    profile.launch.method = "native".to_string();
+    profile.steam.enabled = false;
+    let before = profile.clone();
+
+    let result = profile.apply_command_arguments(vec![], vec!["-x".into()], None);
+
+    assert!(matches!(
+        result,
+        Err(ProfileStoreError::CommandArgumentValidation(
+            ValidationError::CommandArgumentsUnsupportedForMethod(method)
+        )) if method == "native"
+    ));
+    assert_eq!(profile, before);
+}
+
+#[test]
+fn apply_command_arguments_rejects_more_than_64_tokens() {
+    let mut profile = sample_profile();
+    let custom: Vec<String> = (0..65).map(|i| format!("-a{i}")).collect();
+
+    let result = profile.apply_command_arguments(vec![], custom, Some(METHOD_PROTON_RUN));
+
+    assert!(matches!(
+        result,
+        Err(ProfileStoreError::CommandArgumentValidation(
+            ValidationError::CommandArgumentTokenCountExceeded { max_count: 64 }
+        ))
+    ));
+}

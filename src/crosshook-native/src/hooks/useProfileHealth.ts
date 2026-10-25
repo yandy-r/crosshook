@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { subscribeEvent } from '@/lib/events';
 import { callCommand } from '@/lib/ipc';
+import { parseProfilesChanged, profileChangeAffectsHealth } from '@/lib/profileEvents';
 import { fetchStartupReport } from '@/lib/startupReport';
+import type { ProfilesChangedPayload } from '@/types/profile-events';
 import type { StartupJobFinished } from '@/types/startup';
 
 import type { CachedHealthSnapshot, EnrichedHealthSummary, EnrichedProfileHealthReport, HealthStatus } from '../types';
@@ -238,8 +240,11 @@ export function useProfileHealth() {
 
   useEffect(() => {
     let active = true;
-    const unlistenProfilesChanged = subscribeEvent<string>('profiles-changed', () => {
+    const unlistenProfilesChanged = subscribeEvent<ProfilesChangedPayload | null>('profiles-changed', (event) => {
       if (!active) return;
+      const change = parseProfilesChanged(event.payload);
+      // Malformed payloads (null) are a conservative resync: revalidate.
+      if (change && !profileChangeAffectsHealth(change.reason)) return;
       void batchValidate();
     });
     const unlistenLaunchComplete = subscribeEvent<unknown>('launch-complete', () => {

@@ -8,7 +8,7 @@
 
 use std::sync::PoisonError;
 
-use crosshook_core::metadata::MetadataStore;
+use crosshook_core::metadata::{MetadataStore, ProfileLaunchPresetOrigin};
 use crosshook_core::profile::ProfileStore;
 use crosshook_core::settings::SettingsStore;
 
@@ -167,6 +167,22 @@ fn run_effects(ctx: &CommitContext<'_>, effects: Vec<Effect>) -> (Option<i64>, V
                     push_once(&mut warnings, CommitWarning::HealthInvalidationFailed);
                 }
             }
+            Effect::UpsertPresetOrigin {
+                name,
+                preset_name,
+                origin,
+                source_bundled_preset_id,
+            } => {
+                if !upsert_preset_origin(
+                    ctx.metadata,
+                    &name,
+                    &preset_name,
+                    origin,
+                    source_bundled_preset_id.as_deref(),
+                ) {
+                    push_once(&mut warnings, CommitWarning::PresetOriginFailed);
+                }
+            }
         }
     }
     (new_revision_id, warnings)
@@ -188,6 +204,46 @@ fn invalidate_health(metadata: &MetadataStore, name: &str) -> bool {
         Ok(()) => true,
         Err(error) => {
             tracing::warn!(%error, profile_name = %name, "health snapshot invalidation failed");
+            false
+        }
+    }
+}
+
+/// Upserts the launch preset origin row of the profile currently named
+/// `name`. Returns `false` (already logged) when lookup or upsert failed; a
+/// profile that is still not indexed is skipped without a warning.
+fn upsert_preset_origin(
+    metadata: &MetadataStore,
+    name: &str,
+    preset_name: &str,
+    origin: ProfileLaunchPresetOrigin,
+    source_bundled_preset_id: Option<&str>,
+) -> bool {
+    let profile_id = match metadata.lookup_profile_id(name) {
+        Ok(Some(id)) => id,
+        Ok(None) => {
+            tracing::debug!(profile_name = %name, "profile_id not yet indexed — skipping preset metadata upsert");
+            return true;
+        }
+        Err(error) => {
+            tracing::warn!(%error, profile_name = %name, "lookup_profile_id failed during preset metadata upsert");
+            return false;
+        }
+    };
+    match metadata.upsert_profile_launch_preset_metadata(
+        &profile_id,
+        preset_name,
+        origin,
+        source_bundled_preset_id,
+    ) {
+        Ok(()) => true,
+        Err(error) => {
+            tracing::warn!(
+                %error,
+                profile_name = %name,
+                origin = origin.as_str(),
+                "failed to upsert preset metadata row"
+            );
             false
         }
     }

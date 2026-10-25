@@ -6,6 +6,7 @@ import type {
   ProtonDbSuggestionSet,
 } from '../../../types/protondb';
 import { getStore } from '../store';
+import { emitProfilesChanged } from './profile-utils';
 import type { Handler } from './types';
 
 // Tracks dismissed suggestion keys across handler calls within a browser session.
@@ -167,11 +168,25 @@ export function registerProtonDb(map: Map<string, Handler>): void {
     }
 
     if (request.kind === 'catalog') {
+      // Mirrors the backend: append the catalog id if missing, persist, publish `saved`.
       const { catalogEntryId } = request;
+      const alreadyPresent = profile.launch.optimizations.enabled_option_ids.includes(catalogEntryId);
+      const updated: GameProfile = structuredClone(profile);
+      if (!alreadyPresent) {
+        updated.launch = {
+          ...updated.launch,
+          optimizations: {
+            ...updated.launch.optimizations,
+            enabled_option_ids: [...updated.launch.optimizations.enabled_option_ids, catalogEntryId],
+          },
+        };
+      }
+      store.profiles.set(profileName, updated);
+      emitProfilesChanged({ reason: { kind: 'saved' }, names: [profileName] });
       return {
-        updatedProfile: profile,
+        updatedProfile: updated,
         appliedKeys: [],
-        toggledOptionIds: [catalogEntryId],
+        toggledOptionIds: alreadyPresent ? [] : [catalogEntryId],
       };
     }
 
@@ -182,6 +197,7 @@ export function registerProtonDb(map: Map<string, Handler>): void {
       nextEnv[envKey] = envValue;
       updated.launch = { ...updated.launch, custom_env_vars: nextEnv };
       store.profiles.set(profileName, updated);
+      emitProfilesChanged({ reason: { kind: 'saved' }, names: [profileName] });
       return {
         updatedProfile: updated,
         appliedKeys: [envKey],
