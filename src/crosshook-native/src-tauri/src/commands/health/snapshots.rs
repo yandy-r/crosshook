@@ -1,5 +1,6 @@
-use super::types::{CachedHealthSnapshot, CachedOfflineReadinessSnapshot};
-use crosshook_app::services::health::HealthService;
+use crosshook_app::services::health::{
+    CachedHealthSnapshot, CachedOfflineReadinessSnapshot, HealthService,
+};
 use tauri::State;
 
 /// Returns the last batch's cached health snapshots for instant badge display.

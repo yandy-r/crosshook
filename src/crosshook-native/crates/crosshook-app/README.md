@@ -59,7 +59,7 @@ the shared Phase-A order checker. The full sequence (16 steps) is asserted in
 
 ### Startup report
 
-`StartupHandle::snapshot()` (also `App::startup_report()`, served by the
+`StartupHandle::snapshot()` (also `BootstrappedApp::startup_report()`, served by the
 `get_startup_report` command) returns a live, idempotent `StartupReport`:
 
 - `auto_load_profile` and `onboarding` are **live** — recomputed from the
@@ -80,25 +80,26 @@ serde tests in `bootstrap/report/tests.rs`.
 
 ### Test seams
 
-The crate feature `test-seams` (implied by `crosshook-core/bootstrap-trace`)
+The crate feature `test-seams` enables `crosshook-core/bootstrap-trace` and
 exposes `#[doc(hidden)]` seams for tests: the `PreRuntimeHost` trait +
 `pre_runtime_with_host` / `pre_runtime_misordered_with_host` (drive Phase A
 against a fake host, no real environment mutation), and the core `trace` log
 the `tests/bootstrap_ordering.rs` harness asserts ordering rules R1–R5
-against (own `main`, re-exec per scenario). Production builds keep the seams
-crate-private; the `verify:no-mocks` sentinel keeps them out of shipped
-bundles.
+against (own `main`, re-exec per scenario). Production builds keep the host
+seam crate-private and omit the misordered path. The `cargo tree` normal-edge
+feature checks in CI and `scripts/lint.sh` reject `bootstrap-trace` in shipped builds;
+`verify:no-mocks` separately guards frontend mock code.
 
 ## Services
 
-| Service                 | API                                                                                                                                                                          | Delegating Tauri commands                                                                                                |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `SettingsService`       | `load() -> SettingsSnapshot` (data + profiles-dir restart state), `update(closure)` (atomic, normalized), `save_request(SettingsSaveRequest)`, `save_steamgriddb_key`        | `settings_load`, `settings_save`, `settings_save_steamgriddb_key`                                                        |
-| `RecentFilesService`    | `load()`, `save(data)` (unknown keys preserved), `push(RecentFileKind, path)` (move to front, dedupe, cap at `recent_files_limit`)                                           | `recent_files_load`, `recent_files_save`                                                                                 |
-| `CatalogService`        | `optimization_catalog()`, `command_argument_catalog()`, `mangohud_presets()` (in-memory reads)                                                                               | `get_optimization_catalog`, `get_command_argument_catalog`, `get_mangohud_presets`                                       |
-| `DiagnosticsService`    | `export(DiagnosticsRequest) -> DiagnosticsExport` (absolute + sanitized display path); `DiagnosticAttachment`s are archived under `app/`                                     | `export_diagnostics`                                                                                                     |
-| `HealthService`         | `batch_summary()`, `profile_health(name)`, `cached_health_snapshots()`, `cached_offline_readiness_snapshots()` (blocking I/O on the pool; wire types keep their serde names) | `batch_validate_profiles`, `get_profile_health`, `get_cached_health_snapshots`, `get_cached_offline_readiness_snapshots` |
-| `BackgroundGrantHolder` | `request_and_store(&impl BackgroundPortal)`, `store_result`, `protection_state`, `wait_for_initialization`; `XdgBackgroundPortal` is the production portal                   | `get_background_protection_state`; Tauri setup spawns `request_and_store`, the launch watchdog awaits init               |
+| Service                 | API                                                                                                                                                                          | Delegating Tauri commands                                                                                                      |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `SettingsService`       | `load() -> SettingsSnapshot` (data + profiles-dir restart state), `update(closure)` (atomic, normalized), `save_request(SettingsSaveRequest)`, `save_steamgriddb_key`        | `settings_load`, `settings_save`, `settings_save_steamgriddb_key`                                                              |
+| `RecentFilesService`    | `load()`, `save(data)` (unknown keys preserved), `push(RecentFileKind, path)` (move to front, dedupe, cap at `recent_files_limit`)                                           | `recent_files_load`, `recent_files_save`                                                                                       |
+| `CatalogService`        | `optimization_catalog()`, `command_argument_catalog()`, `mangohud_presets()` (in-memory reads)                                                                               | `get_optimization_catalog`, `get_command_argument_catalog`, `get_mangohud_presets`                                             |
+| `DiagnosticsService`    | `export(DiagnosticsRequest) -> DiagnosticsExport` (absolute + sanitized display path); `DiagnosticAttachment`s are archived under `app/`                                     | `export_diagnostics`                                                                                                           |
+| `HealthService`         | `batch_summary()`, `profile_health(name)`, `cached_health_snapshots()`, `cached_offline_readiness_snapshots()` (blocking I/O on the pool; wire types keep their serde names) | `batch_validate_profiles`, `get_profile_health`, `get_cached_health_snapshots`, `get_cached_offline_readiness_snapshots`       |
+| `BackgroundGrantHolder` | `request_and_store(&impl BackgroundPortal)`, `store_result`, `protection_state`, `wait_for_initialization`; `XdgBackgroundPortal` is the production portal                   | `get_background_protection_state`; the background-portal startup job runs `request_and_store`, the launch watchdog awaits init |
 
 Attachment names must be a single relative file name (no `/`, `\`, `..`, NUL,
 or empty); invalid names fail with `Validation { field: "attachments" }` before

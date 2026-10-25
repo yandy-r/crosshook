@@ -41,7 +41,7 @@ fn parse_args(args: &[String]) -> Invocation {
             "--exact" => exact = true,
             "--skip" => skips.extend(rest.next().cloned()),
             "--test-threads" | "--format" | "--color" | "--logfile" | "--report-time"
-            | "--shuffle-seed" | "--ensure-time" => {
+            | "--shuffle-seed" | "--ensure-time" | "-Z" => {
                 rest.next();
             }
             flag if flag.starts_with('-') => {}
@@ -77,6 +77,26 @@ fn parse_args(args: &[String]) -> Invocation {
     }
 }
 
+/// `-Z <value>` is a libtest/rustc flag, not a test-name filter.
+fn assert_z_flag_takes_a_value() {
+    let args = |extra: &[&str]| {
+        let mut args = vec!["bootstrap_ordering".to_owned()];
+        args.extend(extra.iter().copied().map(str::to_owned));
+        args
+    };
+    assert!(
+        matches!(
+            parse_args(&args(&["-Z", "unstable-options"])),
+            Invocation::Run
+        ),
+        "-Z value must not be treated as a test filter"
+    );
+    assert!(matches!(
+        parse_args(&args(&["--list", "-Z", "unstable-options"])),
+        Invocation::List
+    ));
+}
+
 fn main() {
     let args: Vec<_> = std::env::args().collect();
     match parse_args(&args) {
@@ -86,6 +106,7 @@ fn main() {
         Invocation::List => println!("{TEST_NAME}: test"),
         Invocation::Skip => {}
         Invocation::Run => {
+            assert_z_flag_takes_a_value();
             let r4 = r4_rule(&synthetic_r4_violation());
             assert!(
                 r4.as_ref().err().is_some_and(|e| e.starts_with("R4")),

@@ -1,5 +1,4 @@
-use super::types::EnrichedHealthSummary;
-use crosshook_app::services::health::HealthService;
+use crosshook_app::services::health::{EnrichedHealthSummary, HealthService};
 use tauri::State;
 
 /// Returns enriched health results for all profiles, with sanitized display paths.

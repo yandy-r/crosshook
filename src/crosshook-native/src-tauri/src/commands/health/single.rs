@@ -1,5 +1,4 @@
-use super::types::EnrichedProfileHealthReport;
-use crosshook_app::services::health::HealthService;
+use crosshook_app::services::health::{EnrichedProfileHealthReport, HealthService};
 use tauri::State;
 
 /// Returns enriched health for one named profile, with sanitized display paths.

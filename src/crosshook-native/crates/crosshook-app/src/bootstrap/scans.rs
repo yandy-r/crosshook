@@ -7,9 +7,10 @@
 //! - **State-then-publish**: every job writes its terminal state into
 //!   [`StartupHandle`] first, then publishes `AppEvent::StartupJobFinished`,
 //!   so a snapshot read off the event always contains the result.
-//! - **No hangs**: `spawn_blocking` join errors (panic/cancel) map to
-//!   `failed` and the sequence continues; a step cancelled before it starts
-//!   is `skipped`; a job that fails to *schedule* lands `failed`. No
+//! - **No hangs**: `spawn_blocking` join errors (panic/cancel) are logged
+//!   raw and stored as `failed` with the sanitized [`AppError`] message.
+//!   The sequence continues; a step cancelled before it starts is
+//!   `skipped`; a job that fails to *schedule* lands `failed`. No
 //!   `pending` state survives a finished or unstartable job.
 //! - **No owner retention**: closures capture [`StartupHandle`], [`EventBus`]
 //!   and store/service clones — never an `App` clone.
@@ -25,6 +26,7 @@ use crate::bootstrap::StartupJobKind;
 use crate::events::{AppEvent, EventBus};
 use crate::jobs::{JobSpec, Outcome};
 use crate::App;
+use crate::AppError;
 
 /// Schedules the three startup jobs on the app runtime.
 ///
@@ -127,9 +129,10 @@ fn schedule_scans(
             .await
             {
                 Ok(summary) => JobUpdate::offline_readiness_complete(summary),
-                Err(join) => JobUpdate::offline_readiness_failed(format!(
-                    "offline readiness scan task failed: {join}"
-                )),
+                Err(join) => {
+                    tracing::warn!(%join, "offline readiness scan task failed");
+                    JobUpdate::offline_readiness_failed(AppError::from(join).to_string())
+                }
             };
             finish(&startup, &events, update);
 
@@ -146,7 +149,8 @@ fn schedule_scans(
             {
                 Ok(summary) => JobUpdate::version_scan_complete(summary),
                 Err(join) => {
-                    JobUpdate::version_scan_failed(format!("version scan task failed: {join}"))
+                    tracing::warn!(%join, "version scan task failed");
+                    JobUpdate::version_scan_failed(AppError::from(join).to_string())
                 }
             };
             finish(&startup, &events, update);

@@ -96,14 +96,14 @@ impl App {
         let settings_store = stores::init_settings(&opts.store_roots)?;
         let (settings, settings_unreadable) = load_settings_step(&settings_store, &mut steps);
         let logging_unavailable = init_logging_step(opts.logging, &settings, &mut steps);
+        relog_degraded_phase_a(&steps);
         development_scripts_step(&mut steps);
         let (stores, metadata_error) =
             init_stores_step(&opts.store_roots, &settings_store, &settings, &mut steps)?;
         init_metadata_steps(&stores, &settings, &mut steps);
         let services = Services::new(&stores);
-        let report = initial_report(
-            &stores,
-            &settings,
+        let startup = StartupHandle::new(
+            stores.clone(),
             FlatpakStartup { mode, migration },
             DegradedStores {
                 metadata: stores.metadata.status(),
@@ -111,8 +111,14 @@ impl App {
                 settings_unreadable,
                 logging_unavailable,
             },
+            StartupJobs {
+                health: JobState::Pending,
+                offline_readiness: JobState::Pending,
+                version_scan: JobState::Pending,
+                umu_refresh: JobState::Pending,
+                background_portal: JobState::Pending,
+            },
         );
-        let startup = StartupHandle::new(stores.clone(), report);
         steps.push(BootstrapStep::StartupJobs, StepOutcome::Ran);
         let boot = BootstrappedApp {
             app,
@@ -263,29 +269,23 @@ fn init_metadata_steps(stores: &Stores, settings: &AppSettingsData, steps: &mut 
     steps.push(BootstrapStep::NagSync, StepOutcome::Ran);
 }
 
-/// Builds the all-pending report returned from [`App::bootstrap`]. The live
-/// `auto_load_profile` is left unresolved here; snapshots compute it.
-fn initial_report(
-    stores: &Stores,
-    settings: &AppSettingsData,
-    flatpak: FlatpakStartup,
-    degraded: DegradedStores,
-) -> StartupReport {
-    let profiles = stores.profiles.list().unwrap_or_else(|error| {
-        tracing::warn!(%error, "startup: failed to list profiles; assuming none");
-        Vec::new()
-    });
-    StartupReport {
-        auto_load_profile: None,
-        onboarding: reconcile::derive_onboarding(settings, &profiles),
-        flatpak,
-        degraded,
-        jobs: StartupJobs {
-            health: JobState::Pending,
-            offline_readiness: JobState::Pending,
-            version_scan: JobState::Pending,
-            umu_refresh: JobState::Pending,
-            background_portal: JobState::Pending,
-        },
+/// Re-logs every degraded Phase A step once logging is installed.
+///
+/// Phase A records those outcomes before the subscriber exists, so the
+/// original `tracing` warnings never reach the log. The step log is the
+/// source.
+fn relog_degraded_phase_a(steps: &StepLog) {
+    for record in steps.records() {
+        if !BootstrapStep::PRE_RUNTIME_ORDER.contains(&record.step) {
+            continue;
+        }
+        let StepOutcome::Degraded(reason) = record.outcome else {
+            continue;
+        };
+        tracing::warn!(
+            step = record.step.name(),
+            reason,
+            "pre-runtime step degraded"
+        );
     }
 }

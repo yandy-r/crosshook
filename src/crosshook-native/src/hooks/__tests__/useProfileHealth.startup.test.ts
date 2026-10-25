@@ -61,6 +61,21 @@ function batchCalls() {
   return mockCallCommand.mock.calls.filter((c) => c[0] === 'batch_validate_profiles');
 }
 
+/** Sequential reads: the mount flow reads the first, re-reads consume the rest in order. */
+function sequentialReports(...reports: StartupReport[]) {
+  let read = 0;
+  mockCallCommand.mockImplementation(async (name: string) => {
+    if (name === 'get_cached_health_snapshots') return [];
+    if (name === 'get_startup_report') {
+      const report = reports[read] ?? reports[reports.length - 1];
+      read += 1;
+      return report;
+    }
+    if (name === 'batch_validate_profiles') return summary;
+    throw new Error(`unexpected ${name}`);
+  });
+}
+
 async function settleReport() {
   await waitFor(() => expect(mockCallCommand).toHaveBeenCalledWith('get_startup_report'));
   vi.useFakeTimers();
@@ -114,6 +129,103 @@ describe('useProfileHealth startup report', () => {
     });
     await waitFor(() => expect(result.current.summary).toEqual(summary));
     expect(batchCalls()).toHaveLength(1);
+  });
+
+  it('re-reads the report when a running job signals complete without the legacy event', async () => {
+    sequentialReports(reportWith({ state: 'running' }), reportWith({ state: 'complete', data: summary }));
+    const { result } = renderHook(() => useProfileHealth());
+    await settleReport();
+    expect(result.current.summary).toBeNull();
+    expect(batchCalls()).toHaveLength(0);
+    await act(async () => {
+      emitMockEvent('startup-job-finished', { job: 'health_batch', state: 'complete' });
+    });
+    await waitFor(() => expect(result.current.summary).toEqual(summary));
+    expect(batchCalls()).toHaveLength(0);
+    expect(mockCallCommand.mock.calls.filter((c) => c[0] === 'get_startup_report')).toHaveLength(2);
+  });
+
+  it('falls back once when the re-read triggered by a complete signal rejects', async () => {
+    let failReads = false;
+    mockCallCommand.mockImplementation(async (name: string) => {
+      if (name === 'get_cached_health_snapshots') return [];
+      if (name === 'get_startup_report') {
+        if (failReads) throw new Error('read failed');
+        return reportWith({ state: 'running' });
+      }
+      if (name === 'batch_validate_profiles') return summary;
+      throw new Error(`unexpected ${name}`);
+    });
+    const { result } = renderHook(() => useProfileHealth());
+    await settleReport();
+    failReads = true;
+    await act(async () => {
+      emitMockEvent('startup-job-finished', { job: 'health_batch', state: 'complete' });
+      emitMockEvent('startup-job-finished', { job: 'health_batch', state: 'complete' });
+    });
+    await waitFor(() => expect(result.current.summary).toEqual(summary));
+    expect(batchCalls()).toHaveLength(1);
+  });
+
+  it('dispatches once when duplicate complete signals race their report reads', async () => {
+    const first = reportWith({ state: 'complete', data: summary });
+    const later = reportWith({
+      state: 'complete',
+      data: { ...summary, validated_at: '2021-01-01T00:00:00.000Z' },
+    });
+    const pending: Array<(report: StartupReport) => void> = [];
+    mockCallCommand.mockImplementation((name: string) => {
+      if (name === 'get_cached_health_snapshots') return Promise.resolve([]);
+      if (name === 'get_startup_report') {
+        return new Promise<StartupReport>((resolve) => {
+          pending.push(resolve);
+        });
+      }
+      return Promise.reject(new Error(`unexpected ${name}`));
+    });
+    const { result } = renderHook(() => useProfileHealth());
+    await settleReport();
+    await act(async () => {
+      emitMockEvent('startup-job-finished', { job: 'health_batch', state: 'complete' });
+      emitMockEvent('startup-job-finished', { job: 'health_batch', state: 'complete' });
+    });
+    expect(result.current.summary).toBeNull();
+    await act(async () => {
+      // First read belongs to the mount flow; racing duplicate signals must
+      // not overwrite its result.
+      pending[0]?.(first);
+      for (const resolve of pending.slice(1)) resolve(later);
+    });
+    expect(result.current.summary).toEqual(summary);
+  });
+
+  it('ignores a stale legacy replay after startup data was already applied', async () => {
+    const replayed: EnrichedHealthSummary = {
+      ...summary,
+      validated_at: '1999-01-01T00:00:00.000Z',
+    };
+    sequentialReports(reportWith({ state: 'running' }), reportWith({ state: 'complete', data: summary }));
+    const { result } = renderHook(() => useProfileHealth());
+    await settleReport();
+    await act(async () => {
+      emitMockEvent('startup-job-finished', { job: 'health_batch', state: 'complete' });
+    });
+    await waitFor(() => expect(result.current.summary).toEqual(summary));
+    await act(async () => {
+      emitMockEvent('profile-health-batch-complete', replayed);
+    });
+    expect(result.current.summary).toEqual(summary);
+  });
+
+  it('ignores a delayed legacy event after startup data was already applied', async () => {
+    mockCommands(reportWith({ state: 'complete', data: summary }));
+    const { result } = renderHook(() => useProfileHealth());
+    await waitFor(() => expect(result.current.summary).toEqual(summary));
+    await act(async () => {
+      emitMockEvent('profile-health-batch-complete', summary);
+    });
+    expect(result.current.summary).toEqual(summary);
+    expect(batchCalls()).toHaveLength(0);
   });
 
   it('retains success delivered before a late running report resolves', async () => {

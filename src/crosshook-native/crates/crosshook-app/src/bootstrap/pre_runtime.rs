@@ -105,7 +105,7 @@ impl PreRuntime {
 /// not change the signature.
 pub fn pre_runtime(opts: PreRuntimeOptions) -> Result<PreRuntime, BootstrapError> {
     let mut host = SystemHost::new();
-    run_pre_runtime(opts, &mut host, false)
+    run_pre_runtime(opts, &mut host)
 }
 
 #[cfg(feature = "test-seams")]
@@ -116,7 +116,7 @@ pub fn pre_runtime_with_host(
     opts: PreRuntimeOptions,
     host: &mut impl PreRuntimeHost,
 ) -> Result<PreRuntime, BootstrapError> {
-    run_pre_runtime(opts, host, false)
+    run_pre_runtime(opts, host)
 }
 
 #[cfg(feature = "test-seams")]
@@ -129,22 +129,51 @@ pub fn pre_runtime_misordered_with_host(
     opts: PreRuntimeOptions,
     host: &mut impl PreRuntimeHost,
 ) -> Result<PreRuntime, BootstrapError> {
-    run_pre_runtime(opts, host, true)
+    run_pre_runtime_misordered(opts, host)
 }
 
 fn run_pre_runtime(
     opts: PreRuntimeOptions,
     host: &mut dyn PreRuntimeHost,
-    misordered: bool,
 ) -> Result<PreRuntime, BootstrapError> {
-    // Prologue: environment mutation is only guaranteed sound before any other
-    // thread exists. Threads can already exist at entry when external
-    // libraries are preloaded into the process (for example the Steam
-    // overlay), and the pre-contract startup mutated the environment
-    // regardless, so a multi-threaded entry degrades instead of aborting.
-    // An unreadable `/proc` cannot prove the precondition either way, so warn
-    // and proceed rather than blocking startup on a diagnostic read.
-    let multi_threaded = match host.thread_count() {
+    let multi_threaded = note_entry_threads(host);
+
+    // SEAM(M1-12): instance lock acquires here (step 0)
+
+    let mut log = StepLog::new();
+    // Production order: 1 -> 2 -> 3 -> 4. Swapping these calls must
+    // fail the unit order tests and the ordering harness.
+    let mode = step_flatpak_gate(host, &mut log);
+    let migration = step_flatpak_migration(host, mode, &mut log);
+    step_legacy_app_id(host, &mut log);
+    step_env_policy(opts.env_policy.as_deref(), host, multi_threaded, &mut log);
+    finish_pre_runtime(log, mode, migration)
+}
+
+/// Deliberate harness order: 3 -> 1 -> 2 -> 4. Compiled only for the
+/// ordering seam; production startup has no misordered path.
+#[cfg(feature = "test-seams")]
+fn run_pre_runtime_misordered(
+    opts: PreRuntimeOptions,
+    host: &mut dyn PreRuntimeHost,
+) -> Result<PreRuntime, BootstrapError> {
+    let multi_threaded = note_entry_threads(host);
+    let mut log = StepLog::new();
+    step_legacy_app_id(host, &mut log);
+    let mode = step_flatpak_gate(host, &mut log);
+    let migration = step_flatpak_migration(host, mode, &mut log);
+    step_env_policy(opts.env_policy.as_deref(), host, multi_threaded, &mut log);
+    finish_pre_runtime(log, mode, migration)
+}
+
+fn note_entry_threads(host: &mut dyn PreRuntimeHost) -> bool {
+    // Environment mutation is only guaranteed sound before any other thread
+    // exists. Threads can already exist at entry when external libraries are
+    // preloaded (for example the Steam overlay), and the pre-contract startup
+    // mutated the environment regardless, so a multi-threaded entry degrades
+    // instead of aborting. An unreadable `/proc` cannot prove the precondition
+    // either way, so warn and proceed rather than blocking startup.
+    match host.thread_count() {
         Some(threads) if threads > 1 => {
             tracing::warn!(
                 threads,
@@ -161,30 +190,17 @@ fn run_pre_runtime(
             tracing::warn!("pre-runtime thread count unavailable; proceeding without verification");
             false
         }
-    };
+    }
+}
 
-    // SEAM(M1-12): instance lock acquires here (step 0)
-
-    let mut log = StepLog::new();
-    let (mode, migration) = if misordered {
-        // Deliberate harness order: 3 -> 1 -> 2 -> 4.
-        step_legacy_app_id(host, &mut log);
-        let mode = step_flatpak_gate(host, &mut log);
-        let migration = step_flatpak_migration(host, mode, &mut log);
-        step_env_policy(opts.env_policy.as_deref(), host, multi_threaded, &mut log);
-        (mode, migration)
-    } else {
-        // Production order: 1 -> 2 -> 3 -> 4. Swapping these calls must
-        // fail the unit order tests and the ordering harness.
-        let mode = step_flatpak_gate(host, &mut log);
-        let migration = step_flatpak_migration(host, mode, &mut log);
-        step_legacy_app_id(host, &mut log);
-        step_env_policy(opts.env_policy.as_deref(), host, multi_threaded, &mut log);
-        (mode, migration)
-    };
+fn finish_pre_runtime(
+    steps: StepLog,
+    mode: FlatpakMode,
+    migration: Option<FlatpakMigrationReport>,
+) -> Result<PreRuntime, BootstrapError> {
     trace::mark("pre:done");
     Ok(PreRuntime {
-        steps: log,
+        steps,
         mode,
         migration,
     })

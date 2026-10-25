@@ -66,13 +66,19 @@ pub struct StartupHandle {
 }
 
 impl StartupHandle {
-    /// Builds the handle from the initial (all-pending) report and the store
-    /// bundle used for live field recomputation.
-    pub(crate) fn new(stores: Stores, report: StartupReport) -> Self {
+    /// Builds the handle from the store bundle and the frozen bootstrap
+    /// fields. Live fields are not stored; [`Self::snapshot`] recomputes
+    /// them. `jobs` starts pending.
+    pub(crate) fn new(
+        stores: Stores,
+        flatpak: FlatpakStartup,
+        degraded: DegradedStores,
+        jobs: StartupJobs,
+    ) -> Self {
         let state = StartupState {
-            flatpak: report.flatpak,
-            degraded: report.degraded,
-            jobs: report.jobs,
+            flatpak,
+            degraded,
+            jobs,
         };
         let job_watch = watch::Sender::new(JobKinds::from(&state.jobs));
         Self {

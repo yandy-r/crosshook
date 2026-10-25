@@ -4,7 +4,7 @@ use crosshook_app::bootstrap::{
 };
 use crosshook_app::services::health::EnrichedHealthSummary;
 use crosshook_app::services::BackgroundProtectionState;
-use serde_json::json;
+use serde_json::{json, Value};
 use std::sync::Arc;
 
 fn jobs() -> StartupJobs {
@@ -50,31 +50,35 @@ fn completed_jobs_keep_legacy_names_and_payloads() {
         data: BackgroundProtectionState::NotApplicable,
     };
     assert_eq!(
-        event_for(StartupJobKind::HealthBatch, &jobs),
-        Some((
-            "profile-health-batch-complete",
-            json!({"profiles": [], "healthy_count": 1, "stale_count": 2,
-            "broken_count": 3, "total_count": 6, "validated_at": "now"})
-        ))
+        legacy_event_name(StartupJobKind::HealthBatch),
+        Some("profile-health-batch-complete")
+    );
+    let health = complete_data(&jobs.health).unwrap();
+    assert_eq!(
+        serde_json::to_value(&**health).unwrap(),
+        json!({"profiles": [], "healthy_count": 1, "stale_count": 2,
+        "broken_count": 3, "total_count": 6, "validated_at": "now"})
     );
     assert_eq!(
-        event_for(StartupJobKind::OfflineReadiness, &jobs),
-        Some((
-            "offline-readiness-scan-complete",
-            json!({"total_profiles": 6})
-        ))
+        legacy_event_name(StartupJobKind::OfflineReadiness),
+        Some("offline-readiness-scan-complete")
     );
     assert_eq!(
-        event_for(StartupJobKind::VersionScan, &jobs),
-        Some((
-            "version-scan-complete",
-            json!({"scanned": 6, "mismatches": 2})
-        ))
+        complete_data(&jobs.offline_readiness).map(|data| serde_json::to_value(data).unwrap()),
+        Some(json!({"total_profiles": 6}))
+    );
+    assert_eq!(
+        legacy_event_name(StartupJobKind::VersionScan),
+        Some("version-scan-complete")
+    );
+    assert_eq!(
+        complete_data(&jobs.version_scan).map(|data| serde_json::to_value(data).unwrap()),
+        Some(json!({"scanned": 6, "mismatches": 2}))
     );
     assert_eq!(
         BRIDGED_JOBS
             .iter()
-            .filter_map(|kind| event_for(*kind, &jobs))
+            .filter(|kind| legacy_event_name(**kind).is_some())
             .count(),
         3
     );
@@ -115,7 +119,16 @@ fn all_jobs_report_failed_and_skipped_outcomes_on_resync() {
     let payloads: Vec<Value> = BRIDGED_JOBS
         .iter()
         .map(|kind| {
-            assert!(event_for(*kind, &jobs).is_none());
+            // Failed/skipped jobs carry no legacy success payload.
+            let has_payload = match kind {
+                StartupJobKind::HealthBatch => complete_data(&jobs.health).is_some(),
+                StartupJobKind::OfflineReadiness => {
+                    complete_data(&jobs.offline_readiness).is_some()
+                }
+                StartupJobKind::VersionScan => complete_data(&jobs.version_scan).is_some(),
+                StartupJobKind::UmuRefresh | StartupJobKind::BackgroundPortal => false,
+            };
+            assert!(!has_payload);
             serde_json::to_value(finished_payload(*kind, &jobs).unwrap()).unwrap()
         })
         .collect();
@@ -137,7 +150,7 @@ fn pending_and_running_jobs_emit_nothing() {
     for state in [JobState::Pending, JobState::Running] {
         jobs.health = state;
         assert!(finished_payload(StartupJobKind::HealthBatch, &jobs).is_none());
-        assert!(event_for(StartupJobKind::HealthBatch, &jobs).is_none());
+        assert!(complete_data(&jobs.health).is_none());
     }
     assert!(BRIDGED_JOBS
         .iter()

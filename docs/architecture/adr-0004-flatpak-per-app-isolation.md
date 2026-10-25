@@ -116,7 +116,7 @@ Fixed step order (always recorded in the step log; inapplicable steps are `Skipp
 Because the gate rewrites process-global environment variables, `pre_runtime` checks
 the thread count (`Threads:` from `/proc/self/status`) before mutating anything. A
 multi-threaded process at entry is a contract violation, not a fatal error: production
-warns (via `tracing` and `eprintln!`), records the prologue and the environment step
+warns (via `tracing` and `eprintln!`), records the environment step
 as `Degraded("multi-threaded at entry")` in the step log, and continues, because
 aborting startup would leave the user with no window. An unreadable `/proc` proceeds
 with a warning. The ordering is enforced by the unit tests in

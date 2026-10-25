@@ -2,12 +2,14 @@
 //!
 //! [`mark`], [`env_mutation`], and [`base_dirs_lookup`] append to one ordered
 //! log **only while the trace is armed**: [`reset`] clears and arms the log,
-//! and [`take`] drains and disarms it. While disarmed — the steady state of
-//! any long-lived process, including a `--workspace` test binary where
-//! feature unification turns this crate's `bootstrap-trace` feature on —
-//! every entry point is a no-op that never touches the log mutex and never
-//! reads `/proc`. Only [`thread_count`] always reads `/proc`, because startup
-//! needs the live `Threads:` count before any runtime exists.
+//! and [`take`] drains and disarms it. The arm flag is an atomic, so the
+//! disarmed path — the steady state of any long-lived process, including a
+//! `--workspace` test binary where feature unification turns this crate's
+//! `bootstrap-trace` feature on — returns before it touches the log mutex or
+//! reads `/proc`. A producer that passed that fast check rechecks the flag
+//! while holding the log mutex, so it cannot append after [`take`] has drained.
+//! Only [`thread_count`] always reads `/proc`, because startup needs the live
+//! `Threads:` count before any runtime exists.
 //!
 //! Recording is additionally capped: one arm accepts at most
 //! `RECORD_LIMIT` events, so a process that stays armed cannot grow the
@@ -21,7 +23,10 @@
 //! integration test runs in its own process and can assert on every event.
 
 #[cfg(feature = "bootstrap-trace")]
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Mutex, MutexGuard,
+};
 
 /// One recorded bootstrap event, in process order.
 #[doc(hidden)]
@@ -131,10 +136,13 @@ pub fn base_dirs_lookup() {
 }
 
 /// Whether the trace is currently armed (recording).
+///
+/// Loads the atomic flag only. Callers on the disarmed path return before
+/// they take the log mutex.
 #[cfg(feature = "bootstrap-trace")]
 #[inline]
 fn armed() -> bool {
-    lock().armed
+    armed_flag().load(Ordering::Acquire)
 }
 
 /// Drain the process-global log and disarm the trace.
@@ -148,7 +156,10 @@ pub fn take() -> Vec<TraceEvent> {
     #[cfg(feature = "bootstrap-trace")]
     {
         let mut guard = lock();
-        guard.armed = false;
+        // Disarm under the mutex, before the drain is published. A producer
+        // that already passed the fast gate rechecks this flag while holding
+        // the same mutex and drops the event instead of appending after take.
+        armed_flag().store(false, Ordering::Release);
         std::mem::take(&mut guard.events)
     }
     #[cfg(not(feature = "bootstrap-trace"))]
@@ -166,24 +177,28 @@ pub fn reset() {
     {
         let mut guard = lock();
         guard.events.clear();
-        guard.armed = true;
+        // Arm only after the clear, still holding the mutex, so a producer
+        // cannot append into the window `clear` is about to drop.
+        armed_flag().store(true, Ordering::Release);
     }
 }
 
 #[cfg(feature = "bootstrap-trace")]
 struct TraceLog {
     events: Vec<TraceEvent>,
-    armed: bool,
 }
 
 #[cfg(feature = "bootstrap-trace")]
 impl TraceLog {
     const fn new() -> Self {
-        Self {
-            events: Vec::new(),
-            armed: false,
-        }
+        Self { events: Vec::new() }
     }
+}
+
+#[cfg(feature = "bootstrap-trace")]
+fn armed_flag() -> &'static AtomicBool {
+    static ARMED: AtomicBool = AtomicBool::new(false);
+    &ARMED
 }
 
 #[cfg(feature = "bootstrap-trace")]
@@ -200,10 +215,13 @@ fn lock() -> MutexGuard<'static, TraceLog> {
 }
 
 /// Append `event` while armed, dropping it when disarmed or over the cap.
+///
+/// The arm flag is rechecked under the log mutex so a producer that passed
+/// the lock-free gate cannot append after [`take`] disarms and drains.
 #[cfg(feature = "bootstrap-trace")]
 fn push(event: TraceEvent) {
     let mut guard = lock();
-    if !guard.armed || guard.events.len() >= RECORD_LIMIT {
+    if !armed_flag().load(Ordering::Acquire) || guard.events.len() >= RECORD_LIMIT {
         return;
     }
     guard.events.push(event);

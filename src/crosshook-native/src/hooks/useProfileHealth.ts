@@ -154,15 +154,37 @@ export function useProfileHealth() {
       void batchValidate(controller.signal);
     };
     const unlistenBatchComplete = subscribeEvent<EnrichedHealthSummary>('profile-health-batch-complete', (event) => {
-      if (active) {
-        startupHandled = true;
-        dispatch({ type: 'batch-complete', summary: event.payload });
-      }
+      // Only the startup bridge emits this; a Resync replay after startup data
+      // was applied must not overwrite a newer summary.
+      if (!active || startupHandled) return;
+      startupHandled = true;
+      dispatch({ type: 'batch-complete', summary: event.payload });
     });
     const unlistenFinished = subscribeEvent<StartupJobFinished>('startup-job-finished', ({ payload }) => {
-      if (payload.job === 'health_batch' && (payload.state === 'failed' || payload.state === 'skipped')) {
+      if (payload.job !== 'health_batch') return;
+      if (payload.state === 'failed' || payload.state === 'skipped') {
         fallback();
+        return;
       }
+      if (startupHandled) return;
+      // The legacy payload event may have been lost; re-read a fresh report and
+      // apply the job data. Re-check after the await so duplicate or delayed
+      // signals dispatch at most once.
+      void fetchStartupReport({ fresh: true }).then(
+        (report) => {
+          if (!active || startupHandled) return;
+          const health = report.jobs.health;
+          if (health.state === 'complete') {
+            startupHandled = true;
+            dispatch({ type: 'batch-complete', summary: health.data });
+          } else if (health.state === 'failed' || health.state === 'skipped') {
+            fallback();
+          }
+          // pending/running: the snapshot cannot regress behind a terminal
+          // signal, so wait for the next terminal event.
+        },
+        () => fallback()
+      );
     });
 
     const run = async () => {

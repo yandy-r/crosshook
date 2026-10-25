@@ -3,7 +3,6 @@ use crosshook_app::bootstrap::{
 };
 use crosshook_app::{AppEvent, EventReceiver};
 use serde::Serialize;
-use serde_json::Value;
 use tauri::{AppHandle, Emitter};
 
 const BRIDGED_JOBS: [StartupJobKind; 5] = [
@@ -36,9 +35,10 @@ fn finished_payload(job: StartupJobKind, jobs: &StartupJobs) -> Option<FinishedP
     }
 }
 
-fn complete_payload<T: Serialize>(state: &JobState<T>) -> Option<Value> {
+/// Success payload of a completed job, borrowed from the snapshot.
+fn complete_data<T>(state: &JobState<T>) -> Option<&T> {
     match state {
-        JobState::Complete { data } => serde_json::to_value(data).ok(),
+        JobState::Complete { data } => Some(data),
         JobState::Pending
         | JobState::Running
         | JobState::Failed { .. }
@@ -46,33 +46,45 @@ fn complete_payload<T: Serialize>(state: &JobState<T>) -> Option<Value> {
     }
 }
 
-fn event_for(kind: StartupJobKind, jobs: &StartupJobs) -> Option<(&'static str, Value)> {
-    let (name, payload) = match kind {
-        StartupJobKind::HealthBatch => (
-            "profile-health-batch-complete",
-            complete_payload(&jobs.health),
-        ),
-        StartupJobKind::OfflineReadiness => (
-            "offline-readiness-scan-complete",
-            complete_payload(&jobs.offline_readiness),
-        ),
-        StartupJobKind::VersionScan => (
-            "version-scan-complete",
-            complete_payload(&jobs.version_scan),
-        ),
-        StartupJobKind::UmuRefresh | StartupJobKind::BackgroundPortal => return None,
+/// Classic legacy event name carrying the job's success payload, if any.
+fn legacy_event_name(kind: StartupJobKind) -> Option<&'static str> {
+    match kind {
+        StartupJobKind::HealthBatch => Some("profile-health-batch-complete"),
+        StartupJobKind::OfflineReadiness => Some("offline-readiness-scan-complete"),
+        StartupJobKind::VersionScan => Some("version-scan-complete"),
+        StartupJobKind::UmuRefresh | StartupJobKind::BackgroundPortal => None,
+    }
+}
+
+/// Emits Classic's legacy success event with the snapshot payload, serialized
+/// once straight from the job data.
+fn emit_legacy_completion(handle: &AppHandle, kind: StartupJobKind, jobs: &StartupJobs) {
+    // An emission error must not suppress the fallback signal to job consumers.
+    let name = match legacy_event_name(kind) {
+        Some(name) => name,
+        None => return,
     };
-    payload.map(|payload| (name, payload))
+    let result = match kind {
+        StartupJobKind::HealthBatch => {
+            complete_data(&jobs.health).map(|data| handle.emit(name, &**data))
+        }
+        StartupJobKind::OfflineReadiness => {
+            complete_data(&jobs.offline_readiness).map(|data| handle.emit(name, data))
+        }
+        StartupJobKind::VersionScan => {
+            complete_data(&jobs.version_scan).map(|data| handle.emit(name, data))
+        }
+        StartupJobKind::UmuRefresh | StartupJobKind::BackgroundPortal => None,
+    };
+    if let Some(Err(error)) = result {
+        tracing::warn!(%error, event = name, "failed to emit startup completion event");
+    }
 }
 
 fn emit_finished(handle: &AppHandle, kind: StartupJobKind, jobs: &StartupJobs) {
     // Legacy success payload precedes the generic terminal notification. An
     // emission error must not suppress the fallback signal to job consumers.
-    if let Some((name, payload)) = event_for(kind, jobs) {
-        if let Err(error) = handle.emit(name, payload) {
-            tracing::warn!(%error, event = name, "failed to emit startup completion event");
-        }
-    }
+    emit_legacy_completion(handle, kind, jobs);
     if let Some(payload) = finished_payload(kind, jobs) {
         if let Err(error) = handle.emit("startup-job-finished", payload) {
             tracing::warn!(%error, "failed to emit startup terminal event");
@@ -80,7 +92,7 @@ fn emit_finished(handle: &AppHandle, kind: StartupJobKind, jobs: &StartupJobs) {
     }
     match kind {
         StartupJobKind::HealthBatch => {
-            if let JobState::Complete { data } = &jobs.health {
+            if let Some(data) = complete_data(&jobs.health) {
                 tracing::info!(
                     total = data.total_count,
                     healthy = data.healthy_count,
@@ -91,7 +103,7 @@ fn emit_finished(handle: &AppHandle, kind: StartupJobKind, jobs: &StartupJobs) {
             }
         }
         StartupJobKind::OfflineReadiness => {
-            if let JobState::Complete { .. } = jobs.offline_readiness {
+            if complete_data(&jobs.offline_readiness).is_some() {
                 tracing::info!("startup offline readiness scan complete");
             }
         }

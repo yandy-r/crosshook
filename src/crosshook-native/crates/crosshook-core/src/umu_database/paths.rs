@@ -67,8 +67,7 @@ mod tests {
 
     /// Saves the listed env vars and restores them on drop, so this test
     /// never leaks its tempdir `HOME` / `XDG_*` values into other tests in
-    /// the same libtest process (the launch::request parity test reads
-    /// `HOME` through Steam-client fallback resolution).
+    /// the same libtest process.
     struct EnvGuard {
         saved: Vec<(&'static str, Option<OsString>)>,
         _guard: MutexGuard<'static, ()>,
