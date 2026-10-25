@@ -231,8 +231,8 @@ Repo conventions for tagged enums crossing IPC:
 | `StartupJobKind` (`events.rs`)                                                 | `rename_all="snake_case"` on a unit enum                      | `"health_batch"`                                 |
 | `startup-job-finished` payload                                                 | `FinishedPayload { job, state }` (snake_case fields)          | `{"job":"health_batch","state":"complete"}`      |
 
-**Recommended shape** (matches `tag="kind"` precedent from `AcceptSuggestionRequest`, snake_case
-variant _and_ field names, matching the other bridge events and the health/startup TS types which use
+**Recommended shape** (matches `tag="kind"` precedent from `AcceptSuggestionRequest`, snake*case
+variant \_and* field names, matching the other bridge events and the health/startup TS types which use
 `snake_case`; `ProfileSummary` is the camelCase exception — don't copy it):
 
 ```jsonc
