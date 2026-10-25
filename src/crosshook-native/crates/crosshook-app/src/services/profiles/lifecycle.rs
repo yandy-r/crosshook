@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use crosshook_core::metadata::{ConfigRevisionSource, SyncSource};
 use crosshook_core::profile::{
     profile_to_shareable_toml_with_options, validate_steam_app_id, DuplicateProfileResult,
-    GameProfile, ProfileStore, ShareableTomlOptions,
+    GameProfile, ProfileStore, ProfileStoreError, ShareableTomlOptions,
 };
 use crosshook_core::settings::SettingsStore;
 
@@ -21,7 +21,7 @@ use super::ProfileWriter;
 use crate::{AppError, AppErrorKind, ProfileChangeReason};
 
 impl ProfileWriter {
-    /// Saves the editor's full profile as `name`.
+    /// Saves the editor's full profile as `name` (trimmed).
     ///
     /// Existing profiles keep the unknown TOML keys already on disk; new
     /// profiles get the settings creation defaults and the default bundled
@@ -29,30 +29,34 @@ impl ProfileWriter {
     /// imported (fail-soft). Publishes `Saved`.
     ///
     /// # Errors
-    /// Validation of `runtime.steam_app_id` or the name, profile load/save,
-    /// or settings read failures. Metadata failures are commit warnings.
+    /// `Validation` for an invalid name (before any side effect) or
+    /// `runtime.steam_app_id`; profile load/save or settings read failures.
+    /// Metadata failures are commit warnings.
     pub async fn save(
         &self,
         name: String,
         profile: GameProfile,
     ) -> Result<ProfileCommit<()>, AppError> {
+        let name = ProfileStore::validate_profile_name(&name)?;
         self.commit(SaveProfile { name, profile }, ProfileChangeReason::Saved)
             .await
     }
 
-    /// Deletes `name` after a best-effort cleanup of its exported launchers.
-    /// Publishes `Deleted` with the removed name.
+    /// Deletes `name` (trimmed) after a best-effort cleanup of its exported
+    /// launchers. Publishes `Deleted` with the removed name.
     ///
     /// # Errors
     /// Invalid name, missing profile or filesystem failure.
     pub async fn delete(&self, name: String) -> Result<ProfileCommit<()>, AppError> {
+        let name = ProfileStore::validate_profile_name(&name)?;
         self.commit(DeleteProfile { name }, ProfileChangeReason::Deleted)
             .await
     }
 
-    /// Copies `name` under a unique `(Copy)` name, recording the source
-    /// profile as lineage. The returned profile has unknown keys cleared;
-    /// the copy on disk keeps them. Publishes `Duplicated` with the copy name.
+    /// Copies `name` (trimmed) under a unique `(Copy)` name, recording the
+    /// source profile as lineage. The returned profile has unknown keys
+    /// cleared; the copy on disk keeps them. Publishes `Duplicated` with the
+    /// copy name.
     ///
     /// # Errors
     /// Invalid or missing source profile, or filesystem failure.
@@ -60,6 +64,7 @@ impl ProfileWriter {
         &self,
         name: String,
     ) -> Result<ProfileCommit<DuplicateProfileResult>, AppError> {
+        let name = ProfileStore::validate_profile_name(&name)?;
         self.commit(DuplicateProfile { name }, ProfileChangeReason::Duplicated)
             .await
     }
@@ -88,17 +93,29 @@ impl ProfileWriter {
     }
 
     /// Imports a legacy `.profile` file as a TOML profile named after its
-    /// file stem. The returned profile has unknown keys cleared. Publishes
-    /// `Imported`.
+    /// (trimmed) file stem. The returned profile has unknown keys cleared.
+    /// Publishes `Imported`.
     ///
     /// # Errors
-    /// Invalid file name, unreadable legacy file or filesystem failure.
+    /// `Validation` for a file stem that is not a valid profile name (before
+    /// any side effect), unreadable legacy file or filesystem failure.
     pub async fn import_legacy(
         &self,
         path: PathBuf,
     ) -> Result<ProfileCommit<GameProfile>, AppError> {
-        self.commit(ImportLegacyProfile { path }, ProfileChangeReason::Imported)
-            .await
+        // The store names the profile after the validated file stem.
+        let stem = path
+            .file_stem()
+            .and_then(|value| value.to_str())
+            .ok_or_else(|| {
+                AppError::from(ProfileStoreError::InvalidName(path.display().to_string()))
+            })?;
+        let name = ProfileStore::validate_profile_name(stem)?;
+        self.commit(
+            ImportLegacyProfile { path, name },
+            ProfileChangeReason::Imported,
+        )
+        .await
     }
 
     /// Serializes `profile` to a shareable TOML document whose comment header
@@ -150,6 +167,7 @@ fn write_effects(
     ]
 }
 
+/// Holds a name already validated (trimmed) by [`ProfileWriter::save`].
 struct SaveProfile {
     name: String,
     profile: GameProfile,
@@ -197,6 +215,7 @@ impl ProfileMutation for SaveProfile {
     }
 }
 
+/// Holds a name already validated (trimmed) by [`ProfileWriter::delete`].
 struct DeleteProfile {
     name: String,
 }
@@ -231,6 +250,7 @@ impl ProfileMutation for DeleteProfile {
     }
 }
 
+/// Holds a name already validated (trimmed) by [`ProfileWriter::duplicate`].
 struct DuplicateProfile {
     name: String,
 }
@@ -379,8 +399,11 @@ fn move_last_used_profile(settings: &SettingsStore, old_name: &str, new_name: &s
     }
 }
 
+/// Holds the profile name [`ProfileWriter::import_legacy`] validated from
+/// the file stem; the store derives the same name.
 struct ImportLegacyProfile {
     path: PathBuf,
+    name: String,
 }
 
 impl ProfileMutation for ImportLegacyProfile {
@@ -391,15 +414,8 @@ impl ProfileMutation for ImportLegacyProfile {
     }
 
     fn persist(self, ctx: &CommitContext<'_>) -> Result<Persisted<GameProfile>, AppError> {
-        let mut profile = ctx.profiles.import_legacy(&self.path)?;
-        // The store saved under the validated (trimmed) file stem.
-        let stem = self
-            .path
-            .file_stem()
-            .and_then(|value| value.to_str())
-            .unwrap_or("imported");
-        let name = ProfileStore::validate_profile_name(stem)?;
-
+        let Self { path, name } = self;
+        let mut profile = ctx.profiles.import_legacy(&path)?;
         let effects = write_effects(
             &name,
             profile.clone(),

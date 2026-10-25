@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { subscribeEvent } from '@/lib/events';
 import { callCommand } from '@/lib/ipc';
 import { parseProfilesChanged, profileChangeAffectsHealth } from '@/lib/profileEvents';
@@ -116,24 +116,60 @@ function normalizeError(error: unknown): string {
 export function useProfileHealth() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [cachedSnapshots, setCachedSnapshots] = useState<Record<string, CachedHealthSnapshot>>({});
-  const batchValidate = useCallback(async (signal?: AbortSignal) => {
+  // Every batch run takes a sequence number; only the newest run may apply its
+  // result, so an older batch that finishes late never overwrites a newer one.
+  const batchSeqRef = useRef(0);
+  // `profiles-changed` refreshes are single-flight with one trailing re-run.
+  const backgroundBatchRef = useRef({ inFlight: false, pending: false });
+
+  const runBatch = useCallback(async (showLoading: boolean, signal?: AbortSignal) => {
     if (signal?.aborted) {
       return;
     }
-    dispatch({ type: 'batch-loading' });
+    const seq = ++batchSeqRef.current;
+    if (showLoading) {
+      dispatch({ type: 'batch-loading' });
+    }
     try {
       const summary = await callCommand<EnrichedHealthSummary>('batch_validate_profiles');
-      if (signal?.aborted) {
+      if (signal?.aborted || seq !== batchSeqRef.current) {
         return;
       }
       dispatch({ type: 'batch-complete', summary });
     } catch (error) {
-      if (signal?.aborted) {
+      if (signal?.aborted || seq !== batchSeqRef.current) {
         return;
       }
       dispatch({ type: 'error', message: normalizeError(error) });
     }
   }, []);
+
+  const batchValidate = useCallback((signal?: AbortSignal) => runBatch(true, signal), [runBatch]);
+
+  /**
+   * Background revalidation for profile writes (autosaves arrive in bursts).
+   * At most one batch is in flight; events during it collapse into a single
+   * trailing re-run. The retained summary stays on screen (no `loading`
+   * status), so the dashboard does not flicker on every autosave.
+   */
+  const scheduleBackgroundBatch = useCallback(() => {
+    const background = backgroundBatchRef.current;
+    if (background.inFlight) {
+      background.pending = true;
+      return;
+    }
+    background.inFlight = true;
+    void (async () => {
+      try {
+        do {
+          background.pending = false;
+          await runBatch(false);
+        } while (background.pending);
+      } finally {
+        background.inFlight = false;
+      }
+    })();
+  }, [runBatch]);
 
   const revalidateSingle = useCallback(async (name: string) => {
     dispatch({ type: 'single-loading' });
@@ -245,7 +281,7 @@ export function useProfileHealth() {
       const change = parseProfilesChanged(event.payload);
       // Malformed payloads (null) are a conservative resync: revalidate.
       if (change && !profileChangeAffectsHealth(change.reason)) return;
-      void batchValidate();
+      scheduleBackgroundBatch();
     });
     const unlistenLaunchComplete = subscribeEvent<unknown>('launch-complete', () => {
       if (!active) return;
@@ -262,7 +298,7 @@ export function useProfileHealth() {
       void unlistenLaunchComplete.then((unlisten) => unlisten());
       void unlistenVersionScan.then((unlisten) => unlisten());
     };
-  }, [batchValidate]);
+  }, [batchValidate, scheduleBackgroundBatch]);
 
   const healthByName = useMemo<Record<string, EnrichedProfileHealthReport>>(() => {
     if (!state.summary) {

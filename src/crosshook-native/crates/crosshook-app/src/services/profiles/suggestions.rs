@@ -11,6 +11,7 @@ use crosshook_core::protondb::{
     validate_env_suggestion, AcceptSuggestionRequest, AcceptSuggestionResult,
 };
 
+use super::sections::required_profile_name;
 use super::types::{Effect, Persisted, ProfileCommit, ProfileMutation};
 use super::writer::CommitContext;
 use super::ProfileWriter;
@@ -18,22 +19,42 @@ use crate::{AppError, ProfileChangeReason};
 
 impl ProfileWriter {
     /// Applies an accepted ProtonDB suggestion (catalog optimization or raw
-    /// env var) to the named profile.
+    /// env var) to the named profile (trimmed).
     ///
     /// # Errors
-    /// `Validation` for blank names, an unknown catalog entry or an env pair
-    /// that fails `validate_env_suggestion` (nothing is written); otherwise
-    /// the profile load/save error.
+    /// `Validation` for a blank or invalid profile name (before any side
+    /// effect), a blank or unknown catalog entry or an env pair that fails
+    /// `validate_env_suggestion` (nothing is written); otherwise the profile
+    /// load/save error.
     pub async fn accept_protondb_suggestion(
         &self,
         request: AcceptSuggestionRequest,
     ) -> Result<ProfileCommit<AcceptSuggestionResult>, AppError> {
+        let request = match request {
+            AcceptSuggestionRequest::Catalog {
+                profile_name,
+                catalog_entry_id,
+            } => AcceptSuggestionRequest::Catalog {
+                profile_name: required_profile_name("profile_name", &profile_name)?,
+                catalog_entry_id,
+            },
+            AcceptSuggestionRequest::EnvVar {
+                profile_name,
+                env_key,
+                env_value,
+            } => AcceptSuggestionRequest::EnvVar {
+                profile_name: required_profile_name("profile_name", &profile_name)?,
+                env_key,
+                env_value,
+            },
+        };
         self.commit(AcceptSuggestion(request), ProfileChangeReason::Saved)
             .await
     }
 }
 
-/// Commit mutation for [`ProfileWriter::accept_protondb_suggestion`].
+/// Commit mutation for [`ProfileWriter::accept_protondb_suggestion`]; the
+/// profile name is already validated and trimmed.
 struct AcceptSuggestion(AcceptSuggestionRequest);
 
 impl ProfileMutation for AcceptSuggestion {
@@ -48,22 +69,21 @@ impl ProfileMutation for AcceptSuggestion {
             AcceptSuggestionRequest::Catalog {
                 profile_name,
                 catalog_entry_id,
-            } => accept_catalog(ctx, &profile_name, &catalog_entry_id),
+            } => accept_catalog(ctx, profile_name, &catalog_entry_id),
             AcceptSuggestionRequest::EnvVar {
                 profile_name,
                 env_key,
                 env_value,
-            } => accept_env_var(ctx, &profile_name, env_key, env_value),
+            } => accept_env_var(ctx, profile_name, env_key, env_value),
         }
     }
 }
 
 fn accept_catalog(
     ctx: &CommitContext<'_>,
-    profile_name: &str,
+    profile_name: String,
     catalog_entry_id: &str,
 ) -> Result<Persisted<AcceptSuggestionResult>, AppError> {
-    let profile_name = required_profile_name(profile_name)?;
     let entry_id = catalog_entry_id.trim().to_string();
     if entry_id.is_empty() {
         return Err(AppError::validation(
@@ -111,12 +131,10 @@ fn accept_catalog(
 
 fn accept_env_var(
     ctx: &CommitContext<'_>,
-    profile_name: &str,
+    profile_name: String,
     env_key: String,
     env_value: String,
 ) -> Result<Persisted<AcceptSuggestionResult>, AppError> {
-    let profile_name = required_profile_name(profile_name)?;
-
     // Re-validate at write time — never trust cached suggestion data.
     if !validate_env_suggestion(&env_key, &env_value) {
         return Err(AppError::validation(
@@ -138,17 +156,6 @@ fn accept_env_var(
         toggled_option_ids: Vec::new(),
     };
     Ok(applied(profile_name, profile, output))
-}
-
-fn required_profile_name(profile_name: &str) -> Result<String, AppError> {
-    let profile_name = profile_name.trim();
-    if profile_name.is_empty() {
-        return Err(AppError::validation(
-            "profile_name",
-            "profile_name is required",
-        ));
-    }
-    Ok(profile_name.to_string())
 }
 
 /// Effects and event shared by both accept branches.

@@ -4,7 +4,7 @@ use crate::launch::is_known_launch_optimization_id;
 use crate::profile::{GameProfile, ProfileStoreError};
 
 /// A validated `[launch.presets.<key>]` write: trimmed key plus known, trimmed option ids.
-pub(crate) struct PresetSelection {
+struct PresetSelection {
     key: String,
     enabled_option_ids: Vec<String>,
 }
@@ -28,9 +28,8 @@ fn normalize_option_ids(enabled_option_ids: Vec<String>) -> Result<Vec<String>, 
     Ok(enabled_option_ids)
 }
 
-/// Validates a preset key and option ids without needing a loaded profile, so the store can
-/// reject bad input before reading the profile from disk.
-pub(crate) fn validate_preset_selection(
+/// Validates a preset key and option ids.
+fn validate_preset_selection(
     preset_key: &str,
     enabled_option_ids: Vec<String>,
 ) -> Result<PresetSelection, ProfileStoreError> {
@@ -48,7 +47,7 @@ pub(crate) fn validate_preset_selection(
 }
 
 /// Trims a user preset display name and rejects empty names and the reserved `bundled/` prefix.
-pub(crate) fn validate_manual_launch_preset_name(raw: &str) -> Result<String, ProfileStoreError> {
+fn validate_manual_launch_preset_name(raw: &str) -> Result<String, ProfileStoreError> {
     let name = raw.trim();
     if name.is_empty() {
         return Err(ProfileStoreError::InvalidLaunchPresetName(
@@ -137,11 +136,7 @@ impl GameProfile {
     }
 
     /// Applies an already validated preset selection.
-    pub(crate) fn apply_preset_selection(
-        &mut self,
-        selection: PresetSelection,
-        set_as_active: bool,
-    ) {
+    fn apply_preset_selection(&mut self, selection: PresetSelection, set_as_active: bool) {
         let PresetSelection {
             key,
             enabled_option_ids,

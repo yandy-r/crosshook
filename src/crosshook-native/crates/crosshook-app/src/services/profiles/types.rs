@@ -4,8 +4,6 @@
 //! [`ProfileMutation`], [`Persisted`] and [`Effect`] are the crate-private
 //! contract every mutating facade implements; [`super::writer`] runs them.
 
-use std::path::PathBuf;
-
 use crosshook_core::metadata::{ConfigRevisionSource, ProfileLaunchPresetOrigin, SyncSource};
 use crosshook_core::profile::GameProfile;
 use serde::{Deserialize, Serialize};
@@ -78,18 +76,6 @@ pub struct BundledOptimizationPresetDto {
     pub catalog_version: i64,
 }
 
-/// A profile the core Lutris importer already wrote; `record_imports` runs
-/// only the shared post-persistence effects for it.
-#[derive(Debug, Clone)]
-pub struct ImportedProfileWrite {
-    /// Profile name the importer wrote.
-    pub name: String,
-    /// Profile as written.
-    pub profile: GameProfile,
-    /// Path of the written TOML.
-    pub path: PathBuf,
-}
-
 /// Advisory step a commit skipped or failed after the primary write succeeded.
 /// Every warning is also logged with `tracing::warn!`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -105,6 +91,10 @@ pub enum CommitWarning {
     HealthInvalidationFailed,
     /// Launch preset origin row upsert failed.
     PresetOriginFailed,
+    /// Seeding the initial version snapshot of an imported profile failed.
+    VersionSnapshotFailed,
+    /// An advisory effect panicked; the remaining effects were skipped.
+    EffectsAborted,
 }
 
 /// Result of a committed profile mutation.
@@ -185,4 +175,16 @@ pub(crate) enum Effect {
         origin: ProfileLaunchPresetOrigin,
         source_bundled_preset_id: Option<String>,
     },
+    /// Seeds the display-only version snapshot (`status = "untracked"`) of
+    /// the profile currently named `name` from imported community metadata.
+    /// Order it after `ObserveWrite` so the profile id exists.
+    SeedVersionSnapshot {
+        name: String,
+        steam_app_id: String,
+        trainer_version: Option<String>,
+        human_game_ver: Option<String>,
+    },
+    /// Panics when run; exercises the writer's unwind guard in tests.
+    #[cfg(test)]
+    Panic,
 }

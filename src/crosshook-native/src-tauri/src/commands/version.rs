@@ -3,9 +3,11 @@ use crosshook_core::metadata::{
     VersionSnapshotRow,
 };
 use crosshook_core::profile::ProfileStore;
-use crosshook_core::steam::discover_steam_root_candidates;
 use crosshook_core::steam::libraries::discover_steam_libraries;
 use crosshook_core::steam::manifest::parse_manifest_full;
+use crosshook_core::steam::{
+    discover_steam_root_candidates, steam_client_install_path_from_compatdata,
+};
 use serde::Serialize;
 use std::path::PathBuf;
 use tauri::State;
@@ -86,18 +88,6 @@ fn locate_manifest_for_app(app_id: &str, steam_client_path: &str) -> Option<Path
     None
 }
 
-/// Derive the Steam client install path from a profile's compatdata path.
-fn steam_client_install_path_from_profile(
-    profile: &crosshook_core::profile::GameProfile,
-) -> String {
-    const STEAM_COMPATDATA_MARKER: &str = "/steamapps/compatdata/";
-    let compatdata_path = profile.steam.compatdata_path.trim().replace('\\', "/");
-    compatdata_path
-        .split_once(STEAM_COMPATDATA_MARKER)
-        .map(|(steam_root, _)| steam_root.to_string())
-        .unwrap_or_default()
-}
-
 /// Check the current version correlation status for a named profile.
 ///
 /// Reads the Steam appmanifest for the profile's App ID to get the live build ID
@@ -111,7 +101,8 @@ pub fn check_version_status(
 ) -> Result<VersionCheckResult, String> {
     let profile = profile_store.load(&name).map_err(map_error)?;
     let app_id = profile.steam.app_id.trim().to_string();
-    let steam_client_path = steam_client_install_path_from_profile(&profile);
+    let steam_client_path =
+        steam_client_install_path_from_compatdata(&profile.steam.compatdata_path);
 
     let (current_build_id_raw, state_flags): (String, Option<u32>) = if !app_id.is_empty() {
         locate_manifest_for_app(&app_id, &steam_client_path)

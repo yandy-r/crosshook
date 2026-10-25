@@ -100,4 +100,77 @@ describe('useProfileHealth profiles-changed policy', () => {
     await emitProfilesChanged(payload);
     expect(batchCalls()).toHaveLength(1);
   });
+
+  describe('coalescing', () => {
+    /** Holds every batch call open; `pending[i]` resolves the i-th call. */
+    function deferredBatches() {
+      const pending: Array<(value: EnrichedHealthSummary) => void> = [];
+      const base = mockCallCommand.getMockImplementation();
+      mockCallCommand.mockImplementation((name: string, ...rest: unknown[]) => {
+        if (name === 'batch_validate_profiles') {
+          const gate = Promise.withResolvers<EnrichedHealthSummary>();
+          pending.push(gate.resolve);
+          return gate.promise;
+        }
+        return base?.(name, ...rest);
+      });
+      return pending;
+    }
+
+    function summaryAt(validatedAt: string): EnrichedHealthSummary {
+      return { ...summary, validated_at: validatedAt };
+    }
+
+    const saved: ProfilesChangedPayload = { reason: { kind: 'saved' }, names: ['Alpha'] };
+
+    it('collapses a burst of saved events into one in-flight batch plus one trailing re-run', async () => {
+      const hook = await renderSettled();
+      const pending = deferredBatches();
+
+      await act(async () => {
+        for (let i = 0; i < 5; i += 1) emitMockEvent('profiles-changed', saved);
+      });
+      expect(batchCalls()).toHaveLength(1);
+      // Background re-runs keep the retained summary and never show `loading`.
+      expect(hook.result.current.loading).toBe(false);
+
+      await act(async () => pending[0]?.(summaryAt('2020-01-02T00:00:00.000Z')));
+      await waitFor(() => expect(batchCalls()).toHaveLength(2));
+      expect(hook.result.current.loading).toBe(false);
+
+      await act(async () => pending[1]?.(summaryAt('2020-01-03T00:00:00.000Z')));
+      await waitFor(() => expect(hook.result.current.summary?.validated_at).toBe('2020-01-03T00:00:00.000Z'));
+      await drain();
+      expect(batchCalls()).toHaveLength(2);
+    });
+
+    it('runs a fresh batch for an event that arrives after the previous one settled', async () => {
+      await renderSettled();
+      await emitProfilesChanged(saved);
+      await emitProfilesChanged(saved);
+      expect(batchCalls()).toHaveLength(2);
+    });
+
+    it('drops a stale batch result that finishes after a newer batch', async () => {
+      const hook = await renderSettled();
+      const pending = deferredBatches();
+
+      // Older background batch is in flight; a newer explicit re-check starts.
+      await act(async () => {
+        emitMockEvent('profiles-changed', saved);
+      });
+      await act(async () => {
+        void hook.result.current.batchValidate();
+      });
+      expect(batchCalls()).toHaveLength(2);
+
+      await act(async () => pending[1]?.(summaryAt('2020-01-05T00:00:00.000Z')));
+      await waitFor(() => expect(hook.result.current.summary?.validated_at).toBe('2020-01-05T00:00:00.000Z'));
+
+      await act(async () => pending[0]?.(summaryAt('2020-01-04T00:00:00.000Z')));
+      await drain();
+      expect(hook.result.current.summary?.validated_at).toBe('2020-01-05T00:00:00.000Z');
+      expect(hook.result.current.loading).toBe(false);
+    });
+  });
 });

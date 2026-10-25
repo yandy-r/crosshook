@@ -26,9 +26,15 @@ pub async fn profile_load(
     // into the profile via `effective_profile_with`. The returned profile still
     // reflects the machine-specific `local_override` layer that `ProfileStore::load`
     // baked into layer 1, so collection defaults can never clobber portable paths.
-    let mut profile =
-        apply_collection_defaults(profile, metadata_store.inner(), collection_id.as_deref())
-            .map_err(|e| e.to_string())?;
+    // The defaults lookup is a SQLite read, so it runs on the blocking pool like
+    // the summaries resolver.
+    let metadata = metadata_store.inner().clone();
+    let mut profile = tauri::async_runtime::spawn_blocking(move || {
+        apply_collection_defaults(profile, &metadata, collection_id.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())?;
     profile.clear_extra();
     Ok(profile)
 }

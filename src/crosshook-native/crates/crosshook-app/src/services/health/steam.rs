@@ -1,19 +1,10 @@
 use crosshook_core::profile::{GameProfile, ProfileStore};
 use crosshook_core::steam::libraries::discover_steam_libraries;
 use crosshook_core::steam::manifest::parse_manifest_full;
-use crosshook_core::steam::{discover_steam_root_candidates, SteamLibrary};
+use crosshook_core::steam::{
+    discover_steam_root_candidates, steam_client_install_path_from_compatdata, SteamLibrary,
+};
 use std::collections::HashMap;
-
-/// Same derivation as `commands/profile.rs::derive_steam_client_install_path` — profiles
-/// store Proton compatdata, not the Steam client install path directly.
-pub(super) fn steam_client_install_path_from_profile(profile: &GameProfile) -> String {
-    const STEAM_COMPATDATA_MARKER: &str = "/steamapps/compatdata/";
-    let compatdata_path = profile.steam.compatdata_path.trim().replace('\\', "/");
-    compatdata_path
-        .split_once(STEAM_COMPATDATA_MARKER)
-        .map(|(steam_root, _)| steam_root.to_string())
-        .unwrap_or_default()
-}
 
 fn manifest_build_id_from_libraries(libraries: &[SteamLibrary], app_id: &str) -> Option<String> {
     for library in libraries {
@@ -38,7 +29,7 @@ pub(super) fn live_steam_build_id_for_profile(profile: &GameProfile) -> Option<S
         return None;
     }
     let mut diagnostics = Vec::new();
-    let configured = steam_client_install_path_from_profile(profile);
+    let configured = steam_client_install_path_from_compatdata(&profile.steam.compatdata_path);
     let steam_roots = discover_steam_root_candidates(
         if configured.is_empty() {
             ""
@@ -69,7 +60,7 @@ pub(super) fn live_steam_build_ids_for_profiles(
         if app_id.is_empty() {
             continue;
         }
-        let path_key = steam_client_install_path_from_profile(&profile);
+        let path_key = steam_client_install_path_from_compatdata(&profile.steam.compatdata_path);
         by_steam_path
             .entry(path_key)
             .or_default()

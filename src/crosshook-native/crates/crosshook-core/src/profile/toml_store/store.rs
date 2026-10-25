@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::profile::mutations::{validate_manual_launch_preset_name, validate_preset_selection};
 use crate::profile::{legacy, GameProfile};
 use crate::settings::{resolve_profiles_directory_from_config, AppSettingsData};
 
@@ -132,76 +131,6 @@ impl ProfileStore {
         Ok(())
     }
 
-    /// Loads the profile, applies [`GameProfile::apply_launch_optimizations`], and saves.
-    /// Concurrent `save` or `save_launch_optimizations` calls for the same profile are not
-    /// synchronized; the last completed write wins.
-    pub fn save_launch_optimizations(
-        &self,
-        name: &str,
-        enabled_option_ids: Vec<String>,
-        switch_active_preset: Option<String>,
-    ) -> Result<(), ProfileStoreError> {
-        let mut profile = self.load(name)?;
-        profile.apply_launch_optimizations(enabled_option_ids, switch_active_preset)?;
-        self.save(name, &profile)
-    }
-
-    /// Loads the profile, applies [`GameProfile::apply_command_arguments`], and saves.
-    /// Concurrent writes for the same profile are not synchronized; the last completed write
-    /// wins.
-    pub fn save_command_arguments(
-        &self,
-        name: &str,
-        enabled_argument_ids: Vec<String>,
-        custom_args: Vec<String>,
-        resolved_launch_method: Option<&str>,
-    ) -> Result<(), ProfileStoreError> {
-        let mut profile = self.load(name)?;
-        profile.apply_command_arguments(
-            enabled_argument_ids,
-            custom_args,
-            resolved_launch_method,
-        )?;
-
-        let command_arguments = &profile.launch.command_arguments;
-        tracing::debug!(
-            profile = name,
-            enabled_argument_ids = ?command_arguments.enabled_argument_ids,
-            custom_arg_count = command_arguments.custom_args.len(),
-            "profile_store: save_command_arguments"
-        );
-
-        self.save(name, &profile)
-    }
-
-    /// Writes or overwrites `launch.presets.<preset_key>` and optionally sets it as the active preset.
-    /// All `enabled_option_ids` must be known catalog ids; they are validated before the profile
-    /// is loaded. See [`GameProfile::materialize_launch_optimization_preset`].
-    pub fn materialize_launch_optimization_preset(
-        &self,
-        profile_name: &str,
-        preset_key: &str,
-        enabled_option_ids: Vec<String>,
-        set_as_active: bool,
-    ) -> Result<(), ProfileStoreError> {
-        let selection = validate_preset_selection(preset_key, enabled_option_ids)?;
-        let mut profile = self.load(profile_name)?;
-        profile.apply_preset_selection(selection, set_as_active);
-        self.save(profile_name, &profile)
-    }
-
-    /// Saves the current optimization selection under a new user preset name and activates it.
-    /// See [`GameProfile::apply_manual_optimization_preset`].
-    pub fn save_manual_launch_optimization_preset(
-        &self,
-        profile_name: &str,
-        preset_display_name: &str,
-        enabled_option_ids: Vec<String>,
-    ) -> Result<(), ProfileStoreError> {
-        let name = validate_manual_launch_preset_name(preset_display_name)?;
-        self.materialize_launch_optimization_preset(profile_name, &name, enabled_option_ids, true)
-    }
-
     pub fn list(&self) -> Result<Vec<String>, ProfileStoreError> {
         fs::create_dir_all(&self.base_path)?;
 
@@ -312,8 +241,8 @@ impl ProfileStore {
     /// Duplicates an existing profile under a new, unique copy name.
     ///
     /// Loads the source profile, generates a collision-free name via
-    /// [`unique_copy_name`](Self::unique_copy_name), and saves the cloned
-    /// `GameProfile` to disk. The source profile is never modified.
+    /// `generate_unique_copy_name`, and saves the cloned `GameProfile` to disk.
+    /// The source profile is never modified.
     ///
     /// # Safety constraints
     /// - The generated name is always validated through [`validate_name`] before saving,
@@ -338,18 +267,6 @@ impl ProfileStore {
             name: new_name,
             profile,
         })
-    }
-
-    /// Returns a collision-free `(Copy)` / `(Copy N)` name for `source_name` against the
-    /// profiles currently on disk, using the same generator as [`duplicate`](Self::duplicate).
-    ///
-    /// # Errors
-    /// - `ProfileStoreError::InvalidName` if `source_name` fails validation or all 1000
-    ///   candidates are taken.
-    /// - `ProfileStoreError::Io` if the profiles directory cannot be listed.
-    pub fn unique_copy_name(&self, source_name: &str) -> Result<String, ProfileStoreError> {
-        let source_name = validate_name(source_name)?;
-        self.unique_copy_name_for_validated(&source_name)
     }
 
     fn unique_copy_name_for_validated(

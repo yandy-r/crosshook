@@ -100,7 +100,7 @@ feature checks in CI and `scripts/lint.sh` reject `bootstrap-trace` in shipped b
 | `DiagnosticsService`    | `export(DiagnosticsRequest) -> DiagnosticsExport` (absolute + sanitized display path); `DiagnosticAttachment`s are archived under `app/`                                     | `export_diagnostics`                                                                                                           |
 | `HealthService`         | `batch_summary()`, `profile_health(name)`, `cached_health_snapshots()`, `cached_offline_readiness_snapshots()` (blocking I/O on the pool; wire types keep their serde names) | `batch_validate_profiles`, `get_profile_health`, `get_cached_health_snapshots`, `get_cached_offline_readiness_snapshots`       |
 | `BackgroundGrantHolder` | `request_and_store(&impl BackgroundPortal)`, `store_result`, `protection_state`, `wait_for_initialization`; `XdgBackgroundPortal` is the production portal                   | `get_background_protection_state`; the background-portal startup job runs `request_and_store`, the launch watchdog awaits init |
-| `ProfileWriter`         | Async profile facades (`save`, `delete`, `duplicate`, `rename`, `set_favorite`, section/optimization/command-argument saves, bundled/manual presets, `config_history`/`config_diff`/`config_rollback`/`mark_known_good`, `import_legacy`, `export_toml`, `record_imports`, ProtonDB accept, Proton migration apply) plus lock-free reads (`list`, `load`, `list_summaries`, `list_favorites`, `list_bundled_optimization_presets`); mutations return `ProfileCommit<T> { output, new_revision_id, warnings }` | The 23 `profile_*` commands, `protondb_accept_suggestion`, `apply_proton_migration`, `apply_batch_migration`, `lutris_import_profiles` |
+| `ProfileWriter`         | Async profile facades (`save`, `delete`, `duplicate`, `rename`, `set_favorite`, section/optimization/command-argument saves, bundled/manual presets, `config_history`/`config_diff`/`config_rollback`/`mark_known_good`, `import_legacy`, `import_lutris`, `import_community`, `export_toml`, ProtonDB accept, Proton migration apply) plus lock-free reads (`list`, `load`, `list_summaries`, `list_favorites`, `list_bundled_optimization_presets`); mutations return `ProfileCommit<T> { output, new_revision_id, warnings }` | The 23 `profile_*` commands, `protondb_accept_suggestion`, `apply_proton_migration`, `apply_batch_migration`, `lutris_import_profiles`, `community_import_profile` |
 
 Attachment names must be a single relative file name (no `/`, `\`, `..`, NUL,
 or empty); invalid names fail with `Validation { field: "attachments" }` before
@@ -114,24 +114,41 @@ file write itself stays atomic, so the worst case is a lost update.
 
 ### ProfileWriter
 
-Every profile write goes through `ProfileWriter`; shells never call
-`ProfileStore` mutators, metadata observe or revision helpers themselves.
-Each mutating facade funnels into one crate-private commit pipeline:
-validate → load → mutate → persist the TOML **once** → observe the write →
-capture a config revision (SHA-256 dedupe against the latest row) →
-invalidate the cached health snapshot → publish
-`AppEvent::ProfilesChanged { reason, names }`. The facade picks the
-`ProfileChangeReason`, so callers cannot mislabel provenance.
+Every profile write, imports included, goes through `ProfileWriter`; shells
+never call `ProfileStore` mutators, metadata observe or revision helpers
+themselves. Each mutating facade validates and trims the profile name
+(`ProfileStore::validate_profile_name`) before any side effect, then funnels
+into one crate-private commit pipeline: load → mutate → persist the TOML
+**once** → observe the write → capture a config revision (SHA-256 dedupe
+against the latest row) → invalidate the cached health snapshot (scope
+below) → publish `AppEvent::ProfilesChanged { reason, names }` with the
+trimmed names. The facade picks the `ProfileChangeReason`, so callers cannot
+mislabel provenance.
 
+- **Health invalidation scope.** Full save, rename, duplicate, rollback,
+  Proton migration and the legacy, Lutris and community imports delete the
+  cached health row of each written profile; delete drops it before the soft
+  delete. Section, optimization and command-argument saves, presets and
+  ProtonDB accepts leave it in place (those fields do not affect health), and
+  favorites are metadata-only. The frontend still re-validates health for
+  every reason except `favorite_toggled`, coalescing bursts into one
+  in-flight batch plus at most one trailing re-run.
+- **Imports.** `import_lutris` and `import_community` run the core importer
+  inside the commit, under the write lock, so unique-name derivation and the
+  TOML writes cannot interleave with other writes. Each publishes one
+  `Imported` event with the written names (Lutris with nothing written
+  publishes nothing). Community import also seeds the display-only version
+  snapshot from the manifest metadata.
 - **Write lock.** Clones share one `Arc<Mutex<()>>`; every mutation takes it
   inside `spawn_blocking` (a poisoned lock is recovered), so an autosave
   cannot interleave with a full save. Reads do not take it. Writers outside
   the service (another process, the CLI) are not covered: last completed
   write wins.
 - **Event.** Published inside the blocking closure once the TOML persisted,
-  even if advisory metadata effects fail, so a dropped caller future cannot
-  lose it. Nothing is published for validation or write failures, a no-op
-  rename, or migration `AlreadyValid`/`Failed`. Rename sends `names: [new]`
+  even if advisory metadata effects fail or panic (a panic is caught and
+  reported as `CommitWarning::EffectsAborted`), so a dropped caller future
+  cannot lose it. Nothing is published for validation or write failures, a
+  no-op rename, or migration `AlreadyValid`/`Failed`. Rename sends `names: [new]`
   with `reason.from: old`; delete the removed name; duplicate the copy.
   `names: []` is reserved for the bridge's `Resync`. `FavoriteToggled` is
   metadata-only (no TOML, revision or health change), so listeners skip

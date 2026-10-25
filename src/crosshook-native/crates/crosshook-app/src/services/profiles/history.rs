@@ -198,9 +198,11 @@ impl ProfileMutation for RollbackRestore {
         // Integrity first (ADR-0005): SHA-256 always, HMAC when a key is loaded.
         ctx.metadata.verify_config_revision(&revision)?;
         let restored: GameProfile = toml::from_str(&revision.snapshot_toml).map_err(|error| {
+            // Fixed message: TOML Display echoes snapshot lines (user paths).
+            tracing::warn!(%error, revision_id, profile_name = %name, "config revision snapshot parse failed");
             AppError::validation(
                 "revision",
-                format!("failed to parse snapshot for revision {revision_id}: {error}"),
+                format!("failed to parse snapshot for revision {revision_id}"),
             )
         })?;
         ctx.profiles.save(&name, &restored)?;

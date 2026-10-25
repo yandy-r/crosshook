@@ -132,12 +132,6 @@ export interface UseProfileResult {
 
 export interface UseProfileOptions {
   autoSelectFirstProfile?: boolean;
-  /**
-   * Optional callback invoked after a successful rollback so the caller can
-   * trigger a health revalidation without coupling the profile and health hooks.
-   * Called with the profile name that was restored.
-   */
-  onAfterRollback?: (profileName: string) => void;
 }
 
 /** @deprecated Use `LaunchAutoSaveStatus` from `../types` instead. */
@@ -206,10 +200,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   enqueueProfileWriteRef.current = launchAutosave.enqueueLaunchProfileWrite;
   flushPendingLaunchSectionSavesRef.current = launchAutosave.flushPendingLaunchSectionSaves;
 
-  const history = useProfileHistory({
-    loadProfile: crud.loadProfile,
-    onAfterRollback: options.onAfterRollback,
-  });
+  const history = useProfileHistory({ loadProfile: crud.loadProfile });
 
   const { refreshProfiles, loadFavorites, setError } = crud;
 

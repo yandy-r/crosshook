@@ -9,6 +9,9 @@ import type {
 } from '../../../hooks/useCommunityProfiles';
 import { createDefaultProfile } from '../../../types/profile';
 import type { CommunityTapSubscription } from '../../../types/settings';
+import { getStore } from '../store';
+import { appendRevision } from './profile-history';
+import { emitProfilesChanged } from './profile-utils';
 import type { Handler } from './types';
 
 // ---------------------------------------------------------------------------
@@ -185,10 +188,16 @@ export function registerCommunity(map: Map<string, Handler>): void {
     if (!entry) {
       throw new Error('[dev-mock] community_import_profile: no mock entry available');
     }
+    // Mirrors the backend writer: persist under the imported name, record an
+    // `import` revision, then publish one `imported` event with that name.
+    const profileName = 'synthetic-quest';
+    getStore().profiles.set(profileName, structuredClone(entry.manifest.profile));
+    appendRevision(profileName, 'import');
+    emitProfilesChanged({ reason: { kind: 'imported' }, names: [profileName] });
     return {
-      profile_name: 'synthetic-quest',
+      profile_name: profileName,
       source_path: path ?? entry.manifest_path,
-      profile_path: '/home/devuser/.config/crosshook/profiles/synthetic-quest.toml',
+      profile_path: `/home/devuser/.config/crosshook/profiles/${profileName}.toml`,
       profile: entry.manifest.profile,
       manifest: entry.manifest,
     };

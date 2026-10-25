@@ -4,10 +4,19 @@
 //! drives the writer facade, and compares the written TOML byte-for-byte with
 //! the fixture captured from the pre-refactor Tauri commands. The fixtures are
 //! frozen: a mismatch is a writer regression, never a reason to regenerate them.
+//!
+//! This is a `harness = false` binary. The seed is a `proton_run` profile without
+//! a Steam compatdata path, so rename launcher cleanup resolves the launcher
+//! directory from `$HOME`. `main` points `HOME` at a tempdir before any runtime
+//! or other thread exists, then runs the scenarios sequentially, so no thread can
+//! observe the environment while it changes and the real user's launchers are
+//! never touched.
 
 use std::fs;
+use std::future::Future;
+use std::panic::AssertUnwindSafe;
 use std::path::Path;
-use std::sync::LazyLock;
+use std::pin::Pin;
 
 use crosshook_app::{EventBus, ProfileWriter};
 use crosshook_core::metadata::MetadataStore;
@@ -21,16 +30,6 @@ const RENAME: &[u8] = include_bytes!("fixtures/profile_writer/rename.toml");
 const DUPLICATE: &[u8] = include_bytes!("fixtures/profile_writer/duplicate.toml");
 const ROLLBACK: &[u8] = include_bytes!("fixtures/profile_writer/rollback.toml");
 
-/// A process-wide tempdir installed as `HOME` on first use. The seed is a
-/// `proton_run` profile without a Steam compatdata path, so rename launcher
-/// cleanup resolves the launcher directory from `$HOME`; this keeps it away
-/// from the real user's launchers.
-static ISOLATED_HOME: LazyLock<TempDir> = LazyLock::new(|| {
-    let home = tempfile::tempdir().expect("home tempdir");
-    std::env::set_var("HOME", home.path());
-    home
-});
-
 struct Scenario {
     _root: TempDir,
     profiles: ProfileStore,
@@ -40,7 +39,6 @@ struct Scenario {
 impl Scenario {
     /// Tempdir stores, in-memory metadata, and `Alpha.toml` copied from the seed.
     fn seeded() -> Self {
-        LazyLock::force(&ISOLATED_HOME);
         let root = tempfile::tempdir().expect("scenario tempdir");
         let profiles = ProfileStore::with_base_path(root.path().join("profiles"));
         let settings = SettingsStore::with_base_path(root.path().join("config"));
@@ -85,14 +83,12 @@ fn assert_golden(path: &Path, expected: &[u8]) {
     );
 }
 
-#[tokio::test]
 async fn save_matches_pre_refactor_bytes() {
     let scenario = Scenario::seeded();
     scenario.save_alpha_named("Alpha Updated").await;
     scenario.assert_profile_bytes("Alpha", SAVE);
 }
 
-#[tokio::test]
 async fn rename_matches_pre_refactor_bytes() {
     let scenario = Scenario::seeded();
     scenario
@@ -104,7 +100,6 @@ async fn rename_matches_pre_refactor_bytes() {
     scenario.assert_profile_bytes("Alpha Renamed", RENAME);
 }
 
-#[tokio::test]
 async fn duplicate_matches_pre_refactor_bytes() {
     let scenario = Scenario::seeded();
     let result = scenario
@@ -118,7 +113,6 @@ async fn duplicate_matches_pre_refactor_bytes() {
     scenario.assert_profile_bytes("Alpha", SEED);
 }
 
-#[tokio::test]
 async fn rollback_matches_pre_refactor_bytes() {
     let scenario = Scenario::seeded();
     let saved_revision = scenario
@@ -133,4 +127,131 @@ async fn rollback_matches_pre_refactor_bytes() {
         .await
         .expect("rollback Alpha");
     scenario.assert_profile_bytes("Alpha", ROLLBACK);
+}
+
+type GoldenFuture = Pin<Box<dyn Future<Output = ()>>>;
+
+/// Every golden scenario, by libtest-style name.
+const TESTS: [(&str, fn() -> GoldenFuture); 4] = [
+    ("save_matches_pre_refactor_bytes", || {
+        Box::pin(save_matches_pre_refactor_bytes())
+    }),
+    ("rename_matches_pre_refactor_bytes", || {
+        Box::pin(rename_matches_pre_refactor_bytes())
+    }),
+    ("duplicate_matches_pre_refactor_bytes", || {
+        Box::pin(duplicate_matches_pre_refactor_bytes())
+    }),
+    ("rollback_matches_pre_refactor_bytes", || {
+        Box::pin(rollback_matches_pre_refactor_bytes())
+    }),
+];
+
+/// The subset of the libtest command line cargo, nextest and IDEs pass.
+struct Selection {
+    list: bool,
+    ignored: bool,
+    exact: bool,
+    filters: Vec<String>,
+    skips: Vec<String>,
+}
+
+impl Selection {
+    fn parse(args: &[String]) -> Self {
+        let mut selection = Self {
+            list: false,
+            ignored: false,
+            exact: false,
+            filters: Vec::new(),
+            skips: Vec::new(),
+        };
+        let mut rest = args.iter().skip(1);
+        while let Some(arg) = rest.next() {
+            match arg.as_str() {
+                "--list" => selection.list = true,
+                "--ignored" => selection.ignored = true,
+                "--exact" => selection.exact = true,
+                "--skip" => selection.skips.extend(rest.next().cloned()),
+                "--test-threads" | "--format" | "--color" | "--logfile" | "--report-time"
+                | "--shuffle-seed" | "--ensure-time" | "-Z" => {
+                    rest.next();
+                }
+                flag if flag.starts_with('-') => {}
+                filter => selection.filters.push(filter.to_owned()),
+            }
+        }
+        selection
+    }
+
+    fn matches(&self, pattern: &str, name: &str) -> bool {
+        if self.exact {
+            pattern == name
+        } else {
+            name.contains(pattern)
+        }
+    }
+
+    /// No scenario is `#[ignore]`d, so `--ignored` selects nothing.
+    fn selects(&self, name: &str) -> bool {
+        !self.ignored
+            && (self.filters.is_empty() || self.filters.iter().any(|f| self.matches(f, name)))
+            && !self.skips.iter().any(|s| self.matches(s, name))
+    }
+}
+
+fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    let selection = Selection::parse(&args);
+    let selected: Vec<_> = TESTS
+        .iter()
+        .filter(|(name, _)| selection.selects(name))
+        .collect();
+
+    if selection.list {
+        for (name, _) in &selected {
+            println!("{name}: test");
+        }
+        return;
+    }
+
+    let home = tempfile::tempdir().expect("home tempdir");
+    // SAFETY: harness = false; no runtime or other thread exists yet, and the
+    // scenarios below run sequentially on a runtime built after this write.
+    unsafe {
+        std::env::set_var("HOME", home.path());
+    }
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("tokio runtime");
+
+    println!("\nrunning {} tests", selected.len());
+    let mut failed = Vec::new();
+    for (name, test) in &selected {
+        let outcome = std::panic::catch_unwind(AssertUnwindSafe(|| runtime.block_on(test())));
+        match outcome {
+            Ok(()) => println!("test {name} ... ok"),
+            Err(_) => {
+                println!("test {name} ... FAILED");
+                failed.push(*name);
+            }
+        }
+    }
+    drop(runtime);
+    drop(home);
+
+    let passed = selected.len() - failed.len();
+    if failed.is_empty() {
+        println!("\ntest result: ok. {passed} passed; 0 failed\n");
+        return;
+    }
+    println!("\nfailures:");
+    for name in &failed {
+        println!("    {name}");
+    }
+    println!(
+        "\ntest result: FAILED. {passed} passed; {} failed\n",
+        failed.len()
+    );
+    std::process::exit(1);
 }

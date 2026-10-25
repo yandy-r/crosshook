@@ -6,18 +6,9 @@ use crosshook_core::export::{
     delete_launcher_for_profile, LauncherDeleteResult, LauncherStoreError,
 };
 use crosshook_core::profile::GameProfile;
+use crosshook_core::steam::steam_client_install_path_from_compatdata;
 
-const STEAM_COMPATDATA_MARKER: &str = "/steamapps/compatdata/";
 const STEAM_ROOT_SUFFIXES: [&str; 2] = ["/.local/share/Steam", "/.steam/root"];
-
-/// Steam client root derived from `steam.compatdata_path`; empty when unknown.
-pub(super) fn derive_steam_client_install_path(profile: &GameProfile) -> String {
-    let compatdata_path = profile.steam.compatdata_path.trim().replace('\\', "/");
-    compatdata_path
-        .split_once(STEAM_COMPATDATA_MARKER)
-        .map(|(steam_root, _)| steam_root.to_string())
-        .unwrap_or_default()
-}
 
 /// Home directory owning `steam_client_install_path`, falling back to `$HOME`.
 pub(super) fn derive_target_home_path(steam_client_install_path: &str) -> String {
@@ -54,7 +45,8 @@ pub(super) fn cleanup_launchers_for_profile_delete(
         return Ok(None);
     }
 
-    let steam_client_install_path = derive_steam_client_install_path(profile);
+    let steam_client_install_path =
+        steam_client_install_path_from_compatdata(&profile.steam.compatdata_path);
     let target_home_path = derive_target_home_path(&steam_client_install_path);
 
     delete_launcher_for_profile(profile, &target_home_path, &steam_client_install_path).map(Some)

@@ -100,3 +100,30 @@ pub(super) fn steam_profile(home: &str) -> GameProfile {
         ..Default::default()
     }
 }
+
+/// Sources of the stored config revisions of `name`, newest first.
+pub(super) fn revision_sources(metadata: &MetadataStore, name: &str) -> Vec<String> {
+    let profile_id = metadata.lookup_profile_id(name).unwrap().unwrap();
+    metadata
+        .list_config_revisions(&profile_id, None)
+        .unwrap()
+        .into_iter()
+        .map(|row| row.source)
+        .collect()
+}
+
+/// `(source, source_profile_id)` of the live metadata row named `name`.
+pub(super) fn sync_row(metadata: &MetadataStore, name: &str) -> (String, Option<String>) {
+    metadata
+        .with_sqlite_conn("read profile sync row", |conn| {
+            Ok(conn
+                .query_row(
+                    "SELECT source, source_profile_id FROM profiles \
+                     WHERE current_filename = ?1 AND deleted_at IS NULL",
+                    [name],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .unwrap())
+        })
+        .unwrap()
+}

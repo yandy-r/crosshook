@@ -101,10 +101,47 @@ impl From<crosshook_core::profile::ProfileStoreError> for AppError {
             E::AlreadyExists(_) => Self::new(AppErrorKind::Conflict, error.to_string()),
             // `Io` may embed absolute paths; keep only the kind.
             E::Io(io) => Self::new(AppErrorKind::Io, io.kind().to_string()),
-            E::TomlDe(_) | E::TomlSer(_) => Self::new(
-                AppErrorKind::Validation { field: "profile" },
+            // Fixed strings only: TOML Display echoes source lines, which
+            // hold user paths that may live outside `$HOME`.
+            E::TomlDe(error) => {
+                tracing::warn!(%error, "profile TOML parse failed");
+                Self::new(
+                    AppErrorKind::Validation { field: "profile" },
+                    "profile file is not valid TOML",
+                )
+            }
+            E::TomlSer(error) => {
+                tracing::warn!(%error, "profile TOML serialization failed");
+                Self::new(
+                    AppErrorKind::Validation { field: "profile" },
+                    "failed to serialize profile",
+                )
+            }
+        }
+    }
+}
+
+impl From<crosshook_core::profile::CommunityExchangeError> for AppError {
+    fn from(error: crosshook_core::profile::CommunityExchangeError) -> Self {
+        use crosshook_core::profile::CommunityExchangeError as E;
+        match error {
+            // The manifest path is the caller's input; leave it out.
+            E::Io {
+                action, message, ..
+            } => Self::new(AppErrorKind::Io, format!("failed to {action}: {message}")),
+            E::Json { message, .. } => Self::new(
+                AppErrorKind::Validation {
+                    field: "community_profile",
+                },
+                format!("failed to parse community profile: {message}"),
+            ),
+            E::InvalidManifest { .. } | E::UnsupportedSchemaVersion { .. } => Self::new(
+                AppErrorKind::Validation {
+                    field: "community_profile",
+                },
                 error.to_string(),
             ),
+            E::ProfileStore { message } => Self::new(AppErrorKind::Io, message),
         }
     }
 }

@@ -37,3 +37,7 @@ tokio = { version = "1", features = ["test-util", "macros", "rt", "io-util"] }
 [[test]]
 name = "bootstrap_ordering"
 harness = false
+
+[[test]]
+name = "profile_writer_golden"
+harness = false

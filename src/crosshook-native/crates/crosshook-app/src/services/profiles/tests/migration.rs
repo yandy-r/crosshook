@@ -9,7 +9,7 @@ use crosshook_core::profile::migration::{
     ApplyMigrationRequest, BatchMigrationRequest, MigrationOutcome, ProtonPathField,
 };
 
-use super::helpers::{steam_profile, Harness, Metadata};
+use super::helpers::{revision_sources, steam_profile, Harness, Metadata};
 use crate::{AppErrorKind, AppEvent, ProfileChangeReason};
 
 /// Saves a Steam profile whose `steam.proton_path` is `proton_path`.
@@ -63,6 +63,9 @@ async fn applied_single_migration_observes_and_publishes_migrated() {
         .lookup_profile_id("Alpha")
         .unwrap()
         .is_some());
+    // The pre-migration snapshot must not stay the latest revision, or a
+    // rollback would silently restore the stale Proton path.
+    assert_eq!(revision_sources(&harness.metadata, "Alpha"), ["migration"]);
     assert_eq!(
         harness.next_event().await,
         Some(AppEvent::ProfilesChanged {

@@ -4,8 +4,11 @@
 //! under the writer lock (D3): primary persistence → advisory effects
 //! (observe → revision → health invalidation, fail-soft, D5/D6) → publish
 //! (D4). The event is published inside the closure, so a dropped caller
-//! future cannot lose the notification for a write that persisted.
+//! future cannot lose the notification for a write that persisted; a panic
+//! inside the advisory effects is caught and reported as a warning so it
+//! cannot suppress the event either.
 
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::PoisonError;
 
 use crosshook_core::metadata::{MetadataStore, ProfileLaunchPresetOrigin};
@@ -68,7 +71,7 @@ impl ProfileWriter {
                 effects,
                 names,
             } = mutation.persist(&ctx)?;
-            let (new_revision_id, warnings) = run_effects(&ctx, effects);
+            let (new_revision_id, warnings) = run_effects_guarded(&ctx, effects);
             if let Some(names) = names {
                 writer
                     .events
@@ -82,6 +85,22 @@ impl ProfileWriter {
         })
         .await
     }
+}
+
+/// Runs [`run_effects`], converting a panic into
+/// [`CommitWarning::EffectsAborted`] so the primary write is still reported
+/// as a success and its event is still published (D4).
+fn run_effects_guarded(
+    ctx: &CommitContext<'_>,
+    effects: Vec<Effect>,
+) -> (Option<i64>, Vec<CommitWarning>) {
+    // Unwind safety: effects only touch the stores through their own locks
+    // (recovered or reported on poison); nothing observed here is left
+    // half-updated by an unwind.
+    catch_unwind(AssertUnwindSafe(|| run_effects(ctx, effects))).unwrap_or_else(|_| {
+        tracing::warn!("advisory profile effect panicked; remaining effects skipped");
+        (None, vec![CommitWarning::EffectsAborted])
+    })
 }
 
 /// Runs advisory effects in order. Returns the last inserted revision id and
@@ -183,6 +202,24 @@ fn run_effects(ctx: &CommitContext<'_>, effects: Vec<Effect>) -> (Option<i64>, V
                     push_once(&mut warnings, CommitWarning::PresetOriginFailed);
                 }
             }
+            Effect::SeedVersionSnapshot {
+                name,
+                steam_app_id,
+                trainer_version,
+                human_game_ver,
+            } => {
+                if !seed_version_snapshot(
+                    ctx.metadata,
+                    &name,
+                    &steam_app_id,
+                    trainer_version.as_deref(),
+                    human_game_ver.as_deref(),
+                ) {
+                    push_once(&mut warnings, CommitWarning::VersionSnapshotFailed);
+                }
+            }
+            #[cfg(test)]
+            Effect::Panic => panic!("test effect panic"),
         }
     }
     (new_revision_id, warnings)
@@ -244,6 +281,44 @@ fn upsert_preset_origin(
                 origin = origin.as_str(),
                 "failed to upsert preset metadata row"
             );
+            false
+        }
+    }
+}
+
+/// Upserts the display-only (`untracked`) version snapshot of the profile
+/// currently named `name` (BR-8/W3). Returns `false` (already logged) when
+/// the profile is not indexed, the lookup fails or the upsert fails.
+fn seed_version_snapshot(
+    metadata: &MetadataStore,
+    name: &str,
+    steam_app_id: &str,
+    trainer_version: Option<&str>,
+    human_game_ver: Option<&str>,
+) -> bool {
+    let profile_id = match metadata.lookup_profile_id(name) {
+        Ok(Some(id)) => id,
+        Ok(None) => {
+            tracing::warn!(profile_name = %name, "version snapshot seed skipped: profile not found in metadata");
+            return false;
+        }
+        Err(error) => {
+            tracing::warn!(%error, profile_name = %name, "version snapshot seed skipped: profile id lookup failed");
+            return false;
+        }
+    };
+    match metadata.upsert_version_snapshot(
+        &profile_id,
+        steam_app_id,
+        None,
+        trainer_version,
+        None,
+        human_game_ver,
+        "untracked",
+    ) {
+        Ok(()) => true,
+        Err(error) => {
+            tracing::warn!(%error, profile_name = %name, "version snapshot seed after community import failed");
             false
         }
     }

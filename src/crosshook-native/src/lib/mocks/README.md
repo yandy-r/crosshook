@@ -130,6 +130,7 @@ are gone. `parseProfilesChanged()` treats them as a conservative resync.
 | `profile_config_rollback`                                                            | `rolled_back`      | `[profile]`         |
 | bundled and manual optimization presets                                              | `preset_applied`   | `[profile]`         |
 | `profile_import_legacy`, `lutris_import_profiles`                                    | `imported`         | imported names only |
+| `community_import_profile`                                                           | `imported`         | `[profile_name]`    |
 | `apply_proton_migration`, `apply_batch_migration`                                    | `migrated`         | applied names only  |
 
 These rules mirror the backend:

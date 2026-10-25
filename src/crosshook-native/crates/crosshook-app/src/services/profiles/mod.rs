@@ -35,7 +35,7 @@ pub use history_types::{
     ConfigSemanticChange,
 };
 pub use types::{
-    BundledOptimizationPresetDto, CommandArgumentsPayload, CommitWarning, ImportedProfileWrite,
+    BundledOptimizationPresetDto, CommandArgumentsPayload, CommitWarning,
     LaunchOptimizationsPayload, ProfileCommit, ProfileSummary,
 };
 

@@ -42,8 +42,6 @@ type HistoryHandlers = Pick<
 export interface HeroProfileActionsBarProps {
   /** All action state / handlers from useProfileActions. */
   actions: UseProfileActionsResult;
-  /** Called after a successful rollback so health data can be refreshed. */
-  onAfterRollback: (name: string) => void;
   /** Current version-correlation status, used to decide Mark as Verified visibility. */
   versionStatus: VersionCorrelationStatus | null | undefined;
   /** Config-history IPC handlers surfaced by ProfileContext. */
@@ -60,12 +58,7 @@ const VERSION_MISMATCH_STATUSES = new Set<VersionCorrelationStatus>([
 // Component
 // ---------------------------------------------------------------------------
 
-export function HeroProfileActionsBar({
-  actions,
-  onAfterRollback,
-  versionStatus,
-  historyHandlers,
-}: HeroProfileActionsBarProps) {
+export function HeroProfileActionsBar({ actions, versionStatus, historyHandlers }: HeroProfileActionsBarProps) {
   const {
     selectedProfile,
     profileName,
@@ -292,7 +285,6 @@ export function HeroProfileActionsBar({
         showProfilePreview={showProfilePreview}
         showWizard={false}
         wizardMode="edit"
-        onAfterRollback={onAfterRollback}
         onCancelDelete={cancelDelete}
         onCloseHistory={() => setShowHistoryPanel(false)}
         onClosePreview={handleCloseProfilePreview}

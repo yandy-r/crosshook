@@ -1,14 +1,15 @@
 //! Launch optimization, MangoHud, gamescope, trainer-gamescope and
 //! command-argument section save facades.
 //!
-//! Each save loads the profile, applies one core mutation rule and persists
-//! the TOML once, then records metadata sync and a config revision and
-//! publishes `ProfileChangeReason::Saved`. Optimization and argument saves
-//! trim the profile name; section saves pass it through unchanged, matching
-//! the Tauri commands they replace.
+//! Each save validates and trims the profile name, loads the profile,
+//! applies one core mutation rule and persists the TOML once, then records
+//! metadata sync and a config revision and publishes
+//! `ProfileChangeReason::Saved` with the trimmed name.
 
 use crosshook_core::metadata::{ConfigRevisionSource, SyncSource};
-use crosshook_core::profile::{GameProfile, GamescopeConfig, MangoHudConfig, ProfileStoreError};
+use crosshook_core::profile::{
+    GameProfile, GamescopeConfig, MangoHudConfig, ProfileStore, ProfileStoreError,
+};
 
 use super::types::{
     CommandArgumentsPayload, Effect, LaunchOptimizationsPayload, Persisted, ProfileCommit,
@@ -24,14 +25,15 @@ impl ProfileWriter {
     /// `optimizations.switch_active_preset` is set.
     ///
     /// # Errors
-    /// `Validation` for a blank name or unknown optimization ids, `NotFound`
-    /// for a missing profile or preset, `Io` when the TOML write fails.
+    /// `Validation` for a blank or invalid name or unknown optimization ids,
+    /// `NotFound` for a missing profile or preset, `Io` when the TOML write
+    /// fails.
     pub async fn save_launch_optimizations(
         &self,
         name: String,
         optimizations: LaunchOptimizationsPayload,
     ) -> Result<ProfileCommit<()>, AppError> {
-        let name = required_profile_name(&name)?;
+        let name = required_profile_name("name", &name)?;
         self.commit(
             LaunchSelectionSave {
                 name,
@@ -47,15 +49,16 @@ impl ProfileWriter {
     /// method, otherwise against the profile's own method.
     ///
     /// # Errors
-    /// `Validation` for a blank name, unknown or conflicting argument ids, or
-    /// token limits; `NotFound` for a missing profile; `Io` on write failure.
+    /// `Validation` for a blank or invalid name, unknown or conflicting
+    /// argument ids, or token limits; `NotFound` for a missing profile; `Io`
+    /// on write failure.
     pub async fn save_command_arguments(
         &self,
         name: String,
         command_arguments: CommandArgumentsPayload,
         resolved_launch_method: Option<String>,
     ) -> Result<ProfileCommit<()>, AppError> {
-        let name = required_profile_name(&name)?;
+        let name = required_profile_name("name", &name)?;
         self.commit(
             LaunchSelectionSave {
                 name,
@@ -69,16 +72,17 @@ impl ProfileWriter {
         .await
     }
 
-    /// Replaces `launch.mangohud` of profile `name` (not trimmed).
+    /// Replaces `launch.mangohud` of profile `name` (trimmed).
     ///
     /// # Errors
-    /// `NotFound` for a missing profile, `Validation` for an invalid name,
-    /// `Io` when the TOML write fails.
+    /// `Validation` for a blank or invalid name, `NotFound` for a missing
+    /// profile, `Io` when the TOML write fails.
     pub async fn save_mangohud_config(
         &self,
         name: String,
         config: MangoHudConfig,
     ) -> Result<ProfileCommit<()>, AppError> {
+        let name = required_profile_name("name", &name)?;
         self.commit(
             SectionSave {
                 name,
@@ -89,7 +93,7 @@ impl ProfileWriter {
         .await
     }
 
-    /// Replaces `launch.gamescope` of profile `name` (not trimmed).
+    /// Replaces `launch.gamescope` of profile `name` (trimmed).
     ///
     /// # Errors
     /// Same as [`Self::save_mangohud_config`].
@@ -98,6 +102,7 @@ impl ProfileWriter {
         name: String,
         config: GamescopeConfig,
     ) -> Result<ProfileCommit<()>, AppError> {
+        let name = required_profile_name("name", &name)?;
         self.commit(
             SectionSave {
                 name,
@@ -108,7 +113,7 @@ impl ProfileWriter {
         .await
     }
 
-    /// Replaces `launch.trainer_gamescope` of profile `name` (not trimmed).
+    /// Replaces `launch.trainer_gamescope` of profile `name` (trimmed).
     ///
     /// # Errors
     /// Same as [`Self::save_mangohud_config`].
@@ -117,6 +122,7 @@ impl ProfileWriter {
         name: String,
         config: GamescopeConfig,
     ) -> Result<ProfileCommit<()>, AppError> {
+        let name = required_profile_name("name", &name)?;
         self.commit(
             SectionSave {
                 name,
@@ -128,13 +134,15 @@ impl ProfileWriter {
     }
 }
 
-/// Trims `raw` and rejects a blank profile name.
-pub(super) fn required_profile_name(raw: &str) -> Result<String, AppError> {
-    let name = raw.trim();
-    if name.is_empty() {
-        return Err(AppError::validation("name", "profile name is required"));
+/// Validates `raw` with [`ProfileStore::validate_profile_name`] and returns
+/// the trimmed name; failures are `Validation { field }` (blank names get a
+/// "required" message).
+pub(super) fn required_profile_name(field: &'static str, raw: &str) -> Result<String, AppError> {
+    if raw.trim().is_empty() {
+        return Err(AppError::validation(field, "profile name is required"));
     }
-    Ok(name.to_string())
+    ProfileStore::validate_profile_name(raw)
+        .map_err(|error: ProfileStoreError| AppError::validation(field, error.to_string()))
 }
 
 /// Metadata sync (`AppWrite`) and a config revision of `profile` as saved.

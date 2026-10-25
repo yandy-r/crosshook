@@ -45,15 +45,15 @@ impl ProfileWriter {
     ///
     /// # Errors
     /// `Unavailable` when the metadata store is unavailable, `Validation` for
-    /// a blank name or preset id, `NotFound` for an unknown preset or missing
-    /// profile, `Io` when the TOML write fails.
+    /// a blank or invalid name or a blank preset id, `NotFound` for an
+    /// unknown preset or missing profile, `Io` when the TOML write fails.
     pub async fn apply_bundled_optimization_preset(
         &self,
         name: String,
         preset_id: String,
     ) -> Result<ProfileCommit<GameProfile>, AppError> {
         require_metadata(&self.metadata, "apply")?;
-        let name = required_profile_name(&name)?;
+        let name = required_profile_name("name", &name)?;
         let preset_id = preset_id.trim();
         if preset_id.is_empty() {
             return Err(AppError::validation("preset_id", "preset_id is required"));
@@ -76,16 +76,16 @@ impl ProfileWriter {
     /// then skipped.
     ///
     /// # Errors
-    /// `Validation` for a blank name, a blank or reserved preset name, or
-    /// unknown option ids; `NotFound` for a missing profile; `Io` on write
-    /// failure.
+    /// `Validation` for a blank or invalid name, a blank or reserved preset
+    /// name, or unknown option ids; `NotFound` for a missing profile; `Io` on
+    /// write failure.
     pub async fn save_manual_optimization_preset(
         &self,
         name: String,
         preset_name: String,
         enabled_option_ids: Vec<String>,
     ) -> Result<ProfileCommit<GameProfile>, AppError> {
-        let name = required_profile_name(&name)?;
+        let name = required_profile_name("name", &name)?;
         let preset_name = preset_name.trim();
         if preset_name.is_empty() {
             return Err(AppError::validation(
@@ -171,7 +171,7 @@ impl ProfileMutation for PresetApply {
 
     fn persist(self, ctx: &CommitContext<'_>) -> Result<Persisted<GameProfile>, AppError> {
         let Self { name, preset } = self;
-        let (preset_name, origin, source_bundled_preset_id) = match preset {
+        let (preset_name, origin, source_bundled_preset_id, saved) = match preset {
             Preset::Bundled { preset_id } => {
                 let row = ctx
                     .metadata
@@ -195,6 +195,7 @@ impl ProfileMutation for PresetApply {
                     toml_key,
                     ProfileLaunchPresetOrigin::Bundled,
                     Some(row.preset_id),
+                    profile,
                 )
             }
             Preset::Manual {
@@ -204,11 +205,20 @@ impl ProfileMutation for PresetApply {
                 let mut profile = ctx.profiles.load(&name)?;
                 profile.apply_manual_optimization_preset(&preset_name, enabled_option_ids)?;
                 ctx.profiles.save(&name, &profile)?;
-                (preset_name, ProfileLaunchPresetOrigin::User, None)
+                (preset_name, ProfileLaunchPresetOrigin::User, None, profile)
             }
         };
 
-        let updated = ctx.profiles.load(&name)?;
+        // The TOML is written: a failed reload falls back to the profile
+        // just saved so effects and the event still run (D4).
+        let updated = ctx.profiles.load(&name).unwrap_or_else(|error| {
+            tracing::warn!(
+                %error,
+                profile_name = %name,
+                "reload after preset apply failed; using the saved in-memory profile"
+            );
+            saved
+        });
         let mut output = updated.clone();
         output.clear_extra();
         // Origin after observe, so a profile not yet indexed gets its id first.

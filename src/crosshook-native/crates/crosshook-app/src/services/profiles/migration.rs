@@ -1,14 +1,16 @@
 //! Proton path migration apply facades (single and batch).
 //!
-//! Owned by YAN-811 Task 1.5. Each item is load →
+//! Owned by YAN-811 Task 1.5. Every request's profile name is validated and
+//! trimmed before the commit. Each item is load →
 //! `prepare_profile_migration` → `save_without_companion` (migration never
 //! rewrites the MangoHud companion). Only `Applied` items observe
-//! `AppMigration`, invalidate their cached health snapshot and appear in the
-//! single `Migrated` event; `AlreadyValid`/`Failed` items have no effects.
+//! `AppMigration`, record a `Migration` config revision, invalidate their
+//! cached health snapshot and appear in the single `Migrated` event;
+//! `AlreadyValid`/`Failed` items have no effects.
 
 use std::path::Path;
 
-use crosshook_core::metadata::SyncSource;
+use crosshook_core::metadata::{ConfigRevisionSource, SyncSource};
 use crosshook_core::profile::migration::{
     prepare_profile_migration, ApplyMigrationRequest, BatchMigrationRequest, BatchMigrationResult,
     MigrationApplyResult, MigrationOutcome,
@@ -22,36 +24,43 @@ use crate::presenter::{display_path_tilde, sanitize_message};
 use crate::{AppError, AppErrorKind, ProfileChangeReason};
 
 impl ProfileWriter {
-    /// Applies one Proton path migration to the named profile.
+    /// Applies one Proton path migration to the named profile (trimmed).
     ///
     /// The replacement path is re-verified under the writer lock right
     /// before the write (TOCTOU). A load or write failure is reported as a
     /// `Failed` result, not an error. Returned paths are display-sanitized.
     ///
     /// # Errors
-    /// `Validation` when the replacement path no longer exists, `Io` when it
-    /// cannot be checked; nothing is written in either case.
+    /// `Validation` when the profile name is invalid or the replacement path
+    /// no longer exists, `Io` when it cannot be checked; nothing is written
+    /// in either case.
     pub async fn apply_proton_migration(
         &self,
-        request: ApplyMigrationRequest,
+        mut request: ApplyMigrationRequest,
     ) -> Result<ProfileCommit<MigrationApplyResult>, AppError> {
+        request.profile_name = ProfileStore::validate_profile_name(&request.profile_name)?;
         self.commit(SingleMigration(request), ProfileChangeReason::Migrated)
             .await
     }
 
     /// Applies a batch of Proton path migrations.
     ///
-    /// Pre-flight (W-4) verifies every replacement path and loads every
-    /// profile before any write; any failure aborts with zero writes and no
-    /// event. Afterwards each item is applied independently, so one failure
-    /// does not abort the rest. Returned paths are display-sanitized.
+    /// Every profile name is validated and trimmed first. Pre-flight (W-4)
+    /// then verifies every replacement path and loads every profile before
+    /// any write; any failure aborts with zero writes and no event.
+    /// Afterwards each item is applied independently, so one failure does not
+    /// abort the rest. Returned paths are display-sanitized.
     ///
     /// # Errors
-    /// The first pre-flight failure; nothing is written.
+    /// The first invalid profile name or pre-flight failure; nothing is
+    /// written.
     pub async fn apply_batch_migration(
         &self,
-        request: BatchMigrationRequest,
+        mut request: BatchMigrationRequest,
     ) -> Result<ProfileCommit<BatchMigrationResult>, AppError> {
+        for item in &mut request.migrations {
+            item.profile_name = ProfileStore::validate_profile_name(&item.profile_name)?;
+        }
         self.commit(BatchMigration(request), ProfileChangeReason::Migrated)
             .await
     }
@@ -180,7 +189,8 @@ fn preflight(store: &ProfileStore, migrations: &[ApplyMigrationRequest]) -> Resu
 }
 
 /// Applies one migration (load → prepare → `save_without_companion`) and,
-/// only when it was applied, queues its effects and records its name once.
+/// only when it was applied, queues its effects (observe → `Migration`
+/// revision → health invalidation) and records its name once.
 /// The returned result carries display-sanitized paths and error.
 fn apply_one(
     store: &ProfileStore,
@@ -196,9 +206,15 @@ fn apply_one(
                     Ok(()) => {
                         effects.push(Effect::ObserveWrite {
                             name: request.profile_name.clone(),
-                            profile,
+                            profile: profile.clone(),
                             source: SyncSource::AppMigration,
                             source_profile_id: None,
+                        });
+                        effects.push(Effect::Revision {
+                            name: request.profile_name.clone(),
+                            profile,
+                            source: ConfigRevisionSource::Migration,
+                            source_revision_id: None,
                         });
                         effects.push(Effect::InvalidateHealth {
                             name: request.profile_name.clone(),

@@ -92,4 +92,11 @@ describe('mock profiles-changed producers', () => {
     await mockCallCommand('lutris_import_profiles', { entries: [importable, notImportable] });
     expectPayloads(payloads, [{ reason: { kind: 'imported' }, names: [importable.suggested_name] }]);
   });
+
+  it('community import emits imported with the imported profile name', async () => {
+    const result = await mockCallCommand<{ profile_name: string }>('community_import_profile', {
+      path: '/mock/taps/community-profiles/synthetic-quest/community.json',
+    });
+    expectPayloads(payloads, [{ reason: { kind: 'imported' }, names: [result.profile_name] }]);
+  });
 });

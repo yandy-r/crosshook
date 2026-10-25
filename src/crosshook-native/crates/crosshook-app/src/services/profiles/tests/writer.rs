@@ -224,3 +224,40 @@ async fn persisted_toml_is_the_store_serialization() {
     let on_disk = fs::read_to_string(harness.profiles.base_path.join("Alpha.toml")).unwrap();
     assert_eq!(on_disk, expected);
 }
+
+/// Persists like [`TestSave`], then queues an effect that panics.
+struct PanickingEffects(TestSave);
+
+impl ProfileMutation for PanickingEffects {
+    type Output = String;
+
+    fn accepts(&self, reason: &ProfileChangeReason) -> bool {
+        self.0.accepts(reason)
+    }
+
+    fn persist(self, ctx: &CommitContext<'_>) -> Result<Persisted<String>, AppError> {
+        let mut persisted = self.0.persist(ctx)?;
+        persisted.effects.insert(0, Effect::Panic);
+        Ok(persisted)
+    }
+}
+
+#[tokio::test]
+async fn panicking_effect_still_succeeds_and_publishes_with_warning() {
+    let mut harness = Harness::new(Metadata::Enabled);
+
+    let commit = harness
+        .writer
+        .commit(
+            PanickingEffects(TestSave::new("Alpha")),
+            ProfileChangeReason::Saved,
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(commit.warnings, vec![CommitWarning::EffectsAborted]);
+    assert_eq!(commit.new_revision_id, None);
+    assert!(harness.profiles.profile_exists("Alpha"));
+    assert_eq!(harness.next_event().await, Some(saved("Alpha")));
+    assert_eq!(harness.next_event().await, None);
+}

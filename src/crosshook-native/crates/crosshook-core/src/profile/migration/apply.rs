@@ -1,7 +1,6 @@
 use std::path::Path;
 
 use crate::profile::models::GameProfile;
-use crate::profile::toml_store::ProfileStore;
 
 use super::types::{
     ApplyMigrationRequest, MigrationApplyResult, MigrationOutcome, ProtonPathField,
@@ -48,38 +47,6 @@ pub fn prepare_profile_migration(
     }
 
     result(request, old_path, MigrationOutcome::Applied, None)
-}
-
-/// Applies a single migration: load → [`prepare_profile_migration`] →
-/// [`ProfileStore::save_without_companion`] (atomic temp-file + rename, W-1).
-///
-/// Deliberately does not rewrite the MangoHud companion config.
-pub fn apply_single_migration(
-    store: &ProfileStore,
-    request: &ApplyMigrationRequest,
-) -> MigrationApplyResult {
-    let mut profile = match store.load(&request.profile_name) {
-        Ok(profile) => profile,
-        Err(err) => {
-            return result(
-                request,
-                String::new(),
-                MigrationOutcome::Failed,
-                Some(err.to_string()),
-            );
-        }
-    };
-
-    let mut prepared = prepare_profile_migration(&mut profile, request);
-    if prepared.outcome != MigrationOutcome::Applied {
-        return prepared;
-    }
-
-    if let Err(err) = store.save_without_companion(&request.profile_name, &profile) {
-        prepared.outcome = MigrationOutcome::Failed;
-        prepared.error = Some(err.to_string());
-    }
-    prepared
 }
 
 fn result(
