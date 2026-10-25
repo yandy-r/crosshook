@@ -1,0 +1,169 @@
+# Practices Research: profile-writer
+
+## Executive Summary
+
+Reuse `ProfileStore`, `MetadataStore`, core profile transforms, and the app service `run_blocking` helper; move orchestration out of Tauri rather than implementing a second persistence layer. A closure-based `ProfileWriter` is consistent with both `save_profile_section` and `SettingsService::update`, but favorites, deletion, and rename need explicit operation handling rather than a fictitious `GameProfile` mutation. The most important regression tests are byte-level TOML fixtures, service-level metadata/event assertions, launcher cleanup/re-export tests, and a real hook listener test that counts `batch_validate_profiles` calls.
+
+All source paths below are relative to `src/crosshook-native/`; line ranges describe the researched checkout. Proposed interfaces and module names are recommendations, not existing APIs. The acceptance criteria in [issue.md](issue.md) remain authoritative.
+
+## Existing Reusable Code
+
+| Module/Utility | Location | Purpose | How to Reuse for This Feature |
+|---|---|---|---|
+| Section-save closure | `src-tauri/src/commands/profile/shared.rs:242–277`, `save_profile_section<F>` | Loads, clones existing state, applies `FnOnce(&mut GameProfile)`, clears caller extras, preserves disk extras, saves, observes, captures revision | Move orchestration into the writer; preserve the unknown-field trust boundary. Do not keep a parallel Tauri helper. |
+| Observation/revision helpers | `commands/profile/shared.rs:74–169`, `observe_profile_write_launch_change`, `resolve_config_history_max_revisions`, `capture_config_revision` | Stable-ID lookup, canonical pretty TOML, SHA-256, retention policy, fail-soft revision capture | Move into private writer/revision helpers in app. Keep hashing, revision dedupe, signing, retention, and row storage in core. |
+| Launcher cleanup | `commands/profile/shared.rs:9–66`, path derivation and `cleanup_launchers_for_profile_delete` | Derives Steam/home paths, skips native profiles, delegates watermarked-file deletion | Move orchestration to app `profiles/launchers.rs`; retain `crosshook_core::export::delete_launcher_for_profile` as the file-operation implementation. |
+| Profile persistence | `crates/crosshook-core/src/profile/toml_store/store.rs:79–122` | Effective load normalization; `storage_profile()` serialization; atomic save; MangoHud companion write | Always finish TOML writes through `ProfileStore::save`, not app-owned `fs::write` or ad hoc TOML serialization. |
+| Existing specialized writes | `profile/toml_store/store.rs:129–290` | Optimization/preset normalization, catalog checks, command-argument validation, preset materialization | Reuse the underlying core rules. Extract mutation-only helpers if a single writer-owned save is needed; do not reproduce these algorithms in app. |
+| Lifecycle primitives | `profile/toml_store/store.rs:313–435` | Delete/rename MangoHud sidecars; validate names; duplicate naming/collision policy; legacy conversion | Preserve these core behaviors. Duplicate name generation must not be reimplemented in app. |
+| Unknown-field handling | `profile/models/extra.rs:156–166` | `clear_extra`, `preserve_extra_from` | Keep disk unknowns while rejecting injected IPC unknowns; clear only the returned DTO copy, not the persisted/revision copy. |
+| Storage/portable transforms | `profile/models/profile.rs:275–312` | `storage_profile`, `portable_profile` | Preserve the difference between stored TOML, effective runtime values, and shareable export. |
+| Creation defaults | `profile/creation_defaults.rs:7`, `apply_profile_creation_defaults_from_settings` | Applies defaults only for new profiles | App decides new/existing and loads settings; core owns the field-default algorithm. Preserve explicit incoming preset selection. |
+| Shareable export | `commands/profile/lifecycle.rs:389–402` delegates to `profile_to_shareable_toml_with_options` | Hook opt-in and shareable TOML generation | Wrap the existing core API asynchronously; do not write another exporter. |
+| Metadata observation | `metadata/profile_ops.rs:11–102` | `observe_profile_write`, `lookup_profile_id`, `observe_profile_rename`, `observe_profile_delete` | App sequences these operations; core remains the SQLite interface and stable identity authority. |
+| Revision API | `metadata/config_history_ops.rs:5–122` | Insert/latest-hash dedupe, verification, profile-scoped reads, known-good marker | Reuse unchanged, including `verify_config_revision` before restoring. No app SQL or schema changes. |
+| Diff engines | `profile/config_diff.rs:6–89`; `profile/config_semantic_diff.rs:8–84` | 2,000 input-line cap, 512 KiB unified output cap, UTF-8-safe truncation; 500 semantic changes and parse-failure handling | Move only response assembly into app history service; call core algorithms without changing limits. |
+| Blocking service helper | `crates/crosshook-app/src/services/mod.rs:1–37`, `run_blocking` | `spawn_blocking`, `Send + 'static` work/results, sanitized join failures | Reuse for the whole blocking operation, including load/diff/revision/store work. Do not nest a blocking task per pipeline step. |
+| Closure service precedent | `services/settings.rs:199–290`, `SettingsService::update` | Cheap cloneable service; async facade; `FnOnce` mutation | Follow constructor ownership and async operation style, but do not claim profile writes inherit settings' atomic update lock. |
+| Health facade | `services/health/mod.rs:25–77` | Cloned core stores; async batch/single/cached operations | Keep health computation here; writer must not implement another enriched batch scan. |
+| Error conversion | `crates/crosshook-app/src/error.rs:68–117,165–178` | Join-error, profile-store, and metadata errors become sanitized `AppError` | Return typed app errors; Tauri maps to strings once. Avoid moving raw `map_error` stringification unchanged into public app APIs. |
+| Event bus | `crates/crosshook-app/src/events.rs:30–89` | Bounded nonblocking publish, explicit lag/resync | Inject a cloned `EventBus`; publish app events only after successful primary changes. No Tauri handle in the service. |
+
+## Modularity Design
+
+### Recommended Module Boundaries
+
+Use `crates/crosshook-app/src/services/profiles/` as a cohesive directory, not one large transplanted command file:
+
+- `mod.rs`: cloneable `ProfileWriter`, constructor/dependencies, public async service facade and re-exports. Keep implementation details private.
+- `writer.rs`: the single commit coordinator and post-write observation/revision/health/event sequence. Operation-specific metadata such as `SyncSource::AppDuplicate`, source profile ID, revision source and rollback lineage must be explicit inputs, not inferred from display reason strings.
+- `lifecycle.rs`: save/new-profile orchestration, duplicate, rename, delete and import. Save preprocessing reuses core creation defaults and game-image import APIs (`commands/profile/lifecycle.rs:103–224`).
+- `sections.rs`: async section/optimization/command-argument/preset operations; use core mutation helpers rather than duplicating validation.
+- `history.rs`: history list, diff response assembly, rollback ownership/integrity checks and known-good marking; move DTOs from `commands/profile/config_history.rs:14–98` without changing serde names.
+- `queries.rs`: profile list, sanitized profile returns, summaries and export. Read-only operations need the same blocking boundary but no commit event or revision.
+- `launchers.rs`: path derivation and cleanup orchestration, with small private helpers.
+- `tests/`: `mod.rs`, shared harness/fixtures, lifecycle/golden, history, sections, events/degraded-mode tests. Split by behavior instead of creating a monolithic writer test file.
+
+These are responsibility boundaries, not a requirement to create every file immediately. Combine small cohesive modules; split when responsibilities or size demand it. `CLAUDE.md:48–50` sets an approximately **500-line soft cap**, mandatory decomposition when meaningfully exceeded except inherently contiguous generated/schema/fixture data, DRY/shared logic, clear public surfaces, minimal coupling, no circular dependencies, composition, and single responsibility. Existing `config_history.rs` is 375 lines and lifecycle is 402 lines before adding async/event/degraded outcomes; concatenating them into `profiles/mod.rs` would violate the intent.
+
+**Composition:** add the profile service to `bootstrap/stores.rs::Services` (`:43–77`), register its clone as Tauri state, and supply the application's bus at composition time. `Services::new(stores)` currently has no bus argument, so constructing a fresh isolated bus inside `ProfileWriter::new` would silently disconnect events; adapt composition to pass the existing bus. Keep services free of `AppHandle`, `tauri::State`, and `App` ownership cycles.
+
+**What stays in Tauri:** snake_case command names/arguments and generated command-macro re-exports; `State<ProfileWriter>` extraction; `service.operation(...).await.map_err(|e| e.to_string())`; the object-event bridge. `commands/health/batch.rs:5–13` is the existing thin-command model. `startup_bridge.rs:117–137` demonstrates receiver ownership and resync handling, but currently bridges only startup events and ignores other variants.
+
+**Explicit scope boundary:** `apply_collection_defaults` and its tests stay in Tauri for M1-35 (`shared.rs:171–225`; `tests/optimizations.rs:66–193`). `profile_load` and `profile_list_summaries` currently invoke it (`lifecycle.rs:38–100`). Move summary construction to app while retaining a thin collection-context compatibility path owned by the existing collection code; do not copy/move the collection merge into app or silently drop collection-aware summaries. Resolve that split explicitly in implementation design.
+
+### Shared vs. Feature-Specific Code
+
+| Component | Shared or Feature-Specific | Rationale |
+|---|---|---|
+| Profile models, normalization, validation, TOML storage, diff algorithms | Shared core | Used outside the desktop shell; portable business behavior must have one implementation. |
+| Commit sequencing, defaults/preset lookup, art-import coordination, operation results | App profiles feature | Coordinates multiple core facilities for a user operation. |
+| Revision persistence, HMAC and latest-hash dedupe | Shared core | Existing storage trust/retention rules must not be reimplemented. |
+| `ProfileChangeReason` and named app events | Shared app contract | Producers, Tauri bridge and headless consumers need the same meaning. |
+| Wire payload TypeScript type and reason classification | Shared frontend contract | Five listeners and mocks must not maintain divergent string comparisons. |
+| Launcher low-level watermark/file deletion | Shared core export | Existing ownership protection and filesystem semantics remain authoritative. |
+| Launcher cleanup ordering, boolean rename result | App lifecycle orchestration | Coordinates file rename/delete with metadata and frontend re-export. |
+| Test stores and sample profiles | Feature-private test helpers | No production repository trait or exported fixture library is necessary. |
+
+## KISS Assessment
+
+| Area | Current Proposal | Simpler Alternative | Trade-off |
+|---|---|---|---|
+| Mutation abstraction | A `Mutation` trait with one implementation per command | A private generic closure `FnOnce(&mut GameProfile) -> Result<_, AppError> + Send + 'static`, matching existing section/settings closures | No vtables, boxing or command hierarchy. Fallible closures support real validation; infallible section updates return `Ok(())`. |
+| All operation kinds | Force favorite/delete/rename through a mutable-profile closure | Keep one commit coordinator with a small explicit operation/result representation plus profile-edit closures for actual TOML edits | Favorites have no TOML write; delete has no saved profile; rename has two identities. Explicit variants preserve a single post-change policy without fictitious loads/saves. |
+| Core specialized APIs | Call `save_command_arguments`, then load/save again in writer | Extract core mutation-only validation/normalization from store methods, migrate existing callers, save once through writer | Small core extraction is justified; cloning the same validation in app or doing two writes is not. |
+| Revision capture | New history repository/ORM or duplicate dedupe | Existing `MetadataStore` methods plus one private capture helper | Maintains HMAC, latest-hash semantics and schema unchanged. |
+| Health work | Run batch validation on every change | Classify reason once; favorite change has zero health work, meaningful profile changes use existing health facilities | Retains list/favorite refresh while eliminating the known expensive batch. |
+| Test injection | A generic dependency container or broad `ProfileRepository` trait | Real tempdir stores; inject only the health callback at the consumer boundary requiring a counter | Less abstraction; failures remain observable in actual persistence code. |
+| Async boundary | Every helper public and async | Public operations async, private pure/blocking helpers synchronous within one `run_blocking` closure | Fewer task transitions and easier order/fixture tests. Constructors remain synchronous like existing services. |
+
+## Abstraction vs. Repetition
+
+### Extract (Worth Abstracting)
+
+- **Commit aftermath:** currently repeated in lifecycle, sections/presets, rollback, ProtonDB acceptance and migration. One coordinator must own observation, optional revision capture, health consequence, then exactly one reason/names event. Preserve `SyncSource` versus `ConfigRevisionSource`; they are not the same enum.
+- **Core mutation rules:** `ProfileStore::save_launch_optimizations`, `save_command_arguments` and preset methods currently combine pure changes with persistence. Extract reusable in-memory core transforms if needed to meet one-save semantics; keep store callers using the same transforms rather than leaving duplicate algorithms.
+- **Revision response assembly:** move existing response structs/assembly from Tauri into app; keep core diff engines and metadata rows unchanged. List responses deliberately omit snapshot TOML (`config_history.rs:16–27,107–145`).
+- **Frontend event contract:** replace `subscribeEvent<string>` in `useProfile.ts:234`, `useProfileHealth.ts:241`, `useProfileSummaries.ts:40`, `useLibrarySummaries.ts:65`, and `useCommunityProfiles.ts:434` with a shared object payload type. `useProfile` still needs `loadFavorites()` on favorite changes; not every listener should skip every refresh.
+- **External profile-write callers:** `commands/protondb.rs:16–48,108+` uses `observe_suggestion_apply`; `commands/lutris.rs:11–76` imports public profile revision helpers; migration applies writes separately. Remove obsolete Tauri helper exports and migrate callers rather than adding app aliases that leave two pipelines. Lutris imports must continue working even though not explicitly enumerated in the issue's command list.
+
+### Repeat (Acceptable Duplication)
+
+- Thin async IPC forwarding per named command: macro-exposed commands are an intentional stable interface; generating a command framework is unnecessary.
+- Small operation-specific preconditions and result DTO assembly: rename, delete and favorites are materially different operations, not copy/paste save algorithms.
+- Explicit test cases per event reason and persisted artifact: a short table of reason classifications and separate lifecycle assertions communicate semantics better than a custom test DSL.
+
+## Interface Design
+
+### Public API Surfaces
+
+Recommended service shape: a cheap cloneable `ProfileWriter` owning `ProfileStore`, `MetadataStore`, `SettingsStore`, and `EventBus`, with public async operations for the existing command surface. Keep `commit(name, mutation, reason)` internal to this service so caller-supplied reasons cannot bypass required metadata, revision lineage or health policy. A typed internal context can carry revision source, optional source revision/profile IDs and operation kind; avoid multiple boolean flags.
+
+- Section edits can call a generic commit helper with `FnOnce(&mut GameProfile) -> Result<(), AppError> + Send + 'static`.
+- Full save supplies a replacement profile with different new/existing preparation rules. Do not apply existing-profile unknown-field preservation to historical rollback: rollback must restore the verified historical profile, not merge current fields into it.
+- Rename/delete/duplicate preserve their existing result contracts, especially rename's `bool` launcher signal and `DuplicateProfileResult`. `useProfileCrud.ts:375–398` consumes the boolean; `useProfileNotifications.ts:145–173` sets pending launcher re-export for rename and undo when it is true.
+- Favorites call `MetadataStore::set_profile_favorite` only. `commands/profile/favorites.rs:7–17` currently writes **no profile TOML**, observes no write and captures no revision; do not introduce those side effects under the banner of unification.
+- History/diff/known-good require accessible metadata, while ordinary profile saves remain successful when metadata is disabled. Existing history commands return unavailable errors (`config_history.rs:112–114,160–162,269–271,348–352`).
+
+**Event contract:** required app shape is `AppEvent::ProfilesChanged { reason: ProfileChangeReason, names }`, with the nine reasons in the issue, including `Renamed { from }`. Specify a single Serde representation and pin its JSON in Rust and TS tests; the issue does not specify enum tagging. For example, an explicitly tagged reason could serialize as `{ "reason": { "kind": "favorite_toggled" }, "names": ["Alpha"] }`, and rename as `{ "reason": { "kind": "renamed", "from": "Old" }, "names": ["New"] }`—these are proposed payloads, not current behavior. Ensure resync can request a full refresh rather than inventing an empty successful change.
+
+Current production emission is a string reason (`shared.rs:68–71`); current mocks instead use `{ name, action }` (`src/lib/mocks/handlers/profile-mutations.ts`, `profile-presets.ts`, `profile-history.ts`). Replace both with the same object contract. A reason-only change without all five consumers, mocks and test emitters is incomplete.
+
+### Extension Points
+
+- Core mutation-only helpers allow later non-Tauri writers to reuse validation without importing app/UI code.
+- Named typed events let listeners choose summary refresh, favorites refresh or health validation without inspecting command-specific strings.
+- Future collection service work can reuse the writer, but collection-default application remains outside this issue.
+- Keep synchronous snapshot/diff helpers private and testable; do not add a plugin registry or persisted mutation history beyond existing revisions.
+
+## Testability Patterns
+
+### Recommended Patterns
+
+1. **Real isolated service harness.** Follow `services/health/tests.rs:3–27` and `services/settings/tests.rs:346–417`: retained `TempDir`, `ProfileStore::with_base_path`, `SettingsStore::with_base_path`, real `MetadataStore::open_in_memory()` or `disabled()`, cloned bus with receiver subscribed before mutation. Build service directly for most tests, not through full startup. Bootstrap integration patterns (`tests/bootstrap_report.rs:1–13,88–116`) use explicit roots, skip logging/network, borrowed current runtime and no sleeps when composition itself needs testing.
+2. **Rust health call counter at the actual execution seam.** No injectable batch runner currently exists: `HealthService::batch_summary` directly calls `batch::build_enriched_health_summary` (`health/mod.rs:37–40`), and `ProfileWriter` does not exist. If app event handling triggers validation, factor its decision/dispatch into a private helper accepting a closure that invokes the real runner; a test closure captures `Arc<AtomicUsize>` and increments on invocation. A private test constructor can inject that runner if async wiring requires it. Test favorite = zero and a health-affecting control = one. Do not add a public `Mutation` trait or global counter merely to count calls. A Rust writer event test alone cannot prove what the React hook calls.
+3. **Vitest listener counter using existing harness.** `src/hooks/__tests__/useProfileHealth.startup.test.ts:1–89` already mocks `callCommand`, uses the actual browser event bus, and exposes `batchCalls()` at `:60–62`. Start from a complete startup report so startup causes zero batches, wait for subscriptions, emit the typed favorite event inside `act`, and assert zero new batches; emit a saved event as positive control and assert one. Retain late-subscription/unmount checks. Update the old string emitters in `useProfileSummaries.test.ts:51–55` and `LibraryPage.test.tsx:449–478`.
+4. **Pre-refactor byte fixtures.** Existing golden convention is committed fixture files loaded via `CARGO_MANIFEST_DIR`, sorted cases, and direct assertions (`crosshook-core/tests/launch_request_golden.rs:34–46,100–108`; fixtures in `tests/fixtures/launch_request/`). Add app fixture files under `crates/crosshook-app/tests/fixtures/profile_writer/` for initial input plus expected save/rename/duplicate/rollback TOML, captured from the pre-refactor implementation before replacing it. Assert actual `fs::read` bytes against fixture bytes; TOML parse equality is insufficient. Do not generate expected bytes with the serializer under test. Use stable synthetic paths and profiles without external art import; test art import separately with a real temporary image. Cover unknown fields, portable/local override paths, active preset and rename display-name behavior.
+5. **Service history integration on top of existing core coverage.** `crosshook-core/tests/config_history_integration.rs:47–173,181+,292+` covers lineage, rename identity continuity and disabled safe defaults; `metadata/config_history_store/tests/insert_and_list.rs:46–115` covers latest-only/profile-scoped dedupe; `tests/hmac.rs:288+,357+` covers rollback trust. Add app end-to-end tests that verify those APIs are sequenced correctly rather than copying core implementation tests. Include a file-backed tempdir DB for HMAC-backed restore behavior, not only unsigned in-memory storage.
+6. **Diff boundary tests.** Retain core tests (`config_diff.rs:95–139`, `config_semantic_diff.rs:147–183`) and add service assertions for scoped revision ownership, output cap/truncated field, semantic mode, invalid-TOML unified fallback, and revision-versus-current/revision-versus-revision selection.
+7. **Launcher lifecycle/re-export tests.** Move/adapt the watermarked script/desktop fixture helper from `commands/profile/tests/lifecycle.rs:9–32` and `steam_profile(home)` from `tests/helpers.rs:6–49`. Existing tests already isolate Steam/home paths under tempdir and skip native cleanup (`lifecycle.rs:35–76`). Extend to delete ordering/fail-soft cleanup, rename cleanup plus returned boolean, preserved MangoHud sidecars, display-name/last-used update, and the frontend pending-re-export branch. Do not set real HOME or delete user launchers.
+8. **Section isolation.** Adapt `commands/profile/tests/optimizations.rs:10–62`: assert non-launch sections survive, missing profiles fail, and unknown fields survive. Leave its collection-default test module in place per M1-35.
+9. **Migration behavior.** Preserve all-before-write preflight in `commands/migration.rs:164–190`, per-profile result isolation afterwards, path recheck for single apply (`:69–84`), and `SyncSource::AppMigration`. Only applied outcomes should capture/emit a migrated change; test mixed applied/skipped/failed results without a full health batch per profile.
+
+### Anti-patterns to Avoid
+
+- A fake profile store that bypasses `storage_profile`, normalization and sidecars: it cannot establish byte compatibility.
+- A single global `AtomicUsize` counter: parallel tests contaminate each other. Counters belong to each harness/captured runner.
+- Asserting no batches without a positive-control saved event: a broken/unsubscribed listener can otherwise pass.
+- Fixture auto-update during tests or reserializing expected TOML: both can approve a serializer regression.
+- Capturing returned profiles only: unknown fields are deliberately stripped at IPC boundaries, while disk/revision bytes must retain them.
+- Counting a mock `batch_validate_profiles` Rust command without exercising the real health dispatch: that name is an IPC boundary, not an injectable core function.
+- Adding sleeps to synchronize events: subscribe before mutation and await receipt/explicit readiness.
+
+## Build vs. Depend
+
+| Need | Build Custom | Use Library | Recommendation | Rationale |
+|---|---|---|---|---|
+| Async blocking execution | New executor/wrapper | Existing Tokio via `run_blocking` | Reuse | Already handles panics/cancellation through `AppError`. |
+| TOML golden verification | Snapshot framework and update machinery | Existing `tempfile`, `std::fs`, direct byte equality | Reuse current fixture convention | Exact bytes are the acceptance criterion; no new dependency needed. |
+| Diffs and revision hashes | App implementations | Existing core diff APIs and `sha256_hex` | Reuse | Preserves caps, semantics and HMAC/dedupe behavior. |
+| Event fan-out | New observer registry | Existing `EventBus` | Reuse | Runtime-only bounded bus already represents lag. |
+| Test spies | Mocking crate/production repository trait | Closure plus per-test `Arc<AtomicUsize>`; existing Vitest mocks | Build only a narrow private seam | Tests need one observable health invocation, not a general dependency framework. |
+| Fixtures | New cross-crate production fixture package | Feature-private harness plus committed data | Keep local | Existing fixtures are private test modules; exporting them would couple production crates to tests. |
+
+## Persistence & Usability
+
+- **TOML profile preferences:** existing profile data and settings-derived creation defaults remain byte-compatible; no new fields, format or migration. Users continue editing the same TOML/UI values. Settings such as last-used profile and revision retention remain in existing settings TOML.
+- **SQLite operational metadata:** favorites, stable profile identity, preset origin, config revisions/lineage/known-good markers and cached health stay in existing tables. No schema change. Do not confuse favorite metadata with a profile TOML edit.
+- **Runtime-only:** typed change events, names/reasons, health-run test counters and write-operation warning results are not persisted.
+- **Offline:** all writer orchestration remains local; do not introduce network calls through service construction, tests or event processing.
+- **Degraded metadata:** successful primary profile writes remain successful; skip revision capture and expose the metadata degradation with a warning. Existing `capture_config_revision` silently returns `None` when disabled (`shared.rs:121–123`), so transplanting it unchanged does not satisfy the issue's “logged and surfaced” requirement. History/rollback/known-good and bundled-preset lookup retain their explicit unavailable semantics.
+
+## Open Questions
+
+- **Health “invalidation” is not a reusable delete API.** In the researched tree `metadata/health_ops.rs:4–29` exposes only upsert/load/lookup; `observe_profile_write` does not clear snapshots. Migration's “invalidate” comment actually runs `check_profile_health` and upserts a new snapshot (`commands/migration.rs:109–135,218–244`). Define one consistent writer policy using the existing single-profile health computation; do not claim an existing invalidate method or silently introduce an app SQL delete. Favorites must skip that work.
+- **Warning presentation needs an explicit contract.** Existing commands often return `()`/bool/profile, and a revision `None` conflates dedupe, disabled storage and errors. Use an internal typed post-write outcome to distinguish warnings without turning a successful save into an error; the implementation plan must specify how the shell surfaces those warnings (rather than only logging them or relying on a stale startup report). This is required scope, not optional later work.
+- **Collection-aware summaries need a precise seam.** The service must own summaries while the excluded collection merge stays where it is. Preserve current collection behavior explicitly without migrating M1-35 by accident.
+- **Serde reason representation is unspecified by the issue.** Choose and pin one tagged representation across Rust bridge, five listeners, mocks and tests; avoid relying on implicit enum serialization.
+
+Research only: no builds, tests, formatters or smoke checks were run. The implementation owner should exercise the issue's `cargo test -p crosshook-app`, `npm test`, and `npm run test:smoke`, plus the core profile/history regression suites if core mutation helpers are extracted.
