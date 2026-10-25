@@ -23,6 +23,15 @@ src/crosshook-native/target/
 # Task tracking
 tasks/todo.md
 
+# Agents
+.claude/
+.codex/
+.cursor/
+.agents/
+.omp/
+.opencode/
+.pi/
+
 # claude
 /.claude/worktrees/
 
