@@ -11,7 +11,7 @@ use crosshook_core::metadata::{
     MAX_HISTORY_LIST_LIMIT,
 };
 use crosshook_core::profile::{
-    cap_diff_output_bytes, compute_semantic_diff, compute_unified_diff, GameProfile,
+    cap_diff_output_bytes, compute_semantic_diff, compute_unified_diff, GameProfile, ProfileStore,
 };
 
 use super::history_types::{
@@ -122,14 +122,16 @@ impl ProfileWriter {
     /// `ProfileChangeReason::RolledBack` is published.
     ///
     /// # Errors
-    /// `Unavailable` without metadata, `Validation` for a non-positive id, an
-    /// integrity failure or an unparsable snapshot, `NotFound` when the
-    /// revision does not belong to `name`, `Io` when the TOML write fails.
+    /// `Validation` for an invalid profile name (checked first), a
+    /// non-positive id, an integrity failure or an unparsable snapshot,
+    /// `Unavailable` without metadata, `NotFound` when the revision does not
+    /// belong to `name`, `Io` when the TOML write fails.
     pub async fn config_rollback(
         &self,
         name: String,
         revision_id: i64,
     ) -> Result<ProfileCommit<ConfigRollbackResult>, AppError> {
+        let name = ProfileStore::validate_profile_name(&name)?;
         require_metadata(&self.metadata, "rollback")?;
         require_positive("revision_id", revision_id)?;
         let ProfileCommit {

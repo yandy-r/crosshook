@@ -112,7 +112,7 @@ pub fn apply_lutris_import(
     let mut failed_count = 0usize;
     let mut reserved_names = store.list().unwrap_or_default();
 
-    for entry in entries {
+    for mut entry in entries {
         if !entry.importable {
             skipped_count += 1;
             results.push(LutrisImportEntryResult {
@@ -123,6 +123,24 @@ pub fn apply_lutris_import(
                 error: Some("Entry is not importable.".to_string()),
             });
             continue;
+        }
+
+        // Validate and trim before the unique-name check: `reserved_names`
+        // holds stored (trimmed) names, so a padded name would otherwise
+        // pass as unique and then overwrite the trimmed profile on save.
+        match ProfileStore::validate_profile_name(&entry.suggested_name) {
+            Ok(name) => entry.suggested_name = name,
+            Err(error) => {
+                failed_count += 1;
+                results.push(LutrisImportEntryResult {
+                    entry,
+                    outcome: LutrisImportOutcome::Failed,
+                    profile_name: None,
+                    profile_path: None,
+                    error: Some(error.to_string()),
+                });
+                continue;
+            }
         }
 
         let profile_name = derive_unique_profile_name(&entry.suggested_name, &reserved_names, &[]);

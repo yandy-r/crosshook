@@ -59,7 +59,7 @@ crates/crosshook-app/src/services/profiles/
   defaults_art.rs        # moved creation settings/default preset/art imports
   suggestions.rs         # moved ProtonDB accept validation/mutation
   migration.rs           # moved apply/preflight/result aggregation
-  imports.rs             # minimal existing-Lutris post-write integration
+  imports.rs             # Lutris and community imports under the write lock
   tests/
     mod.rs helpers.rs lifecycle.rs sections.rs history.rs events.rs
     migration.rs suggestions.rs degraded.rs golden.rs
@@ -154,15 +154,18 @@ impl ProfileWriter {
         &self, request: BatchMigrationRequest,
     ) -> Result<BatchMigrationResult, AppError>;
 
-    // Existing Lutris helper consumer only: completes effects for writes the
-    // established core importer already performed, without another save.
-    pub async fn record_imports(
-        &self, imported: Vec<ImportedProfileWrite>,
-    ) -> Result<(), AppError>;
+    // Imports: run the established core importers inside the commit, under
+    // the write lock, then the shared post-persistence effects.
+    pub async fn import_lutris(
+        &self, entries: Vec<LutrisImportEntry>,
+    ) -> Result<ProfileCommit<LutrisImportResult>, AppError>;
+    pub async fn import_community(
+        &self, path: PathBuf,
+    ) -> Result<ProfileCommit<CommunityImportResult>, AppError>;
 }
 ```
 
-`record_imports` is not an alternative TOML writer: it enters the same internal **post-persistence effects** function used by commit, with `SyncSource::LutrisImport`, `ConfigRevisionSource::Import`, `Imported`, concrete successful names and health invalidation. It replaces `lutris.rs`'s imports of soon-deleted Tauri helpers, not the importer itself. A failed metadata effect is logged and does not reject successful imports. Community imports do not consume these shared helpers and are outside the enumerated cutover.
+`import_lutris` and `import_community` are not alternative TOML writers: each runs the established core importer (`apply_lutris_import`, `import_community_profile`) inside the commit, under the D3 write lock, so unique-name derivation and the TOML writes cannot interleave with other profile writes. The commit then runs the same internal **post-persistence effects** as every other facade: observe (`SyncSource::LutrisImport` or `SyncSource::Import`), `ConfigRevisionSource::Import`, health invalidation, and for community imports the display-only version snapshot seeded from the manifest metadata. Each publishes one `Imported` event with the concrete written names. Lutris validates and trims each `suggested_name` with `ProfileStore::validate_profile_name` first; an invalid entry is reported `Failed` and the rest still import, and nothing is published when nothing was written. A failed metadata effect is logged as a commit warning and does not reject successful imports.
 
 Public mutation/result data types (Serde is unnecessary for these application-internal types):
 
@@ -196,12 +199,6 @@ pub enum ProfileCommit {
     FavoriteUpdated,
     Suggestion(AcceptSuggestionResult),
     Migration(MigrationApplyResult),
-}
-
-pub struct ImportedProfileWrite {
-    pub name: String,
-    pub profile: GameProfile,
-    pub path: std::path::PathBuf,
 }
 ```
 
@@ -396,7 +393,7 @@ The full mapping, with all non-state arguments and successful result types, is:
 | `profile_config_rollback`                   | `name: String, revision_id: i64`                                                                   | `ConfigRollbackResult` / `config_rollback`                 |
 | `profile_mark_known_good`                   | `name: String, revision_id: i64`                                                                   | `()` / `mark_known_good`                                   |
 
-**Count correction:** the table is 23 commands, matching the issue; count the exported functions, not their duplicated Tauri macro re-exports. Additional named cutover commands are `protondb_accept_suggestion(request: AcceptSuggestionRequest, service: State<'_, ProfileWriter>) -> Result<AcceptSuggestionResult,String>`, `apply_proton_migration(request: ApplyMigrationRequest, service: State<'_, ProfileWriter>) -> Result<MigrationApplyResult,String>` and `apply_batch_migration(request: BatchMigrationRequest, service: State<'_, ProfileWriter>) -> Result<BatchMigrationResult,String>`, all `pub async fn`. `profile_load`/summary collection branch additionally retain `metadata_store: State<'_, MetadataStore>` for the excluded helper. `lutris_import_profiles` retains its established input/importer stores and adds service state for `record_imports`; making that adapter async is required to await it.
+**Count correction:** the table is 23 commands, matching the issue; count the exported functions, not their duplicated Tauri macro re-exports. Additional named cutover commands are `protondb_accept_suggestion(request: AcceptSuggestionRequest, service: State<'_, ProfileWriter>) -> Result<AcceptSuggestionResult,String>`, `apply_proton_migration(request: ApplyMigrationRequest, service: State<'_, ProfileWriter>) -> Result<MigrationApplyResult,String>` and `apply_batch_migration(request: BatchMigrationRequest, service: State<'_, ProfileWriter>) -> Result<BatchMigrationResult,String>`, all `pub async fn`. `profile_load`/summary collection branch additionally retain `metadata_store: State<'_, MetadataStore>` for the excluded helper. `lutris_import_profiles` and `community_import_profile` become async thin delegates to `import_lutris` and `import_community`; the community adapter keeps its workspace path check (run on the blocking pool) before delegating.
 
 ## File-by-file implementation change list
 
@@ -421,7 +418,8 @@ The full mapping, with all non-state arguments and successful result types, is:
 - **Modify** `commands/profile/mod.rs`: remove helper re-exports (`capture_config_revision`, retention resolver, emitter); preserve Tauri macro re-exports and command exports.
 - **Modify** `commands/protondb.rs`: accept command delegates; remove `observe_suggestion_apply`; lookup/suggestion-fetch/dismiss paths are otherwise out of scope.
 - **Modify** `commands/migration.rs`: apply commands delegate; scan-only command stays unchanged.
-- **Modify** `commands/lutris.rs`: remove dependency on deleted profile helpers; pass successful imported entries to writer post-write effects. No unrelated Lutris/import-preview redesign.
+- **Modify** `commands/lutris.rs`: remove the dependency on deleted profile helpers; `lutris_import_profiles` delegates to `import_lutris`, which runs the importer under the write lock. No unrelated Lutris/import-preview redesign.
+- **Modify** `commands/community.rs`: `community_import_profile` becomes async, checks the import path on the blocking pool, then delegates to `import_community`.
 - **Modify** `commands/profile/tests/{mod.rs,lifecycle.rs,optimizations.rs,helpers.rs}` per test migration below.
 
 ### Frontend/mocks/docs

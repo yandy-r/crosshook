@@ -177,12 +177,15 @@ fn preflight(store: &ProfileStore, migrations: &[ApplyMigrationRequest]) -> Resu
         }
 
         if let Err(err) = store.load(&request.profile_name) {
-            // Today's message, sanitized by `AppError::new`; kind from the store error.
+            // The `AppError` conversion replaces TOML parse text (which echoes
+            // profile lines) with a fixed message and keeps the store's kind.
+            let error = AppError::from(err);
             let message = format!(
-                "Pre-flight failed for '{}': could not load profile: {err}",
-                request.profile_name
+                "Pre-flight failed for '{}': could not load profile: {}",
+                request.profile_name,
+                error.message()
             );
-            return Err(AppError::new(AppError::from(err).kind(), message));
+            return Err(AppError::new(error.kind(), message));
         }
     }
     Ok(())
@@ -225,7 +228,7 @@ fn apply_one(
                     }
                     Err(err) => {
                         result.outcome = MigrationOutcome::Failed;
-                        result.error = Some(err.to_string());
+                        result.error = Some(AppError::from(err).message().to_string());
                     }
                 }
             }
@@ -237,7 +240,7 @@ fn apply_one(
             old_path: String::new(),
             new_path: request.new_path.clone(),
             outcome: MigrationOutcome::Failed,
-            error: Some(err.to_string()),
+            error: Some(AppError::from(err).message().to_string()),
         },
     };
 

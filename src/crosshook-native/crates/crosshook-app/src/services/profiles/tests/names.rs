@@ -3,9 +3,12 @@
 //! traversal names are rejected before any side effect.
 
 use std::fs;
+use std::path::PathBuf;
 
 use crosshook_core::profile::migration::{ApplyMigrationRequest, ProtonPathField};
-use crosshook_core::profile::{GamescopeConfig, MangoHudConfig};
+use crosshook_core::profile::{
+    GamescopeConfig, LutrisImportEntry, LutrisImportOutcome, MangoHudConfig,
+};
 use crosshook_core::protondb::AcceptSuggestionRequest;
 
 use super::helpers::{steam_profile, Harness, Metadata};
@@ -148,6 +151,86 @@ async fn padded_migration_name_is_trimmed() {
     assert_eq!(metadata_names(&harness), ["Alpha"]);
 }
 
+fn lutris_entry(harness: &Harness, suggested_name: &str) -> LutrisImportEntry {
+    LutrisImportEntry {
+        source_path: PathBuf::from("/lutris/game.yml"),
+        suggested_name: suggested_name.to_string(),
+        game_name: "Game".to_string(),
+        runner: "wine".to_string(),
+        mapped: steam_profile(&home(harness)),
+        warnings: Vec::new(),
+        importable: true,
+    }
+}
+
+#[tokio::test]
+async fn padded_lutris_name_neither_overwrites_nor_splits_metadata() {
+    let mut harness = Harness::new(Metadata::Enabled);
+    let mut existing = steam_profile(&home(&harness));
+    existing.game.name = "Existing".to_string();
+    harness
+        .writer
+        .save("foo".to_string(), existing)
+        .await
+        .unwrap();
+    assert!(harness.next_event().await.is_some());
+    let path = harness.profiles.base_path.join("foo.toml");
+    let before = fs::read(&path).unwrap();
+
+    let result = harness
+        .writer
+        .import_lutris(vec![lutris_entry(&harness, " foo ")])
+        .await
+        .unwrap()
+        .into_output();
+
+    assert_eq!(result.imported_count, 1);
+    assert_eq!(result.results[0].profile_name.as_deref(), Some("foo-2"));
+    assert_eq!(
+        fs::read(&path).unwrap(),
+        before,
+        "existing profile untouched"
+    );
+    assert_eq!(metadata_names(&harness), ["foo", "foo-2"]);
+    assert_eq!(
+        harness.next_event().await,
+        Some(AppEvent::ProfilesChanged {
+            reason: ProfileChangeReason::Imported,
+            names: vec!["foo-2".to_string()],
+        })
+    );
+}
+
+#[tokio::test]
+async fn invalid_lutris_name_fails_only_that_entry() {
+    let mut harness = Harness::new(Metadata::Enabled);
+
+    let result = harness
+        .writer
+        .import_lutris(vec![
+            lutris_entry(&harness, TRAVERSAL),
+            lutris_entry(&harness, "good"),
+        ])
+        .await
+        .unwrap()
+        .into_output();
+
+    assert_eq!(result.failed_count, 1);
+    assert_eq!(result.imported_count, 1);
+    assert_eq!(result.results[0].outcome, LutrisImportOutcome::Failed);
+    assert_eq!(result.results[0].profile_name, None);
+    assert_eq!(result.results[1].profile_name.as_deref(), Some("good"));
+    assert_eq!(harness.profiles.list().unwrap(), ["good"]);
+    assert_eq!(metadata_names(&harness), ["good"]);
+    assert_eq!(
+        harness.next_event().await,
+        Some(AppEvent::ProfilesChanged {
+            reason: ProfileChangeReason::Imported,
+            names: vec!["good".to_string()],
+        })
+    );
+}
+
 #[tokio::test]
 async fn traversal_save_is_rejected_before_art_import() {
     let mut harness = Harness::new(Metadata::Enabled);
@@ -249,6 +332,7 @@ async fn traversal_names_are_rejected_by_every_facade_without_events() {
             })
             .await
             .unwrap_err(),
+        writer.config_rollback(name(), 1).await.unwrap_err(),
     ];
 
     for error in &errors {

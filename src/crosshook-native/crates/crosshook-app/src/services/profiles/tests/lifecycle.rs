@@ -191,6 +191,73 @@ async fn rename_without_exported_launcher_reports_none_and_keeps_other_last_used
 }
 
 #[tokio::test]
+async fn rename_with_poisoned_settings_mutex_still_commits_and_publishes() {
+    let mut harness = Harness::new(Metadata::Enabled);
+    harness
+        .writer
+        .save("Alpha".to_string(), steam_profile(&home(&harness)))
+        .await
+        .unwrap();
+    assert!(harness.next_event().await.is_some());
+    let profile_id = harness.metadata.lookup_profile_id("Alpha").unwrap();
+    // The harness store shares the writer's settings lock: poison it.
+    let settings = harness.settings.clone();
+    let poisoned = std::thread::spawn(move || {
+        let _ = settings.update(|_| -> Result<(), ()> { panic!("poison settings mutex") });
+    })
+    .join();
+    assert!(poisoned.is_err(), "settings mutex poisoned");
+
+    let commit = harness
+        .writer
+        .rename("Alpha".to_string(), "Beta".to_string())
+        .await
+        .unwrap();
+
+    assert_eq!(commit.warnings, vec![CommitWarning::EffectsAborted]);
+    assert!(harness.profiles.profile_exists("Beta"));
+    assert_eq!(
+        harness.metadata.lookup_profile_id("Beta").unwrap(),
+        profile_id,
+        "metadata rename ran before the settings effect"
+    );
+    assert_eq!(
+        harness.next_event().await,
+        Some(changed(
+            ProfileChangeReason::Renamed {
+                from: "Alpha".to_string()
+            },
+            "Beta"
+        ))
+    );
+}
+
+#[tokio::test]
+async fn rename_with_disabled_metadata_still_moves_last_used() {
+    let harness = Harness::new(Metadata::Disabled);
+    harness
+        .profiles
+        .save("Alpha", &steam_profile(&home(&harness)))
+        .unwrap();
+    harness
+        .settings
+        .save(&AppSettingsData {
+            last_used_profile: "Alpha".to_string(),
+            ..AppSettingsData::default()
+        })
+        .unwrap();
+
+    let commit = harness
+        .writer
+        .rename("Alpha".to_string(), "Beta".to_string())
+        .await
+        .unwrap();
+
+    assert_eq!(commit.warnings, vec![CommitWarning::MetadataUnavailable]);
+    assert_eq!(harness.settings.load().unwrap().last_used_profile, "Beta");
+}
+
+#[tokio::test]
 async fn rename_to_same_name_is_a_silent_no_op() {
     let mut harness = Harness::new(Metadata::Enabled);
     let profile = steam_profile(&home(&harness));

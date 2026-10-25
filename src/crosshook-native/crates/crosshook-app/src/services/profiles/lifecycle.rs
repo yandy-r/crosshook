@@ -11,7 +11,6 @@ use crosshook_core::profile::{
     profile_to_shareable_toml_with_options, validate_steam_app_id, DuplicateProfileResult,
     GameProfile, ProfileStore, ProfileStoreError, ShareableTomlOptions,
 };
-use crosshook_core::settings::SettingsStore;
 
 use super::defaults_art::{apply_new_profile_defaults, auto_import_custom_art};
 use super::launcher_cleanup::cleanup_launchers_for_profile_delete;
@@ -350,8 +349,12 @@ impl ProfileMutation for RenameProfile {
         effects.push(Effect::InvalidateHealth {
             name: new_name.clone(),
         });
-
-        move_last_used_profile(ctx.settings, &old_name, &new_name);
+        // Last: a poisoned settings mutex panics inside the guarded effects,
+        // after the metadata steps, without failing the persisted rename.
+        effects.push(Effect::MoveLastUsedProfile {
+            old_name,
+            new_name: new_name.clone(),
+        });
 
         Ok(Persisted {
             output: had_launcher,
@@ -379,23 +382,6 @@ fn rewrite_launcher_display_name(profiles: &ProfileStore, new_name: &str) -> Opt
             tracing::warn!(%error, %new_name, "display_name update after profile rename failed");
             None
         }
-    }
-}
-
-/// Moves `last_used_profile` to `new_name` when it pointed at `old_name`;
-/// leaves the settings file untouched otherwise. Fail-soft.
-fn move_last_used_profile(settings: &SettingsStore, old_name: &str, new_name: &str) {
-    let outcome = settings.update(|data| {
-        if data.last_used_profile.trim() == old_name {
-            data.last_used_profile = new_name.to_string();
-            Ok(())
-        } else {
-            // Not the renamed profile: skip the write.
-            Err(())
-        }
-    });
-    if let Err(error) = outcome {
-        tracing::warn!(%error, %old_name, %new_name, "settings update after profile rename failed");
     }
 }
 

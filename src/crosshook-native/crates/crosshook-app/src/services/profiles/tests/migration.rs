@@ -181,6 +181,46 @@ async fn batch_preflight_rejection_writes_nothing_and_emits_nothing() {
 }
 
 #[tokio::test]
+async fn unparsable_profile_errors_never_echo_toml_lines() {
+    let mut harness = Harness::new(Metadata::Enabled);
+    let new_path = proton_file(harness.root.path(), "GE-Proton9-7");
+    fs::create_dir_all(&harness.profiles.base_path).unwrap();
+    // TOML parse errors quote the offending line; this one holds a path
+    // outside `$HOME`, which `sanitize_message` would not hide.
+    fs::write(
+        harness.profiles.base_path.join("Broken.toml"),
+        "[steam]\nproton_path = \"/srv/secret/proton\n",
+    )
+    .unwrap();
+
+    let single = harness
+        .writer
+        .apply_proton_migration(request("Broken", &new_path))
+        .await
+        .unwrap()
+        .into_output();
+    let batch = harness
+        .writer
+        .apply_batch_migration(BatchMigrationRequest {
+            migrations: vec![request("Broken", &new_path)],
+        })
+        .await
+        .unwrap_err();
+
+    assert_eq!(single.outcome, MigrationOutcome::Failed);
+    assert_eq!(
+        single.error.as_deref(),
+        Some("profile file is not valid TOML")
+    );
+    assert_eq!(batch.kind(), AppErrorKind::Validation { field: "profile" });
+    assert_eq!(
+        batch.message(),
+        "Pre-flight failed for 'Broken': could not load profile: profile file is not valid TOML"
+    );
+    assert_eq!(harness.next_event().await, None);
+}
+
+#[tokio::test]
 async fn batch_counts_outcomes_and_publishes_only_applied_names() {
     let mut harness = Harness::new(Metadata::Enabled);
     let valid_old = proton_file(harness.root.path(), "GE-Proton9-4");

@@ -105,19 +105,23 @@ fn run_effects_guarded(
 
 /// Runs advisory effects in order. Returns the last inserted revision id and
 /// the warnings for skipped or failed steps; never fails the commit.
-fn run_effects(ctx: &CommitContext<'_>, effects: Vec<Effect>) -> (Option<i64>, Vec<CommitWarning>) {
+fn run_effects(
+    ctx: &CommitContext<'_>,
+    mut effects: Vec<Effect>,
+) -> (Option<i64>, Vec<CommitWarning>) {
     let mut new_revision_id = None;
     let mut warnings = Vec::new();
-    if effects.is_empty() {
-        return (new_revision_id, warnings);
-    }
     if !ctx.metadata.is_available() {
-        tracing::warn!(
-            skipped_effects = effects.len(),
-            "metadata store unavailable; profile saved without metadata sync, config revision or health invalidation"
-        );
-        warnings.push(CommitWarning::MetadataUnavailable);
-        return (new_revision_id, warnings);
+        let before = effects.len();
+        effects.retain(|effect| !effect.needs_metadata());
+        let skipped_effects = before - effects.len();
+        if skipped_effects > 0 {
+            tracing::warn!(
+                skipped_effects,
+                "metadata store unavailable; profile saved without metadata sync, config revision or health invalidation"
+            );
+            warnings.push(CommitWarning::MetadataUnavailable);
+        }
     }
 
     let mut max_revisions = None;
@@ -218,11 +222,32 @@ fn run_effects(ctx: &CommitContext<'_>, effects: Vec<Effect>) -> (Option<i64>, V
                     push_once(&mut warnings, CommitWarning::VersionSnapshotFailed);
                 }
             }
+            Effect::MoveLastUsedProfile { old_name, new_name } => {
+                move_last_used_profile(ctx.settings, &old_name, &new_name);
+            }
             #[cfg(test)]
             Effect::Panic => panic!("test effect panic"),
         }
     }
     (new_revision_id, warnings)
+}
+
+/// Moves `last_used_profile` to `new_name` when it pointed at `old_name`;
+/// leaves the settings file untouched otherwise. Fail-soft: errors are
+/// logged; a poisoned settings mutex panics into the effect guard.
+fn move_last_used_profile(settings: &SettingsStore, old_name: &str, new_name: &str) {
+    let outcome = settings.update(|data| {
+        if data.last_used_profile.trim() == old_name {
+            data.last_used_profile = new_name.to_string();
+            Ok(())
+        } else {
+            // Not the renamed profile: skip the write.
+            Err(())
+        }
+    });
+    if let Err(error) = outcome {
+        tracing::warn!(%error, %old_name, %new_name, "settings update after profile rename failed");
+    }
 }
 
 /// Deletes the cached health row of the profile currently named `name` (D5).

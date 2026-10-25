@@ -278,4 +278,72 @@ describe('useProfileHealth startup report', () => {
     vi.useRealTimers();
     await waitFor(() => expect(result.current.summary).toEqual(summary));
   });
+
+  describe('a background batch that finishes first', () => {
+    const newer: EnrichedHealthSummary = { ...summary, validated_at: '2030-01-01T00:00:00.000Z' };
+    const saved = { reason: { kind: 'saved' }, names: ['Alpha'] };
+
+    /** Startup reads resolve through `reports` in call order (deferred); batches return `newer`. */
+    function deferredReports() {
+      const reports: Array<(report: StartupReport) => void> = [];
+      mockCallCommand.mockImplementation((name: string) => {
+        if (name === 'get_cached_health_snapshots') return Promise.resolve([]);
+        if (name === 'get_startup_report') {
+          const gate = Promise.withResolvers<StartupReport>();
+          reports.push(gate.resolve);
+          return gate.promise;
+        }
+        if (name === 'batch_validate_profiles') return Promise.resolve(newer);
+        return Promise.reject(new Error(`unexpected ${name}`));
+      });
+      return reports;
+    }
+
+    it('is not overwritten by the older mount report or a late legacy event', async () => {
+      const reports = deferredReports();
+      const { result } = renderHook(() => useProfileHealth());
+      await waitFor(() => expect(reports).toHaveLength(1));
+      await act(async () => {
+        emitMockEvent('profiles-changed', saved);
+      });
+      await waitFor(() => expect(result.current.summary).toEqual(newer));
+
+      await act(async () => {
+        reports[0]?.(reportWith({ state: 'complete', data: summary }));
+      });
+      await act(async () => {
+        emitMockEvent('profile-health-batch-complete', summary);
+        emitMockEvent('startup-job-finished', { job: 'health_batch', state: 'complete' });
+      });
+      await act(() => Promise.resolve());
+
+      expect(result.current.summary).toEqual(newer);
+      expect(reports).toHaveLength(1);
+      expect(batchCalls()).toHaveLength(1);
+    });
+
+    it('is not overwritten by a completion re-read that resolves later', async () => {
+      const reports = deferredReports();
+      const { result } = renderHook(() => useProfileHealth());
+      await waitFor(() => expect(reports).toHaveLength(1));
+      await act(async () => {
+        reports[0]?.(reportWith({ state: 'running' }));
+      });
+      await act(async () => {
+        emitMockEvent('startup-job-finished', { job: 'health_batch', state: 'complete' });
+      });
+      await waitFor(() => expect(reports).toHaveLength(2));
+      await act(async () => {
+        emitMockEvent('profiles-changed', saved);
+      });
+      await waitFor(() => expect(result.current.summary).toEqual(newer));
+
+      await act(async () => {
+        reports[1]?.(reportWith({ state: 'complete', data: summary }));
+      });
+
+      expect(result.current.summary).toEqual(newer);
+      expect(batchCalls()).toHaveLength(1);
+    });
+  });
 });

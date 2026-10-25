@@ -184,7 +184,31 @@ pub(crate) enum Effect {
         trainer_version: Option<String>,
         human_game_ver: Option<String>,
     },
+    /// Points `settings.last_used_profile` at `new_name` when it named
+    /// `old_name` (rename). Settings only: runs without metadata too. Order
+    /// it last; a panic (poisoned settings mutex) aborts the remaining
+    /// effects.
+    MoveLastUsedProfile { old_name: String, new_name: String },
     /// Panics when run; exercises the writer's unwind guard in tests.
     #[cfg(test)]
     Panic,
+}
+
+impl Effect {
+    /// Whether the effect writes the metadata store and is skipped (with one
+    /// `MetadataUnavailable` warning) when it is disabled.
+    pub(crate) fn needs_metadata(&self) -> bool {
+        match self {
+            Self::ObserveWrite { .. }
+            | Self::ObserveRename { .. }
+            | Self::ObserveDelete { .. }
+            | Self::Revision { .. }
+            | Self::InvalidateHealth { .. }
+            | Self::UpsertPresetOrigin { .. }
+            | Self::SeedVersionSnapshot { .. } => true,
+            Self::MoveLastUsedProfile { .. } => false,
+            #[cfg(test)]
+            Self::Panic => false,
+        }
+    }
 }
