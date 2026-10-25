@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   rust:
-    name: Rust (clippy + fmt)
+    name: Rust (clippy + fmt + bootstrap tests)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -47,6 +47,9 @@ jobs:
 
       - name: Run clippy
         run: cargo clippy --manifest-path src/crosshook-native/Cargo.toml --all-targets -- -D warnings
+
+      - name: Run application and native bootstrap tests
+        run: cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-app -p crosshook-native
 
       - name: Release build must not enable bootstrap-trace
         run: |
