@@ -14,6 +14,7 @@ export * from './onboarding';
 export * from './prefix-deps';
 export * from './prefix-storage';
 export * from './profile';
+export * from './profile-events';
 export * from './profile-history';
 export * from './profile-review';
 export * from './proton';

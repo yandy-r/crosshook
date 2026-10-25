@@ -1,10 +1,12 @@
-//! Profile Tauri commands, split into per-domain submodules.
+//! Profile Tauri commands, split into per-domain submodules. Each command is a
+//! thin async delegate to `crosshook_app::services::profiles::ProfileWriter`.
 //!
-//! - `shared`         — helpers, DTOs, and constants shared across submodules
-//! - `lifecycle`      — CRUD and import/export commands
-//! - `optimizations`  — launch optimization and preset commands
-//! - `favorites`      — favorite profile commands
-//! - `config_history` — config revision history, diff, rollback, and mark-known-good
+//! - `shared`            — collection launch-defaults composition (stays in the shell until M1-35)
+//! - `lifecycle`         — CRUD and import/export commands
+//! - `optimizations`     — launch optimization, section and preset commands
+//! - `command_arguments` — command-argument section commands
+//! - `favorites`         — favorite profile commands
+//! - `config_history`    — config revision history, diff, rollback, and mark-known-good
 
 mod command_arguments;
 mod config_history;
@@ -30,8 +32,6 @@ pub use optimizations::{
     profile_save_gamescope_config, profile_save_launch_optimizations, profile_save_mangohud_config,
     profile_save_manual_optimization_preset, profile_save_trainer_gamescope_config,
 };
-pub(crate) use shared::emit_profiles_changed;
-pub use shared::{capture_config_revision, resolve_config_history_max_revisions};
 
 // Re-export Tauri command macros so `generate_handler!` can resolve `commands::profile::<name>`.
 pub use command_arguments::__cmd__profile_save_command_arguments;

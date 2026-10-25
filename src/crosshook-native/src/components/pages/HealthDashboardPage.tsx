@@ -30,7 +30,7 @@ export function HealthDashboardPage({
 }) {
   const { summary, loading, error, batchValidate, cachedSnapshots, revalidateSingle, trendByName, staleInfoByName } =
     useProfileHealthContext();
-  const { selectProfile } = useProfileContext();
+  const { selectProfile, favoriteProfiles } = useProfileContext();
   const {
     scanResult: batchScanResult,
     isScanning: isBatchScanning,
@@ -68,7 +68,7 @@ export function HealthDashboardPage({
     recheckPendingRef,
     handleSortClick,
     getAriaSortAttr,
-  } = useHealthDashboardState({ summary, loading, error, batchValidate, cachedSnapshots });
+  } = useHealthDashboardState({ summary, loading, error, batchValidate, cachedSnapshots, favoriteProfiles });
 
   async function handleFixNavigation(profileName: string) {
     try {

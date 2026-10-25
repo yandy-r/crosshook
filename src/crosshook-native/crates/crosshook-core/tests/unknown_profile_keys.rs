@@ -41,14 +41,18 @@ fn store_with_profile() -> (tempfile::TempDir, ProfileStore) {
 }
 
 #[test]
-fn profile_store_partial_updates_keep_nested_and_root_extras() {
+fn profile_partial_updates_keep_nested_and_root_extras() {
     let (_dir, store) = store_with_profile();
-    store
-        .save_launch_optimizations("game", vec![], Some("fast".into()))
+    let mut profile = store.load("game").unwrap();
+    profile
+        .apply_launch_optimizations(vec![], Some("fast".into()))
         .unwrap();
-    store
-        .save_command_arguments("game", vec![], vec!["-x".into()], Some("proton_run"))
+    store.save("game", &profile).unwrap();
+    let mut profile = store.load("game").unwrap();
+    profile
+        .apply_command_arguments(vec![], vec!["-x".into()], Some("proton_run"))
         .unwrap();
+    store.save("game", &profile).unwrap();
     let saved: toml::Value =
         toml::from_str(&fs::read_to_string(store.base_path.join("game.toml")).unwrap()).unwrap();
     let original: toml::Value = toml::from_str(PROFILE).unwrap();

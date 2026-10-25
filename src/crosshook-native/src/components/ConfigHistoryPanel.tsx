@@ -17,7 +17,6 @@ export function ConfigHistoryPanel({
   fetchConfigDiff,
   rollbackConfig,
   markKnownGood,
-  onAfterRollback,
 }: ConfigHistoryPanelProps) {
   const portalHostRef = useRef<HTMLElement | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
@@ -163,7 +162,6 @@ export function ConfigHistoryPanel({
       setPendingRestore(null);
       setSelectedRevision(null);
       setDiff(null);
-      onAfterRollback?.(profileName);
       try {
         const data = await fetchConfigHistory(profileName);
         setRevisions(data);
@@ -179,7 +177,7 @@ export function ConfigHistoryPanel({
     } finally {
       setRestoring(false);
     }
-  }, [pendingRestore, profileName, rollbackConfig, fetchConfigHistory, onAfterRollback]);
+  }, [pendingRestore, profileName, rollbackConfig, fetchConfigHistory]);
 
   /* ── Mark known good ── */
 

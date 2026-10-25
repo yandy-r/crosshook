@@ -1,5 +1,6 @@
 import { type MutableRefObject, useCallback, useEffect, useMemo, useRef } from 'react';
 import { subscribeEvent } from '@/lib/events';
+import { parseProfilesChanged } from '@/lib/profileEvents';
 import type {
   BundledOptimizationPreset,
   ConfigDiffResult,
@@ -9,6 +10,7 @@ import type {
   LaunchAutoSaveStatus,
 } from '../types';
 import type { LaunchOptimizationId } from '../types/launch-optimizations';
+import type { ProfilesChangedPayload } from '../types/profile-events';
 import {
   buildConflictMatrix,
   buildOptionsById,
@@ -130,12 +132,6 @@ export interface UseProfileResult {
 
 export interface UseProfileOptions {
   autoSelectFirstProfile?: boolean;
-  /**
-   * Optional callback invoked after a successful rollback so the caller can
-   * trigger a health revalidation without coupling the profile and health hooks.
-   * Called with the profile name that was restored.
-   */
-  onAfterRollback?: (profileName: string) => void;
 }
 
 /** @deprecated Use `LaunchAutoSaveStatus` from `../types` instead. */
@@ -204,10 +200,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   enqueueProfileWriteRef.current = launchAutosave.enqueueLaunchProfileWrite;
   flushPendingLaunchSectionSavesRef.current = launchAutosave.flushPendingLaunchSectionSaves;
 
-  const history = useProfileHistory({
-    loadProfile: crud.loadProfile,
-    onAfterRollback: options.onAfterRollback,
-  });
+  const history = useProfileHistory({ loadProfile: crud.loadProfile });
 
   const { refreshProfiles, loadFavorites, setError } = crud;
 
@@ -231,14 +224,18 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
 
   useEffect(() => {
     let active = true;
-    const unlistenPromise = subscribeEvent<string>('profiles-changed', () => {
+    const unlistenPromise = subscribeEvent<ProfilesChangedPayload | null>('profiles-changed', (event) => {
       if (!active) {
         return;
       }
 
-      void refreshProfiles().catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : String(err));
-      });
+      // Favorite toggles only touch the favorites list; malformed payloads (null)
+      // resync both. Editor drafts are never reloaded off this event.
+      if (parseProfilesChanged(event.payload)?.reason.kind !== 'favorite_toggled') {
+        void refreshProfiles().catch((err: unknown) => {
+          setError(err instanceof Error ? err.message : String(err));
+        });
+      }
       void loadFavorites();
     });
 

@@ -1,10 +1,12 @@
+use crosshook_app::services::profiles::ProfileCommit;
+use crosshook_app::ProfileWriter;
 use crosshook_core::community::{
     CommunityProfileIndex, CommunityTapStore, CommunityTapSubscription, CommunityTapSyncResult,
 };
-use crosshook_core::metadata::{MetadataStore, SyncSource};
+use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::{
-    export_community_profile, import_community_profile, preview_community_profile_import,
-    CommunityExportResult, CommunityImportPreview, CommunityImportResult, ProfileStore,
+    export_community_profile, preview_community_profile_import, CommunityExportResult,
+    CommunityImportPreview, CommunityImportResult, ProfileStore,
 };
 use crosshook_core::settings::{AppSettingsData, SettingsStore};
 use tauri::State;
@@ -101,81 +103,27 @@ pub fn community_export_profile(
 }
 
 #[tauri::command]
-pub fn community_import_profile(
+pub async fn community_import_profile(
     path: String,
-    profile_store: State<'_, ProfileStore>,
     settings_store: State<'_, SettingsStore>,
     tap_store: State<'_, CommunityTapStore>,
-    metadata_store: State<'_, MetadataStore>,
+    writer: State<'_, ProfileWriter>,
 ) -> Result<CommunityImportResult, String> {
-    let import_path = std::path::Path::new(&path);
-    validate_import_path_in_workspace(import_path, &settings_store, &tap_store)?;
-    let result =
-        import_community_profile(import_path, &profile_store.base_path).map_err(map_error)?;
+    let import_path = std::path::PathBuf::from(path);
+    let settings = settings_store.inner().clone();
+    let taps = tap_store.inner().clone();
+    let checked_path = import_path.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        validate_import_path_in_workspace(&checked_path, &settings, &taps)
+    })
+    .await
+    .map_err(map_error)??;
 
-    if let Err(e) = metadata_store.observe_profile_write(
-        &result.profile_name,
-        &result.profile,
-        &result.profile_path,
-        SyncSource::Import,
-        None,
-    ) {
-        tracing::warn!(
-            %e,
-            profile_name = %result.profile_name,
-            "metadata sync after community_import_profile failed"
-        );
-    }
-
-    // Seed initial version snapshot from community metadata (display-only, BR-8/W3).
-    // game_version → human_game_ver (display label only), steam_build_id stays None.
-    let game_version = result.manifest.metadata.game_version.as_str();
-    let trainer_version = result.manifest.metadata.trainer_version.as_str();
-
-    if !game_version.is_empty() || !trainer_version.is_empty() {
-        match metadata_store.lookup_profile_id(&result.profile_name) {
-            Ok(Some(profile_id)) => {
-                if let Err(e) = metadata_store.upsert_version_snapshot(
-                    &profile_id,
-                    result.profile.steam.app_id.trim(),
-                    None,
-                    if trainer_version.is_empty() {
-                        None
-                    } else {
-                        Some(trainer_version)
-                    },
-                    None,
-                    if game_version.is_empty() {
-                        None
-                    } else {
-                        Some(game_version)
-                    },
-                    "untracked",
-                ) {
-                    tracing::warn!(
-                        %e,
-                        profile_name = %result.profile_name,
-                        "version snapshot seed after community import failed"
-                    );
-                }
-            }
-            Ok(None) => {
-                tracing::warn!(
-                    profile_name = %result.profile_name,
-                    "version snapshot seed skipped: profile not found in metadata"
-                );
-            }
-            Err(e) => {
-                tracing::warn!(
-                    %e,
-                    profile_name = %result.profile_name,
-                    "version snapshot seed skipped: profile id lookup failed"
-                );
-            }
-        }
-    }
-
-    Ok(result)
+    writer
+        .import_community(import_path)
+        .await
+        .map(ProfileCommit::into_output)
+        .map_err(map_error)
 }
 
 #[tauri::command]
@@ -336,14 +284,8 @@ mod tests {
             ) -> Result<CommunityProfileIndex, String>;
         let _ = community_export_profile
             as fn(String, String, State<'_, ProfileStore>) -> Result<CommunityExportResult, String>;
-        let _ = community_import_profile
-            as fn(
-                String,
-                State<'_, ProfileStore>,
-                State<'_, SettingsStore>,
-                State<'_, CommunityTapStore>,
-                State<'_, MetadataStore>,
-            ) -> Result<CommunityImportResult, String>;
+        // Async command: pin the name (an `async fn` has no nameable `fn` pointer type).
+        let _ = community_import_profile;
         let _ = community_prepare_import
             as fn(
                 String,

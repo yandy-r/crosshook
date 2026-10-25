@@ -1,6 +1,7 @@
 //! Tests for the bounded event bus.
 
-use super::{AppEvent, EventBus, MAX_EVENT_CAPACITY};
+use super::{AppEvent, EventBus, ProfileChangeReason, MAX_EVENT_CAPACITY};
+use serde_json::json;
 
 fn resync(n: u64) -> AppEvent {
     AppEvent::Resync { missed: n }
@@ -89,4 +90,68 @@ async fn startup_completion_preserves_kind_for_all_subscribers() {
         bus.publish(event.clone());
         assert_eq!(receiver.recv().await, Some(event));
     }
+}
+
+#[test]
+fn profile_change_reasons_have_tagged_wire_shapes() {
+    let cases = [
+        (ProfileChangeReason::Saved, json!({"kind": "saved"})),
+        (ProfileChangeReason::Deleted, json!({"kind": "deleted"})),
+        (
+            ProfileChangeReason::Renamed {
+                from: "Alpha".into(),
+            },
+            json!({"kind": "renamed", "from": "Alpha"}),
+        ),
+        (
+            ProfileChangeReason::Duplicated,
+            json!({"kind": "duplicated"}),
+        ),
+        (
+            ProfileChangeReason::FavoriteToggled,
+            json!({"kind": "favorite_toggled"}),
+        ),
+        (
+            ProfileChangeReason::RolledBack,
+            json!({"kind": "rolled_back"}),
+        ),
+        (
+            ProfileChangeReason::PresetApplied,
+            json!({"kind": "preset_applied"}),
+        ),
+        (ProfileChangeReason::Imported, json!({"kind": "imported"})),
+        (ProfileChangeReason::Migrated, json!({"kind": "migrated"})),
+    ];
+    for (reason, expected) in cases {
+        assert_eq!(serde_json::to_value(&reason).unwrap(), expected);
+    }
+}
+
+#[tokio::test]
+async fn profiles_changed_round_trips_through_the_bus() {
+    let bus = EventBus::default();
+    let mut receiver = bus.subscribe();
+    let event = AppEvent::ProfilesChanged {
+        reason: ProfileChangeReason::Renamed {
+            from: "Alpha".into(),
+        },
+        names: vec!["Beta".into()],
+    };
+    bus.publish(event.clone());
+    assert_eq!(receiver.recv().await, Some(event));
+}
+
+#[tokio::test]
+async fn lagging_profile_subscriber_gets_resync_then_tail() {
+    let bus = EventBus::new(1).unwrap();
+    let mut receiver = bus.subscribe();
+    let changed = |name: &str| AppEvent::ProfilesChanged {
+        reason: ProfileChangeReason::Saved,
+        names: vec![name.to_string()],
+    };
+    bus.publish(changed("Alpha"));
+    bus.publish(changed("Beta"));
+
+    assert_eq!(receiver.recv().await, Some(resync(1)));
+    assert_eq!(receiver.recv().await, Some(changed("Beta")));
 }

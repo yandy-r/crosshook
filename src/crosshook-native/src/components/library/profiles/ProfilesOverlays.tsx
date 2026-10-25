@@ -38,7 +38,6 @@ interface ProfilesOverlaysProps {
   showProfilePreview: boolean;
   showWizard: boolean;
   wizardMode: 'create' | 'edit';
-  onAfterRollback: (name: string) => void;
   onCancelDelete: () => void;
   onCloseHistory: () => void;
   onClosePreview: () => void;
@@ -76,7 +75,6 @@ export function ProfilesOverlays({
   showProfilePreview,
   showWizard,
   wizardMode,
-  onAfterRollback,
   onCancelDelete,
   onCloseHistory,
   onClosePreview,
@@ -229,7 +227,6 @@ export function ProfilesOverlays({
           fetchConfigDiff={fetchConfigDiff}
           rollbackConfig={rollbackConfig}
           markKnownGood={markKnownGood}
-          onAfterRollback={onAfterRollback}
         />
       ) : null}
 

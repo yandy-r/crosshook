@@ -138,7 +138,6 @@ function buildActions(overrides: Partial<UseProfileActionsResult> = {}): UseProf
     handleExportCommunityProfile: vi.fn().mockResolvedValue(undefined),
     handleSave: vi.fn().mockResolvedValue(undefined),
     handleRefreshStatus: vi.fn().mockResolvedValue(undefined),
-    handleAfterRollback: vi.fn(),
     showHistoryPanel: false,
     setShowHistoryPanel: vi.fn(),
     showWizard: false,
@@ -177,12 +176,7 @@ function renderActionsBar(
 ) {
   const actions = buildActions(actionsOverrides);
   return render(
-    <HeroProfileActionsBar
-      actions={actions}
-      onAfterRollback={actions.handleAfterRollback}
-      versionStatus={versionStatus}
-      historyHandlers={historyHandlers}
-    />
+    <HeroProfileActionsBar actions={actions} versionStatus={versionStatus} historyHandlers={historyHandlers} />
   );
 }
 

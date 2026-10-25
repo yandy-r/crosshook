@@ -10,14 +10,14 @@ through the two-phase `bootstrap` contract below (`pre_runtime` →
 
 ## Design
 
-| Piece        | What it is                                                                                                                                                                                                                                        |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `App`        | Cloneable owner handle. Last-clone drop cancels app tasks and (owned) shuts the runtime down with `shutdown_background`.                                                                                                                          |
-| `App::spawn` | Eagerly spawns on the app runtime; returns a `Send + 'static` future usable from any executor. Shutdown resolves it to `Cancelled`.                                                                                                               |
-| `EventBus`   | Bounded broadcast bus; slow subscribers get `AppEvent::Resync { missed }` and the retained tail. `#[non_exhaustive]`: `Resync` and `StartupJobFinished { job: StartupJobKind }` (published after a startup job's result is stored in the report). |
-| `AppError`   | Sanitized presenter error: stable `AppErrorKind` + message with home paths redacted. Panic payloads and store paths never leak.                                                                                                                   |
-| `presenter`  | Public `sanitize_display_path` / `sanitize_display_path_with_home` for redacting `$HOME` in displayed paths.                                                                                                                                      |
-| `services`   | Async services below. Blocking store I/O runs in `spawn_blocking`; panics and cancellations map to `AppError`.                                                                                                                                    |
+| Piece        | What it is                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `App`        | Cloneable owner handle. Last-clone drop cancels app tasks and (owned) shuts the runtime down with `shutdown_background`.                                                                                                                                                                                                                                                                                                                                                     |
+| `App::spawn` | Eagerly spawns on the app runtime; returns a `Send + 'static` future usable from any executor. Shutdown resolves it to `Cancelled`.                                                                                                                                                                                                                                                                                                                                          |
+| `EventBus`   | Bounded broadcast bus; slow subscribers get `AppEvent::Resync { missed }` and the retained tail. `#[non_exhaustive]`: `Resync`, `StartupJobFinished { job: StartupJobKind }` (published after a startup job's result is stored in the report) and `ProfilesChanged { reason: ProfileChangeReason, names }` (published by `ProfileWriter` after a profile write persisted; Tauri bridges it to `profiles-changed`, and emits `{reason:{kind:"saved"},names:[]}` on `Resync`). |
+| `AppError`   | Sanitized presenter error: stable `AppErrorKind` + message with home paths redacted. Panic payloads and store paths never leak.                                                                                                                                                                                                                                                                                                                                              |
+| `presenter`  | Public `sanitize_display_path` / `sanitize_display_path_with_home` for redacting `$HOME` in displayed paths.                                                                                                                                                                                                                                                                                                                                                                 |
+| `services`   | Async services below. Blocking store I/O runs in `spawn_blocking`; panics and cancellations map to `AppError`.                                                                                                                                                                                                                                                                                                                                                               |
 
 Limits: non-abortable blocking work inside spawned tasks is unsupported (tasks
 are dropped at shutdown); callers must not capture an `App` clone inside a
@@ -92,14 +92,15 @@ feature checks in CI and `scripts/lint.sh` reject `bootstrap-trace` in shipped b
 
 ## Services
 
-| Service                 | API                                                                                                                                                                          | Delegating Tauri commands                                                                                                      |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `SettingsService`       | `load() -> SettingsSnapshot` (data + profiles-dir restart state), `update(closure)` (atomic, normalized), `save_request(SettingsSaveRequest)`, `save_steamgriddb_key`        | `settings_load`, `settings_save`, `settings_save_steamgriddb_key`                                                              |
-| `RecentFilesService`    | `load()`, `save(data)` (unknown keys preserved), `push(RecentFileKind, path)` (move to front, dedupe, cap at `recent_files_limit`)                                           | `recent_files_load`, `recent_files_save`                                                                                       |
-| `CatalogService`        | `optimization_catalog()`, `command_argument_catalog()`, `mangohud_presets()` (in-memory reads)                                                                               | `get_optimization_catalog`, `get_command_argument_catalog`, `get_mangohud_presets`                                             |
-| `DiagnosticsService`    | `export(DiagnosticsRequest) -> DiagnosticsExport` (absolute + sanitized display path); `DiagnosticAttachment`s are archived under `app/`                                     | `export_diagnostics`                                                                                                           |
-| `HealthService`         | `batch_summary()`, `profile_health(name)`, `cached_health_snapshots()`, `cached_offline_readiness_snapshots()` (blocking I/O on the pool; wire types keep their serde names) | `batch_validate_profiles`, `get_profile_health`, `get_cached_health_snapshots`, `get_cached_offline_readiness_snapshots`       |
-| `BackgroundGrantHolder` | `request_and_store(&impl BackgroundPortal)`, `store_result`, `protection_state`, `wait_for_initialization`; `XdgBackgroundPortal` is the production portal                   | `get_background_protection_state`; the background-portal startup job runs `request_and_store`, the launch watchdog awaits init |
+| Service                 | API                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Delegating Tauri commands                                                                                                                                          |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SettingsService`       | `load() -> SettingsSnapshot` (data + profiles-dir restart state), `update(closure)` (atomic, normalized), `save_request(SettingsSaveRequest)`, `save_steamgriddb_key`                                                                                                                                                                                                                                                                                                                                                            | `settings_load`, `settings_save`, `settings_save_steamgriddb_key`                                                                                                  |
+| `RecentFilesService`    | `load()`, `save(data)` (unknown keys preserved), `push(RecentFileKind, path)` (move to front, dedupe, cap at `recent_files_limit`)                                                                                                                                                                                                                                                                                                                                                                                               | `recent_files_load`, `recent_files_save`                                                                                                                           |
+| `CatalogService`        | `optimization_catalog()`, `command_argument_catalog()`, `mangohud_presets()` (in-memory reads)                                                                                                                                                                                                                                                                                                                                                                                                                                   | `get_optimization_catalog`, `get_command_argument_catalog`, `get_mangohud_presets`                                                                                 |
+| `DiagnosticsService`    | `export(DiagnosticsRequest) -> DiagnosticsExport` (absolute + sanitized display path); `DiagnosticAttachment`s are archived under `app/`                                                                                                                                                                                                                                                                                                                                                                                         | `export_diagnostics`                                                                                                                                               |
+| `HealthService`         | `batch_summary()`, `profile_health(name)`, `cached_health_snapshots()`, `cached_offline_readiness_snapshots()` (blocking I/O on the pool; wire types keep their serde names)                                                                                                                                                                                                                                                                                                                                                     | `batch_validate_profiles`, `get_profile_health`, `get_cached_health_snapshots`, `get_cached_offline_readiness_snapshots`                                           |
+| `BackgroundGrantHolder` | `request_and_store(&impl BackgroundPortal)`, `store_result`, `protection_state`, `wait_for_initialization`; `XdgBackgroundPortal` is the production portal                                                                                                                                                                                                                                                                                                                                                                       | `get_background_protection_state`; the background-portal startup job runs `request_and_store`, the launch watchdog awaits init                                     |
+| `ProfileWriter`         | Async profile facades (`save`, `delete`, `duplicate`, `rename`, `set_favorite`, section/optimization/command-argument saves, bundled/manual presets, `config_history`/`config_diff`/`config_rollback`/`mark_known_good`, `import_legacy`, `import_lutris`, `import_community`, `export_toml`, ProtonDB accept, Proton migration apply) plus lock-free reads (`list`, `load`, `list_summaries`, `list_favorites`, `list_bundled_optimization_presets`); mutations return `ProfileCommit<T> { output, new_revision_id, warnings }` | The 23 `profile_*` commands, `protondb_accept_suggestion`, `apply_proton_migration`, `apply_batch_migration`, `lutris_import_profiles`, `community_import_profile` |
 
 Attachment names must be a single relative file name (no `/`, `\`, `..`, NUL,
 or empty); invalid names fail with `Validation { field: "attachments" }` before
@@ -110,6 +111,59 @@ home-path redacted.
 and `push` through any clone are serialized. Writers outside it (another
 process, the CLI, or a separately constructed service) are not covered; the
 file write itself stays atomic, so the worst case is a lost update.
+
+### ProfileWriter
+
+Every profile write, imports included, goes through `ProfileWriter`; shells
+never call `ProfileStore` mutators, metadata observe or revision helpers
+themselves. Each mutating facade validates and trims the profile name
+(`ProfileStore::validate_profile_name`) before any side effect, then funnels
+into one crate-private commit pipeline: load → mutate → persist the TOML
+**once** → observe the write → capture a config revision (SHA-256 dedupe
+against the latest row) → invalidate the cached health snapshot (scope
+below) → publish `AppEvent::ProfilesChanged { reason, names }` with the
+trimmed names. The facade picks the `ProfileChangeReason`, so callers cannot
+mislabel provenance.
+
+- **Health invalidation scope.** Full save, rename, duplicate, rollback,
+  Proton migration and the legacy, Lutris and community imports delete the
+  cached health row of each written profile; delete drops it before the soft
+  delete. Section, optimization and command-argument saves, presets and
+  ProtonDB accepts leave it in place (those fields do not affect health), and
+  favorites are metadata-only. The frontend still re-validates health for
+  every reason except `favorite_toggled`, coalescing bursts into one
+  in-flight batch plus at most one trailing re-run.
+- **Imports.** `import_lutris` and `import_community` run the core importer
+  inside the commit, under the write lock, so unique-name derivation and the
+  TOML writes cannot interleave with other writes. Each publishes one
+  `Imported` event with the written names (Lutris with nothing written
+  publishes nothing). Community import also seeds the display-only version
+  snapshot from the manifest metadata.
+- **Write lock.** Clones share one `Arc<Mutex<()>>`; every mutation takes it
+  inside `spawn_blocking` (a poisoned lock is recovered), so an autosave
+  cannot interleave with a full save. Reads do not take it. Writers outside
+  the service (another process, the CLI) are not covered: last completed
+  write wins.
+- **Event.** Published inside the blocking closure once the TOML persisted,
+  even if advisory metadata effects fail or panic (a panic is caught and
+  reported as `CommitWarning::EffectsAborted`), so a dropped caller future
+  cannot lose it. Nothing is published for validation or write failures, a
+  no-op rename, or migration `AlreadyValid`/`Failed`. Rename sends `names: [new]`
+  with `reason.from: old`; delete the removed name; duplicate the copy.
+  `names: []` is reserved for the bridge's `Resync`. `FavoriteToggled` is
+  metadata-only (no TOML, revision or health change), so listeners skip
+  health re-validation for it.
+- **Degraded metadata.** A TOML write still succeeds; observe, revision and
+  health steps are skipped and reported once as
+  `CommitWarning::MetadataUnavailable`. History, diff, rollback, known-good,
+  bundled presets and favorites return `Unavailable` instead.
+- **Rollback** verifies the stored revision (SHA-256, plus HMAC when a key is
+  loaded) before writing, then records a `RollbackApply` revision with
+  lineage.
+
+On-disk bytes for save, rename, duplicate and rollback are pinned against
+pre-refactor fixtures in `tests/profile_writer_golden.rs`; the fixtures are
+frozen and are never regenerated from the writer.
 
 ## Jobs
 
@@ -160,7 +214,13 @@ prefix sweep via the host gateway `kill`).
 - **TOML settings:** `settings.toml` (`SettingsService`) and `recent.toml`
   (`RecentFilesService`). Formats are unchanged, unknown keys are preserved,
   and writes are atomic. No migration.
-- **SQLite metadata:** none written; diagnostics reads metadata status only.
+- **SQLite metadata:** `ProfileWriter` writes existing rows only (no new
+  tables, schema unchanged): `profiles` (sync state and `is_favorite`),
+  `profile_name_history`, `config_revisions`,
+  `profile_launch_preset_metadata`, and deletes the cached `health_snapshots`
+  row on write. Diagnostics reads metadata status only.
+- **Profile TOML:** `<profiles>/<name>.toml` through `ProfileStore`, format
+  unchanged and byte-identical to the pre-service commands.
 - **User-requested export:** the diagnostics `.tar.gz`, written to the chosen
   directory (system temp by default).
 - **Runtime-only:** the Background portal grant and its protection state;
@@ -177,6 +237,6 @@ UI; the diagnostics archive is a regular file the user chose to create.
 
 `crosshook-core`, `tokio` (rt-multi-thread, sync, time, macros, process),
 `tokio-util` (rt), `nix` (signal), `uuid` (v4), `thiserror`, `serde` (derive),
-`tracing`, and `static_assertions`. Dev: `tempfile`, `serde_json`, `toml`,
+`serde_json`, `toml`, `tracing`, and `static_assertions`. Dev: `tempfile`,
 `tar`, `flate2`, `tokio` (test-util, macros, rt, io-util).
 `scripts/check-app-deps.sh` guards against UI-toolkit leakage.

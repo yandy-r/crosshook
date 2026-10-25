@@ -1,7 +1,7 @@
 use crosshook_app::bootstrap::{
     JobSnapshotKind, JobState, StartupHandle, StartupJobKind, StartupJobs,
 };
-use crosshook_app::{AppEvent, EventReceiver};
+use crosshook_app::{AppEvent, EventReceiver, ProfileChangeReason};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
@@ -17,6 +17,28 @@ const BRIDGED_JOBS: [StartupJobKind; 5] = [
 struct FinishedPayload {
     job: StartupJobKind,
     state: JobSnapshotKind,
+}
+
+/// `profiles-changed` wire payload: `{ reason: { kind, ... }, names }` (D1).
+#[derive(Debug, Clone, Serialize)]
+struct ProfilesChangedPayload {
+    reason: ProfileChangeReason,
+    names: Vec<String>,
+}
+
+/// Conservative profile resync emitted after a bus lag (D14): views refresh
+/// everything because the dropped changes are unknown.
+fn profiles_resync_payload() -> ProfilesChangedPayload {
+    ProfilesChangedPayload {
+        reason: ProfileChangeReason::Saved,
+        names: Vec::new(),
+    }
+}
+
+fn emit_profiles_changed(handle: &AppHandle, payload: ProfilesChangedPayload) {
+    if let Err(error) = handle.emit("profiles-changed", payload) {
+        tracing::warn!(%error, "failed to emit profiles-changed event");
+    }
 }
 
 fn finished_payload(job: StartupJobKind, jobs: &StartupJobs) -> Option<FinishedPayload> {
@@ -113,8 +135,9 @@ fn emit_finished(handle: &AppHandle, kind: StartupJobKind, jobs: &StartupJobs) {
     }
 }
 
-/// Bridges retained terminal outcomes and Classic's legacy success events.
-/// Holds only a startup handle and receiver, never an application clone.
+/// Bridges retained terminal outcomes, Classic's legacy success events and
+/// profile change notifications. Holds only a startup handle and receiver,
+/// never an application clone.
 pub(crate) fn spawn(handle: AppHandle, startup: StartupHandle, mut rx: EventReceiver) {
     tauri::async_runtime::spawn(async move {
         while let Some(event) = rx.recv().await {
@@ -127,6 +150,10 @@ pub(crate) fn spawn(handle: AppHandle, startup: StartupHandle, mut rx: EventRece
                     for kind in BRIDGED_JOBS {
                         emit_finished(&handle, kind, &jobs);
                     }
+                    emit_profiles_changed(&handle, profiles_resync_payload());
+                }
+                AppEvent::ProfilesChanged { reason, names } => {
+                    emit_profiles_changed(&handle, ProfilesChangedPayload { reason, names });
                 }
                 // AppEvent is non-exhaustive; future unrelated events need no bridge.
                 _ => {}

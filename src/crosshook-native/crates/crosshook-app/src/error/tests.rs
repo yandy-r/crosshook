@@ -107,6 +107,11 @@ fn toml_errors_map_to_fixed_messages_without_source_text() {
             "settings file is not valid TOML",
         ),
         (
+            AppError::from(ProfileStoreError::TomlDe(de.clone())),
+            AppErrorKind::Validation { field: "profile" },
+            "profile file is not valid TOML",
+        ),
+        (
             AppError::from(RecentFilesStoreError::TomlDe(de)),
             AppErrorKind::Validation {
                 field: "recent_files",
@@ -118,6 +123,34 @@ fn toml_errors_map_to_fixed_messages_without_source_text() {
         assert_eq!(error.kind(), kind);
         assert_eq!(error.message(), message);
         assert!(!error.message().contains("/mnt/secret"));
+    }
+}
+
+#[test]
+fn community_exchange_errors_hide_the_manifest_path() {
+    use crosshook_core::profile::CommunityExchangeError as E;
+    let path = PathBuf::from("/mnt/secret/community.json");
+    let io = AppError::from(E::Io {
+        action: "read the community profile JSON".to_string(),
+        path: path.clone(),
+        message: "permission denied".to_string(),
+    });
+    let json = AppError::from(E::Json {
+        path,
+        message: "expected value".to_string(),
+    });
+    let invalid = AppError::from(E::InvalidManifest {
+        message: "manifest must be a JSON object".to_string(),
+    });
+
+    assert_eq!(io.kind(), AppErrorKind::Io);
+    let field = AppErrorKind::Validation {
+        field: "community_profile",
+    };
+    assert_eq!(json.kind(), field);
+    assert_eq!(invalid.kind(), field);
+    for error in [io, json, invalid] {
+        assert!(!error.message().contains("/mnt/secret"), "{error:?}");
     }
 }
 

@@ -34,6 +34,23 @@ pub fn upsert_health_snapshot(
     Ok(())
 }
 
+/// Deletes the cached health snapshot row for `profile_id`; a missing row is a no-op.
+pub fn delete_health_snapshot(
+    conn: &Connection,
+    profile_id: &str,
+) -> Result<(), MetadataStoreError> {
+    conn.execute(
+        "DELETE FROM health_snapshots WHERE profile_id = ?1",
+        params![profile_id],
+    )
+    .map_err(|source| MetadataStoreError::Database {
+        action: "delete a health snapshot row",
+        source,
+    })?;
+
+    Ok(())
+}
+
 pub fn load_health_snapshots(
     conn: &Connection,
 ) -> Result<Vec<HealthSnapshotRow>, MetadataStoreError> {

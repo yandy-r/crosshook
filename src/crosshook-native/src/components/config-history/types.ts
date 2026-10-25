@@ -12,6 +12,4 @@ export interface ConfigHistoryPanelProps {
   ) => Promise<ConfigDiffResult>;
   rollbackConfig: (profileName: string, revisionId: number) => Promise<unknown>;
   markKnownGood: (profileName: string, revisionId: number) => Promise<void>;
-  /** Called after a successful rollback so the caller can refresh health data. */
-  onAfterRollback?: (profileName: string) => void;
 }

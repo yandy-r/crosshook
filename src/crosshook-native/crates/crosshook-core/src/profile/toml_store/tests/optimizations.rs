@@ -5,11 +5,23 @@ use tempfile::tempdir;
 
 use crate::profile::models::LaunchOptimizationsSection;
 use crate::profile::toml_store::{ProfileStore, ProfileStoreError};
+use crate::profile::GameProfile;
 
 use super::fixtures::sample_profile;
 
+/// Loads `name`, applies `mutate`, and saves once — the writer's mutate-then-persist sequence.
+fn load_apply_save(
+    store: &ProfileStore,
+    name: &str,
+    mutate: impl FnOnce(&mut GameProfile) -> Result<(), ProfileStoreError>,
+) -> Result<(), ProfileStoreError> {
+    let mut profile = store.load(name)?;
+    mutate(&mut profile)?;
+    store.save(name, &profile)
+}
+
 #[test]
-fn save_launch_optimizations_merges_only_launch_section() {
+fn apply_launch_optimizations_persists_only_launch_section() {
     let temp_dir = tempdir().unwrap();
     let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
     let profile = sample_profile();
@@ -23,9 +35,11 @@ fn save_launch_optimizations_merges_only_launch_section() {
             "use_gamemode".to_string(),
         ],
     };
-    store
-        .save_launch_optimizations("elden-ring", optimizations.enabled_option_ids.clone(), None)
-        .unwrap();
+    let ids = optimizations.enabled_option_ids.clone();
+    load_apply_save(&store, "elden-ring", |p| {
+        p.apply_launch_optimizations(ids, None)
+    })
+    .unwrap();
 
     let loaded = store.load("elden-ring").unwrap();
     assert_eq!(loaded.game, profile.game);
@@ -38,34 +52,32 @@ fn save_launch_optimizations_merges_only_launch_section() {
 }
 
 #[test]
-fn save_launch_optimizations_rejects_missing_profiles() {
-    let temp_dir = tempdir().unwrap();
-    let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+fn apply_launch_optimizations_trims_and_drops_blank_ids() {
+    let mut profile = sample_profile();
 
-    let result =
-        store.save_launch_optimizations("missing-profile", vec!["use_gamemode".to_string()], None);
+    profile
+        .apply_launch_optimizations(vec!["  use_ntsync ".to_string(), String::new()], None)
+        .unwrap();
 
-    assert!(matches!(result, Err(ProfileStoreError::NotFound(_))));
+    assert_eq!(
+        profile.launch.optimizations.enabled_option_ids,
+        vec!["use_ntsync".to_string()]
+    );
 }
 
 #[test]
-fn save_launch_optimizations_rejects_unknown_option_ids() {
-    let temp_dir = tempdir().unwrap();
-    let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
-    let profile = sample_profile();
+fn apply_launch_optimizations_rejects_unknown_ids_without_mutating() {
+    let mut profile = sample_profile();
+    let before = profile.clone();
 
-    store.save("elden-ring", &profile).unwrap();
-
-    let result = store.save_launch_optimizations(
-        "elden-ring",
-        vec!["not_a_real_launch_optimization".to_string()],
-        None,
-    );
+    let result = profile
+        .apply_launch_optimizations(vec!["not_a_real_launch_optimization".to_string()], None);
 
     assert!(matches!(
         result,
         Err(ProfileStoreError::InvalidLaunchOptimizationId(id)) if id == "not_a_real_launch_optimization"
     ));
+    assert_eq!(profile, before);
 }
 
 #[test]
@@ -148,7 +160,7 @@ enabled_option_ids = ["enable_hdr"]
 }
 
 #[test]
-fn save_launch_optimizations_updates_active_preset_entry() {
+fn apply_launch_optimizations_updates_active_preset_entry() {
     let temp_dir = tempdir().unwrap();
     let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
     let mut profile = sample_profile();
@@ -167,13 +179,13 @@ fn save_launch_optimizations_updates_active_preset_entry() {
 
     store.save("p", &profile).unwrap();
 
-    store
-        .save_launch_optimizations(
-            "p",
+    load_apply_save(&store, "p", |p| {
+        p.apply_launch_optimizations(
             vec!["use_ntsync".to_string(), "disable_esync".to_string()],
             None,
         )
-        .unwrap();
+    })
+    .unwrap();
 
     let loaded = store.load("p").unwrap();
     assert_eq!(loaded.launch.active_preset, "a");
@@ -195,14 +207,11 @@ fn materialize_launch_optimization_preset_sets_active_and_presets() {
     store.save("p", &profile).unwrap();
 
     let ids = vec!["use_gamemode".to_string(), "enable_nvapi".to_string()];
-    store
-        .materialize_launch_optimization_preset(
-            "p",
-            "bundled/nvidia_performance",
-            ids.clone(),
-            true,
-        )
-        .unwrap();
+    let applied = ids.clone();
+    load_apply_save(&store, "p", |p| {
+        p.materialize_launch_optimization_preset("bundled/nvidia_performance", applied, true)
+    })
+    .unwrap();
 
     let loaded = store.load("p").unwrap();
     assert_eq!(loaded.launch.active_preset, "bundled/nvidia_performance");
@@ -219,7 +228,43 @@ fn materialize_launch_optimization_preset_sets_active_and_presets() {
 }
 
 #[test]
-fn save_launch_optimizations_switch_active_preset() {
+fn materialize_launch_optimization_preset_without_activation_keeps_active_selection() {
+    let mut profile = sample_profile();
+    profile.launch.optimizations.enabled_option_ids = vec!["enable_hdr".to_string()];
+
+    profile
+        .materialize_launch_optimization_preset("  saved  ", vec!["use_gamemode".into()], false)
+        .unwrap();
+
+    assert_eq!(profile.launch.active_preset, "");
+    assert_eq!(
+        profile.launch.optimizations.enabled_option_ids,
+        vec!["enable_hdr".to_string()]
+    );
+    assert_eq!(
+        profile.launch.presets["saved"].enabled_option_ids,
+        vec!["use_gamemode".to_string()]
+    );
+}
+
+#[test]
+fn materialize_launch_optimization_preset_rejects_invalid_input_without_mutating() {
+    let mut profile = sample_profile();
+    let before = profile.clone();
+
+    assert!(matches!(
+        profile.materialize_launch_optimization_preset("k", vec!["nope".into()], true),
+        Err(ProfileStoreError::InvalidLaunchOptimizationId(id)) if id == "nope"
+    ));
+    assert!(matches!(
+        profile.materialize_launch_optimization_preset("   ", vec![], true),
+        Err(ProfileStoreError::LaunchPresetNotFound(key)) if key == "   "
+    ));
+    assert_eq!(profile, before);
+}
+
+#[test]
+fn apply_launch_optimizations_switch_active_preset() {
     let temp_dir = tempdir().unwrap();
     let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
     let mut profile = sample_profile();
@@ -245,9 +290,10 @@ fn save_launch_optimizations_switch_active_preset() {
 
     store.save("p", &profile).unwrap();
 
-    store
-        .save_launch_optimizations("p", vec![], Some("b".to_string()))
-        .unwrap();
+    load_apply_save(&store, "p", |p| {
+        p.apply_launch_optimizations(vec![], Some("b".to_string()))
+    })
+    .unwrap();
 
     let loaded = store.load("p").unwrap();
     assert_eq!(loaded.launch.active_preset, "b");
@@ -258,17 +304,43 @@ fn save_launch_optimizations_switch_active_preset() {
 }
 
 #[test]
-fn save_launch_optimizations_rejects_missing_preset_name() {
-    let temp_dir = tempdir().unwrap();
-    let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
-    store.save("p", &sample_profile()).unwrap();
+fn apply_launch_optimizations_rejects_missing_preset_name() {
+    let mut profile = sample_profile();
+    let before = profile.clone();
 
-    let result = store.save_launch_optimizations("p", vec![], Some("nope".to_string()));
-
+    let result = profile.apply_launch_optimizations(vec![], Some("nope".to_string()));
     assert!(matches!(
         result,
         Err(ProfileStoreError::LaunchPresetNotFound(name)) if name == "nope"
     ));
+
+    let result = profile.apply_launch_optimizations(vec![], Some("  ".to_string()));
+    assert!(matches!(
+        result,
+        Err(ProfileStoreError::LaunchPresetNotFound(name)) if name == "  "
+    ));
+    assert_eq!(profile, before);
+}
+
+#[test]
+fn apply_launch_optimizations_rejects_switch_to_preset_with_unknown_ids() {
+    let mut profile = sample_profile();
+    profile.launch.presets.insert(
+        "stale".into(),
+        LaunchOptimizationsSection {
+            enabled_option_ids: vec!["retired_option".into()],
+            extra: toml::Table::new(),
+        },
+    );
+    let before = profile.clone();
+
+    let result = profile.apply_launch_optimizations(vec![], Some("stale".into()));
+
+    assert!(matches!(
+        result,
+        Err(ProfileStoreError::InvalidLaunchOptimizationId(id)) if id == "retired_option"
+    ));
+    assert_eq!(profile, before);
 }
 
 #[test]
@@ -291,9 +363,10 @@ fn switch_preset_preserves_active_and_preset_extras_after_reload() {
         },
     );
     store.save("game", &profile).unwrap();
-    store
-        .save_launch_optimizations("game", vec![], Some("other".into()))
-        .unwrap();
+    load_apply_save(&store, "game", |p| {
+        p.apply_launch_optimizations(vec![], Some("other".into()))
+    })
+    .unwrap();
 
     let loaded = store.load("game").unwrap();
     assert_eq!(
@@ -312,5 +385,24 @@ fn switch_preset_preserves_active_and_preset_extras_after_reload() {
     assert_eq!(
         loaded.launch.presets["other"],
         profile.launch.presets["other"]
+    );
+}
+
+#[test]
+fn apply_manual_optimization_preset_activates_trimmed_name_in_memory() {
+    let mut profile = sample_profile();
+
+    profile
+        .apply_manual_optimization_preset("  Mine  ", vec!["use_gamemode".into()])
+        .unwrap();
+
+    assert_eq!(profile.launch.active_preset, "Mine");
+    assert_eq!(
+        profile.launch.optimizations.enabled_option_ids,
+        vec!["use_gamemode".to_string()]
+    );
+    assert_eq!(
+        profile.launch.presets["Mine"].enabled_option_ids,
+        vec!["use_gamemode".to_string()]
     );
 }

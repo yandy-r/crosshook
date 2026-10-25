@@ -1,16 +1,12 @@
 use std::path::PathBuf;
 
-use crosshook_core::metadata::{ConfigRevisionSource, MetadataStore, SyncSource};
-use crosshook_core::profile::lutris_import::{apply_lutris_import, preview_lutris_import};
+use crosshook_app::services::profiles::ProfileCommit;
+use crosshook_app::ProfileWriter;
+use crosshook_core::profile::lutris_import::preview_lutris_import;
 use crosshook_core::profile::{
-    LutrisImportEntry, LutrisImportOutcome, LutrisImportPreview, LutrisImportResult, ProfileStore,
+    LutrisImportEntry, LutrisImportPreview, LutrisImportResult, ProfileStore,
 };
-use crosshook_core::settings::SettingsStore;
-use tauri::{AppHandle, State};
-
-use super::profile::{
-    capture_config_revision, emit_profiles_changed, resolve_config_history_max_revisions,
-};
+use tauri::State;
 
 fn map_error(error: impl ToString) -> String {
     error.to_string()
@@ -26,55 +22,13 @@ pub fn lutris_prepare_import(
 }
 
 #[tauri::command]
-pub fn lutris_import_profiles(
+pub async fn lutris_import_profiles(
     entries: Vec<LutrisImportEntry>,
-    profile_store: State<'_, ProfileStore>,
-    settings_store: State<'_, SettingsStore>,
-    metadata_store: State<'_, MetadataStore>,
-    app: AppHandle,
+    writer: State<'_, ProfileWriter>,
 ) -> Result<LutrisImportResult, String> {
-    let result = apply_lutris_import(&profile_store, entries);
-
-    for entry_result in &result.results {
-        if entry_result.outcome != LutrisImportOutcome::Imported {
-            continue;
-        }
-
-        let Some(profile_name) = entry_result.profile_name.as_deref() else {
-            continue;
-        };
-        let Some(profile_path) = entry_result.profile_path.as_deref() else {
-            continue;
-        };
-
-        if let Err(error) = metadata_store.observe_profile_write(
-            profile_name,
-            &entry_result.entry.mapped,
-            profile_path,
-            SyncSource::LutrisImport,
-            None,
-        ) {
-            tracing::warn!(
-                %error,
-                profile_name,
-                "metadata sync after lutris_import_profiles failed"
-            );
-        } else {
-            let max_revisions = resolve_config_history_max_revisions(&settings_store);
-            capture_config_revision(
-                profile_name,
-                &entry_result.entry.mapped,
-                ConfigRevisionSource::Import,
-                None,
-                &metadata_store,
-                max_revisions,
-            );
-        }
-    }
-
-    if result.imported_count > 0 {
-        emit_profiles_changed(&app, "lutris-import");
-    }
-
-    Ok(result)
+    writer
+        .import_lutris(entries)
+        .await
+        .map(ProfileCommit::into_output)
+        .map_err(map_error)
 }

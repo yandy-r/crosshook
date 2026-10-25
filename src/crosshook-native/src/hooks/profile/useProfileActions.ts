@@ -15,6 +15,8 @@
  *   `useProfileNotifications` and re-exported for callers.
  * - Single persistence path: context mutators / existing IPC hook surfaces only.
  *   No raw `invoke('profile_save*')` calls.
+ * - Health after save/rollback is driven by the backend `profiles-changed`
+ *   event (`useProfileHealth`); handlers here do not revalidate directly.
  */
 import { useCallback, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
@@ -67,7 +69,6 @@ export interface UseProfileActionsResult {
   // --- Save / refresh ---
   handleSave: () => Promise<void>;
   handleRefreshStatus: () => Promise<void>;
-  handleAfterRollback: (name: string) => void;
 
   // --- History panel ---
   showHistoryPanel: boolean;
@@ -121,7 +122,7 @@ export function useProfileActions({ setPendingLauncherReExport }: UseProfileActi
     selectedProfile,
   } = useProfileContext();
 
-  const { batchValidate, revalidateSingle } = useProfileHealthContext();
+  const { batchValidate } = useProfileHealthContext();
 
   // --- can-* guard derivations ---
   const canSave =
@@ -178,20 +179,6 @@ export function useProfileActions({ setPendingLauncherReExport }: UseProfileActi
   });
 
   // --- Handlers ---
-
-  const handleSave = useCallback(async () => {
-    await saveProfile();
-    if (profileName.trim()) {
-      void revalidateSingle(profileName.trim());
-    }
-  }, [profileName, revalidateSingle, saveProfile]);
-
-  const handleAfterRollback = useCallback(
-    (name: string) => {
-      void revalidateSingle(name);
-    },
-    [revalidateSingle]
-  );
 
   const handleExportCommunityProfile = useCallback(async () => {
     const nameOnDisk = selectedProfile.trim();
@@ -318,9 +305,8 @@ export function useProfileActions({ setPendingLauncherReExport }: UseProfileActi
     handleExportCommunityProfile,
 
     // Save / refresh
-    handleSave,
+    handleSave: saveProfile,
     handleRefreshStatus,
-    handleAfterRollback,
 
     // History panel
     showHistoryPanel,

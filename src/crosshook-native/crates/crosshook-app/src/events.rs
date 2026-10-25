@@ -26,6 +26,34 @@ pub enum StartupJobKind {
     BackgroundPortal,
 }
 
+/// Why profiles changed. Serialized internally tagged as
+/// `{"kind":"<snake_case>", ...fields}` inside the `profiles-changed` payload.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ProfileChangeReason {
+    /// Profile content was written (full save, section save, ProtonDB accept).
+    Saved,
+    /// A profile was removed; `names` holds the removed name.
+    Deleted,
+    /// A profile was renamed; `names` holds the new name.
+    Renamed {
+        /// Name before the rename.
+        from: String,
+    },
+    /// A profile was copied; `names` holds the copy's name.
+    Duplicated,
+    /// A favorite flag changed (metadata only; never affects health).
+    FavoriteToggled,
+    /// A config revision was restored.
+    RolledBack,
+    /// A bundled or manual optimization preset was applied.
+    PresetApplied,
+    /// Profiles were imported (legacy or Lutris).
+    Imported,
+    /// Proton path migrations were applied.
+    Migrated,
+}
+
 /// Event delivered to subscribers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -39,6 +67,14 @@ pub enum AppEvent {
     StartupJobFinished {
         /// Completed startup task.
         job: StartupJobKind,
+    },
+    /// Profiles changed on disk or in metadata. `names` lists the affected
+    /// profiles; an empty list is reserved for conservative resyncs.
+    ProfilesChanged {
+        /// Why the profiles changed.
+        reason: ProfileChangeReason,
+        /// Affected profile names.
+        names: Vec<String>,
     },
 }
 

@@ -1,52 +1,16 @@
+use crosshook_app::services::profiles::ProfileCommit;
+use crosshook_app::ProfileWriter;
 use crosshook_core::launch::catalog::global_catalog;
-use crosshook_core::metadata::{ConfigRevisionSource, MetadataStore, SyncSource};
+use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::ProfileStore;
 use crosshook_core::protondb::{
-    derive_suggestions, lookup_protondb, validate_env_suggestion, AcceptSuggestionRequest,
-    AcceptSuggestionResult, ProtonDbLookupResult, ProtonDbSuggestionSet,
+    derive_suggestions, lookup_protondb, AcceptSuggestionRequest, AcceptSuggestionResult,
+    ProtonDbLookupResult, ProtonDbSuggestionSet,
 };
-use crosshook_core::settings::SettingsStore;
 use tauri::State;
-
-use super::profile::{capture_config_revision, resolve_config_history_max_revisions};
 
 /// Number of days a dismissed suggestion is retained before automatic eviction.
 const SUGGESTION_DISMISSAL_RETENTION_DAYS: u32 = 30;
-
-/// Observes a profile write for metadata sync and captures a config revision after
-/// a ProtonDB suggestion is applied. Shared by both Catalog and EnvVar accept branches.
-fn observe_suggestion_apply(
-    profile_name: &str,
-    profile: &crosshook_core::profile::GameProfile,
-    profile_store: &ProfileStore,
-    metadata_store: &MetadataStore,
-    settings_store: &SettingsStore,
-) {
-    let profile_path = profile_store.base_path.join(format!("{profile_name}.toml"));
-    if let Err(e) = metadata_store.observe_profile_write(
-        profile_name,
-        profile,
-        &profile_path,
-        SyncSource::AppWrite,
-        None,
-    ) {
-        tracing::warn!(
-            %e,
-            profile_name = %profile_name,
-            "metadata sync after protondb_accept_suggestion failed"
-        );
-    }
-
-    let max_revisions = resolve_config_history_max_revisions(settings_store);
-    capture_config_revision(
-        profile_name,
-        profile,
-        ConfigRevisionSource::ProtonDbSuggestionApply,
-        None,
-        metadata_store,
-        max_revisions,
-    );
-}
 
 #[tauri::command]
 pub async fn protondb_lookup(
@@ -105,132 +69,15 @@ pub async fn protondb_get_suggestions(
 }
 
 #[tauri::command]
-pub fn protondb_accept_suggestion(
+pub async fn protondb_accept_suggestion(
     request: AcceptSuggestionRequest,
-    profile_store: State<'_, ProfileStore>,
-    metadata_store: State<'_, MetadataStore>,
-    settings_store: State<'_, SettingsStore>,
+    writer: State<'_, ProfileWriter>,
 ) -> Result<AcceptSuggestionResult, String> {
-    match request {
-        AcceptSuggestionRequest::Catalog {
-            profile_name,
-            catalog_entry_id,
-        } => {
-            let profile_name = profile_name.trim().to_string();
-            if profile_name.is_empty() {
-                return Err("profile_name is required".to_string());
-            }
-
-            let entry_id = catalog_entry_id.trim().to_string();
-            if entry_id.is_empty() {
-                return Err("catalog_entry_id is required".to_string());
-            }
-
-            let catalog = global_catalog();
-            let entry = catalog
-                .find_by_id(&entry_id)
-                .ok_or_else(|| format!("unknown catalog entry: {entry_id}"))?;
-
-            // Validate all env keys in the catalog entry.
-            for pair in &entry.env {
-                let key = pair[0].as_str();
-                let value = pair[1].as_str();
-                if !validate_env_suggestion(key, value) {
-                    return Err(format!(
-                        "catalog entry '{entry_id}' contains unsafe env pair: {key}={value}"
-                    ));
-                }
-            }
-
-            let mut profile = profile_store
-                .load(&profile_name)
-                .map_err(|e| e.to_string())?;
-
-            let already_present = profile
-                .launch
-                .optimizations
-                .enabled_option_ids
-                .contains(&entry_id);
-
-            if !already_present {
-                profile
-                    .launch
-                    .optimizations
-                    .enabled_option_ids
-                    .push(entry_id.clone());
-            }
-
-            profile_store
-                .save(&profile_name, &profile)
-                .map_err(|e| e.to_string())?;
-
-            observe_suggestion_apply(
-                &profile_name,
-                &profile,
-                &profile_store,
-                &metadata_store,
-                &settings_store,
-            );
-
-            let applied_keys: Vec<String> = entry.env.iter().map(|p| p[0].clone()).collect();
-            let toggled_option_ids = if already_present {
-                Vec::new()
-            } else {
-                vec![entry_id]
-            };
-
-            Ok(AcceptSuggestionResult {
-                updated_profile: profile,
-                applied_keys,
-                toggled_option_ids,
-            })
-        }
-
-        AcceptSuggestionRequest::EnvVar {
-            profile_name,
-            env_key,
-            env_value,
-        } => {
-            let profile_name = profile_name.trim().to_string();
-            if profile_name.is_empty() {
-                return Err("profile_name is required".to_string());
-            }
-
-            // Re-validate at write time — never trust cached suggestion data.
-            if !validate_env_suggestion(&env_key, &env_value) {
-                return Err(format!(
-                    "env var suggestion failed safety validation: {env_key}={env_value}"
-                ));
-            }
-
-            let mut profile = profile_store
-                .load(&profile_name)
-                .map_err(|e| e.to_string())?;
-
-            profile
-                .launch
-                .custom_env_vars
-                .insert(env_key.clone(), env_value);
-
-            profile_store
-                .save(&profile_name, &profile)
-                .map_err(|e| e.to_string())?;
-
-            observe_suggestion_apply(
-                &profile_name,
-                &profile,
-                &profile_store,
-                &metadata_store,
-                &settings_store,
-            );
-
-            Ok(AcceptSuggestionResult {
-                updated_profile: profile,
-                applied_keys: vec![env_key],
-                toggled_option_ids: Vec::new(),
-            })
-        }
-    }
+    writer
+        .accept_protondb_suggestion(request)
+        .await
+        .map(ProfileCommit::into_output)
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

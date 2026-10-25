@@ -3,18 +3,11 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::launch::command_arguments::{
-    resolve_command_arguments_for_method, CommandArgumentResolveError,
-};
-use crate::launch::is_known_launch_optimization_id;
-use crate::launch::request::{
-    ValidationError, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
-};
-use crate::profile::{legacy, resolve_launch_method, GameProfile};
+use crate::profile::{legacy, GameProfile};
 use crate::settings::{resolve_profiles_directory_from_config, AppSettingsData};
 
 use super::error::ProfileStoreError;
-use super::utils::{strip_copy_suffix, validate_manual_launch_preset_name, validate_name};
+use super::utils::{strip_copy_suffix, validate_name};
 use crate::profile::mangohud;
 
 /// Result of a successful profile duplication, returned across the Tauri IPC boundary.
@@ -92,7 +85,33 @@ impl ProfileStore {
         Ok(effective)
     }
 
+    /// Persists `profile` and refreshes its MangoHud companion config.
+    ///
+    /// The TOML write is [`save_without_companion`](Self::save_without_companion); a companion
+    /// write failure is logged and does not fail the save.
     pub fn save(&self, name: &str, profile: &GameProfile) -> Result<(), ProfileStoreError> {
+        self.save_without_companion(name, profile)?;
+
+        if let Err(err) =
+            mangohud::write_mangohud_conf(&self.base_path, name, &profile.launch.mangohud)
+        {
+            tracing::warn!(
+                profile = name,
+                error = %err,
+                "failed to write MangoHud companion config; profile save succeeded"
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Serializes the storage form of `profile` as pretty TOML and writes it atomically, without
+    /// touching the MangoHud companion config.
+    pub fn save_without_companion(
+        &self,
+        name: &str,
+        profile: &GameProfile,
+    ) -> Result<(), ProfileStoreError> {
         let path = self.profile_path(name)?;
         fs::create_dir_all(&self.base_path)?;
         let storage_profile = profile.storage_profile();
@@ -109,184 +128,7 @@ impl ProfileStore {
             "profile_store: full save"
         );
         crate::fs_util::write_atomic(&path, toml::to_string_pretty(&storage_profile)?.as_bytes())?;
-
-        if let Err(err) =
-            mangohud::write_mangohud_conf(&self.base_path, name, &profile.launch.mangohud)
-        {
-            tracing::warn!(
-                profile = name,
-                error = %err,
-                "failed to write MangoHud companion config; profile save succeeded"
-            );
-        }
-
         Ok(())
-    }
-
-    /// Loads the profile, replaces launch optimizations, and saves. Concurrent `save` or
-    /// `save_launch_optimizations` calls for the same profile are not synchronized; the last
-    /// completed write wins.
-    pub fn save_launch_optimizations(
-        &self,
-        name: &str,
-        enabled_option_ids: Vec<String>,
-        switch_active_preset: Option<String>,
-    ) -> Result<(), ProfileStoreError> {
-        let mut profile = self.load(name)?;
-
-        if let Some(raw) = switch_active_preset {
-            let key = raw.trim();
-            if key.is_empty() {
-                return Err(ProfileStoreError::LaunchPresetNotFound(raw));
-            }
-
-            let section = profile
-                .launch
-                .presets
-                .get(key)
-                .ok_or_else(|| ProfileStoreError::LaunchPresetNotFound(key.to_string()))?
-                .clone();
-
-            for id in &section.enabled_option_ids {
-                if !is_known_launch_optimization_id(id) {
-                    return Err(ProfileStoreError::InvalidLaunchOptimizationId(id.clone()));
-                }
-            }
-
-            profile.launch.active_preset = key.to_string();
-            let extra = std::mem::take(&mut profile.launch.optimizations.extra);
-            profile.launch.optimizations = section;
-            // Preset unknowns stay in the preset table, matching load normalization.
-            profile.launch.optimizations.extra = extra;
-        } else {
-            let enabled_option_ids: Vec<String> = enabled_option_ids
-                .into_iter()
-                .filter_map(|raw| {
-                    let id = raw.trim();
-                    (!id.is_empty()).then(|| id.to_string())
-                })
-                .collect();
-
-            for id in &enabled_option_ids {
-                if !is_known_launch_optimization_id(id) {
-                    return Err(ProfileStoreError::InvalidLaunchOptimizationId(id.clone()));
-                }
-            }
-
-            profile.launch.optimizations.enabled_option_ids = enabled_option_ids;
-
-            let ap = profile.launch.active_preset.trim();
-            if !ap.is_empty() {
-                if let Some(slot) = profile.launch.presets.get_mut(ap) {
-                    slot.enabled_option_ids =
-                        profile.launch.optimizations.enabled_option_ids.clone();
-                }
-            }
-        }
-
-        self.save(name, &profile)
-    }
-
-    /// Loads the profile, replaces `launch.command_arguments`, and saves. Concurrent writes for
-    /// the same profile are not synchronized; the last completed write wins.
-    pub fn save_command_arguments(
-        &self,
-        name: &str,
-        enabled_argument_ids: Vec<String>,
-        custom_args: Vec<String>,
-        resolved_launch_method: Option<&str>,
-    ) -> Result<(), ProfileStoreError> {
-        let mut profile = self.load(name)?;
-
-        let enabled_argument_ids: Vec<String> = enabled_argument_ids
-            .into_iter()
-            .filter_map(|raw| {
-                let id = raw.trim();
-                (!id.is_empty()).then(|| id.to_string())
-            })
-            .collect();
-
-        let custom_args: Vec<String> = custom_args
-            .into_iter()
-            .map(|raw| raw.trim().to_string())
-            .filter(|token| !token.is_empty())
-            .collect();
-
-        validate_profile_command_arguments(
-            &profile,
-            &enabled_argument_ids,
-            &custom_args,
-            resolved_launch_method,
-        )?;
-
-        profile.launch.command_arguments.enabled_argument_ids = enabled_argument_ids.clone();
-        profile.launch.command_arguments.custom_args = custom_args.clone();
-
-        tracing::debug!(
-            profile = name,
-            enabled_argument_ids = ?enabled_argument_ids,
-            custom_arg_count = custom_args.len(),
-            "profile_store: save_command_arguments"
-        );
-
-        self.save(name, &profile)
-    }
-
-    /// Writes or overwrites `launch.presets.<preset_key>` and optionally sets it as the active preset.
-    /// All `enabled_option_ids` must be known catalog ids.
-    pub fn materialize_launch_optimization_preset(
-        &self,
-        profile_name: &str,
-        preset_key: &str,
-        enabled_option_ids: Vec<String>,
-        set_as_active: bool,
-    ) -> Result<(), ProfileStoreError> {
-        let key = preset_key.trim();
-        if key.is_empty() {
-            return Err(ProfileStoreError::LaunchPresetNotFound(
-                preset_key.to_string(),
-            ));
-        }
-
-        let enabled_option_ids: Vec<String> = enabled_option_ids
-            .into_iter()
-            .filter_map(|raw| {
-                let id = raw.trim();
-                (!id.is_empty()).then(|| id.to_string())
-            })
-            .collect();
-
-        for id in &enabled_option_ids {
-            if !is_known_launch_optimization_id(id) {
-                return Err(ProfileStoreError::InvalidLaunchOptimizationId(id.clone()));
-            }
-        }
-
-        let mut profile = self.load(profile_name)?;
-        profile
-            .launch
-            .presets
-            .entry(key.to_string())
-            .or_default()
-            .enabled_option_ids = enabled_option_ids.clone();
-
-        if set_as_active {
-            profile.launch.active_preset = key.to_string();
-            profile.launch.optimizations.enabled_option_ids = enabled_option_ids;
-        }
-
-        self.save(profile_name, &profile)
-    }
-
-    /// Saves the current optimization selection under a new user preset name and activates it.
-    pub fn save_manual_launch_optimization_preset(
-        &self,
-        profile_name: &str,
-        preset_display_name: &str,
-        enabled_option_ids: Vec<String>,
-    ) -> Result<(), ProfileStoreError> {
-        let name = validate_manual_launch_preset_name(preset_display_name)?;
-        self.materialize_launch_optimization_preset(profile_name, &name, enabled_option_ids, true)
     }
 
     pub fn list(&self) -> Result<Vec<String>, ProfileStoreError> {
@@ -399,8 +241,8 @@ impl ProfileStore {
     /// Duplicates an existing profile under a new, unique copy name.
     ///
     /// Loads the source profile, generates a collision-free name via
-    /// [`generate_unique_copy_name`](Self::generate_unique_copy_name), and saves the cloned
-    /// `GameProfile` to disk. The source profile is never modified.
+    /// `generate_unique_copy_name`, and saves the cloned `GameProfile` to disk.
+    /// The source profile is never modified.
     ///
     /// # Safety constraints
     /// - The generated name is always validated through [`validate_name`] before saving,
@@ -419,13 +261,20 @@ impl ProfileStore {
     ) -> Result<DuplicateProfileResult, ProfileStoreError> {
         let source_name = validate_name(source_name)?;
         let profile = self.load(&source_name)?;
-        let existing_names = self.list()?;
-        let new_name = Self::generate_unique_copy_name(&source_name, &existing_names)?;
+        let new_name = self.unique_copy_name_for_validated(&source_name)?;
         self.save(&new_name, &profile)?;
         Ok(DuplicateProfileResult {
             name: new_name,
             profile,
         })
+    }
+
+    fn unique_copy_name_for_validated(
+        &self,
+        source_name: &str,
+    ) -> Result<String, ProfileStoreError> {
+        let existing_names = self.list()?;
+        Self::generate_unique_copy_name(source_name, &existing_names)
     }
 
     /// Generates a unique copy name that does not collide with any existing profile.
@@ -468,6 +317,13 @@ impl ProfileStore {
         )))
     }
 
+    /// Validates a profile name with the store's file-name rules (rejects empty, `.`/`..`,
+    /// the anonymous-launch sentinel, control characters, path separators and
+    /// Windows-reserved characters) and returns the trimmed name.
+    pub fn validate_profile_name(name: &str) -> Result<String, ProfileStoreError> {
+        validate_name(name)
+    }
+
     pub(crate) fn profile_path(&self, name: &str) -> Result<PathBuf, ProfileStoreError> {
         let validated_name = validate_name(name)?;
         Ok(self.base_path.join(format!("{validated_name}.toml")))
@@ -480,126 +336,4 @@ impl ProfileStore {
             Err(_) => false,
         }
     }
-}
-
-const MAX_COMMAND_ARGUMENT_TOKEN_LEN: usize = 512;
-const MAX_COMMAND_ARGUMENT_TOKENS: usize = 64;
-
-fn command_argument_token_has_control_character(token: &str) -> bool {
-    token.contains('\0') || token.chars().any(char::is_control)
-}
-
-fn validate_custom_command_argument_token(token: &str) -> Result<(), ValidationError> {
-    if token.is_empty() {
-        return Err(ValidationError::CommandArgumentCustomTokenEmpty);
-    }
-    if command_argument_token_has_control_character(token) {
-        return Err(ValidationError::CommandArgumentCustomTokenContainsControlCharacter);
-    }
-    if token.len() > MAX_COMMAND_ARGUMENT_TOKEN_LEN {
-        return Err(ValidationError::CommandArgumentTokenTooLong {
-            max_len: MAX_COMMAND_ARGUMENT_TOKEN_LEN,
-        });
-    }
-    Ok(())
-}
-
-fn command_argument_resolve_error(error: CommandArgumentResolveError) -> ProfileStoreError {
-    match error {
-        CommandArgumentResolveError::Unknown(argument_id) => {
-            ProfileStoreError::InvalidCommandArgumentId(argument_id)
-        }
-        CommandArgumentResolveError::Duplicate(argument_id) => {
-            ProfileStoreError::CommandArgumentValidation(ValidationError::DuplicateCommandArgument(
-                argument_id,
-            ))
-        }
-        CommandArgumentResolveError::NotSupportedForMethod {
-            argument_id,
-            method,
-        } => ProfileStoreError::CommandArgumentValidation(
-            ValidationError::CommandArgumentNotSupportedForMethod {
-                argument_id,
-                method,
-            },
-        ),
-        CommandArgumentResolveError::Incompatible { first, second } => {
-            ProfileStoreError::CommandArgumentValidation(
-                ValidationError::IncompatibleCommandArguments { first, second },
-            )
-        }
-        CommandArgumentResolveError::UnsupportedLaunchMethod(method) => {
-            ProfileStoreError::CommandArgumentValidation(
-                ValidationError::CommandArgumentsUnsupportedForMethod(method),
-            )
-        }
-    }
-}
-
-fn validate_resolved_command_argument_tokens(tokens: &[String]) -> Result<(), ValidationError> {
-    if tokens.len() > MAX_COMMAND_ARGUMENT_TOKENS {
-        return Err(ValidationError::CommandArgumentTokenCountExceeded {
-            max_count: MAX_COMMAND_ARGUMENT_TOKENS,
-        });
-    }
-
-    for token in tokens {
-        if token.len() > MAX_COMMAND_ARGUMENT_TOKEN_LEN {
-            return Err(ValidationError::CommandArgumentTokenTooLong {
-                max_len: MAX_COMMAND_ARGUMENT_TOKEN_LEN,
-            });
-        }
-    }
-
-    Ok(())
-}
-
-fn resolved_launch_method_for_command_argument_validation(
-    profile: &GameProfile,
-    resolved_launch_method: Option<&str>,
-) -> String {
-    if let Some(raw) = resolved_launch_method {
-        let trimmed = raw.trim();
-        if matches!(
-            trimmed,
-            METHOD_NATIVE | METHOD_PROTON_RUN | METHOD_STEAM_APPLAUNCH
-        ) {
-            return trimmed.to_string();
-        }
-    }
-
-    resolve_launch_method(profile).to_string()
-}
-
-fn validate_profile_command_arguments(
-    profile: &GameProfile,
-    enabled_argument_ids: &[String],
-    custom_args: &[String],
-    resolved_launch_method: Option<&str>,
-) -> Result<(), ProfileStoreError> {
-    if enabled_argument_ids.is_empty() && custom_args.is_empty() {
-        return Ok(());
-    }
-
-    let resolved_method =
-        resolved_launch_method_for_command_argument_validation(profile, resolved_launch_method);
-    if resolved_method == METHOD_NATIVE {
-        return Err(ProfileStoreError::CommandArgumentValidation(
-            ValidationError::CommandArgumentsUnsupportedForMethod(resolved_method.to_string()),
-        ));
-    }
-
-    for custom_arg in custom_args {
-        validate_custom_command_argument_token(custom_arg)
-            .map_err(ProfileStoreError::CommandArgumentValidation)?;
-    }
-
-    let resolved =
-        resolve_command_arguments_for_method(enabled_argument_ids, custom_args, &resolved_method)
-            .map_err(command_argument_resolve_error)?;
-
-    validate_resolved_command_argument_tokens(&resolved.tokens)
-        .map_err(ProfileStoreError::CommandArgumentValidation)?;
-
-    Ok(())
 }

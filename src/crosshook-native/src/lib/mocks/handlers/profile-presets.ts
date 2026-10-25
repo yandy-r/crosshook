@@ -5,10 +5,9 @@
 // sentinel.
 
 import type { BundledOptimizationPreset, GameProfile } from '../../../types/profile';
-import { emitMockEvent } from '../eventBus';
 import { getStore } from '../store';
 import { appendRevision } from './profile-history';
-import { withProfileFixtureGate } from './profile-utils';
+import { emitProfilesChanged, withProfileFixtureGate } from './profile-utils';
 import type { Handler } from './types';
 
 /** Same catalog as `profile_list_bundled_optimization_presets` — keep in sync for mock fidelity. */
@@ -69,7 +68,7 @@ export function registerProfilePresets(map: Map<string, Handler>): void {
       };
       store.profiles.set(trimmed, updated);
       appendRevision(trimmed, 'preset_apply');
-      emitMockEvent('profiles-changed', { name: trimmed, action: 'bundled-optimization-preset' });
+      emitProfilesChanged({ reason: { kind: 'preset_applied' }, names: [trimmed] });
       return structuredClone(updated);
     })
   );
@@ -104,7 +103,7 @@ export function registerProfilePresets(map: Map<string, Handler>): void {
       };
       store.profiles.set(trimmed, updated);
       appendRevision(trimmed, 'preset_apply');
-      emitMockEvent('profiles-changed', { name: trimmed, action: 'manual-optimization-preset' });
+      emitProfilesChanged({ reason: { kind: 'preset_applied' }, names: [trimmed] });
       return structuredClone(updated);
     })
   );

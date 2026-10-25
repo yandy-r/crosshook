@@ -1,62 +1,39 @@
-use std::path::PathBuf;
+use std::path::Path;
 
-use crate::profile::toml_store::ProfileStore;
+use crate::profile::models::GameProfile;
 
 use super::types::{
     ApplyMigrationRequest, MigrationApplyResult, MigrationOutcome, ProtonPathField,
 };
 
-/// Applies a single migration using an atomic temp-file + rename write (W-1).
+/// Prepares a single migration on an already loaded effective `profile`.
 ///
-/// Uses the shared durable writer directly, without MangoHud companion updates.
-pub fn apply_single_migration(
-    store: &ProfileStore,
+/// Checks that the replacement is a regular file, short-circuits with
+/// `AlreadyValid` when the current path still exists, and otherwise rewrites
+/// the requested field in place. `Applied` means `profile` was mutated and
+/// is ready to persist; `AlreadyValid` and `Failed` leave it untouched.
+/// Performs no profile I/O.
+pub fn prepare_profile_migration(
+    profile: &mut GameProfile,
     request: &ApplyMigrationRequest,
 ) -> MigrationApplyResult {
-    let mut profile = match store.load(&request.profile_name) {
-        Ok(p) => p,
-        Err(err) => {
-            return MigrationApplyResult {
-                profile_name: request.profile_name.clone(),
-                field: request.field,
-                old_path: String::new(),
-                new_path: request.new_path.clone(),
-                outcome: MigrationOutcome::Failed,
-                error: Some(err.to_string()),
-            };
-        }
-    };
-
     let old_path = match request.field {
         ProtonPathField::SteamProtonPath => profile.steam.proton_path.clone(),
         ProtonPathField::RuntimeProtonPath => profile.runtime.proton_path.clone(),
     };
 
     // Validate replacement path exists and is a regular file.
-    if !PathBuf::from(&request.new_path).is_file() {
-        return MigrationApplyResult {
-            profile_name: request.profile_name.clone(),
-            field: request.field,
-            old_path,
-            new_path: request.new_path.clone(),
-            outcome: MigrationOutcome::Failed,
-            error: Some(format!(
-                "Replacement path does not exist or is not a file: {}",
-                request.new_path
-            )),
-        };
+    if !Path::new(&request.new_path).is_file() {
+        let error = format!(
+            "Replacement path does not exist or is not a file: {}",
+            request.new_path
+        );
+        return result(request, old_path, MigrationOutcome::Failed, Some(error));
     }
 
     // If the current path is still valid, no migration is needed.
-    if matches!(PathBuf::from(&old_path).try_exists(), Ok(true)) {
-        return MigrationApplyResult {
-            profile_name: request.profile_name.clone(),
-            field: request.field,
-            old_path,
-            new_path: request.new_path.clone(),
-            outcome: MigrationOutcome::AlreadyValid,
-            error: None,
-        };
+    if matches!(Path::new(&old_path).try_exists(), Ok(true)) {
+        return result(request, old_path, MigrationOutcome::AlreadyValid, None);
     }
 
     // Update the correct field on the effective profile.
@@ -69,42 +46,21 @@ pub fn apply_single_migration(
         }
     }
 
-    // Serialize storage form and atomically replace it using a same-directory temp.
-    let profile_path = store
-        .base_path
-        .join(format!("{}.toml", request.profile_name));
+    result(request, old_path, MigrationOutcome::Applied, None)
+}
 
-    let toml_str = match toml::to_string_pretty(&profile.storage_profile()) {
-        Ok(s) => s,
-        Err(err) => {
-            return MigrationApplyResult {
-                profile_name: request.profile_name.clone(),
-                field: request.field,
-                old_path,
-                new_path: request.new_path.clone(),
-                outcome: MigrationOutcome::Failed,
-                error: Some(err.to_string()),
-            };
-        }
-    };
-
-    if let Err(err) = crate::fs_util::write_atomic(&profile_path, toml_str.as_bytes()) {
-        return MigrationApplyResult {
-            profile_name: request.profile_name.clone(),
-            field: request.field,
-            old_path,
-            new_path: request.new_path.clone(),
-            outcome: MigrationOutcome::Failed,
-            error: Some(err.to_string()),
-        };
-    }
-
+fn result(
+    request: &ApplyMigrationRequest,
+    old_path: String,
+    outcome: MigrationOutcome,
+    error: Option<String>,
+) -> MigrationApplyResult {
     MigrationApplyResult {
         profile_name: request.profile_name.clone(),
         field: request.field,
         old_path,
         new_path: request.new_path.clone(),
-        outcome: MigrationOutcome::Applied,
-        error: None,
+        outcome,
+        error,
     }
 }

@@ -212,7 +212,6 @@ export function HeroDetailProfilesTab({
 
             <HeroProfileActionsBar
               actions={actions}
-              onAfterRollback={actions.handleAfterRollback}
               versionStatus={versionStatus}
               historyHandlers={{
                 fetchConfigHistory,

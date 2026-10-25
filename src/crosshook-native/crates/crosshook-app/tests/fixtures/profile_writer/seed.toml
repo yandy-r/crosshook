@@ -1,0 +1,54 @@
+schema_hint = "future-top-level-key"
+
+[game]
+name = "Alpha"
+executable_path = "/games/alpha/alpha.exe"
+release_channel = "beta"
+
+[trainer]
+path = "/trainers/alpha-trainer.exe"
+type = "fling"
+loading_mode = "copy_to_prefix"
+
+[injection]
+dll_paths = ["/dlls/alpha.dll"]
+inject_on_launch = [true]
+
+[steam]
+enabled = false
+app_id = ""
+compatdata_path = ""
+proton_path = ""
+
+[steam.launcher]
+icon_path = "/icons/alpha.png"
+display_name = "Alpha"
+
+[runtime]
+prefix_path = "/prefixes/alpha"
+proton_path = "/proton/GE-Proton9-20/proton"
+working_directory = "/games/alpha"
+steam_app_id = "1245620"
+
+[launch]
+method = "proton_run"
+active_preset = "performance"
+custom_env_vars = { DXVK_ASYNC = "1", PROTON_LOG = "1" }
+
+[launch.optimizations]
+enabled_option_ids = ["use_gamemode"]
+
+[launch.presets.performance]
+enabled_option_ids = ["use_gamemode", "disable_steam_input"]
+future_preset_key = 7
+
+[local_override]
+future_local_key = true
+
+[[pre_launch_hooks]]
+id = "hook-1"
+name = "Mount share"
+path = "/scripts/mount.sh"
+stage = "pre-launch"
+enabled = true
+future_hook_key = "x"

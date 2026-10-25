@@ -10,21 +10,6 @@ pub fn bundled_optimization_preset_toml_key(preset_id: &str) -> String {
     format!("bundled/{}", preset_id.trim())
 }
 
-pub(super) fn validate_manual_launch_preset_name(raw: &str) -> Result<String, ProfileStoreError> {
-    let name = raw.trim();
-    if name.is_empty() {
-        return Err(ProfileStoreError::InvalidLaunchPresetName(
-            "preset name must not be empty".to_string(),
-        ));
-    }
-    if name.starts_with("bundled/") {
-        return Err(ProfileStoreError::ReservedLaunchPresetName(
-            name.to_string(),
-        ));
-    }
-    Ok(name.to_string())
-}
-
 /// Controls whether sensitive launch hook paths are included in shareable TOML.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ShareableTomlOptions {

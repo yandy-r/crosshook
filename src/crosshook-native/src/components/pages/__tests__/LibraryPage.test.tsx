@@ -472,7 +472,7 @@ describe('LibraryPage', () => {
         expect(screen.getByText('Add your first game')).toBeInTheDocument();
       });
 
-      emitMockEvent('profiles-changed', '');
+      emitMockEvent('profiles-changed', { reason: { kind: 'saved' }, names: ['Fresh Game'] });
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: 'Select Fresh Game' })).toBeInTheDocument();

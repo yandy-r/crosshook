@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 import type { ConfigDiffResult, ConfigRevisionSummary, ConfigRollbackResult } from '../../types';
 import { formatInvokeError } from './formatInvokeError';
@@ -12,10 +12,9 @@ export interface UseProfileHistoryOptions {
       throwOnFailure?: boolean;
     }
   ) => Promise<void>;
-  onAfterRollback?: (profileName: string) => void;
 }
 
-export function useProfileHistory({ loadProfile, onAfterRollback }: UseProfileHistoryOptions) {
+export function useProfileHistory({ loadProfile }: UseProfileHistoryOptions) {
   const [historyInFlightCount, setHistoryInFlightCount] = useState(0);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
@@ -28,9 +27,6 @@ export function useProfileHistory({ loadProfile, onAfterRollback }: UseProfileHi
   }, []);
 
   const historyLoading = useMemo(() => historyInFlightCount > 0, [historyInFlightCount]);
-
-  const onAfterRollbackRef = useRef(onAfterRollback);
-  onAfterRollbackRef.current = onAfterRollback;
 
   const fetchConfigHistory = useCallback(
     async (name: string, limit?: number): Promise<ConfigRevisionSummary[]> => {
@@ -92,7 +88,6 @@ export function useProfileHistory({ loadProfile, onAfterRollback }: UseProfileHi
           loadErrorContext: 'Rollback applied, but reloading the profile failed',
           throwOnFailure: true,
         });
-        onAfterRollbackRef.current?.(name);
         return result;
       } catch (err) {
         const message = formatInvokeError(err);

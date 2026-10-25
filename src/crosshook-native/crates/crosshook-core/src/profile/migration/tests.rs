@@ -227,7 +227,21 @@ fn tkg_returns_none() {
     assert!(find_best_replacement("proton_tkg_6.17.r0.g5f19a815.release", &installed).is_none());
 }
 
-// --- apply_single_migration round-trip ---
+// --- load → prepare_profile_migration → save_without_companion round-trip ---
+
+/// The app writer's per-item migration sequence: load the effective profile, prepare the
+/// migration in memory, and persist only `Applied` results without touching the MangoHud
+/// companion.
+fn migrate_on_disk(store: &ProfileStore, request: &ApplyMigrationRequest) -> MigrationApplyResult {
+    let mut profile = store.load(&request.profile_name).expect("load profile");
+    let result = prepare_profile_migration(&mut profile, request);
+    if result.outcome == MigrationOutcome::Applied {
+        store
+            .save_without_companion(&request.profile_name, &profile)
+            .expect("save migrated profile");
+    }
+    result
+}
 
 #[test]
 fn round_trip_migration_updates_steam_proton_path() {
@@ -254,7 +268,7 @@ fn round_trip_migration_updates_steam_proton_path() {
         field: ProtonPathField::SteamProtonPath,
         new_path: new_path_str.clone(),
     };
-    let result = apply_single_migration(&store, &request);
+    let result = migrate_on_disk(&store, &request);
 
     assert_eq!(
         result.outcome,
@@ -311,7 +325,7 @@ fn migration_already_valid_when_old_path_exists() {
         field: ProtonPathField::SteamProtonPath,
         new_path: new_proton_path.to_string_lossy().into_owned(),
     };
-    let result = apply_single_migration(&store, &request);
+    let result = migrate_on_disk(&store, &request);
 
     assert_eq!(result.outcome, MigrationOutcome::AlreadyValid);
 }
@@ -331,8 +345,118 @@ fn migration_fails_when_replacement_does_not_exist() {
         field: ProtonPathField::SteamProtonPath,
         new_path: "/nonexistent/proton".to_string(),
     };
-    let result = apply_single_migration(&store, &request);
+    let result = migrate_on_disk(&store, &request);
 
     assert_eq!(result.outcome, MigrationOutcome::Failed);
     assert!(result.error.is_some());
+}
+
+// --- prepare_profile_migration ---
+
+fn proton_file(root: &std::path::Path, dir: &str) -> String {
+    let proton_dir = root.join(dir);
+    fs::create_dir_all(&proton_dir).expect("mkdir proton dir");
+    let proton_path = proton_dir.join("proton");
+    fs::write(&proton_path, b"#!/bin/sh\n").expect("write proton file");
+    proton_path.to_string_lossy().into_owned()
+}
+
+#[test]
+fn prepare_mutates_only_the_requested_field() {
+    let dir = tempdir().expect("tempdir");
+    let new_path = proton_file(dir.path(), "GE-Proton9-7");
+    let mut profile = GameProfile::default();
+    profile.steam.proton_path = "/stale/steam/proton".to_string();
+    profile.runtime.proton_path = "/stale/runtime/proton".to_string();
+
+    let result = prepare_profile_migration(
+        &mut profile,
+        &ApplyMigrationRequest {
+            profile_name: "game".to_string(),
+            field: ProtonPathField::RuntimeProtonPath,
+            new_path: new_path.clone(),
+        },
+    );
+
+    assert_eq!(result.outcome, MigrationOutcome::Applied);
+    assert_eq!(result.old_path, "/stale/runtime/proton");
+    assert_eq!(profile.runtime.proton_path, new_path);
+    assert_eq!(profile.steam.proton_path, "/stale/steam/proton");
+}
+
+#[test]
+fn prepare_leaves_profile_untouched_unless_applied() {
+    let dir = tempdir().expect("tempdir");
+    let valid_old = proton_file(dir.path(), "GE-Proton9-4");
+    let new_path = proton_file(dir.path(), "GE-Proton9-7");
+
+    let mut valid = GameProfile::default();
+    valid.steam.proton_path = valid_old.clone();
+    let already_valid = prepare_profile_migration(
+        &mut valid,
+        &ApplyMigrationRequest {
+            profile_name: "game".to_string(),
+            field: ProtonPathField::SteamProtonPath,
+            new_path,
+        },
+    );
+    assert_eq!(already_valid.outcome, MigrationOutcome::AlreadyValid);
+    assert_eq!(valid.steam.proton_path, valid_old);
+
+    let mut stale = GameProfile::default();
+    stale.steam.proton_path = "/stale/proton".to_string();
+    let failed = prepare_profile_migration(
+        &mut stale,
+        &ApplyMigrationRequest {
+            profile_name: "game".to_string(),
+            field: ProtonPathField::SteamProtonPath,
+            new_path: dir.path().to_string_lossy().into_owned(),
+        },
+    );
+    assert_eq!(failed.outcome, MigrationOutcome::Failed);
+    assert!(failed.error.is_some());
+    assert_eq!(stale.steam.proton_path, "/stale/proton");
+}
+
+#[test]
+fn migration_save_does_not_rewrite_mangohud_companion() {
+    let dir = tempdir().expect("tempdir");
+    let store = ProfileStore::with_base_path(dir.path().join("profiles"));
+    let mut profile = GameProfile::default();
+    profile.launch.method = "proton_run".to_string();
+    profile.runtime.proton_path = "/stale/GE-Proton9-4/proton".to_string();
+    store.save("mango-game", &profile).expect("initial save");
+
+    // A companion without MangoHud enabled would be removed by `ProfileStore::save`.
+    let companion = crate::profile::mangohud::mangohud_conf_path(&store.base_path, "mango-game");
+    fs::write(&companion, b"user-edited\n").expect("write companion");
+    let new_path = proton_file(dir.path(), "GE-Proton9-7");
+
+    let result = migrate_on_disk(
+        &store,
+        &ApplyMigrationRequest {
+            profile_name: "mango-game".to_string(),
+            field: ProtonPathField::RuntimeProtonPath,
+            new_path: new_path.clone(),
+        },
+    );
+
+    assert_eq!(
+        result.outcome,
+        MigrationOutcome::Applied,
+        "{:?}",
+        result.error
+    );
+    assert_eq!(
+        store
+            .load("mango-game")
+            .expect("reload")
+            .runtime
+            .proton_path,
+        new_path
+    );
+    assert_eq!(
+        fs::read(&companion).expect("companion kept"),
+        b"user-edited\n"
+    );
 }

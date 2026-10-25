@@ -113,7 +113,6 @@ vi.mock('@/hooks/profile/useProfileActions', () => ({
     handleExportCommunityProfile: vi.fn(),
     handleSave: vi.fn(),
     handleRefreshStatus: vi.fn(),
-    handleAfterRollback: vi.fn(),
     showHistoryPanel: false,
     setShowHistoryPanel: vi.fn(),
     showWizard: false,

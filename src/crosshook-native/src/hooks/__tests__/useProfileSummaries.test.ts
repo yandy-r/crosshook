@@ -1,9 +1,11 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { callCommand } from '@/lib/ipc';
 import type { ProfileSummary } from '@/types/library';
+import type { ProfilesChangedPayload } from '@/types/profile-events';
 import { useProfileSummaries } from '../useProfileSummaries';
 
-type EventHandler = (event: { event: string; id: number; payload: string }) => void;
+type EventHandler = (event: { event: string; id: number; payload: ProfilesChangedPayload }) => void;
 
 const mockUnlisten = vi.fn();
 let capturedHandlers: Map<string, EventHandler[]>;
@@ -48,10 +50,12 @@ vi.mock('@/lib/ipc', () => ({
   }),
 }));
 
-function emitProfilesChanged(): void {
+function emitProfilesChanged(
+  payload: ProfilesChangedPayload = { reason: { kind: 'saved' }, names: ['New Profile'] }
+): void {
   const handlers = capturedHandlers.get('profiles-changed') ?? [];
   for (const handler of handlers) {
-    handler({ event: 'profiles-changed', id: 0, payload: '' });
+    handler({ event: 'profiles-changed', id: 0, payload });
   }
 }
 
@@ -104,6 +108,29 @@ describe('useProfileSummaries', () => {
     await waitFor(() => {
       expect(result.current.summaries).toEqual(updatedSummaries);
     });
+  });
+
+  it('favorite_toggled does not refetch summaries', async () => {
+    const { result } = renderHook(() => useProfileSummaries([]));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    // `profile_list_summaries` is the hook's only command.
+    const before = vi.mocked(callCommand).mock.calls.length;
+
+    vi.useFakeTimers();
+    await act(async () => {
+      emitProfilesChanged({ reason: { kind: 'favorite_toggled' }, names: ['Synthetic Quest'] });
+      await vi.runAllTimersAsync();
+    });
+    vi.useRealTimers();
+
+    expect(callCommand).toHaveBeenCalledTimes(before);
+    expect(result.current.summaries).toEqual(initialSummaries);
   });
 
   it('calls unsubscribe on unmount', async () => {

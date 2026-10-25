@@ -19,8 +19,10 @@ use crosshook_core::settings::{AppSettingsData, RecentFilesStore, SettingsStore}
 
 use super::options::StoreRoots;
 use super::{BootstrapError, StoreKind};
+use crate::events::EventBus;
 use crate::services::{
-    BackgroundGrantHolder, DiagnosticsService, HealthService, RecentFilesService, SettingsService,
+    BackgroundGrantHolder, DiagnosticsService, HealthService, ProfileWriter, RecentFilesService,
+    SettingsService,
 };
 
 /// The persistent stores the application owns. Clones are cheap; clones of
@@ -50,13 +52,16 @@ pub struct Services {
     pub diagnostics: DiagnosticsService,
     /// Profile health summaries and cached snapshots.
     pub health: HealthService,
+    /// Profile mutation, revision and rollback pipeline.
+    pub profiles: ProfileWriter,
     /// Background-protection portal grant holder.
     pub background: Arc<BackgroundGrantHolder>,
 }
 
 impl Services {
-    /// Builds the service bundle over `stores`.
-    pub fn new(stores: &Stores) -> Self {
+    /// Builds the service bundle over `stores`; `events` is the app bus that
+    /// services publish change notifications on.
+    pub fn new(stores: &Stores, events: EventBus) -> Self {
         Self {
             settings: SettingsService::new(
                 stores.settings.clone(),
@@ -72,6 +77,12 @@ impl Services {
                 stores.metadata.clone(),
             ),
             health: HealthService::new(stores.profiles.clone(), stores.metadata.clone()),
+            profiles: ProfileWriter::new(
+                stores.profiles.clone(),
+                stores.metadata.clone(),
+                stores.settings.clone(),
+                events,
+            ),
             background: Arc::new(BackgroundGrantHolder::new()),
         }
     }

@@ -1,3 +1,2 @@
-mod helpers;
-mod lifecycle;
+mod contract;
 mod optimizations;

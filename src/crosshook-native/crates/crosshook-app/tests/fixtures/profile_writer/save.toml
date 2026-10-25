@@ -1,0 +1,90 @@
+schema_hint = "future-top-level-key"
+
+[game]
+name = "Alpha Updated"
+executable_path = ""
+release_channel = "beta"
+
+[trainer]
+path = ""
+type = "fling"
+loading_mode = "copy_to_prefix"
+
+[injection]
+method = "disabled"
+stage = "trainer_launch"
+timeout_ms = 0
+fallback = "warn_and_continue"
+dll_paths = ["/dlls/alpha.dll"]
+inject_on_launch = [true]
+
+[[injection.loaded_hooks]]
+id = "legacy-dll-1"
+name = "alpha"
+path = "/dlls/alpha.dll"
+enabled = true
+
+[steam]
+enabled = false
+app_id = ""
+compatdata_path = ""
+proton_path = ""
+
+[steam.launcher]
+icon_path = "/icons/alpha.png"
+display_name = "Alpha"
+
+[runtime]
+prefix_path = ""
+proton_path = ""
+working_directory = "/games/alpha"
+steam_app_id = "1245620"
+
+[launch]
+method = "proton_run"
+active_preset = "performance"
+
+[launch.optimizations]
+enabled_option_ids = [
+    "use_gamemode",
+    "disable_steam_input",
+]
+
+[launch.presets.performance]
+enabled_option_ids = [
+    "use_gamemode",
+    "disable_steam_input",
+]
+future_preset_key = 7
+
+[launch.custom_env_vars]
+DXVK_ASYNC = "1"
+PROTON_LOG = "1"
+
+[local_override]
+future_local_key = true
+
+[local_override.game]
+executable_path = "/games/alpha/alpha.exe"
+custom_cover_art_path = ""
+custom_portrait_art_path = ""
+custom_background_art_path = ""
+
+[local_override.trainer]
+path = "/trainers/alpha-trainer.exe"
+
+[local_override.steam]
+compatdata_path = ""
+proton_path = ""
+
+[local_override.runtime]
+prefix_path = "/prefixes/alpha"
+proton_path = "/proton/GE-Proton9-20/proton"
+
+[[pre_launch_hooks]]
+id = "hook-1"
+name = "Mount share"
+path = "/scripts/mount.sh"
+stage = "pre-launch"
+enabled = true
+future_hook_key = "x"

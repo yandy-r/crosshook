@@ -21,5 +21,7 @@ pub use app::App;
 pub use bootstrap::BootstrappedApp;
 pub use error::{AppError, AppErrorKind};
 pub use events::{
-    AppEvent, EventBus, EventReceiver, StartupJobKind, DEFAULT_EVENT_CAPACITY, MAX_EVENT_CAPACITY,
+    AppEvent, EventBus, EventReceiver, ProfileChangeReason, StartupJobKind, DEFAULT_EVENT_CAPACITY,
+    MAX_EVENT_CAPACITY,
 };
+pub use services::ProfileWriter;
