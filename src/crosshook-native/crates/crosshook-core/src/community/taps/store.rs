@@ -1,8 +1,6 @@
 use std::fs;
 use std::path::PathBuf;
 
-use directories::BaseDirs;
-
 use super::git::{
     checkout_pinned_commit, clone_tap, fetch_and_checkout_pinned, fetch_and_reset, rev_parse_head,
 };
@@ -15,6 +13,7 @@ use super::validation::normalize_subscription;
 
 const DEFAULT_COMMUNITY_TAPS_DIR: &str = "crosshook/community/taps";
 
+#[derive(Debug, Clone)]
 pub struct CommunityTapStore {
     base_path: PathBuf,
 }
@@ -27,7 +26,7 @@ impl Default for CommunityTapStore {
 
 impl CommunityTapStore {
     pub fn try_new() -> Result<Self, String> {
-        let base_path = BaseDirs::new()
+        let base_path = crate::platform::base_dirs()
             .ok_or("home directory not found — CrossHook requires a user home directory")?
             .data_local_dir()
             .join(DEFAULT_COMMUNITY_TAPS_DIR);

@@ -20,10 +20,10 @@ pub(crate) struct SystemEnv;
 
 impl EnvSink for SystemEnv {
     fn set(&mut self, key: &str, value: &OsString) {
-        // SAFETY: called once from `run()` before any threads spawn; the
-        // Tauri Builder is not yet constructed, so there are no concurrent
-        // readers of the environment. Unit tests exercise this through a
-        // mock `EnvSink` and never touch the real env via this code path.
+        super::trace::env_mutation(key);
+        // SAFETY: called by `crosshook_app::bootstrap::pre_runtime` after its
+        // single-thread check, before any runtime or UI builder. Unit tests
+        // use a mock EnvSink and never mutate the real process environment.
         unsafe { std::env::set_var(key, value) };
     }
 

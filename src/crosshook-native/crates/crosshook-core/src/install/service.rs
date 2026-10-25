@@ -1,7 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use directories::BaseDirs;
 use tokio::process::Command;
 use tokio::runtime::Handle;
 
@@ -170,7 +169,8 @@ pub(crate) fn resolve_prefix_root_with(
     if let Some(path) = host_override {
         return Ok(path);
     }
-    let base_dirs = BaseDirs::new().ok_or(InstallGameError::HomeDirectoryUnavailable)?;
+    let base_dirs =
+        crate::platform::base_dirs().ok_or(InstallGameError::HomeDirectoryUnavailable)?;
     Ok(resolve_default_prefix_path_from_data_local_dir(
         base_dirs.data_local_dir(),
     ))

@@ -1,8 +1,5 @@
 import type { Capability, HostToolCheckResult, HostToolDetails } from '../../../types/onboarding';
 
-export const ONBOARDING_EMIT_INITIAL_MS = 500;
-export const ONBOARDING_EMIT_RETRY_MS = 200;
-export const ONBOARDING_EMIT_MAX_ATTEMPTS = 25;
 export const MOCK_DETECTED_DISTRO_FAMILY = 'Arch';
 
 export interface CachedHostReadinessSnapshot {

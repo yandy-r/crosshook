@@ -36,4 +36,5 @@ tauri-build = { version = "2", features = [] }
 workspace = true
 
 [dev-dependencies]
+crosshook-app = { path = "../crates/crosshook-app", features = ["test-seams"] }
 tempfile = "3"

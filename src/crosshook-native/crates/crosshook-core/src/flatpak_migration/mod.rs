@@ -1,7 +1,7 @@
 //! Flatpak first-run migration: import legacy host/AppImage-era data into the sandbox on first launch.
 //!
-//! Decision gate lives in `src-tauri/src/lib.rs`: when running under Flatpak and
-//! `CROSSHOOK_FLATPAK_HOST_XDG` is unset, `run()` is invoked before any store's
+//! Decision gate lives in `crosshook_app::bootstrap::pre_runtime`: when running
+//! under Flatpak with `CROSSHOOK_FLATPAK_HOST_XDG` unset, `run()` runs before stores'
 //! `BaseDirs::new()` call to populate the sandbox tree from the legacy host data tree (one-way, idempotent).
 
 mod copier;
@@ -54,7 +54,7 @@ pub fn run() -> Result<MigrationOutcome, FlatpakMigrationError> {
         .ok_or(FlatpakMigrationError::HomeDirectoryUnavailable)?;
 
     let base_dirs =
-        directories::BaseDirs::new().ok_or(FlatpakMigrationError::HomeDirectoryUnavailable)?;
+        crate::platform::base_dirs().ok_or(FlatpakMigrationError::HomeDirectoryUnavailable)?;
 
     let sandbox_config_root = base_dirs.config_dir().join(CONFIG_ROOT_SEGMENT);
     let sandbox_data_root = base_dirs.data_local_dir().to_path_buf();

@@ -85,6 +85,54 @@ startup and all stores resolve to host paths. This opt-in is:
 - Not documented on Flathub.
 - Intended for advanced users who explicitly prefer a single shared data tree.
 
+### Startup entry point
+
+The Flatpak gate, the first-run migration, and the legacy Tauri app-id migration run
+in `crosshook_app::bootstrap::pre_runtime`, before any spawned thread, any Tokio
+runtime, and GTK. Every call site reaches the base directories through
+`crosshook_core::platform::base_dirs()`, the single choke point. The ordering
+guarantee is precise:
+
+- The gate, including its XDG override, completes before the first `base_dirs()` lookup.
+- The two migrations are the first lookups (`flatpak_migration::run` and
+  `migrate_legacy_tauri_app_id_xdg_directories` call `base_dirs()` themselves), and the
+  legacy app-id migration follows the first-run migration.
+- Every Phase B lookup (stores, logging, catalogs) follows `pre:done`.
+
+`pre_runtime` returns a `PreRuntime` token that `App::bootstrap` consumes, so Phase B
+cannot run without it; `App::bootstrap` returns a `BootstrappedApp` (a cloneable
+wrapper that derefs to `App` and carries the stores, services, startup handle, and
+step log).
+
+Fixed step order (always recorded in the step log; inapplicable steps are `Skipped`):
+
+1. Flatpak gate — not Flatpak: native; `CROSSHOOK_FLATPAK_HOST_XDG=1`: shared mode and
+   `override_xdg_for_flatpak_host_access()`; otherwise isolated.
+2. First-run Flatpak migration (isolated mode only).
+3. Legacy Tauri app-id migration.
+4. UI `EnvPolicy` hook (renderer environment; the classic shell sets its WebKit vars here).
+5. `pre:done`.
+
+Because the gate rewrites process-global environment variables, `pre_runtime` checks
+the thread count (`Threads:` from `/proc/self/status`) before mutating anything. A
+multi-threaded process at entry is a contract violation, not a fatal error: production
+warns (via `tracing` and `eprintln!`), records the prologue and the environment step
+as `Degraded("multi-threaded at entry")` in the step log, and continues, because
+aborting startup would leave the user with no window. An unreadable `/proc` proceeds
+with a warning. The ordering is enforced by the unit tests in
+`crates/crosshook-app/src/bootstrap/` and by the integration test
+`crates/crosshook-app/tests/bootstrap_ordering.rs`. That test runs as a
+`harness = false` binary so libtest's worker threads do not exist; it asserts
+`Threads: 1` for every recorded environment mutation (rule R1), records the
+`base_dirs()` lookups with their thread counts, and asserts the order above (plus a
+deliberately misordered scenario that must be rejected).
+
+The frontend never races this startup: the migration outcome, auto-load profile, and
+onboarding state are read once per page load through the `get_startup_report` command,
+not sleep-delayed events. Job consumers (health, offline readiness) subscribe to the
+terminal `startup-job-finished` event first, then read a fresh report; the report is
+never memoized for jobs, because a job's state changes after the first read.
+
 ---
 
 ## Consequences
@@ -128,6 +176,8 @@ startup and all stores resolve to host paths. This opt-in is:
 
 - `docs/prps/plans/completed/flatpak-isolation.plan.md` — implementation plan (tasks 1.1–5.3)
 - `docs/prps/prds/flatpak-distribution.prd.md` §10.3 — per-app isolation follow-up
+- `docs/plans/bootstrap/plan.md` — startup bootstrap (`pre_runtime` → `App::bootstrap`) plan
+- `crates/crosshook-app/tests/bootstrap_ordering.rs` — ordering integration test
 - [ADR-0001 — `platform.rs` host-command gateway](./adr-0001-platform-host-gateway.md)
 - [ADR-0002 — Flatpak portal contracts](./adr-0002-flatpak-portal-contracts.md)
 - Issue [#276] — Flatpak distribution tracker

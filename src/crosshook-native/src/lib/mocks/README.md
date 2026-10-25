@@ -19,12 +19,13 @@ lib/mocks/
 ├── eventBus.ts       — re-exports emitMockEvent from lib/events.ts
 ├── handlers/
 │   ├── settings.ts   — settings_* and recent_files_* commands
+│   ├── startup.ts    — get_startup_report (auto-load, onboarding, job states)
 │   ├── profile.ts    — profile_* lifecycle + mutations + config history
 │   ├── launch.ts     — launch_*, preview/validate, gamescope session probe
 │   ├── install.ts    — install_game and install-* event sequence
 │   ├── update.ts     — update_game, cancel_update, update-complete event
 │   ├── health.ts     — batch_validate_profiles, version status, snapshot cache
-│   ├── onboarding.ts — readiness check, trainer guidance, onboarding-check event
+│   ├── onboarding.ts — readiness check, trainer guidance
 │   ├── proton.ts     — Proton install discovery and migrations
 │   ├── protonup.ts   — ProtonUp catalog + install (no real download)
 │   ├── protondb.ts   — ProtonDB lookup + suggestions + dismissal tracking
@@ -139,22 +140,39 @@ The chip label reflects the active fixture, e.g. `DEV · empty`.
 
 ## Orthogonal Debug Toggles (BR-12)
 
-Four orthogonal toggles can be combined freely with each other AND with the
+Six orthogonal toggles can be combined freely with each other AND with the
 fixture switcher above. Like `?fixture=`, they are parsed once at module init
 (in `lib/toggles.ts`) and a reload is required to change them.
 
-| Toggle               | Effect                                                                               |
-| -------------------- | ------------------------------------------------------------------------------------ |
-| `?delay=<ms>`        | Adds `setTimeout(<ms>)` artificial latency before EVERY mock handler runs.           |
-| `?errors=true`       | Rejects mutating commands with a synthetic `[dev-mock] forced error`. Reads succeed. |
-| `?onboarding=show`   | Synthesizes an `onboarding-check` event 500ms after mount so the wizard surfaces.    |
-| `?metadata=newer`    | `metadata_store_status` returns `newer_schema` so the degraded-DB banner surfaces.   |
-| `?metadata=disabled` | `metadata_store_status` returns `disabled` (with a mock reason) for the same banner. |
+| Toggle                    | Effect                                                                                                                |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `?delay=<ms>`             | Adds `setTimeout(<ms>)` artificial latency before EVERY mock handler runs.                                            |
+| `?errors=true`            | Rejects mutating commands with a synthetic `[dev-mock] forced error`. Reads succeed.                                  |
+| `?onboarding=show`        | Forces `report.onboarding.show` (and `has_profiles: false`) in the mock `get_startup_report` so the wizard surfaces.  |
+| `?autoload=<profile>`     | The mock startup report auto-loads `<profile>` when it exists (URL-encode spaces).                                    |
+| `?metadata=newer`         | `metadata_store_status` and the startup report return `newer_schema` for the degraded-DB banner.                      |
+| `?metadata=disabled`      | `metadata_store_status` and the startup report return `disabled` (with a mock reason).                                |
+| `?steamDeckCaveats=show`  | `check_readiness` populates `steam_deck_caveats` (when not yet dismissed).                                            |
 
 `?delay` and `?errors` are implemented as a `wrapHandler()` middleware in
 `lib/mocks/wrapHandler.ts` that wraps every registered handler exactly once
-during `registerMocks()`. `?onboarding=show` is a one-shot module-init side
-effect inside `handlers/onboarding.ts`.
+during `registerMocks()`. `?onboarding=show` and `?autoload=` only affect the
+payload of the `get_startup_report` mock handler (`handlers/startup.ts`), and
+`?metadata=` feeds both that handler and `metadata_store_status`;
+the shell pulls the report on mount, so no event
+synthesis is involved. The mock report models a backend whose startup is
+already finished: every job is `complete` at t=0 and the mock never emits
+`startup-job-finished` (or the legacy job events), so consumers always take
+their "already complete" path in browser dev mode. Failed/skipped/late-job
+paths are covered by Vitest, not by the mocks.
+
+**`?fixture=empty` opens onboarding by itself.** The mock startup report mirrors
+the backend rule `show && !has_profiles`, where `show = !onboarding_completed`.
+With default mock settings (`onboarding_completed: false`) the empty fixture
+therefore opens the onboarding wizard automatically; before the startup report
+it needed `?onboarding=show`. Complete onboarding (or seed
+`onboarding_completed: true` in the mock settings) to see the empty library
+without the wizard.
 
 **Read detection**: `?errors=true` exempts read commands so the app shell can
 render. `wrapHandler.ts` uses an explicit allow-list (`SHELL_CRITICAL_READS`
@@ -176,7 +194,7 @@ http://localhost:5173/?errors=true&delay=200
         Mutation errors + 200ms latency. Chip: DEV · populated · errors · 200ms
 
 http://localhost:5173/?fixture=error&onboarding=show
-        Error fixture + synthesized onboarding event. Chip: DEV · error · onboarding
+        Error fixture + onboarding via the startup report. Chip: DEV · error · onboarding
 
 http://localhost:5173/?fixture=empty&errors=true&delay=400&onboarding=show
         All four. Chip: DEV · empty · errors · 400ms · onboarding

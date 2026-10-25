@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
-
-export type MetadataStoreStatus =
-  | { state: 'ok' }
-  | { state: 'newer_schema'; found: number; supported: number }
-  | { state: 'disabled'; reason: string };
+import type { MetadataStoreStatus } from '@/types/metadata';
 
 // sessionStorage: resets on window restart so the banner re-surfaces until dismissed again.
 // Keyed by state (plus the found schema version for newer_schema) so a different degraded

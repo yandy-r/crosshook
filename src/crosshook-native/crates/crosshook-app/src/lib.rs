@@ -8,6 +8,7 @@
 #![deny(missing_docs)]
 
 mod app;
+pub mod bootstrap;
 mod error;
 mod events;
 pub mod jobs;
@@ -17,5 +18,8 @@ mod runtime;
 pub mod services;
 
 pub use app::App;
+pub use bootstrap::BootstrappedApp;
 pub use error::{AppError, AppErrorKind};
-pub use events::{AppEvent, EventBus, EventReceiver, DEFAULT_EVENT_CAPACITY, MAX_EVENT_CAPACITY};
+pub use events::{
+    AppEvent, EventBus, EventReceiver, StartupJobKind, DEFAULT_EVENT_CAPACITY, MAX_EVENT_CAPACITY,
+};

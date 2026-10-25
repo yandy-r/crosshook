@@ -1,7 +1,5 @@
 use std::path::Path;
 
-use directories::BaseDirs;
-
 use super::types::{EnvVarSource, PreviewEnvVar};
 use crate::launch::optimizations::LaunchDirectives;
 use crate::launch::request::LaunchRequest;
@@ -243,7 +241,7 @@ pub(super) fn inject_mangohud_config_preview_env(
             }
         };
 
-        let base_path = match BaseDirs::new() {
+        let base_path = match crate::platform::base_dirs() {
             Some(dirs) => dirs.config_dir().join("crosshook").join("profiles"),
             None => {
                 ensure_mangohud_read_cfg(env, gamescope_active, wrappers_had_mangohud);

@@ -24,6 +24,7 @@ pub mod protonup;
 pub mod run_executable;
 pub mod settings;
 pub mod shared;
+pub mod startup;
 pub mod steam;
 pub mod storage;
 pub mod umu_database;

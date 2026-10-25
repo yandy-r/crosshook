@@ -1,4 +1,5 @@
 use crosshook_app::services::{BackgroundGrantHolder, BackgroundProtectionState};
+use std::sync::Arc;
 use tauri::State;
 
 /// Tauri command: report the current background-protection state so the
@@ -11,7 +12,7 @@ use tauri::State;
 /// marks the UI integration as deferred).
 #[tauri::command]
 pub fn get_background_protection_state(
-    holder: State<'_, BackgroundGrantHolder>,
+    holder: State<'_, Arc<BackgroundGrantHolder>>,
 ) -> BackgroundProtectionState {
     holder.protection_state()
 }
@@ -23,6 +24,6 @@ mod tests {
     #[test]
     fn command_names_match_expected_ipc_contract() {
         let _ = get_background_protection_state
-            as fn(State<'_, BackgroundGrantHolder>) -> BackgroundProtectionState;
+            as fn(State<'_, Arc<BackgroundGrantHolder>>) -> BackgroundProtectionState;
     }
 }

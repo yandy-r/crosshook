@@ -30,7 +30,7 @@ import {
   isCommandPaletteCommandEnabled,
   ROUTE_COMMANDS,
 } from '@/lib/commands';
-import { subscribeEvent } from '@/lib/events';
+import { claimStartupAction, fetchStartupReport } from '@/lib/startupReport';
 import { isAppRoute } from '@/lib/validAppRoutes';
 import type { LibraryFilterKey } from '@/types/library';
 import type {
@@ -39,7 +39,6 @@ import type {
   LibraryFilterIntent,
   OpenGameDetailIntent,
 } from '@/types/navigation';
-import type { OnboardingCheckPayload } from '@/types/onboarding';
 import { ContextRail } from './ContextRail';
 import { contextRailLayoutForShell } from './contextRailVariants';
 import { inspectorWidthForBreakpoint } from './inspectorVariants';
@@ -291,11 +290,19 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
   }, [collectionDescriptionToast, updateDescription]);
 
   useEffect(() => {
-    const p = subscribeEvent<OnboardingCheckPayload>('onboarding-check', (event) => {
-      if (event.payload.show && !event.payload.has_profiles) setShowOnboarding(true);
-    });
+    let active = true;
+    void fetchStartupReport()
+      .then((report) => {
+        if (!active) return;
+        if (report.onboarding.show && !report.onboarding.has_profiles && claimStartupAction('onboarding_prompt')) {
+          setShowOnboarding(true);
+        }
+      })
+      .catch(() => {
+        // Startup report unavailable — onboarding stays closed.
+      });
     return () => {
-      p.then((f) => f());
+      active = false;
     };
   }, []);
 

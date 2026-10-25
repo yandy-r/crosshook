@@ -1,8 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use directories::BaseDirs;
-
 use crate::run_executable::RunExecutableError;
 
 /// Root namespace under `~/.local/share/crosshook/prefixes/` for ad-hoc runs.
@@ -35,7 +33,7 @@ pub(crate) fn is_throwaway_prefix_path_with(
     let expected_parent = if let Some(root) = host_override {
         root.join("_run-adhoc")
     } else {
-        let Some(base_dirs) = BaseDirs::new() else {
+        let Some(base_dirs) = crate::platform::base_dirs() else {
             return false;
         };
         base_dirs.data_local_dir().join(ADHOC_PREFIX_ROOT_SEGMENT)
@@ -92,7 +90,8 @@ pub(crate) fn resolve_default_adhoc_prefix_path_with(
             .unwrap_or("");
         return Ok(root.join("_run-adhoc").join(slugify(stem)));
     }
-    let base_dirs = BaseDirs::new().ok_or(RunExecutableError::HomeDirectoryUnavailable)?;
+    let base_dirs =
+        crate::platform::base_dirs().ok_or(RunExecutableError::HomeDirectoryUnavailable)?;
     Ok(resolve_default_adhoc_prefix_path_from_data_local_dir(
         base_dirs.data_local_dir(),
         executable_path,

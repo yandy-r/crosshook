@@ -1,4 +1,3 @@
-use directories::BaseDirs;
 use rusqlite::{Connection, OpenFlags};
 use std::path::{Path, PathBuf};
 
@@ -17,7 +16,7 @@ pub struct PgaGame {
 
 /// Returns the first existing Lutris library root, in precedence order.
 pub fn discover_lutris_root() -> Option<PathBuf> {
-    let base = BaseDirs::new()?;
+    let base = crate::platform::base_dirs()?;
     let home = base.home_dir();
 
     [

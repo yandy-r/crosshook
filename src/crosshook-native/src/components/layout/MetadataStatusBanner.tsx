@@ -1,4 +1,5 @@
-import { type MetadataStoreStatus, useMetadataStoreStatus } from '@/hooks/useMetadataStoreStatus';
+import { useMetadataStoreStatus } from '@/hooks/useMetadataStoreStatus';
+import type { MetadataStoreStatus } from '@/types/metadata';
 
 type DegradedStatus = Exclude<MetadataStoreStatus, { state: 'ok' }>;
 

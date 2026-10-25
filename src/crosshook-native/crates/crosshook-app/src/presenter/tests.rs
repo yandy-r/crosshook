@@ -228,3 +228,25 @@ fn generic_scrub_handles_var_home() {
     // `/var` not at a boundary is a different word.
     assert_eq!(scrub_generic_home("x/var/home/u"), "x/var/home/u");
 }
+
+#[test]
+fn tilde_display_preserves_legacy_component_matching() {
+    for (path, home, expected) in [
+        ("/home/user", Some("/home/user"), "~/"),
+        (
+            "/home/user/games/trainer.exe",
+            Some("/home/user"),
+            "~/games/trainer.exe",
+        ),
+        ("/home/user2/file", Some("/home/user"), "/home/user2/file"),
+        (
+            "/var/home/user/file",
+            Some("/home/user"),
+            "/var/home/user/file",
+        ),
+        ("relative/file", None, "relative/file"),
+        ("/tmp/file", Some("/home/user"), "/tmp/file"),
+    ] {
+        assert_eq!(super::display_path_tilde_with_home(path, home), expected);
+    }
+}

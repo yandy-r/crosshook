@@ -211,6 +211,15 @@ fn shape(command: &Command) -> CommandShape {
 
 /// A Steam profile's Flatpak trainer must execute exactly like an equivalent
 /// `proton_run` profile's trainer: same env, working directory and gamescope.
+///
+/// Hermetic by construction: the Steam client root passed to the request
+/// builder is a temp dir containing `steamapps/` and `config/`, so
+/// `resolve_steam_client_install_path` accepts the configured path and never
+/// falls back to reading `HOME` or `STEAM_COMPAT_CLIENT_INSTALL_PATH` from
+/// the live environment (which other tests mutate concurrently). The gamescope
+/// config sets `allow_nested: true` so `should_skip_gamescope` cannot fire
+/// through a live `GAMESCOPE_WAYLAND_DISPLAY`, and the `umu_preference` is
+/// pinned to `Proton` so `should_use_umu` never probes `PATH`.
 #[test]
 fn steam_flatpak_trainer_matches_equivalent_proton_run_trainer() {
     let temp_dir = tempfile::tempdir().expect("temp dir");
@@ -218,8 +227,14 @@ fn steam_flatpak_trainer_matches_equivalent_proton_run_trainer() {
     let proton = temp_dir.path().join("proton");
     let working_directory = temp_dir.path().join("workdir");
     let log_path = temp_dir.path().join("trainer.log");
+    let steam_client_root = temp_dir.path().join("steam-root");
     std::fs::create_dir_all(compatdata.join("pfx/drive_c")).expect("compatdata");
     std::fs::create_dir_all(&working_directory).expect("workdir");
+    // A valid Steam client install root: `steamapps` + `config` directories.
+    // This is what keeps `resolve_steam_client_install_path` from falling
+    // back to the live `HOME`/`STEAM_COMPAT_CLIENT_INSTALL_PATH`.
+    std::fs::create_dir_all(steam_client_root.join("steamapps")).expect("steamapps");
+    std::fs::create_dir_all(steam_client_root.join("config")).expect("config");
     write_executable_file(&proton);
 
     let compatdata = compatdata.to_string_lossy().into_owned();
@@ -253,10 +268,20 @@ fn steam_flatpak_trainer_matches_equivalent_proton_run_trainer() {
     proton_profile.runtime.proton_path = proton;
     proton_profile.runtime.umu_preference = Some(UmuPreference::Proton);
 
-    let mut steam_request = build(&steam_profile);
-    steam_request.launch_trainer_only = true;
-    let mut proton_request = build(&proton_profile);
-    proton_request.launch_trainer_only = true;
+    let build_request = |profile: &GameProfile| {
+        let mut request = LaunchRequest::from_profile(
+            profile,
+            resolve_launch_method(profile),
+            steam_client_root.to_string_lossy().as_ref(),
+            "test-game",
+            UmuPreference::Auto,
+        )
+        .expect("request");
+        request.launch_trainer_only = true;
+        request
+    };
+    let steam_request = build_request(&steam_profile);
+    let proton_request = build_request(&proton_profile);
 
     assert_eq!(
         steam_request.resolved_trainer_gamescope(),

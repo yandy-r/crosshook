@@ -1,5 +1,4 @@
 import { registerLaunch } from './handlers/launch';
-import { registerProfile } from './handlers/profile';
 import { registerSettings } from './handlers/settings';
 
 export type { FixtureState } from '../fixture';
@@ -13,7 +12,7 @@ export type { DebugToggles } from '../toggles';
 export { getActiveToggles, togglesToChipFragments } from '../toggles';
 
 import { resetBrowserEventBus } from '../events';
-
+import { resetStartupReportForTests } from '../startupReportState';
 import { registerCollections, resetCollectionsMockState } from './handlers/collections';
 import { registerCommunity, resetCommunityMockState } from './handlers/community';
 import { registerHealth, resetHealthMockState } from './handlers/health';
@@ -24,10 +23,11 @@ import { registerLibrary } from './handlers/library';
 import { registerLutris } from './handlers/lutris';
 import { registerMods, resetModsMockState } from './handlers/mods';
 import { registerOnboarding, resetOnboardingMockState } from './handlers/onboarding';
-import { resetProfileMockState } from './handlers/profile';
+import { registerProfile, resetProfileMockState } from './handlers/profile';
 import { registerProton } from './handlers/proton';
 import { registerProtonDb, resetProtonDbMockState } from './handlers/protondb';
 import { registerProtonUp, resetProtonUpMockState } from './handlers/protonup';
+import { registerStartup } from './handlers/startup';
 import { registerSystem, resetSystemMockState } from './handlers/system';
 import type { Handler } from './handlers/types';
 import { registerUmuDatabase } from './handlers/umu_database';
@@ -50,6 +50,7 @@ export function registerMocks(): Map<string, Handler> {
   registerUpdate(map);
   registerHealth(map);
   registerOnboarding(map);
+  registerStartup(map);
   registerProton(map);
   registerProtonUp(map);
   registerProtonDb(map);
@@ -71,6 +72,7 @@ export function registerMocks(): Map<string, Handler> {
 
 export function resetMockEnvironment(): void {
   resetBrowserEventBus();
+  resetStartupReportForTests();
   resetStore();
   resetCollectionsMockState();
   resetCommunityMockState();

@@ -5,7 +5,6 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use directories::BaseDirs;
 use tracing_subscriber::fmt::time::UtcTime;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::EnvFilter;
@@ -113,7 +112,8 @@ fn resolve_log_file_path(base_dir: Option<&Path>) -> LoggingResult<PathBuf> {
     let base_directory = match base_dir {
         Some(path) => path.to_path_buf(),
         None => {
-            let base_dirs = BaseDirs::new().ok_or(LoggingError::HomeDirectoryUnavailable)?;
+            let base_dirs =
+                crate::platform::base_dirs().ok_or(LoggingError::HomeDirectoryUnavailable)?;
             base_dirs.data_local_dir().to_path_buf()
         }
     };

@@ -9,6 +9,8 @@ default = []
 experimental-providers = []
 # ts-rs type export prototype (Phase 5). Off by default.
 ts-rs = ["dep:ts-rs"]
+# Process-global startup ordering instrumentation for isolated tests.
+bootstrap-trace = []
 
 [dependencies]
 chrono = "0.4"

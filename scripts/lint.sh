@@ -10,7 +10,7 @@ usage() {
   cat <<'EOF'
 Usage: ./scripts/lint.sh [--fix] [--staged] [--unstaged] [--modified]
                          [--rust] [--ts] [--shell] [--host-gateway]
-                         [--legacy-palette] [--schema-version] [--all]
+                         [--legacy-palette] [--schema-version] [--startup-path] [--all]
 
 Run linters across the full stack.
 
@@ -19,15 +19,15 @@ Run linters across the full stack.
   --unstaged         Limit file-based linting to unstaged + untracked files
   --modified         Shorthand for --staged --unstaged (staged ∪ unstaged ∪ untracked)
                      Scope flags are additive; combining --staged --unstaged equals --modified.
-                     None of these narrow --host-gateway or --legacy-palette: those checks
-                     always scan the full tree, because a violation introduced in an unmodified
-                     file would otherwise escape detection on a focused run.
+                     Guardrail checks always scan the full tree, because a violation
+                     introduced in an unmodified file must not escape a focused run.
   --rust             Rust only (clippy + rustfmt check)
   --ts               TypeScript only (biome + tsc)
   --shell            Shell scripts only (shellcheck)
   --host-gateway     Host-command gateway check only (ADR-0001; always full-tree scan)
   --legacy-palette   Legacy palette check only (Phase 2 token migration; always full-tree scan)
   --schema-version   Schema-version drift check only (SUPPORTED_MAX_VERSION vs docs; always full-tree scan)
+  --startup-path     Startup ordering guardrail only (always full-tree scan)
   --all              All checks (default)
 EOF
 }
@@ -41,6 +41,7 @@ RUN_SHELL=0
 RUN_HOST_GATEWAY=0
 RUN_LEGACY_PALETTE=0
 RUN_SCHEMA_VERSION=0
+RUN_STARTUP_PATH=0
 EXIT_CODE=0
 
 while [[ $# -gt 0 ]]; do
@@ -55,7 +56,8 @@ while [[ $# -gt 0 ]]; do
     --host-gateway) RUN_HOST_GATEWAY=1; shift ;;
     --legacy-palette) RUN_LEGACY_PALETTE=1; shift ;;
     --schema-version) RUN_SCHEMA_VERSION=1; shift ;;
-    --all) RUN_RUST=1; RUN_TS=1; RUN_SHELL=1; RUN_HOST_GATEWAY=1; RUN_LEGACY_PALETTE=1; RUN_SCHEMA_VERSION=1; shift ;;
+    --startup-path) RUN_STARTUP_PATH=1; shift ;;
+    --all) RUN_RUST=1; RUN_TS=1; RUN_SHELL=1; RUN_HOST_GATEWAY=1; RUN_LEGACY_PALETTE=1; RUN_SCHEMA_VERSION=1; RUN_STARTUP_PATH=1; shift ;;
     --help|-h) usage; exit 0 ;;
     *) echo "Unknown arg: $1" >&2; usage >&2; exit 1 ;;
   esac
@@ -73,13 +75,14 @@ fi
 SCOPED=$(( SCOPE_STAGED || SCOPE_UNSTAGED ))
 
 # Default to all if nothing specified
-if (( !RUN_RUST && !RUN_TS && !RUN_SHELL && !RUN_HOST_GATEWAY && !RUN_LEGACY_PALETTE && !RUN_SCHEMA_VERSION )); then
+if (( !RUN_RUST && !RUN_TS && !RUN_SHELL && !RUN_HOST_GATEWAY && !RUN_LEGACY_PALETTE && !RUN_SCHEMA_VERSION && !RUN_STARTUP_PATH )); then
   RUN_RUST=1
   RUN_TS=1
   RUN_SHELL=1
   RUN_HOST_GATEWAY=1
   RUN_LEGACY_PALETTE=1
   RUN_SCHEMA_VERSION=1
+  RUN_STARTUP_PATH=1
 fi
 
 if (( RUN_RUST )); then
@@ -119,6 +122,17 @@ if (( RUN_RUST )); then
     else
       cargo clippy --manifest-path "$NATIVE_DIR/Cargo.toml" --all-targets -- -D warnings || EXIT_CODE=1
     fi
+  fi
+
+  echo "=== Rust: release feature graph (no bootstrap-trace) ==="
+  if release_tree="$(cargo tree --manifest-path "$NATIVE_DIR/Cargo.toml" -e features -p crosshook-native --edges normal)"; then
+    if grep -F -q 'bootstrap-trace' <<<"$release_tree"; then
+      echo "error: bootstrap-trace is enabled in the release (normal-edge) feature graph" >&2
+      EXIT_CODE=1
+    fi
+  else
+    echo "error: cargo tree failed" >&2
+    EXIT_CODE=1
   fi
 fi
 
@@ -216,6 +230,14 @@ if (( RUN_SCHEMA_VERSION )); then
     echo "note: scope flags do not narrow schema-version; running full-tree check."
   fi
   "$ROOT_DIR/scripts/check-schema-version.sh" || EXIT_CODE=1
+fi
+
+if (( RUN_STARTUP_PATH )); then
+  echo "=== Startup-path ==="
+  if (( SCOPED )); then
+    echo "note: scope flags do not narrow startup-path; running full-tree check."
+  fi
+  "$ROOT_DIR/scripts/check-startup-path.sh" || EXIT_CODE=1
 fi
 
 exit "$EXIT_CODE"

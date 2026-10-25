@@ -1,8 +1,6 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use directories::BaseDirs;
-
 use crate::launch::{runtime_helpers::build_gamescope_args, LaunchRequest, ValidationError};
 use crate::profile::GamescopeConfig;
 
@@ -82,7 +80,7 @@ pub(super) fn merge_mangohud_config_env_into_map(
             }
         };
 
-        let base_path = match BaseDirs::new() {
+        let base_path = match crate::platform::base_dirs() {
             Some(dirs) => dirs.config_dir().join("crosshook").join("profiles"),
             None => {
                 tracing::warn!(

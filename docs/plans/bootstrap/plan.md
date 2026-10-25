@@ -1,0 +1,334 @@
+# Startup bootstrap in `crosshook-app` (pre-runtime ordering contract) — plan
+
+Tracking: Linear YAN-781 (M1-03) / GitHub yandy-r/crosshook#530. Target release: `crosshook v0.7.0-alpha.1`, base `main` (trunk-only, RELEASING.md).
+Paths are relative to `src/crosshook-native/` unless absolute-from-repo (`docs/…`, `scripts/…`, `.github/…`).
+
+## Goal
+
+Move the Tauri startup bootstrap out of `src-tauri/src/lib.rs::run()` / `setup()` into `crosshook-app`, behind a typed, testable ordering contract:
+
+- **Phase A** `bootstrap::pre_runtime(opts) -> Result<PreRuntime, BootstrapError>`: synchronous, expected single-threaded (a multi-threaded entry is warned about and recorded `Degraded`, never fatal), before any Tokio runtime / Tauri builder / GTK / spawned thread. Fixed order: Flatpak gate + XDG override → first-run Flatpak migration → legacy Tauri app-id migration → UI `EnvPolicy` hook → outcome. `PreRuntime` is a token `App::bootstrap` consumes, so it cannot be skipped.
+- **Phase B** `App::bootstrap(pre, opts) -> Result<(BootstrappedApp, StartupReport), BootstrapError>`: typed store init (no `process::exit`), logging, catalogs + persistence, metadata reconciliation, nag sync; health / offline-readiness / version-scan / umu-refresh / background-portal run as jobs that publish `AppEvent`s. `BootstrappedApp` is a `Clone` wrapper that derefs to `App` and carries `Stores` / `Services` / `StartupHandle` / `StepLog` behind infallible accessors; plain `App::new` / `App::with_handle` have no startup accessors (no `OnceLock`, no panics).
+- **No sleeps.** The React shell pulls `get_startup_report` on mount; the report is a live snapshot that also carries job results, so a late subscriber never misses a completion. Bus-driven Tauri events remain for completions that happen after mount.
+- `src-tauri/src/startup.rs` and all startup `sleep` code in `lib.rs` are deleted; logic moves into `crosshook-app`.
+
+Current-state facts this plan is built on (verified in the worktree):
+
+- `lib.rs::run()` (574 lines) does the gate/migrations/env/stores/catalogs inline; `setup()` does logging, reconciliation, nag sync and spawns six sleep-gated tasks (350 ms ×3: `auto-load-profile`, `onboarding-check`, `flatpak-migration-complete`; 500 ms health + `offline-readiness-scan-complete`; 2 s `version-scan-complete`) plus the unconditional-except-bench umu refresh and background-portal request.
+- Store init failures call `std::process::exit(1)` after `eprintln!` (invisible to desktop users). Metadata failure already degrades to `MetadataStore::disabled()`.
+- `crosshook_app::App` exists but Tauri does not construct it. `AppEvent` has only `Resync` and derives `Clone, PartialEq, Eq`; `EventBus` is a bounded `broadcast`.
+- 22 `BaseDirs::new()` call sites in `crosshook-core` (settings, profile, recent files, community taps, metadata, logging, migrations, umu, launch, install, run_executable, game_images, lutris import).
+- `tauri::async_runtime` creates its runtime lazily on first `handle()/spawn()/block_on()` (`RUNTIME: OnceLock`); `async_runtime::set(handle)` panics if already initialized.
+- `build_enriched_health_summary` and its helpers live in `src-tauri/src/commands/health/*` (depend on `tauri::State` only in the command wrappers; one helper calls `commands::shared::sanitize_display_path`).
+
+## Decisions
+
+| Topic | Decision |
+| --- | --- |
+| Module layout | `crates/crosshook-app/src/bootstrap/` (dir module, `mod.rs` + focused files, tests in `<file>/tests.rs` per crate convention). Every file ≤ ~250 lines. Health logic moves to `services/health/`. See **Public API** and Tasks for the exact file list. |
+| `pre_runtime` signature | `pre_runtime(PreRuntimeOptions) -> Result<PreRuntime, BootstrapError>` (the `Err` side is reserved for other fatal conditions; the thread check is **not** one). **Deviation from the issue sketch (`-> PreRuntime`)**. The `set_var` single-thread precondition is *checked* (`Threads:` from `/proc/self/status`, via the host trait) but a multi-threaded entry is **not fatal**: production warns (`tracing::warn!` + `eprintln!`), records the prologue and env steps as `Degraded("multi-threaded at entry")`, and continues, because aborting would leave the user with no window. The `bootstrap_ordering` harness (R1) still asserts `Threads: 1`. Migration failures stay best-effort (logged + recorded), never `Err`. `/proc` unreadable → proceed with `tracing::warn!` (cannot verify). Tests inject the thread count through the host trait. |
+| Testability of order | All side effects of Phase A go through `pub(crate) trait PreRuntimeHost` (`thread_count`, `is_flatpak`, `host_xdg_opt_in`, `override_xdg`, `run_flatpak_migration`, `migrate_legacy_app_id`, env read/write). `SystemHost` is production; unit tests use a recording fake. `pre_runtime_with_host` + the trait are `pub` + `#[doc(hidden)]` only under crate feature `test-seams` so integration tests can drive it. |
+| Env mutation API | `EnvPolicy::apply(&self, env: &mut PreRuntimeEnv<'_>)`. `PreRuntimeEnv` (`var_os`, `set`, `remove`; **safe** fns) can only be constructed inside `pre_runtime`, which is the single place with the documented `unsafe { set_var }`/`remove_var` + SAFETY note (guarded by the thread check). Native UI later passes its own renderer policy; WebKit vars are set **only** by Classic's policy (`src-tauri/src/env_policy.rs`). |
+| Step log | `BootstrapStep` (`#[non_exhaustive]`) + `StepOutcome { Ran, Skipped(&'static str), Degraded(&'static str) }`; `StepLog` is `Vec<StepRecord>`. Every pre-runtime step is **always recorded in fixed order** (Skipped when not applicable, e.g. migration in native/shared mode), so one expected order holds in all modes. Phase B continues the same log. Exposed as `PreRuntime::steps()` / `App::bootstrap_steps()`. |
+| Instance lock seam | M1-12 is **not implemented**. `bootstrap/mod.rs` carries an "Ordering contract" doc section and a `// SEAM(M1-12): instance lock acquires here (step 0)` marker at the top of `pre_runtime`; `PreRuntimeOptions` is `#[non_exhaustive]` so lock options can be added without a breaking change. No dead enum variant is added now. |
+| (a) One runtime | Classic calls `pre_runtime` first, then `App::bootstrap` with `RuntimeChoice::Handle(tauri::async_runtime::handle().inner().clone())` (→ `App::with_handle`). `handle()` lazily builds Tauri's runtime *after* env/migrations, so no thread exists during Phase A; Tauri and `App` share one runtime; no `async_runtime::set` (no "already initialized" panic path). Default `RuntimeChoice::Owned` (`App::new`) for CLI/native-UI/tests. Classic keeps a `core.clone()` alive via `.manage(core)`. |
+| (b) No pre-mount race | `get_startup_report` is a **pure, idempotent snapshot** of `StartupState`. Job results are stored in the state **before** the completion event is published. Frontend protocol: **subscribe (awaited), then pull a fresh report, apply both idempotently**. The once-per-page-load consumers (auto-load, onboarding, Flatpak toast) may share a memoized report; job consumers must **not**, since a job's state changes after the first read. Settings-derived fields (`auto_load_profile`, `onboarding`) are recomputed live per snapshot (a webview reload after dismissing onboarding must not re-show it); job/flatpak/degraded data accumulate in the state. |
+| Report carries job results | `StartupJobs { health, offline_readiness, version_scan, umu_refresh, background_portal }`, each `JobState<T>` = `pending \| running \| complete{data} \| failed{message} \| skipped{reason}`. Health carries the full `EnrichedHealthSummary` (same size as today's event); others carry their small summaries. Job consumers subscribe to the legacy event **and** the generic terminal `startup-job-finished` (`{ job, state: complete\|failed\|skipped }`, emitted for every terminal outcome), then read a **fresh** report (`fetchStartupReport({ fresh: true })`, never the page-load memo): `complete` → apply, `pending/running` → wait for a terminal event, `failed/skipped` → one fallback to the existing `batch_*` command per mount. The 700 ms / 900 ms frontend fallback timers are removed. |
+| (c) Flatpak toast take-once | The outcome is produced before any subscriber can exist, so the `flatpak-migration-complete` event is **removed**; it is in the report (`flatpak.migration`). Take-once is enforced at three levels: (1) type level — `PreRuntime` is consumed and its outcome moved into the state exactly once; (2) report is idempotent but frontend `claimStartupAction('flatpak_migration_notice')` shows it once per page load; (3) existing `sessionStorage` dismiss key stays. Migration *failure* is carried as `migration.error` (sanitized) and logged; no new UI for it in this issue. |
+| (d) `AppEvent` | Add one `#[non_exhaustive]`-safe variant: `AppEvent::StartupJobFinished { job: StartupJobKind }` with `StartupJobKind: Copy` (`HealthBatch, OfflineReadiness, VersionScan, UmuRefresh, BackgroundPortal`). Keeps `AppEvent: Clone + PartialEq + Eq` (no big payloads on the bus). For every terminal outcome (`complete`, `failed`, `skipped`) the Tauri bridge emits the generic `startup-job-finished` `{ job, state }`; for `complete` it also emits the **legacy event name with the same payload shape** read from the snapshot. On `Resync` the bridge re-emits every terminal job event (idempotent). Legacy names bridged: `HealthBatch→profile-health-batch-complete`, `OfflineReadiness→offline-readiness-scan-complete`, `VersionScan→version-scan-complete`; `UmuRefresh`/`BackgroundPortal` only emit the generic event and have no frontend listener today. |
+| Events removed (justified) | `auto-load-profile`, `onboarding-check`, `flatpak-migration-complete` are removed (their only purpose was sleep-delayed delivery into a possibly-not-yet-mounted listener). Replaced by the report. All listeners and mock synthesis removed in the same change (clean cutover, no dual path). |
+| (e) `BaseDirs` ordering test | Real instrumentation, not a tautology. `crosshook-core` gets `platform::base_dirs()` — the **single choke point** replacing all 22 `BaseDirs::new()` sites — plus `platform::trace` (compiled only with core feature `bootstrap-trace`; no-op fns otherwise). Under the feature, `trace` records `Mark(&str)`, `EnvMutation { key, threads }` (recorded *inside* `SystemEnv::set`/`PreRuntimeEnv::set/remove` at the moment of mutation, reading `/proc/self/status`) and `BaseDirsLookup { threads }` into one process-global ordered log. The integration test asserts on that log (R1–R5 below). A check script keeps `BaseDirs::new` out of core except `platform/dirs.rs`. |
+| Ordering rules asserted | R1 every `EnvMutation.threads == Some(1)`. R2 marks appear in order `gate:begin, gate:end, flatpak_migration:begin/end, legacy_app_id:begin/end, env_policy:begin/end, pre:done`. R3 the first `BaseDirsLookup` is after `gate:end` (XDG override complete). R4 every lookup made by step 3 is after `flatpak_migration:end`. R5 Phase B lookups are after `pre:done`. A `misordered` scenario runs steps 3→1→2 and **must** be reported as a violation by the same checker; the unit test does the same with the fake host. |
+| Integration harness | `crates/crosshook-app/tests/bootstrap_ordering.rs`, `[[test]] harness = false` (own `main`, so libtest's worker threads do not exist and `Threads: 1` is true). `main()` with no args re-executes itself once per scenario (`--scenario native\|flatpak-isolated\|flatpak-host-xdg\|misordered`) because env mutation is process-global; child uses tempdir `HOME`/`XDG_*`/`FLATPAK_ID` (simulated Flatpak). Crate gets a self dev-dependency enabling `test-seams` so plain `cargo test -p crosshook-app` runs it. |
+| (f) `BootstrapError` | `#[non_exhaustive] enum BootstrapError { StoreInit{store: StoreKind, detail}, Runtime(AppError) }` (`thiserror`; no `NotSingleThreaded` — a multi-threaded entry degrades instead). `Display` is raw (logs/stderr); `user_message()` is home-path-sanitized for UI. **Fatal**: settings, profile, recent-files, community-tap store init; runtime build. **Degraded, never fatal** (new vs today where noted): multi-threaded entry to `pre_runtime` (warn + `Degraded("multi-threaded at entry")`), metadata store (as today), logging init failure (today fatal via `?` in setup), `ensure_development_scripts_executable` failure (today fatal), auto-load resolution / `profile_store.list()` failure (today fatal via `?`), settings load failure (default settings, flagged `settings_unreadable`), catalog persistence / reconciliation / nag-sync errors (warn, as today). |
+| Surfacing fatal errors | On `Err`, `run()` builds a **window-less** Tauri app from the one `generate_context!()` (clear `context.config_mut().app.windows`) and shows the sanitized message in a native error dialog. The GTK `rfd` dialog runs on **its own thread**; the fatal path adds a **five-minute `exit(1)` watchdog** so a dialog that never returns (no display, GTK init failure) cannot hang the process. Message = `user_message()` + "see the log at …" when logging is up + the data directory. If no dialog can be shown → `eprintln!` + exit code 1. `process::exit` lives only in the shell (`src-tauri/src/fatal.rs`), never in `crosshook-app` (CI grep enforces). |
+| Logging order | settings store → logging init → remaining stores, so later store failures reach the log file (today logging starts after stores). `LoggingMode::Skip` for tests (global subscriber is once-per-process); `SubscriberAlreadyInitialized` is non-fatal. |
+| Catalog init | `initialize_*` are `OnceLock::set` (first wins). Bootstrap calls them once, then persists optimization + readiness catalogs to SQLite when `metadata.status()==Ok`. Idempotent across repeated bootstrap in tests. |
+| Job scheduling | Via `App::jobs()` (`JobSpec::new("startup-scans")`, etc.). `startup-scans` runs **sequentially** health → offline-readiness notice → version scan (replaces the 350/500/2000 ms staggering with deterministic order; each step is `spawn_blocking`; one failing does not stop the next). `startup-umu-refresh` and `startup-background-portal` are independent async jobs. State update → then `events().publish`. Jobs check `ctx.is_cancelled()` between steps. |
+| (g) Bench | `BootstrapOptions.umu_refresh = UmuRefresh::Skip { reason }`; Classic passes `Skip` when `commands::bench::bench_enabled()` (`CROSSHOOK_BENCH=1`) → job state `skipped{reason:"CROSSHOOK_BENCH=1"}` and the existing `umu-database startup refresh skipped` log line. Removing sleeps changes bench READY timing; see Risks. |
+| (h) Dependencies | `crosshook-app`: **no new crates** (needs only `crosshook-core`, `tokio` (already `sync`, `rt-multi-thread`), `serde`, `thiserror`, `tracing`, `uuid`). New Cargo features only: `crosshook-core/bootstrap-trace`, `crosshook-app/test-seams`. `check-app-deps.sh` stays green (no tauri/gtk). `src-tauri`: no new crates (`tauri-plugin-dialog` already present; its `rfd` GTK backend runs the dialog on its own GTK thread, which is why `fatal.rs` adds the five-minute `exit(1)` watchdog). |
+| Store/service ownership | `BootstrappedApp` (a `Clone` wrapper that derefs to `App`) owns `Stores { settings, profiles, recent_files, community_taps, metadata }` and `Services { settings, recent_files, diagnostics, health: HealthService, background: Arc<BackgroundGrantHolder> }` (infallible accessors `stores()/services()`), built by bootstrap. Classic `.manage()`s clones so the ~100 existing commands keep `State<'_, ProfileStore>` etc. `CommunityTapStore` gains `#[derive(Debug, Clone)]` (PathBuf only). `BackgroundGrantHolder` is managed as `Arc<BackgroundGrantHolder>`; its two `State<'_, BackgroundGrantHolder>` sites change to `State<'_, Arc<…>>`. |
+| Health move | `src-tauri/src/commands/health/{batch,enrich,prefetch,steam,types}.rs` logic moves to `crosshook-app/src/services/health/` behind `HealthService` (`batch_summary()`, `profile_health(name)`, `cached_health_snapshots()`, `cached_offline_readiness_snapshots()`); the four Tauri commands become thin wrappers; wire types are re-exported unchanged (same JSON). `commands::shared::sanitize_display_path` (`~/` form) delegates to new `presenter::display_path_tilde` so behavior is unchanged and there is one implementation. |
+| Version-scan move | `startup.rs::run_version_scan` becomes sync `bootstrap::version_scan::run(&ProfileStore, &MetadataStore) -> VersionScanSummary { scanned, mismatches }` (no AppHandle/emit); its 4 auto-load unit tests move to `bootstrap/reconcile/tests.rs`. |
+| Frontend contract | `get_startup_report` command; hand-written `src/types/startup.ts`; `src/lib/startupReport.ts` (memoized fetch + once-per-page-load action claims); consumers use `callCommand`/`subscribeEvent` only. Mocks gain a `get_startup_report` handler modelling the backend (report ready at t=0, jobs `complete`). |
+| CI guard | `scripts/check-startup-path.sh` (+ `--selftest`, same shape as `check-schema-version.sh`) wired into `.github/workflows/lint.yml` (`shell` job) and `scripts/lint.sh --startup-path`. Rules in **Verification**. |
+
+## Public API sketch (Rust)
+
+```rust
+// crosshook-app/src/bootstrap/mod.rs  (re-exported from crate root: bootstrap::{...})
+pub use pre_runtime::{pre_runtime, PreRuntime, PreRuntimeOptions, PreRuntimeEnv, EnvPolicy, FlatpakMode};
+pub use steps::{BootstrapStep, StepLog, StepOutcome, StepRecord};
+pub use error::{BootstrapError, StoreKind};
+pub use options::{BootstrapOptions, RuntimeChoice, StoreRoots, LoggingMode, UmuRefresh};
+pub use report::{StartupReport, OnboardingStartup, FlatpakStartup, FlatpakMigrationReport,
+                 DegradedStores, StartupJobs, JobState, OfflineReadinessScanSummary,
+                 VersionScanSummary, UmuRefreshSummary};
+pub use state::StartupHandle;
+pub use crate::events::StartupJobKind; // defined in events.rs
+
+// ---- Phase A ---------------------------------------------------------------
+pub trait EnvPolicy: Send + Sync {
+    /// Called exactly once, after both migrations, expected single-threaded.
+    fn apply(&self, env: &mut PreRuntimeEnv<'_>);
+}
+#[non_exhaustive]
+pub struct PreRuntimeOptions { pub env_policy: Option<Box<dyn EnvPolicy>> }
+impl PreRuntimeOptions { pub fn new() -> Self; pub fn with_env_policy(self, p: impl EnvPolicy + 'static) -> Self; }
+
+pub fn pre_runtime(opts: PreRuntimeOptions) -> Result<PreRuntime, BootstrapError>;
+
+/// Token. Private fields; only constructible by `pre_runtime` (and the test-seams fn).
+pub struct PreRuntime { /* log: StepLog, mode: FlatpakMode, migration: Option<FlatpakMigrationReport> */ }
+impl PreRuntime {
+    pub fn steps(&self) -> &StepLog;
+    pub fn flatpak_mode(&self) -> FlatpakMode;
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FlatpakMode { Native, Isolated, HostXdgShared }
+
+// ---- Phase B ---------------------------------------------------------------
+#[non_exhaustive]
+pub struct BootstrapOptions {
+    pub runtime: RuntimeChoice,        // Owned | Handle(tokio::runtime::Handle)
+    pub store_roots: StoreRoots,       // Xdg (default; via platform::base_dirs) | Explicit { config_dir, data_dir }
+    pub logging: LoggingMode,          // Init { mirror_stdout: bool } (default) | Skip
+    pub umu_refresh: UmuRefresh,       // Enabled (default) | Skip { reason: &'static str }
+}
+impl BootstrapOptions {
+    pub fn new() -> Self;
+    pub fn with_runtime_handle(self, h: Handle) -> Self;
+    pub fn with_store_roots(self, r: StoreRoots) -> Self;
+    pub fn with_logging(self, l: LoggingMode) -> Self;
+    pub fn with_umu_refresh(self, u: UmuRefresh) -> Self;
+}
+
+impl App {
+    /// Consumes the Phase-A token. Never calls `process::exit`.
+    pub fn bootstrap(pre: PreRuntime, opts: BootstrapOptions)
+        -> Result<(BootstrappedApp, StartupReport), BootstrapError>;
+}
+
+/// `Clone` + `Deref<Target = App>`; holds Stores/Services/StartupHandle/StepLog, so the
+/// accessors are infallible. Plain `App::new` / `App::with_handle` have none of them
+/// (no `OnceLock`, no panics).
+impl BootstrappedApp {
+    pub fn stores(&self) -> &Stores;            // clones are cheap
+    pub fn services(&self) -> &Services;
+    pub fn startup(&self) -> StartupHandle;     // Arc-backed, Clone, holds NO App clone
+    pub fn startup_report(&self) -> StartupReport; // == self.startup().snapshot()
+    pub fn bootstrap_steps(&self) -> &StepLog;
+}
+
+#[derive(Clone)]
+pub struct Stores { pub settings: SettingsStore, pub profiles: ProfileStore,
+                    pub recent_files: RecentFilesStore, pub community_taps: CommunityTapStore,
+                    pub metadata: MetadataStore }
+#[derive(Clone)]
+pub struct Services { pub settings: SettingsService, pub recent_files: RecentFilesService,
+                      pub diagnostics: DiagnosticsService, pub health: HealthService,
+                      pub background: Arc<BackgroundGrantHolder> }
+
+impl StartupHandle {
+    pub fn snapshot(&self) -> StartupReport;                        // sync, cheap, idempotent
+    pub async fn wait_finished(&self, job: StartupJobKind) -> JobSnapshotKind; // for tests/native UI; no sleeps
+}
+
+// events.rs
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum StartupJobKind { HealthBatch, OfflineReadiness, VersionScan, UmuRefresh, BackgroundPortal }
+// AppEvent (still #[non_exhaustive], Clone+PartialEq+Eq):
+//   Resync { missed: u64 }, StartupJobFinished { job: StartupJobKind }
+
+// error.rs
+#[derive(Debug, thiserror::Error)] #[non_exhaustive]
+pub enum BootstrapError {
+    #[error("{store} store could not be initialized: {detail}")]
+    StoreInit { store: StoreKind, detail: String },
+    #[error("application runtime unavailable: {0}")]
+    Runtime(AppError),
+}
+impl BootstrapError { pub fn user_message(&self) -> String; /* home-path sanitized */ }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)] pub enum StoreKind { Settings, Profiles, RecentFiles, CommunityTaps }
+
+// report.rs  (serde: snake_case; JobState internally tagged "state")
+#[derive(Debug, Clone, Serialize)]
+pub struct StartupReport {
+    pub auto_load_profile: Option<String>,
+    pub onboarding: OnboardingStartup,     // { show, has_profiles }
+    pub flatpak: FlatpakStartup,           // { mode, migration: Option<FlatpakMigrationReport> }
+    pub degraded: DegradedStores,
+    pub jobs: StartupJobs,
+}
+#[derive(Debug, Clone, Serialize)]
+pub struct FlatpakMigrationReport { pub imported_config: bool, pub imported_subtrees: Vec<String>,
+                                    pub skipped_subtrees: Vec<String>, pub error: Option<String> }
+#[derive(Debug, Clone, Serialize)]
+pub struct DegradedStores { pub metadata: MetadataStatus,           // {"state":"ok"|"newer_schema"|"disabled",…}
+                            pub metadata_error: Option<String>,     // sanitized try_new error
+                            pub settings_unreadable: bool,
+                            pub logging_unavailable: bool }
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
+pub enum JobState<T> { Pending, Running, Complete { data: T }, Failed { message: String }, Skipped { reason: String } }
+#[derive(Debug, Clone, Serialize)]
+pub struct StartupJobs { pub health: JobState<EnrichedHealthSummary>,
+    pub offline_readiness: JobState<OfflineReadinessScanSummary>,   // { total_profiles }
+    pub version_scan: JobState<VersionScanSummary>,                 // { scanned, mismatches }
+    pub umu_refresh: JobState<UmuRefreshSummary>,                   // { refreshed, cached_at, reason }
+    pub background_portal: JobState<BackgroundProtectionState> }
+```
+
+Phase A algorithm (`pre_runtime_with_host`): prologue thread check (`threads > 1` → `tracing::warn!` + `eprintln!`, record the prologue and env steps as `Degraded("multi-threaded at entry")`, continue; never `Err`); `// SEAM(M1-12)`; then, each wrapped in `trace::mark("<step>:begin"/":end")` and `log.push`: **1 FlatpakGate** (`!is_flatpak` → mode Native/Skipped; opt-in → `HostXdgShared`, `eprintln!`, `override_xdg()`; else `Isolated`, `eprintln!`) → **2 FlatpakMigration** (Isolated only: `run_flatpak_migration()`; `Ok(outcome)` → report, `Err` → `error` + warn + `eprintln!`; else Skipped) → **3 LegacyAppIdMigration** (always) → **4 EnvPolicy** (policy or Skipped) → **5** `mark("pre:done")`, return `PreRuntime`.
+
+Phase B order (`App::bootstrap`, each step logged): runtime (`Owned`→`App::new`, `Handle`→`with_handle`) → SettingsStore (fatal) + load (default+`settings_unreadable` on error) → Logging (degraded on error) → `ensure_development_scripts_executable` (warn) → ProfileStore, RecentFilesStore, CommunityTapStore (fatal) → MetadataStore (`Degraded` → `MetadataStore::disabled()` + `metadata_error`) → Catalogs (`load_*`/`initialize_*` ×5) → MetadataReconciliation + catalog persistence (only if `status()==Ok`, else warn) → NagSync (legacy dismissals → `dismiss_readiness_nag`) → build `StartupState` → schedule jobs → return `(BootstrappedApp, snapshot)`.
+
+## Event / command contract
+
+| Name | Kind | Payload (JSON, unchanged unless noted) | Producer | Consumer |
+| --- | --- | --- | --- | --- |
+| `get_startup_report` | command (new, infallible, sync) | `StartupReport` (above) | `commands/startup.rs` → `BootstrappedApp::startup_report()` | `src/lib/startupReport.ts` → ProfileContext, AppShell, useFlatpakMigrationToast, useProfileHealth, useOfflineReadiness |
+| `profile-health-batch-complete` | event | `EnrichedHealthSummary` (same shape) | startup-scans job → `StartupJobFinished{HealthBatch}` → bridge reads snapshot | `useProfileHealth` |
+| `offline-readiness-scan-complete` | event | `{ total_profiles: number }` | startup-scans job → `StartupJobFinished{OfflineReadiness}` → bridge | `useOfflineReadiness` |
+| `version-scan-complete` | event | `{ scanned: number, mismatches: number }` | startup-scans job → `StartupJobFinished{VersionScan}` → bridge | `useProfileHealth` (re-validate) |
+| `auto-load-profile` | **removed** | was `string` | — | replaced by `report.auto_load_profile` (ProfileContext) |
+| `onboarding-check` | **removed** | was `{show, has_profiles}` | — | replaced by `report.onboarding` (AppShell) |
+| `flatpak-migration-complete` | **removed** | was `{imported_config, imported_subtrees, skipped_subtrees}` | — | replaced by `report.flatpak.migration` (useFlatpakMigrationToast) |
+| `AppEvent::StartupJobFinished` | bus (Rust) | `{ job: StartupJobKind }` | jobs | `src-tauri/src/startup_bridge.rs` (holds `StartupHandle` + `EventReceiver`, never an `App` clone) |
+
+Frontend protocol (all three event consumers): `subscribeEvent(...)` first → `await fetchStartupReport()` → apply `jobs.<x>`; `complete` → apply data; `pending/running` → rely on event; `failed/skipped` → call the existing command (`batch_validate_profiles` / `batch_offline_readiness`). Unmount unsubscribes as today.
+
+TypeScript contract (hand-written `src/types/startup.ts`):
+
+```ts
+export type JobState<T> =
+  | { state: 'pending' } | { state: 'running' }
+  | { state: 'complete'; data: T }
+  | { state: 'failed'; message: string } | { state: 'skipped'; reason: string };
+export interface OnboardingStartup { show: boolean; has_profiles: boolean }
+export type FlatpakMode = 'native' | 'isolated' | 'host_xdg_shared';
+export interface FlatpakMigrationReport { imported_config: boolean; imported_subtrees: string[]; skipped_subtrees: string[]; error: string | null }
+export interface StartupReport {
+  auto_load_profile: string | null;
+  onboarding: OnboardingStartup;
+  flatpak: { mode: FlatpakMode; migration: FlatpakMigrationReport | null };
+  degraded: { metadata: MetadataStoreStatus; metadata_error: string | null; settings_unreadable: boolean; logging_unavailable: boolean };
+  jobs: { health: JobState<EnrichedHealthSummary>; offline_readiness: JobState<{ total_profiles: number }>;
+          version_scan: JobState<{ scanned: number; mismatches: number }>;
+          umu_refresh: JobState<{ refreshed: boolean; cached_at: string | null; reason: string }>;
+          background_portal: JobState<BackgroundProtectionState> };
+}
+
+// terminal job notification (event `startup-job-finished`)
+export interface StartupJobFinished {
+  job: 'health_batch' | 'offline_readiness' | 'version_scan' | 'umu_refresh' | 'background_portal';
+  state: 'complete' | 'failed' | 'skipped';
+}
+```
+
+## Storage boundary
+
+- `StartupReport`, `StartupState`, step log, job results, `AppEvent`s: **runtime-only** (memory). Nothing new is persisted.
+- Flatpak first-run migration and legacy app-id migration: unchanged formats and semantics (filesystem-state driven, idempotent); only their *call site* moves.
+- Settings stay TOML (`settings.toml`, `AppSettingsData`); history/cache stay in SQLite `metadata.db` (schema stays **21**; `check-schema-version.sh` unaffected). Catalog persistence, health snapshots, reconciliation, nag dismissals: same tables, same rows.
+
+## Persistence & usability
+
+- **Migration/backward compat:** no data migration. IPC: three startup events removed (internal to the shell; the frontend ships in the same bundle), one command added, three events keep names/payloads.
+- **Offline:** everything except `umu_refresh` is local; umu failure → `failed{message}` in the report, UI unaffected.
+- **Degraded behavior:** metadata DB unavailable/newer-schema → app continues, `degraded.metadata` + `metadata_error` set (existing `metadata_store_status` banner keeps working); unreadable `settings.toml` → defaults + `settings_unreadable` (visible in report; no silent overwrite change in this issue); logging unavailable → stderr only. Store-init failure (settings/profiles/recent/taps) → user sees a native error dialog with the sanitized reason and the data location, process exits 1 (previously: silent exit from desktop launch).
+- **Visibility/editability:** users keep editing the same TOML; the report is read-only runtime state; job results appear in the same health/offline/version UI as before.
+
+## Tasks
+
+Three slices; Interface freeze: the **Public API sketch**, **Event/command contract** and **TypeScript contract** above. S2 and S3 implement against these without waiting for S1 to merge (S2 may stub with `todo!()` locally only until S1 lands in the same branch; nothing stubbed ships). File ownership is exclusive.
+
+### S1 — `crosshook-core` seam + `crosshook-app` bootstrap + health service + tests (owner: crates/)
+
+Ownership: `crates/crosshook-core/**`, `crates/crosshook-app/**` (incl. README). Do **not** touch `src-tauri/`, `scripts/`, `src/`, `docs/architecture/`.
+
+1. **Core seam (do first; mechanical):**
+   - `crosshook-core/Cargo.toml`: feature `bootstrap-trace = []`.
+   - New `platform/dirs.rs` (`pub fn base_dirs() -> Option<directories::BaseDirs>`; calls `trace::base_dirs_lookup()` then `BaseDirs::new()`), new `platform/trace.rs` (`#[doc(hidden)] pub` `TraceEvent`, `mark`, `env_mutation`, `base_dirs_lookup`, `take`, `reset`; real recording only `#[cfg(feature = "bootstrap-trace")]`, otherwise `#[inline]` no-ops; thread count parsed from `/proc/self/status` `Threads:`), `platform/mod.rs` exports, `platform/env.rs` (`SystemEnv::set` calls `trace::env_mutation`; update SAFETY note to reference `pre_runtime`).
+   - Replace every `BaseDirs::new()` with `crate::platform::base_dirs()` in: `profile/lutris_import/paths.rs`, `profile/toml_store/store.rs`, `launch/script_runner/common.rs`, `launch/preview/environment.rs`, `metadata/store.rs`, `game_images/client/cache.rs`, `game_images/import.rs`, `logging.rs`, `app_id_migration.rs`, `install/service.rs`, `community/taps/store.rs`, `flatpak_migration/mod.rs`, `run_executable/service/adhoc_prefix.rs` (2), `umu_database/client.rs`, `umu_database/paths.rs`, `settings/paths.rs`, `settings/recent.rs`, `settings/store.rs`. Leave `settings/tests.rs` and doc comments. Add `#[derive(Debug, Clone)]` to `CommunityTapStore`. Update the stale doc in `flatpak_migration/mod.rs` ("Decision gate lives in …lib.rs") and `platform/xdg.rs` to point at `crosshook_app::bootstrap::pre_runtime`.
+   - Core tests: `trace` unit tests under the feature (`cargo test -p crosshook-core --features bootstrap-trace`).
+2. **`crosshook-app` Cargo/features:** feature `test-seams = ["crosshook-core/bootstrap-trace"]`; `[dev-dependencies] crosshook-app = { path = ".", features = ["test-seams"] }`; `[[test]] name = "bootstrap_ordering" harness = false`. No new crates.
+3. **Phase A:** `bootstrap/mod.rs` (docs: ordering contract, SEAM(M1-12), single-thread rule: warn + `Degraded`, not fatal), `steps.rs` (+`steps/tests.rs`), `host.rs` (`PreRuntimeHost`, `SystemHost`; `#[cfg(feature="test-seams")] pub` re-export), `pre_runtime.rs` (+`pre_runtime/tests.rs`: asserts step order with the recording fake host for native / isolated / host-xdg; asserts `Skipped` outcomes; asserts a multi-threaded entry is recorded `Degraded("multi-threaded at entry")` and continues; asserts a deliberately swapped plan makes `verify_order` fail — `StepLog::verify_pre_runtime_order()` is the shared checker used by unit tests), `env_policy.rs` (`EnvPolicy`, `PreRuntimeEnv`).
+4. **Phase B:** `error.rs`, `options.rs`, `stores.rs` (`Stores`, `Services`, `StoreRoots` resolution; `Explicit` roots for tests/portable), `catalogs.rs`, `reconcile.rs` (+`reconcile/tests.rs`: the 4 moved auto-load tests + onboarding derivation + nag sync + reconciliation with tempdir stores), `version_scan.rs`, `report.rs` (+tests for serde shapes — snapshot the exact JSON keys in the TS contract), `state.rs` (`StartupState`, `StartupHandle`; live recompute of `auto_load_profile`/`onboarding`; `wait_finished` via `tokio::sync::watch`), `scans.rs`/`jobs_startup.rs` (the three startup jobs; state-then-publish), `app_bootstrap.rs` (`impl App { bootstrap }` + `BootstrappedApp { stores, services, startup, startup_report, bootstrap_steps }`).
+5. **Wiring in existing files:** `lib.rs` (`pub mod bootstrap`), `app.rs` (Inner gains startup state + stores/services slots; keep ≤ ~250 lines), `events.rs` + `events/tests.rs` (`StartupJobKind`, `AppEvent::StartupJobFinished`, tests), `presenter/mod.rs` (+tests: `display_path_tilde`, byte-identical behavior to `commands::shared::sanitize_display_path`), `static_assertions::assert_impl_all!(App: Send, Sync)` (Tauri state requirement), `README.md` (replace "not yet wired" sentence; document bootstrap, step log, report, test seams).
+6. **Health service:** `services/health/{mod,batch,enrich,prefetch,steam,types}.rs` (+`tests.rs`) — move from `src-tauri/src/commands/health/*` verbatim minus `tauri::State`/`#[tauri::command]`; `HealthService::{batch_summary, profile_health, cached_health_snapshots, cached_offline_readiness_snapshots}` async via `run_blocking`; `services/mod.rs` exports. Types keep serde names. (S2 deletes the old files and rewrites the command wrappers.)
+7. **Tests:**
+   - `crates/crosshook-app/tests/bootstrap_ordering.rs` (`harness = false`): driver `main()` re-execs per scenario; child sets tempdir `HOME`, `XDG_CONFIG_HOME/DATA_HOME/CACHE_HOME/STATE_HOME`, `FLATPAK_ID` (+ `CROSSHOOK_FLATPAK_HOST_XDG=1` for host-xdg, seeded host tree for isolated), uses an `EnvPolicy` that `set`s and `remove`s vars, calls `pre_runtime` with `SystemHost`, then `trace::take()` and runs `check_trace` (R1–R5). Scenario `misordered` runs steps 3→1→2 through the seam and asserts `check_trace` **returns Err**. Also asserts the isolated scenario really imported (`flatpak.migration.imported_config`) and host-xdg changed `XDG_*`. Driver fails if any child exits non-zero.
+   - `crates/crosshook-app/tests/bootstrap_report.rs` (normal harness, `#[tokio::test]`): `App::bootstrap` with `StoreRoots::Explicit(tempdir)`, `LoggingMode::Skip`, `UmuRefresh::Skip`, fake-Flatpak `PreRuntime` from the seam: asserts `auto_load_profile`, `onboarding`, flatpak migration outcome, degraded flags (`MetadataStore::disabled()` via an unwritable data dir), job states `pending/running → complete` via `wait_finished` (no sleeps), snapshot taken **after** completion still contains results (late-subscriber guarantee), store-init failure → `BootstrapError::StoreInit` (no exit), `StartupJobFinished` events observed on `app.subscribe()`.
+   - Unit: `BootstrapError::user_message` redacts `$HOME`.
+
+### S2 — `src-tauri` wiring, startup.rs deletion, `get_startup_report`, CI guard (owner: src-tauri/, scripts/, .github/)
+
+Ownership: `src-tauri/**`, `scripts/check-startup-path.sh`, `scripts/lint.sh`, `.github/workflows/lint.yml`. Do **not** touch `crates/`, `src/`, `docs/architecture/`.
+
+1. `src-tauri/src/lib.rs`: `run()` = `let context = tauri::generate_context!();` → `pre_runtime(PreRuntimeOptions::new().with_env_policy(env_policy::WebKitEnvPolicy))` → `App::bootstrap(pre, BootstrapOptions::new().with_runtime_handle(tauri::async_runtime::handle().inner().clone()).with_umu_refresh(if bench_enabled() { UmuRefresh::Skip{reason:"CROSSHOOK_BENCH=1"} } else { UmuRefresh::Enabled }))`; on `Err` → `fatal::show_and_exit(context, err)`. Builder: `.manage(core.clone())`, `.manage(<each store/service clone>)` (same `State` types as today; `Arc<BackgroundGrantHolder>`), `.setup(|app| { startup_bridge::spawn(app.handle().clone(), core.startup(), core.subscribe()); Ok(()) })`, register `commands::startup::get_startup_report`. Remove `mod startup`, the `FLATPAK_MIGRATION_OUTCOME` static, all `sleep`/emit blocks, the `unsafe` env code, and the catalog/store/logging init. Result file ≈ 250 lines. Keep `#[cfg_attr(mobile, tauri::mobile_entry_point)]` and the rest of `generate_handler!` unchanged.
+2. `src-tauri/src/env_policy.rs` (new): `WebKitEnvPolicy` implementing `EnvPolicy` — set `WEBKIT_DISABLE_DMABUF_RENDERER=1` if unset; remove `GDK_BACKEND` when `WAYLAND_DISPLAY` is set and `GDK_BACKEND=="x11"` (comments preserved). Unit tests with a fake `PreRuntimeEnv` seam (or via `pre_runtime_with_host`-style test helper exported by S1; if only `test-seams` exposes it, test the decision logic as a pure `fn decide(wayland: bool, gdk: Option<&str>, webkit_set: bool) -> Actions`).
+3. `src-tauri/src/startup_bridge.rs` (new, replaces `startup.rs`): `pub fn spawn(handle: AppHandle, startup: StartupHandle, mut rx: EventReceiver)` — `tauri::async_runtime::spawn` loop mapping `AppEvent::StartupJobFinished{HealthBatch|OfflineReadiness|VersionScan}` → `handle.emit(<legacy name>, <payload from startup.snapshot()>)` (log `tracing::warn!` on emit error; keep the three existing success `tracing::info!` lines), `Resync` → re-emit every `complete` job, other kinds ignored. Pure mapping `fn event_for(kind, &StartupReport) -> Option<(&'static str, serde_json::Value)>` unit-tested.
+4. `src-tauri/src/fatal.rs` (new): window-less Tauri app (`context.config_mut().app.windows.clear()`, `tauri_plugin_dialog::init()`, `setup` → `app.dialog().message(err.user_message()).kind(Error).title("CrossHook could not start").show(|_| handle.exit(1))`), fallback `eprintln!` + `std::process::exit(1)` if the app cannot be built. This is the only `process::exit` allowed on the startup path. Verify `Context::config_mut` + `WindowConfig` list exist in the pinned tauri 2.11.2 (they do: `lib.rs` `config_mut`); if the window list cannot be cleared, fall back to `eprintln!` + exit and record in Risks.
+5. `src-tauri/src/commands/startup.rs` (new, `get_startup_report(app: State<'_, crosshook_app::App>) -> StartupReport`, plus command-name signature test like siblings) + `commands/mod.rs`.
+6. Health wrappers: delete `commands/health/{enrich,prefetch,steam}.rs`; `types.rs` becomes re-exports of `crosshook_app::services::health` types (`#[allow(unused_imports)]` as today); `batch.rs`/`single.rs`/`snapshots.rs` keep the `#[tauri::command]` fns but delegate to `State<'_, HealthService>` (`batch_validate_profiles`, `get_profile_health`, `get_cached_health_snapshots`, `get_cached_offline_readiness_snapshots`); keep the `__cmd__*` re-exports in `health/mod.rs` that `generate_handler!` needs; remove `build_enriched_health_summary` export.
+7. `commands/shared.rs::sanitize_display_path` → delegate to `crosshook_app::presenter::display_path_tilde`. `commands/background.rs`, `commands/launch/execution.rs` → `State<'_, Arc<BackgroundGrantHolder>>` / `crate::BackgroundGrantHolder` re-export updated.
+8. Delete `src-tauri/src/startup.rs` (logic already moved by S1).
+9. **CI guard:** `scripts/check-startup-path.sh` (+`--help`, `--selftest` building scratch trees in `mktemp`, shellcheck-clean, `grep -E` only — no `rg` dependency). Scans (fail-closed on missing files, rejects symlinks like `check-host-gateway.sh`): (R-a) no `thread::sleep|std::thread::sleep|tokio::time::sleep|time::sleep(|sleep(` and no `Duration::from_millis` sleeps in `crates/crosshook-app/src/bootstrap/**`, `src-tauri/src/lib.rs`, `src-tauri/src/startup_bridge.rs`, `src-tauri/src/env_policy.rs`, `src-tauri/src/fatal.rs`, `src-tauri/src/commands/startup.rs`; (R-b) `src-tauri/src/startup.rs` must not exist; (R-c) no `process::exit` under `crates/crosshook-app/src/bootstrap/`; (R-d) `set_var`/`remove_var` in `crates/crosshook-app/src/` only in `bootstrap/pre_runtime.rs` and `bootstrap/env_policy.rs`; (R-e) `BaseDirs::new` in `crates/crosshook-core/src` only in `platform/dirs.rs` (ignoring `//` comments and `#[cfg(test)]`/`tests` files); suppression comment `// allow: startup-path` with a reason. Wire: `scripts/lint.sh` (`--startup-path`, included in `--all`, help text) and `.github/workflows/lint.yml` shell job steps "Startup-path guardrail" and "Startup-path guardrail self-test" after the schema-version steps.
+
+### S3 — Frontend, mocks, tests, docs (owner: src/, tests/, docs/architecture, agent docs)
+
+Ownership: `src/**`, `tests/*.spec.ts`, `docs/architecture/adr-0004-flatpak-per-app-isolation.md`, `AGENTS.md`, `CLAUDE.md`. Do **not** touch `crates/`, `src-tauri/`, `scripts/`, `.github/`.
+
+1. `src/types/startup.ts` (contract above); `types/onboarding.ts`: remove `OnboardingCheckPayload` (replaced by `OnboardingStartup`); update importers (`AppShell.tsx`, mocks).
+2. `src/lib/startupReport.ts`: `fetchStartupReport()` (memoized `callCommand<StartupReport>('get_startup_report')`; on rejection clears the memo), `claimStartupAction(action)` (once per page load for `'auto_load_profile' | 'onboarding_prompt' | 'flatpak_migration_notice'`), `resetStartupReportForTests()`; wire the reset into `resetMockEnvironment` / vitest setup.
+3. Consumers (listener removal + pull):
+   - `context/ProfileContext.tsx`: drop the `auto-load-profile` listener; on mount `fetchStartupReport()` → if `claimStartupAction('auto_load_profile')` and `report.auto_load_profile` and no profile is selected yet (ref guard) → `selectProfile(name)`. Update header comment; keep the empty-list guard in `hooks/profile/useProfileCrud.ts` and fix its comment (race is now report-vs-`profile_list`).
+   - `components/layout/AppShell.tsx`: drop `onboarding-check`; `report.onboarding.show && !has_profiles && claim('onboarding_prompt')` → `setShowOnboarding(true)`.
+   - `hooks/useFlatpakMigrationToast.ts`: read `report.flatpak.migration` (count = imported_subtrees + config; skip when 0/null), keep sessionStorage dedupe + `claim('flatpak_migration_notice')`; remove event subscription.
+   - `hooks/useProfileHealth.ts`: await the `profile-health-batch-complete` **and** `startup-job-finished` subscriptions first, then `fetchStartupReport({ fresh: true })`: `complete` → `batch-complete(summary)`; `pending/running` → wait for a terminal event (re-read a fresh report on `startup-job-finished` for `health_batch`); `failed/skipped` (at read time or via the terminal event) → one `batchValidate` fallback per mount; remove the 700 ms fallback timer and `startupEventReceivedRef` race workaround; keep `profiles-changed`/`launch-complete`/`version-scan-complete` listeners.
+   - `hooks/useOfflineReadiness.ts`: same pattern with `offline_readiness` (`complete`/`failed`/`skipped` → one `batchCheck` per mount, deduped against the event trigger); remove the 900 ms timer; keep the cached-snapshot instant paint.
+   - Comment-only touch-ups: `hooks/useProfile.ts` (~l.216), `lib/toggles.ts` (`showOnboarding` now forces `report.onboarding.show` in the mock report).
+4. Mocks (`src/lib/mocks/`): new `handlers/startup.ts` registering `get_startup_report` (auto-load from mock settings when `auto_load_last_profile` and the profile exists; `onboarding.show = !settings.onboarding_completed || toggles.showOnboarding`; jobs `complete` using the health/version builders; `flatpak.mode: 'native'`, `migration: null`, `degraded.metadata` from `?metadata=` toggle); register in `index.ts`; remove `maybeSynthesizeOnboardingEvent` + `onboarding-events.ts` + `ONBOARDING_EMIT_*` constants + the synthesis flags in `onboarding-state.ts`; add `get_startup_report` to `SHELL_CRITICAL_READS` in `wrapHandler.ts` (must resolve under `?fixture=error`/`loading`); export the health summary builder from `handlers/health.ts` for reuse; update `README.md` (toggle table: `?onboarding=show` now affects the report; new command row). `scripts/check-mock-coverage.sh` must pass (handler present for the new command).
+5. Tests: rewrite `hooks/__tests__/useFlatpakMigrationToast.test.ts` (report-driven; dismiss/sessionStorage/claim cases); update `context/__tests__/ProfileContext.test.tsx` (auto-load from a **2000 ms-delayed** `get_startup_report` using fake timers, plus report-before-`profile_list` and `profile_list`-before-report orderings; user selection made before the report resolves is not overridden); new `lib/__tests__/startupReport.test.ts` (memoization, claim once, reject clears memo); new tests for `useProfileHealth`/`useOfflineReadiness` startup paths (complete-before-mount, pending-then-event, failed→fallback command); AppShell onboarding (show+no profiles opens once). New `tests/startup-report.spec.ts` (Playwright, browser dev mode): `page.route` delays the app script by 2000 ms, loads `/?fixture=populated&onboarding=show` with auto-load settings, asserts the wizard/selected profile appear (no race on slow mount).
+6. Docs: `docs/architecture/adr-0004-flatpak-per-app-isolation.md` — add a "Startup entry point" subsection under Decision: the gate, migration and legacy app-id migration run in `crosshook_app::bootstrap::pre_runtime`, before any spawned thread, Tokio runtime or GTK; the precise ordering guarantee (gate + XDG override complete before the first `base_dirs()` lookup; the migrations are the first lookups; Phase B lookups follow `pre:done`); step order, the thread check (warn + `Degraded`, not fatal), and the ordering test (`crates/crosshook-app/tests/bootstrap_ordering.rs`, R1 asserts `Threads: 1`); update References. `AGENTS.md` + `CLAUDE.md` (identical edits, mirrored in `.cursorrules` and `.cursor/rules/project.mdc`): directory map comment for `lib.rs`, a short "Startup contract" bullet (`pre_runtime` → `App::bootstrap`, no sleeps, `get_startup_report`, fresh report for job consumers, `platform::base_dirs()` only) next to the Flatpak isolation paragraph. Do not change the schema-version lines.
+
+## Verification
+
+Run once after all slices land (main agent), from repo root:
+
+1. `cargo fmt --manifest-path src/crosshook-native/Cargo.toml --all -- --check`
+2. `cargo clippy --manifest-path src/crosshook-native/Cargo.toml --all-targets -- -D warnings`
+3. `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core` and `… -p crosshook-core --features bootstrap-trace` (trace unit tests; dirs wrapper)
+4. `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-app` — runs unit order tests, `tests/bootstrap_ordering.rs` (harness = false; all scenarios incl. `misordered`) and `tests/bootstrap_report.rs`
+5. `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-native` (bridge mapping, env policy, command signatures, health wrappers)
+6. `./scripts/check-startup-path.sh` and `./scripts/check-startup-path.sh --selftest`; `./scripts/check-app-deps.sh`; `./scripts/check-host-gateway.sh`; `./scripts/check-mock-coverage.sh`; `./scripts/check-schema-version.sh`; `shellcheck --severity=warning scripts/*.sh`
+7. `cd src/crosshook-native && npm run typecheck && npx @biomejs/biome ci src/ && npm run test && npm run test:smoke`
+8. Misorder proof (manual, one-off, revert after): swap steps 1 and 3 in `bootstrap/pre_runtime.rs` → unit order test **and** `bootstrap_ordering` both fail.
+9. Manual real-binary: `./scripts/dev-native.sh` (no `--browser`): app starts, auto-loads last profile, onboarding wizard on a fresh config dir, health badges populate; run with `CROSSHOOK_BENCH=1` and confirm the umu-skip log line; simulate store failure (`chmod 000` the config dir) → native error dialog and exit code 1; optional Flatpak check with `./scripts/build-flatpak.sh --rebuild --strict`.
+
+### Acceptance → task → verification
+
+| Acceptance criterion | Task(s) | Verification |
+| --- | --- | --- |
+| Tauri `run()` calls `pre_runtime` then `App::bootstrap`; no `thread::sleep`/`tokio::time::sleep` on startup path; grep check in CI | S1.3–4, S2.1, S2.9 | `check-startup-path.sh` (+selftest) in `lint.yml` `shell` job; `startup.rs` deleted (R-b); step 6 |
+| Ordering unit + integration tests pass; deliberately misordered step fails them | S1.3 (unit), S1.7 (`bootstrap_ordering.rs` incl. `misordered`), S1.1 (trace seam) | steps 3–4; step 8 |
+| ADR-0004 contract holds; ADR references new entry point | S1.1 (single `base_dirs()` choke point + R-e), S1.3, S3.6 | R1–R5 in `bootstrap_ordering`; R-e in step 6; ADR diff review |
+| React receives auto-load + onboarding with no race on a slow start (2 s delayed mount) | S1.4 (live snapshot, state-then-publish), S2.5 (`get_startup_report`), S3.2–S3.5 | `bootstrap_report.rs` late-snapshot test; Vitest 2000 ms fake-timer tests; Playwright `startup-report.spec.ts` (script delayed 2000 ms); step 9 |
+| Tests run `StartupReport` against tempdir stores and a simulated Flatpak env | S1.7 | `bootstrap_report.rs` (explicit tempdir roots, fake-Flatpak `PreRuntime`) and `bootstrap_ordering` child scenarios (`FLATPAK_ID`, tempdir `HOME`/`XDG_*`) |
+| Store init failure typed and shown to user (not silent exit) | S1.4 (`BootstrapError`), S2.4 (`fatal.rs`) | `bootstrap_report.rs` StoreInit test; step 9 chmod scenario |
+| Metadata DB unavailable → continue degraded and report says so | S1.4 | `bootstrap_report.rs` degraded test; `degraded.metadata` mock toggle in browser mode |
+| Browser-dev mocks updated | S3.4 | `check-mock-coverage.sh`; Playwright smoke |
+
+## Risks
+
+- **Windowless error app (`fatal.rs`)**: depends on `Context::config_mut().app.windows` and `tauri_plugin_dialog` working without any webview. Fallback (stderr + exit 1) is implemented; if the dialog path proves infeasible on the pinned Tauri, ship the fallback and record the limitation in the PR.
+- **`pre_runtime` returns `Result`** (deviates from the issue sketch): the `Err` side is reserved for other fatal conditions and is called out in the PR description. A multi-threaded entry is deliberately **not** an `Err`: it warns and records `Degraded("multi-threaded at entry")` so a misbehaving host process still gets a window; R1 in the `harness = false` test still asserts `Threads: 1`, so a regression is caught in CI rather than at runtime.
+- **Bench timing (YAN-782)**: jobs now start at bootstrap and overlap first paint instead of starting 0.35–2 s later; READY timings shift. Re-run `scripts/bench` and note it in the PR; jobs are sequenced (`startup-scans`) to cap contention.
+- **Large mechanical diffs** (22 `BaseDirs` sites, health move): review as moves; `HealthService` must keep JSON byte-compatible (serde-shape tests + `check-mock-coverage.sh`). Keep S1 steps 1 and 6 in separate commits.
+- **`unsafe` env mutation** now centralized in `pre_runtime.rs` (+`env_policy.rs` wrapper) under a runtime thread check (warn + `Degraded` when violated, never fatal); `/proc` unreadable skips the check (documented). `PreRuntimeEnv` must stay un-constructible outside the crate.
+- **Frozen vs live fields**: `auto_load_profile`/`onboarding` are live per snapshot; any future field added to the report must declare which kind it is (documented in `report.rs`).
+- **Global state in tests**: catalogs (`OnceLock`) and tracing subscriber are once-per-process; tests use `LoggingMode::Skip`, tolerate first-wins catalogs, and the env/trace tests live in the re-exec'd `harness = false` binary.
+- **Event bridge lag**: bounded bus (256) may `Resync`; bridge re-emits completed jobs, so worst case is a duplicate idempotent event.
+- **Two `StartupJobKind` consumers** (`UmuRefresh`, `BackgroundPortal`) have no frontend listener; they exist for the native UI and tests, not dead code.

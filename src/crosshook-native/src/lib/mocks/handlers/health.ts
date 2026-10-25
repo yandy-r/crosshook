@@ -64,6 +64,18 @@ function buildHealthReport(
   };
 }
 
+export function buildMockHealthSummary(): EnrichedHealthSummary {
+  return buildBatchSummary(getSeededProfiles());
+}
+
+export function buildMockVersionScanSummary(): { scanned: number; mismatches: number } {
+  const profiles = getSeededProfiles();
+  return {
+    scanned: profiles.length,
+    mismatches: profiles.filter((p) => p.metadata?.version_status === 'game_updated').length,
+  };
+}
+
 function buildBatchSummary(profiles: EnrichedProfileHealthReport[]): EnrichedHealthSummary {
   const healthy_count = profiles.filter((p) => p.status === 'healthy').length;
   const stale_count = profiles.filter((p) => p.status === 'stale').length;

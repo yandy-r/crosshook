@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { subscribeEvent } from '@/lib/events';
 import { callCommand } from '@/lib/ipc';
+import { fetchStartupReport } from '@/lib/startupReport';
+import type { StartupJobFinished } from '@/types/startup';
 
 import type { CachedHealthSnapshot, EnrichedHealthSummary, EnrichedProfileHealthReport, HealthStatus } from '../types';
 import { countProfileStatuses } from '../utils/health';
@@ -112,8 +114,6 @@ function normalizeError(error: unknown): string {
 export function useProfileHealth() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [cachedSnapshots, setCachedSnapshots] = useState<Record<string, CachedHealthSnapshot>>({});
-  const startupEventReceivedRef = useRef(false);
-
   const batchValidate = useCallback(async (signal?: AbortSignal) => {
     if (signal?.aborted) {
       return;
@@ -147,12 +147,21 @@ export function useProfileHealth() {
   useEffect(() => {
     let active = true;
     const controller = new AbortController();
-    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
-
+    let startupHandled = false;
+    const fallback = () => {
+      if (!active || startupHandled) return;
+      startupHandled = true;
+      void batchValidate(controller.signal);
+    };
     const unlistenBatchComplete = subscribeEvent<EnrichedHealthSummary>('profile-health-batch-complete', (event) => {
-      startupEventReceivedRef.current = true;
       if (active) {
+        startupHandled = true;
         dispatch({ type: 'batch-complete', summary: event.payload });
+      }
+    });
+    const unlistenFinished = subscribeEvent<StartupJobFinished>('startup-job-finished', ({ payload }) => {
+      if (payload.job === 'health_batch' && (payload.state === 'failed' || payload.state === 'skipped')) {
+        fallback();
       }
     });
 
@@ -169,12 +178,24 @@ export function useProfileHealth() {
       } catch {
         // Cached snapshots are advisory — ignore failures
       }
-      fallbackTimer = setTimeout(() => {
-        if (!active || startupEventReceivedRef.current) {
+      try {
+        await Promise.all([unlistenBatchComplete, unlistenFinished]);
+        if (!active) return;
+        const report = await fetchStartupReport({ fresh: true });
+        if (!active || startupHandled) {
           return;
         }
-        void batchValidate(controller.signal);
-      }, 700);
+        const health = report.jobs.health;
+        if (health.state === 'complete') {
+          startupHandled = true;
+          dispatch({ type: 'batch-complete', summary: health.data });
+        } else if (health.state === 'failed' || health.state === 'skipped') {
+          fallback();
+        }
+        // pending/running: either success data or a terminal failure will arrive.
+      } catch {
+        fallback();
+      }
     };
 
     void run();
@@ -182,10 +203,8 @@ export function useProfileHealth() {
     return () => {
       active = false;
       controller.abort();
-      if (fallbackTimer !== null) {
-        clearTimeout(fallbackTimer);
-      }
-      void unlistenBatchComplete.then((unlisten) => unlisten());
+      void unlistenBatchComplete.then((unlisten) => unlisten(), () => {});
+      void unlistenFinished.then((unlisten) => unlisten(), () => {});
     };
   }, [batchValidate]);
 

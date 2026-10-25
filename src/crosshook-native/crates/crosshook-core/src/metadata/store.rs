@@ -1,7 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use directories::BaseDirs;
 use rusqlite::{Connection, Transaction, TransactionBehavior};
 
 use super::config_history_hmac::{self, ConfigHistoryKey};
@@ -21,7 +20,7 @@ pub struct MetadataStore {
 
 impl MetadataStore {
     pub fn try_new() -> Result<Self, String> {
-        let path = BaseDirs::new()
+        let path = crate::platform::base_dirs()
             .ok_or("home directory not found — CrossHook requires a user home directory")?
             .data_local_dir()
             .join("crosshook/metadata.db");

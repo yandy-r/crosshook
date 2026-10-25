@@ -3,7 +3,6 @@ use std::sync::OnceLock;
 use std::time::Duration;
 
 use chrono::{Duration as ChronoDuration, Utc};
-use directories::BaseDirs;
 use reqwest::{
     header::{ETAG, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED},
     StatusCode,
@@ -106,7 +105,7 @@ fn umu_http_client() -> Result<&'static reqwest::Client, Error> {
 }
 
 fn csv_target_path() -> Result<std::path::PathBuf, Error> {
-    let dirs = BaseDirs::new().ok_or_else(|| {
+    let dirs = crate::platform::base_dirs().ok_or_else(|| {
         Error::Base(
             "home directory not found — CrossHook requires a user home directory".to_string(),
         )

@@ -2,16 +2,17 @@
 //
 // Orthogonal debug toggles for browser dev mode (BR-12).
 //
-// Reads `?delay=`, `?errors=`, and `?onboarding=` from `window.location.search`
-// exactly once at module init and caches the parsed result in a module-scope
-// const so subsequent calls are O(1).
+// Reads `?delay=`, `?errors=`, `?onboarding=`, `?autoload=`, `?metadata=`, and
+// `?steamDeckCaveats=` from `window.location.search` exactly once at module init
+// and caches the parsed result in a module-scope const so subsequent calls are O(1).
 //
 // These toggles are independent from the `?fixture=` switcher in `./fixture.ts`
 // and can be combined freely. For example:
 //
 //   ?fixture=empty&delay=800            empty data + 800ms artificial latency
 //   ?errors=true&delay=200              mutation errors + 200ms latency
-//   ?fixture=error&onboarding=show      error state + synthesized onboarding event
+//   ?fixture=error&onboarding=show      error state + onboarding shown via the startup report
+//   ?autoload=Test%20Game%20Alpha       mock startup report auto-loads that profile
 //
 // Like `./fixture.ts`, this module is intentionally tiny and dependency-free so
 // it can be statically imported from BOTH production code paths (e.g. `App.tsx`)
@@ -26,12 +27,14 @@ export interface DebugToggles {
   delayMs: number;
   /** If true, every mutating command rejects with a synthetic error. Reads always succeed. */
   forceErrors: boolean;
-  /** If true, synthesize an `onboarding-check` event at module init. */
+  /** If true, the mock startup report forces `report.onboarding.show`. */
   showOnboarding: boolean;
   /** If true, populate `steam_deck_caveats` in `check_readiness` responses (when not yet dismissed). */
   showSteamDeckCaveats: boolean;
   /** Forced `metadata_store_status` state for browser dev mode ('ok' unless overridden). */
   metadataState: 'ok' | 'newer' | 'disabled';
+  /** `?autoload=<profile>`: the mock startup report auto-loads this profile (when it exists). */
+  autoLoadProfile: string | null;
 }
 
 function safeReadSearchParams(): URLSearchParams {
@@ -53,14 +56,17 @@ function parseToggles(): DebugToggles {
   const showSteamDeckCaveats = params.get('steamDeckCaveats') === 'show';
   const rawMetadata = params.get('metadata');
   const metadataState = rawMetadata === 'newer' || rawMetadata === 'disabled' ? rawMetadata : 'ok';
-  return { delayMs, forceErrors, showOnboarding, showSteamDeckCaveats, metadataState };
+  const rawAutoLoad = params.get('autoload')?.trim() ?? '';
+  const autoLoadProfile = rawAutoLoad === '' ? null : rawAutoLoad;
+  return { delayMs, forceErrors, showOnboarding, showSteamDeckCaveats, metadataState, autoLoadProfile };
 }
 
 const ACTIVE_TOGGLES: DebugToggles = parseToggles();
 
 /**
- * Returns the active debug toggles, parsed once at module init from
- * `?delay=`, `?errors=`, and `?onboarding=` in the URL. Calls are O(1).
+ * Returns the active debug toggles, parsed once at module init from the URL
+ * (`?delay=`, `?errors=`, `?onboarding=`, `?autoload=`, `?metadata=`,
+ * `?steamDeckCaveats=`). Calls are O(1).
  */
 export function getActiveToggles(): DebugToggles {
   return ACTIVE_TOGGLES;
@@ -78,5 +84,6 @@ export function togglesToChipFragments(toggles: DebugToggles): readonly string[]
   if (toggles.showOnboarding) fragments.push('onboarding');
   if (toggles.showSteamDeckCaveats) fragments.push('steamDeckCaveats');
   if (toggles.metadataState !== 'ok') fragments.push(`metadata:${toggles.metadataState}`);
+  if (toggles.autoLoadProfile !== null) fragments.push('autoload');
   return fragments;
 }

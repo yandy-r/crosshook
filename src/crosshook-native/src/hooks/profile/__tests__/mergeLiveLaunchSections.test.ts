@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createEmptyProfile } from '../createEmptyProfile';
-import { mergeLiveLaunchSections } from '../useProfileCrud';
+import { mergeLiveLaunchSections } from '../mergeLiveLaunchSections';
 
 describe('mergeLiveLaunchSections', () => {
   it('preserves live command_arguments when a stale draft omits a recent toggle', () => {

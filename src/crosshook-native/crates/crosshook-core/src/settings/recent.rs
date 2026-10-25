@@ -1,4 +1,3 @@
-use directories::BaseDirs;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fs;
@@ -68,7 +67,7 @@ impl Default for RecentFilesStore {
 
 impl RecentFilesStore {
     pub fn try_new() -> Result<Self, String> {
-        let path = BaseDirs::new()
+        let path = crate::platform::base_dirs()
             .ok_or("home directory not found — CrossHook requires a user home directory")?
             .data_local_dir()
             .join(SETTINGS_DIR)

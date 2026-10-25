@@ -169,7 +169,7 @@ src/crosshook-native/              # Primary source root
 │       │   ├── community.rs
 │       │   ├── settings.rs
 │       │   └── ...
-│       └── lib.rs                 # Tauri app setup; registers all commands
+│       └── lib.rs                 # Tauri shell: pre_runtime → App::bootstrap, registers all commands
 ├── crates/
 │   └── crosshook-core/
 │       └── src/
@@ -250,6 +250,8 @@ When implementing features, classify every new datum before writing code:
 Do **not** cache binary blobs (images, archives) in `external_cache_entries` — payloads over 512 KiB store `NULL payload_json` silently. Use the filesystem with a tracking table for large binaries.
 
 **Flatpak per-app isolation (Phase 4+)**: When running as a Flatpak, CrossHook uses per-app data directories (`~/.var/app/dev.crosshook.CrossHook/{config,cache,data}/`) by default. On first run, legacy host/AppImage-era data is imported one-way (config verbatim; data selectively — metadata DB + community + media + launchers; skip prefixes/artifacts/cache/logs/runtime-helpers). Wine prefixes remain on the host via `crosshook_core::flatpak_migration::host_prefix_root()`. Opt-in shared mode: `CROSSHOOK_FLATPAK_HOST_XDG=1`. See [ADR-0004](docs/architecture/adr-0004-flatpak-per-app-isolation.md).
+
+- **Startup contract**: Startup runs in `crosshook_app::bootstrap` as two phases — `pre_runtime` (Flatpak gate + XDG override → first-run Flatpak migration → legacy app-id migration → UI `EnvPolicy`; synchronous, expected to run before any Tokio runtime, spawned thread, or GTK — a multi-threaded entry is warned about and recorded as `Degraded`, not fatal) then `App::bootstrap` (stores, logging, catalogs, reconciliation, background jobs; returns a `BootstrappedApp` that derefs to `App`). There are **no startup sleeps**: the React shell pulls the `get_startup_report` command on mount (auto-load profile, onboarding, Flatpak migration outcome, degraded stores, job results). Once-per-page-load consumers use the memoized report; job consumers (health, offline readiness) subscribe to the terminal `startup-job-finished` event (`{ job, state }`, emitted for `complete`, `failed`, and `skipped`) and then re-read a fresh report (`fetchStartupReport({ fresh: true })`) — never an immutable memo. `src-tauri` only bridges job-completion events. In `crosshook-core`, use `platform::base_dirs()` — never `BaseDirs::new()` directly. `scripts/check-startup-path.sh` enforces this. See [ADR-0004](docs/architecture/adr-0004-flatpak-per-app-isolation.md) § _Startup entry point_.
 
 ## Branching & releases
 
