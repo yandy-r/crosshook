@@ -42,7 +42,7 @@ pub(super) fn collect_settings(settings_store: &SettingsStore, redact_paths: boo
                     }
                     toml::to_string(&settings).unwrap_or(content)
                 }
-                Err(_) => content,
+                Err(_) => "(settings file could not be parsed; contents omitted)".to_string(),
             };
             if redact_paths {
                 redact_home_paths(&content)
@@ -123,5 +123,23 @@ mod tests {
         assert!(content.contains("last_used_profile = \"daily\""));
         assert!(content.contains("library_view_mode = \"list\""));
         assert!(content.contains("custom_palette = \"keep-me\""));
+    }
+
+    #[test]
+    fn collect_settings_omits_malformed_file_with_private_palette_ids() {
+        let temp = tempdir().unwrap();
+        let store = SettingsStore::with_base_path(temp.path().to_path_buf());
+        fs::write(
+            store.settings_path(),
+            "[ui]\npalette_recent = [\"private-palette-id\"]\ninvalid = [",
+        )
+        .unwrap();
+
+        for redact_paths in [false, true] {
+            assert_eq!(
+                collect_settings(&store, redact_paths),
+                "(settings file could not be parsed; contents omitted)"
+            );
+        }
     }
 }

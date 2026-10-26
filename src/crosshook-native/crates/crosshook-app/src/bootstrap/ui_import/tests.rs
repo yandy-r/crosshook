@@ -1,7 +1,7 @@
 use super::*;
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crosshook_core::settings::{
     webkit_import::{WEBKIT_LIBRARY_VIEW_MODE_KEY, WEBKIT_LOCAL_STORAGE_FILE},
@@ -133,7 +133,7 @@ fn import_step_unreadable_skips() {
     let store = store_in(temp.path());
     let settings = AppSettingsData::default();
 
-    import_step(&store, &settings, true, Some(Path::new("/nonexistent")));
+    import_step(&store, &settings, true, &[PathBuf::from("/nonexistent")]);
     assert!(!store.settings_path().exists());
     assert_eq!(load(&store).ui.library_view_mode, None);
 }
@@ -144,7 +144,7 @@ fn import_step_without_local_storage_path_skips() {
     let store = store_in(temp.path());
     let settings = AppSettingsData::default();
 
-    import_step(&store, &settings, false, None);
+    import_step(&store, &settings, false, &[]);
     assert!(!store.settings_path().exists());
     assert_eq!(load(&store).ui.library_view_mode, None);
 }
@@ -158,7 +158,7 @@ fn import_step_existing_view_mode_skips() {
     store.save(&settings).unwrap();
     let before = fs::read(store.settings_path()).unwrap();
 
-    import_step(&store, &settings, false, Some(Path::new("/nonexistent")));
+    import_step(&store, &settings, false, &[PathBuf::from("/nonexistent")]);
     assert_eq!(fs::read(store.settings_path()).unwrap(), before);
     assert_eq!(
         load(&store).ui.library_view_mode,
@@ -173,7 +173,7 @@ fn import_step_reads_webkit_db_and_writes_setting() {
     let settings = AppSettingsData::default();
     let (dir, db) = webkit_db(Some((WEBKIT_LIBRARY_VIEW_MODE_KEY, &utf16le("list"))));
 
-    import_step(&store, &settings, false, Some(&db));
+    import_step(&store, &settings, false, &[db]);
     assert_eq!(
         load(&store).ui.library_view_mode,
         Some(LibraryViewMode::List),
@@ -182,6 +182,38 @@ fn import_step_reads_webkit_db_and_writes_setting() {
     let raw = fs::read_to_string(store.settings_path()).unwrap();
     assert!(raw.contains("library_view_mode = \"list\""), "{raw}");
     drop(dir);
+}
+
+#[test]
+fn import_step_uses_legacy_candidate_when_current_is_missing() {
+    let base = tempdir().unwrap();
+    let store = store_in(base.path());
+    let settings = AppSettingsData::default();
+    let (_legacy, db) = webkit_db(Some((WEBKIT_LIBRARY_VIEW_MODE_KEY, &utf16le("list"))));
+    let candidates = [base.path().join("missing-current.localstorage"), db];
+
+    import_step(&store, &settings, false, &candidates);
+
+    assert_eq!(
+        load(&store).ui.library_view_mode,
+        Some(LibraryViewMode::List)
+    );
+}
+
+#[test]
+fn import_step_prefers_current_candidate_over_legacy() {
+    let base = tempdir().unwrap();
+    let store = store_in(base.path());
+    let settings = AppSettingsData::default();
+    let (_current, current) = webkit_db(Some((WEBKIT_LIBRARY_VIEW_MODE_KEY, &utf16le("grid"))));
+    let (_legacy, legacy) = webkit_db(Some((WEBKIT_LIBRARY_VIEW_MODE_KEY, &utf16le("list"))));
+
+    import_step(&store, &settings, false, &[current, legacy]);
+
+    assert_eq!(
+        load(&store).ui.library_view_mode,
+        Some(LibraryViewMode::Grid)
+    );
 }
 #[tokio::test]
 async fn bootstrap_explicit_roots_keeps_view_mode_none_and_step_list_unchanged() {

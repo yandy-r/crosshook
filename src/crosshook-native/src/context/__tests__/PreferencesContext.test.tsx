@@ -196,4 +196,110 @@ describe('PreferencesContext library view mode', () => {
     });
     expect(loadCount).toBe(2);
   });
+  it('restores the last confirmed mode when both the persist and the refresh fail', async () => {
+    const user = userEvent.setup();
+    const persistGate = Promise.withResolvers<void>();
+    let loadCount = 0;
+    renderPreferences({
+      handlerOverrides: {
+        settings_load: async () => {
+          loadCount += 1;
+          if (loadCount > 1) {
+            throw new Error('load boom');
+          }
+          return settingsWithViewMode('grid');
+        },
+        settings_set_library_view_mode: () => persistGate.promise,
+      },
+    });
+    await waitFor(() => expect(loadCount).toBe(1));
+
+    await user.click(screen.getByTestId('set-list'));
+    expect(screen.getByTestId('library-view-mode')).toHaveTextContent('list');
+    await act(async () => {
+      persistGate.reject(new Error('persist boom'));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('library-view-mode')).toHaveTextContent('grid');
+    });
+    expect(loadCount).toBe(2);
+  });
+
+  it('does not restore the last confirmed mode when a newer selection started before the refresh fails', async () => {
+    const user = userEvent.setup();
+    const listPersist = Promise.withResolvers<void>();
+    const gridPersist = Promise.withResolvers<void>();
+    let loadCount = 0;
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    renderPreferences({
+      handlerOverrides: {
+        settings_load: async () => {
+          loadCount += 1;
+          if (loadCount > 1) {
+            throw new Error('load boom');
+          }
+          return settingsWithViewMode('grid');
+        },
+        settings_set_library_view_mode: (args) => {
+          const { mode } = args as { mode?: string };
+          return mode === 'list' ? listPersist.promise : gridPersist.promise;
+        },
+      },
+    });
+    // The initial load confirmed grid; toggle to list (fails), then re-select grid.
+    await user.click(screen.getByTestId('set-list'));
+    expect(screen.getByTestId('library-view-mode')).toHaveTextContent('list');
+    await user.click(screen.getByTestId('set-grid'));
+    expect(screen.getByTestId('library-view-mode')).toHaveTextContent('grid');
+    // Persists are serialized: resolve the newer grid persist so the failed list
+    // persist's recovery refresh can start while the newer selection is active.
+    await act(async () => {
+      gridPersist.resolve();
+    });
+    await act(async () => {
+      listPersist.reject(new Error('persist boom'));
+    });
+
+    // The refresh for the failed list persist runs and fails, but the newer grid
+    // selection is active, so the last-confirmed fallback must not kick in.
+    await waitFor(() => expect(loadCount).toBeGreaterThanOrEqual(2));
+    await act(async () => {});
+    expect(screen.getByTestId('library-view-mode')).toHaveTextContent('grid');
+    expect(loadCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it('serializes settings_set_library_view_mode calls in user order', async () => {
+    const user = userEvent.setup();
+    const firstGate = Promise.withResolvers<void>();
+    const startOrder: Array<string | undefined> = [];
+    let callCount = 0;
+    renderPreferences({
+      handlerOverrides: {
+        settings_set_library_view_mode: (args) => {
+          const { mode } = args as { mode?: string };
+          startOrder.push(mode);
+          callCount += 1;
+          return callCount === 1 ? firstGate.promise : Promise.resolve();
+        },
+      },
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('library-view-mode')).toHaveTextContent('grid');
+    });
+
+    await user.click(screen.getByTestId('set-list'));
+    await user.click(screen.getByTestId('set-grid'));
+    await user.click(screen.getByTestId('set-list'));
+
+    // The first call runs immediately; the second and third wait for it to settle.
+    expect(startOrder).toEqual(['list']);
+    await act(async () => {
+      firstGate.resolve();
+    });
+    await waitFor(() => {
+      expect(startOrder).toEqual(['list', 'grid', 'list']);
+    });
+    expect(screen.getByTestId('library-view-mode')).toHaveTextContent('list');
+  });
 });

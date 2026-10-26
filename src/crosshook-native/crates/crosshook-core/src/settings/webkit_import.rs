@@ -1,11 +1,11 @@
 //! Best-effort import of Classic's WebKit local storage.
 //!
-//! `webkit2gtk-4.1` stores the setting as UTF-16LE in an SQLite database. The
-//! immutable read avoids locks and journal sidecar creation. Consequently, an
-//! un-checkpointed WAL is intentionally ignored and may leave an older value.
+//! `webkit2gtk-4.1` stores the setting as UTF-16LE in an SQLite database. Both
+//! the database and any WAL are snapshotted before SQLite opens the private
+//! copy, so importing never modifies or locks Classic's original files.
 
 use std::fs::OpenOptions;
-use std::io::{Read, Write};
+use std::io::{self, Read};
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
@@ -13,7 +13,7 @@ use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use tracing::debug;
 
 use super::LibraryViewMode;
-use crate::app_id_migration::CURRENT_TAURI_APP_ID_DIR;
+use crate::app_id_migration::{CURRENT_TAURI_APP_ID_DIR, LEGACY_TAURI_APP_ID_DIR};
 use crate::platform::base_dirs;
 
 /// Filename used by WebKit for the Classic origin's local storage.
@@ -25,91 +25,49 @@ pub const WEBKIT_MAX_FILE_BYTES: u64 = 16 * 1024 * 1024;
 
 const MAX_VALUE_BYTES: usize = 16;
 
-/// Return Classic's WebKit local-storage database path, if base dirs exist.
-pub fn webkit_local_storage_path() -> Option<PathBuf> {
-    Some(
-        base_dirs()?
-            .data_local_dir()
-            .join(CURRENT_TAURI_APP_ID_DIR)
-            .join("localstorage")
-            .join(WEBKIT_LOCAL_STORAGE_FILE),
-    )
+/// Return Classic's current and legacy WebKit database candidates, in order.
+pub fn webkit_local_storage_paths() -> Vec<PathBuf> {
+    let Some(dirs) = base_dirs() else {
+        return Vec::new();
+    };
+    [CURRENT_TAURI_APP_ID_DIR, LEGACY_TAURI_APP_ID_DIR]
+        .into_iter()
+        .map(|app_id| {
+            dirs.data_local_dir()
+                .join(app_id)
+                .join("localstorage")
+                .join(WEBKIT_LOCAL_STORAGE_FILE)
+        })
+        .collect()
 }
 
-/// Read Classic's library layout without modifying or locking the database.
+/// Read Classic's library layout without modifying or locking its files.
 ///
 /// Every failure returns `None`; imports are optional and never user-facing
-/// errors. Only a regular file within the size limit is accepted.
-///
-/// TOCTOU hardening: the path is opened with
-/// `O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC` and that descriptor is
-/// `fstat`'d. A post-swap symlink is refused; opening a FIFO with
-/// `O_RDONLY | O_NONBLOCK` succeeds immediately, but `fstat` rejects it as
-/// non-regular. At most `WEBKIT_MAX_FILE_BYTES + 1` bytes are read from that
-/// same descriptor and copied to a private temporary directory, rejecting any
-/// data beyond the cap. Only that copy is opened by SQLite, read-only and
-/// immutable; no path-swap residual window remains for the import file.
-/// `O_NONBLOCK` is a read-only flag with no effect on regular files. An
-/// un-checkpointed WAL is intentionally ignored and may leave an older value.
+/// errors. The database and optional `-wal` must each be regular files within
+/// the size limit. Each is opened with
+/// `O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC`, checked using `fstat`, and
+/// copied from that same descriptor to a private temporary directory. Symlinked
+/// files and FIFOs are refused, while symlinked parent directories are allowed.
+/// SQLite opens only the private copy, without `immutable=1`, so it reads WAL
+/// values and may create its own `-shm` without touching the original files.
 pub fn read_library_view_mode(path: &Path) -> Option<LibraryViewMode> {
-    let file = match OpenOptions::new()
-        .read(true)
-        .custom_flags(nix::libc::O_NOFOLLOW | nix::libc::O_NONBLOCK | nix::libc::O_CLOEXEC)
-        .open(path)
-    {
-        Ok(file) => file,
-        Err(_) => return reject("open_failed"),
-    };
-    let metadata = match file.metadata() {
-        Ok(metadata) => metadata,
-        Err(_) => return reject("metadata_unavailable"),
-    };
-    if !metadata.file_type().is_file() {
-        return reject("not_regular_file");
-    }
-    if metadata.len() > WEBKIT_MAX_FILE_BYTES {
-        return reject("file_too_large");
-    }
     let snapshot = match tempfile::tempdir() {
         Ok(snapshot) => snapshot,
         Err(_) => return reject("tempdir_failed"),
     };
     let snapshot_path = snapshot.path().join(WEBKIT_LOCAL_STORAGE_FILE);
-    let mut copy = match OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .custom_flags(nix::libc::O_NOFOLLOW | nix::libc::O_CLOEXEC)
-        .open(&snapshot_path)
-    {
-        Ok(copy) => copy,
-        Err(_) => return reject("copy_create_failed"),
-    };
-    let mut contents = Vec::with_capacity((WEBKIT_MAX_FILE_BYTES + 1) as usize);
-    if (&file)
-        .take(WEBKIT_MAX_FILE_BYTES + 1)
-        .read_to_end(&mut contents)
-        .is_err()
-    {
-        return reject("read_failed");
+    if let Err(reason) = snapshot_file(path, &snapshot_path, false) {
+        return reject(reason);
     }
-    if contents.len() as u64 > WEBKIT_MAX_FILE_BYTES {
-        return reject("file_too_large");
+    if let Err(reason) = snapshot_file(&wal_path(path), &wal_path(&snapshot_path), true) {
+        return reject(reason);
     }
-    if copy.write_all(&contents).is_err() {
-        return reject("copy_write_failed");
-    }
-    drop(copy);
-    drop(file);
 
-    let uri = format!(
-        "file:{}?mode=ro&immutable=1",
-        percent_encode_path(&snapshot_path)
-    );
     let flags = OpenFlags::SQLITE_OPEN_READ_ONLY
-        | OpenFlags::SQLITE_OPEN_URI
         | OpenFlags::SQLITE_OPEN_NOFOLLOW
         | OpenFlags::SQLITE_OPEN_NO_MUTEX;
-    let connection = match Connection::open_with_flags(uri, flags) {
+    let connection = match Connection::open_with_flags(&snapshot_path, flags) {
         Ok(connection) => connection,
         Err(_) => return reject("open_failed"),
     };
@@ -181,27 +139,48 @@ pub fn read_library_view_mode(path: &Path) -> Option<LibraryViewMode> {
     decode_view_mode(&value)
 }
 
-/// Import the setting from the platform's Classic data directory.
+/// Import the first readable setting from Classic's current or legacy directory.
 pub fn import_library_view_mode() -> Option<LibraryViewMode> {
-    webkit_local_storage_path().and_then(|path| read_library_view_mode(&path))
+    webkit_local_storage_paths()
+        .iter()
+        .find_map(|path| read_library_view_mode(path))
 }
 
-fn percent_encode_path(path: &Path) -> String {
-    use std::os::unix::ffi::OsStrExt;
+fn wal_path(path: &Path) -> PathBuf {
+    let mut path = path.as_os_str().to_os_string();
+    path.push("-wal");
+    path.into()
+}
 
-    const HEX: &[u8; 16] = b"0123456789ABCDEF";
-    let bytes = path.as_os_str().as_bytes();
-    let mut encoded = String::with_capacity(bytes.len() * 3);
-    for &byte in bytes {
-        if matches!(byte, b'%' | b'?' | b'#') || !byte.is_ascii() {
-            encoded.push('%');
-            encoded.push(char::from(HEX[usize::from(byte >> 4)]));
-            encoded.push(char::from(HEX[usize::from(byte & 0x0f)]));
-        } else {
-            encoded.push(char::from(byte));
-        }
+fn snapshot_file(source: &Path, destination: &Path, optional: bool) -> Result<(), &'static str> {
+    let file = match OpenOptions::new()
+        .read(true)
+        .custom_flags(nix::libc::O_NOFOLLOW | nix::libc::O_NONBLOCK | nix::libc::O_CLOEXEC)
+        .open(source)
+    {
+        Ok(file) => file,
+        Err(error) if optional && error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(_) => return Err("open_failed"),
+    };
+    let metadata = file.metadata().map_err(|_| "metadata_unavailable")?;
+    if !metadata.file_type().is_file() {
+        return Err("not_regular_file");
     }
-    encoded
+    if metadata.len() > WEBKIT_MAX_FILE_BYTES {
+        return Err("file_too_large");
+    }
+    let mut copy = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .custom_flags(nix::libc::O_NOFOLLOW | nix::libc::O_CLOEXEC)
+        .open(destination)
+        .map_err(|_| "copy_create_failed")?;
+    let copied = io::copy(&mut file.take(WEBKIT_MAX_FILE_BYTES + 1), &mut copy)
+        .map_err(|_| "copy_failed")?;
+    if copied > WEBKIT_MAX_FILE_BYTES {
+        return Err("file_too_large");
+    }
+    Ok(())
 }
 
 fn decode_view_mode(bytes: &[u8]) -> Option<LibraryViewMode> {

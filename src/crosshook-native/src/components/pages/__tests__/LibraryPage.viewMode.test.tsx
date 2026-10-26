@@ -157,6 +157,10 @@ describe('LibraryPage view mode from settings', () => {
       handlerOverrides: {
         settings_load: async () => {
           loadCount += 1;
+          if (loadCount > 1) {
+            // The recovery refresh fails too; the last confirmed mode is restored.
+            throw new Error('load boom');
+          }
           return {
             ...DEFAULT_APP_SETTINGS,
             ui: { ...DEFAULT_UI_SETTINGS, library_view_mode: 'grid' },

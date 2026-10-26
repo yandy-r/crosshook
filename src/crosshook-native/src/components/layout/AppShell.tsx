@@ -25,6 +25,10 @@ import { useCommandPalette } from '@/hooks/useCommandPalette';
 import { useFlatpakMigrationToast } from '@/hooks/useFlatpakMigrationToast';
 import { useRunningProfiles } from '@/hooks/useRunningProfiles';
 import {
+  UI_SETTINGS_PERSIST_FAILED_MESSAGE,
+  useUiSettingsPersistFailedToast,
+} from '@/hooks/useUiSettingsPersistFailedToast';
+import {
   type CommandPaletteCommand,
   createProfileCommands,
   isCommandPaletteCommandEnabled,
@@ -275,6 +279,8 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
   );
 
   const { importCount: flatpakImportCount, dismiss: dismissFlatpakToast } = useFlatpakMigrationToast();
+  const { detailMessage: uiSettingsPersistDetail, dismiss: dismissUiSettingsPersistToast } =
+    useUiSettingsPersistFailedToast();
 
   const retryCollectionDescription = useCallback(async () => {
     if (collectionDescriptionToast === null) {
@@ -616,6 +622,23 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
             </div>
           ) : null}
           <MetadataStatusBanner />
+          {uiSettingsPersistDetail !== null ? (
+            <div
+              className="crosshook-status-toast crosshook-toast--ui-settings-persist"
+              role="status"
+              aria-live="polite"
+            >
+              <span title={uiSettingsPersistDetail}>{UI_SETTINGS_PERSIST_FAILED_MESSAGE}</span>
+              <button
+                type="button"
+                className="crosshook-rename-toast-dismiss"
+                aria-label="Dismiss"
+                onClick={dismissUiSettingsPersistToast}
+              >
+                ×
+              </button>
+            </div>
+          ) : null}
           {flatpakImportCount !== null ? (
             <div className="crosshook-status-toast crosshook-toast--flatpak-migration" role="status" aria-live="polite">
               <span>

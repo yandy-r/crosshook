@@ -23,7 +23,7 @@ export interface PreferencesContextValue {
   clearRecentFiles: () => Promise<void>;
   /** Library view mode from `[ui].library_view_mode`; `'grid'` while settings load or when unset. */
   libraryViewMode: LibraryViewMode;
-  /** Optimistically updates `libraryViewMode` and persists via `settings_set_library_view_mode` (fire-and-forget). */
+  /** Optimistically updates `libraryViewMode` and persists via `settings_set_library_view_mode` (serialized; failure restores the last confirmed mode). */
   setLibraryViewMode: (mode: LibraryViewMode) => void;
 }
 
@@ -74,6 +74,8 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
   const pendingViewModeRef = useRef<LibraryViewMode | null>(null);
   const latestViewModeRequestRef = useRef(0);
   const settledViewModeRequestRef = useRef(0);
+  /** Last confirmed backend view mode (authoritative load or successful persist). */
+  const lastConfirmedViewModeRef = useRef<LibraryViewMode | null>(null);
 
   // A load is authoritative only when no view-mode request started after it and
   // it started after the latest request settled. Older loads retain the current
@@ -85,6 +87,8 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
     if (loadIsAuthoritative) {
       pendingViewModeRef.current = null;
       setSettings(loadedSettings);
+      // Authoritative loads confirm the backend value.
+      lastConfirmedViewModeRef.current = loadedSettings.ui.library_view_mode ?? 'grid';
       return;
     }
 
@@ -206,6 +210,10 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
 
   const libraryViewMode = settings.ui.library_view_mode ?? 'grid';
 
+  // Promise queue serializing `settings_set_library_view_mode` so the backend
+  // applies selections in user order even under rapid toggles.
+  const viewModePersistQueueRef = useRef<Promise<void>>(Promise.resolve());
+
   const setLibraryViewMode = useCallback(
     (mode: LibraryViewMode) => {
       const requestSequence = latestViewModeRequestRef.current + 1;
@@ -215,25 +223,58 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
         ...previous,
         ui: { ...previous.ui, library_view_mode: mode },
       }));
-      void callCommand('settings_set_library_view_mode', { mode })
-        .then(() => {
+      const run = viewModePersistQueueRef.current
+        .catch(() => undefined)
+        .then(() => callCommand('settings_set_library_view_mode', { mode }));
+      viewModePersistQueueRef.current = run.then(
+        () => undefined,
+        () => undefined
+      );
+      void run.then(
+        () => {
           if (latestViewModeRequestRef.current !== requestSequence) {
             return;
           }
           // Retain the mode for loads that started before this settle. The next
           // authoritative load clears the guard regardless of the backend value.
           settledViewModeRequestRef.current = requestSequence;
-        })
-        .catch((error: unknown) => {
+          lastConfirmedViewModeRef.current = mode;
+        },
+        (error: unknown) => {
           console.error('Failed to persist library view mode', error);
-          if (latestViewModeRequestRef.current !== requestSequence) {
-            return;
-          }
-          settledViewModeRequestRef.current = requestSequence;
-          pendingViewModeRef.current = null;
+          const restoreFallback = () => {
+            // Restore the last confirmed mode only when no newer selection started.
+            if (latestViewModeRequestRef.current !== requestSequence) {
+              return;
+            }
+            const fallback = lastConfirmedViewModeRef.current;
+            if (fallback === null || fallback === mode) {
+              return;
+            }
+            pendingViewModeRef.current = null;
+            setSettings((previous) => ({
+              ...previous,
+              ui: { ...previous.ui, library_view_mode: fallback },
+            }));
+          };
           // refreshPreferences records a recovery-load failure in settingsError.
-          void refreshPreferences().catch(() => undefined);
-        });
+          // A successful refresh is authoritative only when no load was already in
+          // flight with stale data; without one (or on refresh failure), restore
+          // the last confirmed mode. A superseded request only recovers via the
+          // refresh when it is still awaiting its persist slot (settled === 0).
+          const shouldRefresh =
+            latestViewModeRequestRef.current === requestSequence || settledViewModeRequestRef.current === 0;
+          if (shouldRefresh) {
+            if (latestViewModeRequestRef.current === requestSequence) {
+              settledViewModeRequestRef.current = requestSequence;
+              pendingViewModeRef.current = null;
+            }
+            void refreshPreferences().then(restoreFallback, restoreFallback);
+          } else {
+            restoreFallback();
+          }
+        }
+      );
     },
     [refreshPreferences]
   );

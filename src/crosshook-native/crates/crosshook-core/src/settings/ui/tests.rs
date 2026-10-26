@@ -198,6 +198,32 @@ fn palette_push_moves_to_front_deduplicates_and_caps_at_twenty() {
 }
 
 #[test]
+fn palette_push_removes_all_existing_copies_even_when_already_first() {
+    for entries in [
+        [
+            "route:library",
+            "route:settings",
+            "route:library",
+            "route:library",
+        ],
+        [
+            "route:settings",
+            "route:library",
+            "route:library",
+            "route:library",
+        ],
+    ] {
+        let mut settings = UiSettings {
+            palette_recent: entries.into_iter().map(String::from).collect(),
+            ..Default::default()
+        };
+
+        assert!(settings.push_palette_recent("route:library"));
+        assert_eq!(settings.palette_recent, ["route:library", "route:settings"]);
+    }
+}
+
+#[test]
 fn palette_push_rejects_invalid_identifiers_without_changing_the_list() {
     let mut settings = UiSettings::default();
     for id in [

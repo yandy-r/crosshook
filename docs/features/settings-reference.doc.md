@@ -69,27 +69,32 @@ palette_recent = ["route:library", "settings:ui:density"]
 
 ## Import from the Classic WebKit storage
 
-On every launch that finds no `library_view_mode` in `[ui]`, CrossHook
-attempts to read the old Classic preference from the WebKit `localStorage`
-database (`tauri_localhost_0.localstorage`, key `crosshook.library.viewMode`):
+On launches where `settings.toml` loads successfully and has no
+`[ui].library_view_mode`, CrossHook attempts to read the old Classic preference
+from the WebKit `localStorage` database (`tauri_localhost_0.localstorage`, key
+`crosshook.library.viewMode`):
 
 - **Flatpak:** `~/.var/app/dev.crosshook.CrossHook/data/dev.crosshook.CrossHook/localstorage/`
 - **Legacy/AppImage:** `~/.local/share/dev.crosshook.CrossHook/localstorage/`
 
-The read is hardened and read-only (the file is opened immutable, without
-locks or journal sidecars, and rejected if it is not a regular file or is
-larger than 16 MiB). Any failure silently falls back to `grid`; the import is
-best-effort and never user-facing. A missing or unreadable database writes
-nothing, so the import is retried on each launch until `[ui]` stores a view
-mode. After a successful import, the Library toggle reads and writes
-`[ui].library_view_mode` in `settings.toml` and no longer touches
-`localStorage`.
+The current app-id directory is tried first, followed by the legacy
+`com.crosshook.native/localstorage/` directory under the same data root.
+The read snapshots the database and its `-wal` sidecar, when present, into a
+private temporary directory so SQLite can read the newest uncheckpointed WAL
+value without modifying or locking the original files. Each source must be a
+regular file no larger than 16 MiB. A missing or unreadable database writes
+nothing; import is best-effort and never user-facing, and the library uses
+`grid` if no value is imported. The attempt is repeated on eligible launches
+until `[ui]` stores a view mode. Explicit store roots skip import. After a
+successful import, the Library toggle reads and writes
+`[ui].library_view_mode` in `settings.toml` and no longer touches `localStorage`.
 
 ## Degraded behaviour
 
 If the settings file is not writable, `[ui]` changes still apply in memory for
-the rest of the session but are not persisted; the first failed write is
-logged and surfaced internally as an event, later failures are only logged.
+the rest of the session but are not persisted. A single error notification is
+shown per session when `[ui]` cannot be saved; the first failed write publishes
+an event and logs an error, and later failures are only logged.
 Writes are spaced at least one second apart: the first change after an idle
 window is written immediately (leading write), and every change made inside
 the following one-second window coalesces into a single trailing write. A
@@ -99,7 +104,8 @@ write plus at most one trailing write.
 ## Runtime-only state
 
 Toast and banner dismissals (rename toasts, the Flatpak migration toast) are
-per-session and are **not** saved anywhere.
+per-session. Classic keeps them in `sessionStorage` (cleared on restart), while
+the native UI keeps them in memory. Neither writes them to `settings.toml`.
 
 ## Known limitations
 
@@ -114,6 +120,5 @@ per-session and are **not** saved anywhere.
 - The exit-time flush of pending writes only happens on a graceful exit.
   Changes made in the last second before a non-graceful exit (SIGTERM/`kill`,
   session logout) can be lost with their trailing write.
-- The WebKit import is skipped when any directory on the localStorage path is
-  a symlink (for example a symlinked `~/.local/share` from a dotfile
-  manager); the hardened read refuses to follow symlinked path components.
+- The WebKit import refuses a symlinked database file or `-wal` sidecar.
+  Symlinked parent directories (for example `~/.local/share`) are allowed.

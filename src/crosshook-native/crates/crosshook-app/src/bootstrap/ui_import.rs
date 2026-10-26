@@ -4,7 +4,7 @@
 //! when no explicit view mode is stored yet. Best-effort: a missing or
 //! unreadable WebKit store writes nothing.
 
-use std::path::Path;
+use std::path::PathBuf;
 
 use crosshook_core::settings::{webkit_import, AppSettingsData, LibraryViewMode, SettingsStore};
 
@@ -12,20 +12,21 @@ use crate::AppError;
 
 /// Imports Classic's WebKit `library_view_mode` when eligible.
 ///
-/// Skips unless the caller resolved a WebKit local-storage path (production
-/// resolves it only for XDG store roots), settings were readable, and
+/// Skips unless the caller resolved WebKit local-storage candidates (production
+/// resolves them only for XDG store roots), settings were readable, and
 /// `settings.ui.library_view_mode` is `None`. Adds no `BootstrapStep`.
 pub(super) fn import_step(
     store: &SettingsStore,
     settings: &AppSettingsData,
     unreadable: bool,
-    local_storage: Option<&Path>,
+    local_storage: &[PathBuf],
 ) {
-    if unreadable || local_storage.is_none() || settings.ui.library_view_mode.is_some() {
+    if unreadable || settings.ui.library_view_mode.is_some() {
         return;
     }
-    // Unwrapping is safe: `local_storage.is_none()` returned above.
-    let imported = webkit_import::read_library_view_mode(local_storage.unwrap());
+    let imported = local_storage
+        .iter()
+        .find_map(|path| webkit_import::read_library_view_mode(path));
     apply_import(store, imported);
 }
 

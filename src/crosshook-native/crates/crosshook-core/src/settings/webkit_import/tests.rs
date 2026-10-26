@@ -6,10 +6,9 @@ use rusqlite::{params, Connection};
 use tempfile::{tempdir, TempDir};
 
 use super::{
-    read_library_view_mode, webkit_local_storage_path, WEBKIT_LIBRARY_VIEW_MODE_KEY,
+    read_library_view_mode, wal_path, webkit_local_storage_paths, WEBKIT_LIBRARY_VIEW_MODE_KEY,
     WEBKIT_LOCAL_STORAGE_FILE, WEBKIT_MAX_FILE_BYTES,
 };
-use crate::app_id_migration::CURRENT_TAURI_APP_ID_DIR;
 use crate::settings::LibraryViewMode;
 
 fn utf16le(value: &str) -> Vec<u8> {
@@ -64,6 +63,86 @@ fn imports_utf16le_list() {
 fn imports_utf16le_grid() {
     let (_dir, path) = database(Some((WEBKIT_LIBRARY_VIEW_MODE_KEY, &utf16le("grid"))));
     assert_eq!(read_library_view_mode(&path), Some(LibraryViewMode::Grid));
+}
+
+#[test]
+fn imports_uncheckpointed_wal_without_modifying_original_files() {
+    let (_source, source_path) = database(Some((WEBKIT_LIBRARY_VIEW_MODE_KEY, &utf16le("grid"))));
+    let connection = Connection::open(&source_path).expect("open WAL fixture");
+    connection
+        .pragma_update(None, "wal_autocheckpoint", 0)
+        .expect("disable auto-checkpoint");
+    connection
+        .execute(
+            "UPDATE ItemTable SET value = ?1 WHERE key = ?2",
+            params![utf16le("list"), WEBKIT_LIBRARY_VIEW_MODE_KEY],
+        )
+        .expect("write uncheckpointed value");
+
+    // Copy while the writer stays open: closing it would checkpoint the WAL.
+    let dir = tempdir().expect("snapshot fixture directory");
+    let path = dir.path().join(WEBKIT_LOCAL_STORAGE_FILE);
+    fs::copy(&source_path, &path).expect("copy checkpointed grid database");
+    fs::copy(wal_path(&source_path), wal_path(&path)).expect("copy uncheckpointed list WAL");
+    let before_entries = directory_names(dir.path());
+    let before = [&path, &wal_path(&path)].map(|file| {
+        (
+            fs::read(file).unwrap(),
+            fs::metadata(file).unwrap().modified().unwrap(),
+        )
+    });
+
+    assert_eq!(read_library_view_mode(&path), Some(LibraryViewMode::List));
+
+    assert_eq!(directory_names(dir.path()), before_entries);
+    for (file, (bytes, mtime)) in [&path, &wal_path(&path)].into_iter().zip(before) {
+        assert_eq!(fs::read(file).unwrap(), bytes);
+        assert_eq!(fs::metadata(file).unwrap().modified().unwrap(), mtime);
+    }
+    drop(connection);
+}
+
+#[test]
+fn symlinked_parent_directory_is_allowed() {
+    let (dir, path) = database(Some((WEBKIT_LIBRARY_VIEW_MODE_KEY, &utf16le("list"))));
+    let parent = tempdir().expect("parent directory");
+    let link = parent.path().join("classic");
+    std::os::unix::fs::symlink(dir.path(), &link).expect("symlink directory");
+
+    assert_eq!(
+        read_library_view_mode(&link.join(path.file_name().unwrap())),
+        Some(LibraryViewMode::List)
+    );
+}
+
+#[test]
+fn symlinked_wal_returns_none() {
+    let (dir, path) = database(Some((WEBKIT_LIBRARY_VIEW_MODE_KEY, &utf16le("grid"))));
+    let target = dir.path().join("wal-target");
+    fs::write(&target, []).expect("create symlink target");
+    std::os::unix::fs::symlink(target, wal_path(&path)).expect("symlink WAL");
+    assert_eq!(read_library_view_mode(&path), None);
+}
+
+#[test]
+fn fifo_wal_returns_none_without_blocking() {
+    let (_dir, path) = database(Some((WEBKIT_LIBRARY_VIEW_MODE_KEY, &utf16le("grid"))));
+    nix::unistd::mkfifo(
+        &wal_path(&path),
+        nix::sys::stat::Mode::from_bits_truncate(0o600),
+    )
+    .expect("FIFO WAL");
+    assert_eq!(read_library_view_mode(&path), None);
+}
+
+#[test]
+fn sparse_oversize_wal_returns_none() {
+    let (_dir, path) = database(Some((WEBKIT_LIBRARY_VIEW_MODE_KEY, &utf16le("grid"))));
+    File::create(wal_path(&path))
+        .expect("create sparse WAL")
+        .set_len(WEBKIT_MAX_FILE_BYTES + 1)
+        .expect("grow sparse WAL");
+    assert_eq!(read_library_view_mode(&path), None);
 }
 
 #[test]
@@ -246,11 +325,11 @@ fn successful_read_preserves_database_and_creates_no_sidecars() {
 }
 
 #[test]
-fn platform_path_uses_current_classic_storage_directory() {
-    let path = webkit_local_storage_path().expect("platform base directories");
-    assert!(path.ends_with(
-        Path::new(CURRENT_TAURI_APP_ID_DIR)
-            .join("localstorage")
-            .join(WEBKIT_LOCAL_STORAGE_FILE)
-    ));
+fn platform_paths_try_current_then_legacy_classic_storage_directories() {
+    let paths = webkit_local_storage_paths();
+    assert_eq!(paths.len(), 2);
+    assert!(
+        paths[0].ends_with("dev.crosshook.CrossHook/localstorage/tauri_localhost_0.localstorage")
+    );
+    assert!(paths[1].ends_with("com.crosshook.native/localstorage/tauri_localhost_0.localstorage"));
 }

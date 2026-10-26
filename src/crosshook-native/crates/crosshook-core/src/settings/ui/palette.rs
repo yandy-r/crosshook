@@ -75,12 +75,13 @@ pub(super) fn push_recent(list: &mut Vec<String>, id: &str) -> bool {
         return false;
     }
 
-    if list.first().map(String::as_str) != Some(id) {
-        if let Some(index) = list.iter().position(|existing| existing == id) {
-            list.remove(index);
-        }
-        list.insert(0, id.to_owned());
-    }
+    let recent = list
+        .iter()
+        .position(|existing| existing == id)
+        .map(|index| list.remove(index))
+        .unwrap_or_else(|| id.to_owned());
+    list.retain(|existing| existing != id);
+    list.insert(0, recent);
     list.truncate(PALETTE_RECENT_MAX);
     true
 }
