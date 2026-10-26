@@ -12,7 +12,6 @@ use crosshook_core::launch::{
 
 use super::gamescope::{execution_method, gamescope_plan, GamescopePlan};
 use super::queries::enrich_umu_gameid;
-use super::types::LaunchEnv;
 use super::warnings::collect_launch_warnings;
 use super::LaunchService;
 use crate::jobs::create_log_path;
@@ -26,12 +25,6 @@ pub(super) struct Prepared {
     pub kind: SessionKind,
     /// Method the child actually executes with.
     pub execution_method: &'static str,
-    /// Host facts the gamescope predicates were evaluated against.
-    ///
-    /// Builder dispatch uses [`Self::execution_method`], which already folds
-    /// these facts in.
-    #[allow(dead_code)]
-    pub env: LaunchEnv,
     /// Advisories collected before spawn. `run_session` appends pre-launch
     /// hook warnings after the command is built.
     pub warnings: Vec<LaunchValidationIssue>,
@@ -73,7 +66,6 @@ impl LaunchService {
             request,
             kind,
             execution_method: method,
-            env,
             warnings: collected.issues,
             coexistence: collected.coexistence,
             log_path,

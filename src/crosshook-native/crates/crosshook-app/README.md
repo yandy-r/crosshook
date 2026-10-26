@@ -92,15 +92,16 @@ feature checks in CI and `scripts/lint.sh` reject `bootstrap-trace` in shipped b
 
 ## Services
 
-| Service                 | API                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Delegating Tauri commands                                                                                                                                          |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `SettingsService`       | `load() -> SettingsSnapshot` (data + profiles-dir restart state), `update(closure)` (atomic, normalized), `save_request(SettingsSaveRequest)`, `save_steamgriddb_key`                                                                                                                                                                                                                                                                                                                                                            | `settings_load`, `settings_save`, `settings_save_steamgriddb_key`                                                                                                  |
-| `RecentFilesService`    | `load()`, `save(data)` (unknown keys preserved), `push(RecentFileKind, path)` (move to front, dedupe, cap at `recent_files_limit`)                                                                                                                                                                                                                                                                                                                                                                                               | `recent_files_load`, `recent_files_save`                                                                                                                           |
-| `CatalogService`        | `optimization_catalog()`, `command_argument_catalog()`, `mangohud_presets()` (in-memory reads)                                                                                                                                                                                                                                                                                                                                                                                                                                   | `get_optimization_catalog`, `get_command_argument_catalog`, `get_mangohud_presets`                                                                                 |
-| `DiagnosticsService`    | `export(DiagnosticsRequest) -> DiagnosticsExport` (absolute + sanitized display path); `DiagnosticAttachment`s are archived under `app/`                                                                                                                                                                                                                                                                                                                                                                                         | `export_diagnostics`                                                                                                                                               |
-| `HealthService`         | `batch_summary()`, `profile_health(name)`, `cached_health_snapshots()`, `cached_offline_readiness_snapshots()` (blocking I/O on the pool; wire types keep their serde names)                                                                                                                                                                                                                                                                                                                                                     | `batch_validate_profiles`, `get_profile_health`, `get_cached_health_snapshots`, `get_cached_offline_readiness_snapshots`                                           |
-| `BackgroundGrantHolder` | `request_and_store(&impl BackgroundPortal)`, `store_result`, `protection_state`, `wait_for_initialization`; `XdgBackgroundPortal` is the production portal                                                                                                                                                                                                                                                                                                                                                                       | `get_background_protection_state`; the background-portal startup job runs `request_and_store`, the launch watchdog awaits init                                     |
-| `ProfileWriter`         | Async profile facades (`save`, `delete`, `duplicate`, `rename`, `set_favorite`, section/optimization/command-argument saves, bundled/manual presets, `config_history`/`config_diff`/`config_rollback`/`mark_known_good`, `import_legacy`, `import_lutris`, `import_community`, `export_toml`, ProtonDB accept, Proton migration apply) plus lock-free reads (`list`, `load`, `list_summaries`, `list_favorites`, `list_bundled_optimization_presets`); mutations return `ProfileCommit<T> { output, new_revision_id, warnings }` | The 23 `profile_*` commands, `protondb_accept_suggestion`, `apply_proton_migration`, `apply_batch_migration`, `lutris_import_profiles`, `community_import_profile` |
+| Service                 | API                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Delegating Tauri commands                                                                                                                                                                                                   |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SettingsService`       | `load() -> SettingsSnapshot` (data + profiles-dir restart state), `update(closure)` (atomic, normalized), `save_request(SettingsSaveRequest)`, `save_steamgriddb_key`                                                                                                                                                                                                                                                                                                                                                            | `settings_load`, `settings_save`, `settings_save_steamgriddb_key`                                                                                                                                                           |
+| `RecentFilesService`    | `load()`, `save(data)` (unknown keys preserved), `push(RecentFileKind, path)` (move to front, dedupe, cap at `recent_files_limit`)                                                                                                                                                                                                                                                                                                                                                                                               | `recent_files_load`, `recent_files_save`                                                                                                                                                                                    |
+| `CatalogService`        | `optimization_catalog()`, `command_argument_catalog()`, `mangohud_presets()` (in-memory reads)                                                                                                                                                                                                                                                                                                                                                                                                                                   | `get_optimization_catalog`, `get_command_argument_catalog`, `get_mangohud_presets`                                                                                                                                          |
+| `DiagnosticsService`    | `export(DiagnosticsRequest) -> DiagnosticsExport` (absolute + sanitized display path); `DiagnosticAttachment`s are archived under `app/`                                                                                                                                                                                                                                                                                                                                                                                         | `export_diagnostics`                                                                                                                                                                                                        |
+| `HealthService`         | `batch_summary()`, `profile_health(name)`, `cached_health_snapshots()`, `cached_offline_readiness_snapshots()` (blocking I/O on the pool; wire types keep their serde names)                                                                                                                                                                                                                                                                                                                                                     | `batch_validate_profiles`, `get_profile_health`, `get_cached_health_snapshots`, `get_cached_offline_readiness_snapshots`                                                                                                    |
+| `BackgroundGrantHolder` | `request_and_store(&impl BackgroundPortal)`, `store_result`, `protection_state`, `wait_for_initialization`; `XdgBackgroundPortal` is the production portal                                                                                                                                                                                                                                                                                                                                                                       | `get_background_protection_state`; the background-portal startup job runs `request_and_store`, the launch watchdog awaits init                                                                                              |
+| `ProfileWriter`         | Async profile facades (`save`, `delete`, `duplicate`, `rename`, `set_favorite`, section/optimization/command-argument saves, bundled/manual presets, `config_history`/`config_diff`/`config_rollback`/`mark_known_good`, `import_legacy`, `import_lutris`, `import_community`, `export_toml`, ProtonDB accept, Proton migration apply) plus lock-free reads (`list`, `load`, `list_summaries`, `list_favorites`, `list_bundled_optimization_presets`); mutations return `ProfileCommit<T> { output, new_revision_id, warnings }` | The 23 `profile_*` commands, `protondb_accept_suggestion`, `apply_proton_migration`, `apply_batch_migration`, `lutris_import_profiles`, `community_import_profile`                                                          |
+| `LaunchService`         | `start_game(LaunchRequest)` / `start_trainer(LaunchRequest) -> LaunchSession` (per-session bounded event stream, subscribed before spawn), `validate`, `preview`, `steam_launch_options_command`, `launch_history`, `reset_sessions`, `running_profiles`, plus the shared `read_log_tail` / `stream_child_log` helpers the CLI reuses                                                                                                                                                                                            | `launch_game`, `launch_trainer`, `launch_reset_sessions`, `validate_launch`, `preview_launch`, `build_steam_launch_options_command`, `list_launch_history_for_profile`, `list_running_profiles` (see `LaunchService` below) |
 
 Attachment names must be a single relative file name (no `/`, `\`, `..`, NUL,
 or empty); invalid names fail with `Validation { field: "attachments" }` before
@@ -165,6 +166,64 @@ On-disk bytes for save, rename, duplicate and rollback are pinned against
 pre-refactor fixtures in `tests/profile_writer_golden.rs`; the fixtures are
 frozen and are never regenerated from the writer.
 
+### LaunchService
+
+Every game or trainer launch goes through `LaunchService`; `src-tauri` keeps
+only thin `#[tauri::command]` delegates plus the per-session relay that maps
+service events onto the `launch-log`, `launch-diagnostic`, `launch-complete`
+and `injection-log` Tauri events (the only place that knows those names).
+The CLI reuses the service's `stream_child_log` and `read_log_tail` helpers
+but does not start sessions (that is YAN-837's scope).
+
+`start_game`/`start_trainer` share one `prepare` step (kind flags forced,
+validate **first** — an invalid request has no side effect — UMU enrichment,
+warning collection, log-file creation, gamescope plan), then dispatch to a
+core builder and hand the built command to `run_session`. The session is
+registered in one `LaunchSessionRegistry` **owned by `Services`** (clones
+share it; `src-tauri` manages only the service, never a second registry),
+the event channel is created **before** spawn (subscribe-before-start), and
+the child is spawned through the `ProcessSpawner` seam — one method,
+`spawn(&mut tokio::process::Command)` — which production backs with
+`TokioSpawner` and tests with a scripted fake, so the finalizer and cascade
+are testable without Proton.
+
+`LaunchSession { id, kind, warnings, log_path, events }` hands the caller a
+per-session bounded `broadcast` stream (`LAUNCH_EVENT_CAPACITY` = 256) of
+`LaunchEvent::{Log, Injection, Diagnostic, Exited}`; every event carries its
+`session_id`. A lagging receiver gets a `Log(LogBatch::Dropped { n })` notice
+instead of the skipped events, and `Exited` is published exactly once, last.
+A spawn failure returns `LaunchStartError { error, events }` carrying the
+pre-spawn injection rows via `drain_ready()`.
+
+- **Finalizer order.** The session task runs teardown under a drop/panic
+  guard (`SessionGuard`): build the diagnostic report (bounded 2 MiB
+  `read_log_tail`, sanitized paths), record the history row, success effects
+  (version snapshot, then known-good tag) on a clean or indeterminate exit,
+  publish the diagnostic, the trainer injection wrap-up, `Exited`, then the
+  linked-child cascade (game sessions), post-exit hooks (via `run_blocking`),
+  deregistration and portal unregister. A panic still runs the remaining
+  steps.
+- **Gamescope gating.** One pure predicate, `gamescope_required(request,
+kind, env)` (plus `execution_method` and `pid_capture_required`), decides
+  the watchdog and the PID-capture path; host facts arrive as `LaunchEnv`
+  (`with_env` fixes them in tests). Core's `should_skip_gamescope` keeps
+  deciding builder arguments only — it is not the watchdog gate.
+- **No kill path.** The service never signals a process: no process groups,
+  `killpg`, `kill_processes_using_prefix`, `JobRegistry` jobs, or a kill
+  method on the spawner. Teardown goes through the core gamescope watchdog
+  and the registry's cancel channel; the cancel consumer is a watchdog only
+  when gamescope is required and the child has a PID, else a drain.
+- **Storage boundary.** No schema or TOML changes: the finalizer writes
+  existing `launch_operations` rows (`record_launch_started` /
+  `record_launch_finished` with the diagnostic JSON), version snapshots and
+  known-good tags, all fail-open on a degraded store. Sessions, events and
+  `session_id`s are runtime-only and never persisted.
+
+Wire payloads are pinned by the frozen Phase-0 fixtures in
+`src-tauri/src/commands/launch/fixtures/events/` (byte-identical modulo the
+added `session_id`); the CLI's stdout/stderr/exit codes are pinned by
+`crosshook-cli/tests/fixtures/launch/`.
+
 ## Jobs
 
 `App::jobs()` returns the app's `JobRegistry` (also constructible standalone
@@ -219,13 +278,17 @@ prefix sweep via the host gateway `kill`).
   `profile_name_history`, `config_revisions`,
   `profile_launch_preset_metadata`, and deletes the cached `health_snapshots`
   row on write. Diagnostics reads metadata status only.
+  `LaunchService` writes existing `launch_operations` rows (start and
+  finish, with the diagnostic JSON), version snapshots and known-good tags,
+  fail-open on a degraded store.
 - **Profile TOML:** `<profiles>/<name>.toml` through `ProfileStore`, format
   unchanged and byte-identical to the pre-service commands.
 - **User-requested export:** the diagnostics `.tar.gz`, written to the chosen
   directory (system temp by default).
 - **Runtime-only:** the Background portal grant and its protection state;
-  job state, handles, and retained job outcomes; the startup report, its
-  step log and job results (served by `get_startup_report`, never
+  job state, handles, and retained job outcomes; launch sessions, their
+  event streams and `session_id`s (never persisted); the startup report,
+  its step log and job results (served by `get_startup_report`, never
   persisted).
 
 Offline behavior is unaffected. Save failures surface as `AppErrorKind::Io`.

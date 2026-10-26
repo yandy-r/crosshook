@@ -1,7 +1,6 @@
 //! Post-exit version snapshot and known-good tag effects (Task 2.4).
 //!
-//! Moved verbatim from the Tauri stream finalizer
-//! (`src-tauri/src/commands/launch/streaming.rs:286-424`): on a clean or
+//! Moved verbatim from the Tauri stream finalizer: on a clean or
 //! indeterminate exit the service records a version snapshot correlating the
 //! installed Steam build with the trainer file, then independently tags the
 //! latest config revision as known-good. Both effects are fail-open: every

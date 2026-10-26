@@ -1,8 +1,7 @@
 //! Shared harness: tempdir stores, a service wired to a scripted
 //! [`FakeSpawner`], hermetic launch requests, and an event collector.
 //!
-//! Frozen in B1. Every slice uses a subset, so unused items are expected.
-#![allow(dead_code)]
+//! Every helper here is used by at least one slice.
 
 use std::collections::{BTreeMap, VecDeque};
 use std::ffi::OsString;
@@ -313,13 +312,6 @@ impl Harness {
             umu_preference: UmuPreference::Proton,
             ..Default::default()
         }
-    }
-
-    /// The trainer-only form of a game request.
-    pub(super) fn trainer_of(&self, mut request: LaunchRequest) -> LaunchRequest {
-        request.launch_trainer_only = true;
-        request.launch_game_only = false;
-        request
     }
 
     /// Drains `session`'s events until `Exited` (inclusive), in order.

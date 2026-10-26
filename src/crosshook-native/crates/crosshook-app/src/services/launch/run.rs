@@ -54,7 +54,6 @@ impl LaunchService {
             coexistence,
             log_path,
             gamescope,
-            env: _,
         } = prepared;
 
         // Dropped, not unregistered, when a later step returns before the
