@@ -191,8 +191,9 @@ impl SessionGuard {
                 "Trainer launch ended with diagnostics.",
             )
         };
-        self.publisher
-            .injection(InjectionLogData::new(profile, kind, level, source, message, false));
+        self.publisher.injection(InjectionLogData::new(
+            profile, kind, level, source, message, false,
+        ));
     }
 
     fn publish_exited(&mut self, code: Option<i32>, signal: Option<i32>) {
@@ -208,10 +209,10 @@ impl SessionGuard {
             return;
         }
         if self.ctx.kind == SessionKind::Game {
-            let signalled = self.ctx.registry.cancel_linked_children(
-                self.ctx.session_id,
-                TeardownReason::LinkedSessionExit,
-            );
+            let signalled = self
+                .ctx
+                .registry
+                .cancel_linked_children(self.ctx.session_id, TeardownReason::LinkedSessionExit);
             if signalled > 0 {
                 tracing::info!(
                     game_session_id = %self.ctx.session_id,
@@ -354,4 +355,3 @@ fn log_hook_warnings(hooks: &[LaunchHook], context: &LaunchHookExecutionContext)
 fn catch_registry(work: impl FnOnce()) {
     let _ = std::panic::catch_unwind(AssertUnwindSafe(work));
 }
-

@@ -65,7 +65,10 @@ fn record_version_snapshot(
     let profile_id = match metadata.lookup_profile_id(profile_name) {
         Ok(Some(id)) => id,
         Ok(None) => {
-            tracing::warn!(profile_name, "version snapshot skipped: profile not in metadata");
+            tracing::warn!(
+                profile_name,
+                "version snapshot skipped: profile not in metadata"
+            );
             return;
         }
         Err(error) => {
@@ -129,7 +132,10 @@ fn record_version_snapshot(
     );
 
     if matches!(status, VersionCorrelationStatus::UpdateInProgress) {
-        tracing::debug!(profile_name, "version snapshot skipped: game update in progress");
+        tracing::debug!(
+            profile_name,
+            "version snapshot skipped: game update in progress"
+        );
         return;
     }
 

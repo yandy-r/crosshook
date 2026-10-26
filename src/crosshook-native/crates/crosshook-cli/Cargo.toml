@@ -13,6 +13,7 @@ workspace = true
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 clap_complete = "4"
+crosshook-app = { path = "../crosshook-app" }
 crosshook-core = { path = "../crosshook-core" }
 libc = "0.2"
 serde = { version = "1", features = ["derive"] }

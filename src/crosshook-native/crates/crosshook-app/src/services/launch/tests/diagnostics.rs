@@ -74,5 +74,8 @@ async fn read_log_tail_decodes_invalid_utf8_lossily() {
 async fn read_log_tail_returns_empty_for_a_missing_file() {
     let dir = tempfile::tempdir().unwrap();
 
-    assert_eq!(read_log_tail(&dir.path().join("missing.log"), 1024).await, "");
+    assert_eq!(
+        read_log_tail(&dir.path().join("missing.log"), 1024).await,
+        ""
+    );
 }

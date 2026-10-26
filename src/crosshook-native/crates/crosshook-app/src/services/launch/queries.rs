@@ -11,17 +11,17 @@
 use std::collections::BTreeMap;
 
 use crosshook_core::launch::{
-    self, LaunchPreview, LaunchRequest, LaunchValidationIssue, METHOD_STEAM_APPLAUNCH, SessionKind,
-    TeardownReason, build_launch_preview, escape_steam_token, resolve_command_arguments_for_method,
-    session_profile_key_for_name,
+    self, build_launch_preview, escape_steam_token, resolve_command_arguments_for_method,
+    session_profile_key_for_name, LaunchPreview, LaunchRequest, LaunchValidationIssue, SessionKind,
+    TeardownReason, METHOD_STEAM_APPLAUNCH,
 };
-use crosshook_core::metadata::{LaunchHistoryEntry, MAX_HISTORY_LIST_LIMIT, MetadataStore};
+use crosshook_core::metadata::{LaunchHistoryEntry, MetadataStore, MAX_HISTORY_LIST_LIMIT};
 use crosshook_core::profile::GamescopeConfig;
 use crosshook_core::settings::{AppSettingsData, SettingsStore};
 use crosshook_core::umu_database;
 
 use super::warnings::collect_mod_coexistence_warnings;
-use super::{LaunchService, run_blocking};
+use super::{run_blocking, LaunchService};
 use crate::AppError;
 
 /// Default number of history rows returned by [`LaunchService::launch_history`]

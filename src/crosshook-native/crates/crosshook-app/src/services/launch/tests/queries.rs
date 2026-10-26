@@ -3,7 +3,7 @@
 //! scope (I-16) and UMU enrichment.
 
 use crosshook_core::launch::{
-    METHOD_STEAM_APPLAUNCH, SessionKind, TeardownReason, session_profile_key_for_name,
+    session_profile_key_for_name, SessionKind, TeardownReason, METHOD_STEAM_APPLAUNCH,
 };
 use crosshook_core::mods::{ModCategory, ModProvenance, ProfileModInput};
 use crosshook_core::settings::{AppSettingsData, UmuDatabaseLookupPreference};

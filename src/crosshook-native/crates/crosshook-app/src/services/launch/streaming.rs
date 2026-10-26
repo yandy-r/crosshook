@@ -69,13 +69,18 @@ pub async fn stream_child_log(
         tail_cancel.clone(),
         sink,
     );
-
-    let status = child.wait().await;
-    if let Some(writer) = writer {
-        writer.finish().await;
-    }
-    tail_cancel.cancel();
-    let tail_result = tail.await;
+    // Drive the tail concurrently with the child so lines stream live; once
+    // the child has exited and the tee has flushed, cancel the tail so its
+    // bounded final drain and partial flush run before we return.
+    let waiter = async {
+        let status = child.wait().await;
+        if let Some(writer) = writer {
+            writer.finish().await;
+        }
+        tail_cancel.cancel();
+        status
+    };
+    let (status, tail_result) = tokio::join!(waiter, tail);
     // A wait error means there is no status; surface it first. A tail error
     // still lets the session finish on the real exit status.
     let status = status?;

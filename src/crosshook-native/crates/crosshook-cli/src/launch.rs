@@ -1,10 +1,14 @@
 use std::error::Error;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
 use crate::args::{GlobalOptions, LaunchCommand};
 use crate::cli_error::CliError;
 use crate::store::profile_store;
+use crosshook_app::log_tail::LogBatch;
+use crosshook_app::services::launch::{read_log_tail, stream_child_log};
+use crosshook_core::launch::diagnostics::MAX_LOG_TAIL_BYTES;
 use crosshook_core::launch::{
     self, build_launch_preview, LaunchRequest, ValidationSeverity, METHOD_NATIVE,
     METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
@@ -14,9 +18,6 @@ use crosshook_core::profile::resolve_launch_method;
 use crosshook_core::runtime_helpers::{self, RuntimeHelper};
 use crosshook_core::settings::SettingsStore;
 use crosshook_core::umu_database;
-use tokio::fs::{self, OpenOptions};
-use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
-use tokio::time::{sleep, Duration};
 
 pub(crate) async fn launch_profile(
     command: LaunchCommand,
@@ -146,15 +147,26 @@ pub(crate) async fn launch_profile(
             )))
         }
     };
-    let status = stream_helper_log(&mut child, &log_path)
-        .await
-        .map_err(|e| CliError::LaunchFailure(e.to_string()))?;
+    let mut output_error = None;
+    let status = stream_child_log(&mut child, &log_path, |batch| {
+        if let LogBatch::Lines(lines) = batch {
+            if output_error.is_none() {
+                let mut stdout = std::io::stdout().lock();
+                output_error = lines
+                    .iter()
+                    .try_for_each(|line| writeln!(stdout, "{line}"))
+                    .and_then(|()| stdout.flush())
+                    .err();
+            }
+        }
+    })
+    .await
+    .map_err(|e| CliError::LaunchFailure(e.to_string()))?;
+    if let Some(error) = output_error {
+        return Err(CliError::LaunchFailure(error.to_string()));
+    }
 
-    let log_tail = safe_read_tail(
-        &log_path,
-        crosshook_core::launch::diagnostics::MAX_LOG_TAIL_BYTES,
-    )
-    .await;
+    let log_tail = read_log_tail(&log_path, MAX_LOG_TAIL_BYTES).await;
     let report = launch::analyze(Some(status), &log_tail, &request.method);
     if launch::should_surface_report(&report) {
         eprintln!("{}", report.summary);
@@ -273,76 +285,6 @@ fn spawn_helper(
     command.stdout(Stdio::null());
     command.stderr(Stdio::null());
     Ok(command.spawn()?)
-}
-
-async fn stream_helper_log(
-    child: &mut tokio::process::Child,
-    log_path: &Path,
-) -> Result<std::process::ExitStatus, Box<dyn Error>> {
-    let mut offset = 0u64;
-    let mut stdout = tokio::io::stdout();
-
-    loop {
-        if let Some(status) = child.try_wait()? {
-            let _ = drain_log(log_path, offset, &mut stdout).await?;
-            stdout.flush().await?;
-            return Ok(status);
-        }
-
-        offset = drain_log(log_path, offset, &mut stdout).await?;
-        stdout.flush().await?;
-        sleep(Duration::from_millis(500)).await;
-    }
-}
-
-async fn drain_log(
-    log_path: &Path,
-    offset: u64,
-    stdout: &mut tokio::io::Stdout,
-) -> Result<u64, Box<dyn Error>> {
-    let file = match OpenOptions::new().read(true).open(log_path).await {
-        Ok(file) => file,
-        Err(_) => return Ok(offset),
-    };
-
-    let mut file = file;
-    file.seek(std::io::SeekFrom::Start(offset)).await?;
-
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).await?;
-    if !buffer.is_empty() {
-        stdout.write_all(&buffer).await?;
-        return Ok(offset + buffer.len() as u64);
-    }
-
-    Ok(offset)
-}
-
-async fn safe_read_tail(path: &Path, max_bytes: u64) -> String {
-    let file = match fs::File::open(path).await {
-        Ok(file) => file,
-        Err(_) => return String::new(),
-    };
-
-    let metadata = match file.metadata().await {
-        Ok(metadata) => metadata,
-        Err(_) => return String::new(),
-    };
-
-    let mut file = file;
-    if metadata.len() > max_bytes {
-        let offset = -(max_bytes as i64);
-        if file.seek(std::io::SeekFrom::End(offset)).await.is_err() {
-            return String::new();
-        }
-    }
-
-    let mut buffer = Vec::new();
-    if file.read_to_end(&mut buffer).await.is_err() {
-        return String::new();
-    }
-
-    String::from_utf8_lossy(&buffer).into_owned()
 }
 
 fn severity_label(severity: ValidationSeverity) -> &'static str {

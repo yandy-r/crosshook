@@ -148,7 +148,9 @@ async fn finish(harness: &Harness, spec: LaunchCase, status: ExitStatus) -> Vec<
         .expect("stream closed after Exited");
     assert!(trailing.is_none(), "nothing is published after Exited");
     assert!(
-        collected.iter().all(|event| event.session_id() == session_id),
+        collected
+            .iter()
+            .all(|event| event.session_id() == session_id),
         "every event carries the session id"
     );
     assert!(
@@ -174,9 +176,7 @@ fn has_snapshot(metadata: &MetadataStore, profile_id: &str) -> bool {
 }
 
 fn is_known_good(metadata: &MetadataStore, profile_id: &str) -> bool {
-    let revisions = metadata
-        .list_config_revisions(profile_id, Some(1))
-        .unwrap();
+    let revisions = metadata.list_config_revisions(profile_id, Some(1)).unwrap();
     assert_eq!(revisions.len(), 1, "the seeded revision is still there");
     revisions[0].is_last_known_working
 }
@@ -413,7 +413,7 @@ async fn trainer_events_are_diagnostic_then_injections_then_exited() {
     assert!(surfaced(&events));
     assert_injections(
         &events,
-        &[( 
+        &[(
             InjectionLevel::Error,
             InjectionSource::Trainer,
             "Trainer launch ended with diagnostics.",
@@ -486,4 +486,3 @@ async fn panic_still_publishes_exited_and_tears_down() {
         "the linked trainer stays registered"
     );
 }
-

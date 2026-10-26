@@ -255,7 +255,9 @@ impl Harness {
         let prefix = dir.join("prefix");
         fs::create_dir_all(prefix.join("pfx")).unwrap();
         let proton = dir.join("proton");
-        let game = dir.join("game.exe");
+        // Unique per request: the log slug derives from the exe name, so
+        // parallel tests never share a /tmp/crosshook-logs file.
+        let game = dir.join(format!("{name}.exe"));
         let trainer = dir.join("trainer.exe");
         write_file(&proton, "#!/bin/sh\nexit 0\n", 0o755);
         write_file(&game, "game", 0o755);
@@ -288,7 +290,7 @@ impl Harness {
         fs::create_dir_all(compatdata.join("pfx")).unwrap();
         fs::create_dir_all(steam_root.join("config")).unwrap();
         let proton = dir.join("proton");
-        let game = dir.join("game.sh");
+        let game = dir.join(format!("{name}.sh"));
         let trainer = dir.join("trainer.exe");
         write_file(&proton, "#!/bin/sh\nexit 0\n", 0o755);
         write_file(&game, "#!/bin/sh\nexit 0\n", 0o755);
