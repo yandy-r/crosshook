@@ -4,30 +4,28 @@
 //! when no explicit view mode is stored yet. Best-effort: a missing or
 //! unreadable WebKit store writes nothing.
 
+use std::path::Path;
+
 use crosshook_core::settings::{webkit_import, AppSettingsData, LibraryViewMode, SettingsStore};
 
-use super::StoreRoots;
+use crate::AppError;
 
 /// Imports Classic's WebKit `library_view_mode` when eligible.
 ///
-/// Skips unless roots are [`StoreRoots::Xdg`], settings were readable, and
+/// Skips unless the caller resolved a WebKit local-storage path (production
+/// resolves it only for XDG store roots), settings were readable, and
 /// `settings.ui.library_view_mode` is `None`. Adds no `BootstrapStep`.
 pub(super) fn import_step(
     store: &SettingsStore,
     settings: &AppSettingsData,
     unreadable: bool,
-    roots: &StoreRoots,
+    local_storage: Option<&Path>,
 ) {
-    if unreadable {
+    if unreadable || local_storage.is_none() || settings.ui.library_view_mode.is_some() {
         return;
     }
-    if !matches!(roots, StoreRoots::Xdg) {
-        return;
-    }
-    if settings.ui.library_view_mode.is_some() {
-        return;
-    }
-    let imported = webkit_import::import_library_view_mode();
+    // Unwrapping is safe: `local_storage.is_none()` returned above.
+    let imported = webkit_import::read_library_view_mode(local_storage.unwrap());
     apply_import(store, imported);
 }
 
@@ -49,7 +47,10 @@ pub(super) fn apply_import(store: &SettingsStore, imported: Option<LibraryViewMo
         Ok(Ok(())) => true,
         Ok(Err(())) => false,
         Err(error) => {
-            tracing::warn!(%error, "failed to persist imported library view mode");
+            tracing::warn!(
+                error = AppError::from(error).message(),
+                "failed to persist imported library view mode"
+            );
             false
         }
     }

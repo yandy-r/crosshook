@@ -54,9 +54,10 @@ struct Shared {
 }
 
 /// Writes the pending dirty keys through the sink, serialized against other
-/// writers by the async gate. Dirty keys are dropped even on failure; the
-/// next real change re-arms them. The first failure of the writer's life
-/// publishes [`AppEvent::UiSettingsPersistFailed`]; later failures only log.
+/// writers by the async gate. On failure the attempted keys are merged back
+/// into `dirty` — without notifying or looping — so the next change or exit
+/// flush retries them. The first failure of the writer's life publishes
+/// [`AppEvent::UiSettingsPersistFailed`]; later failures only log.
 async fn write_pending(shared: &Shared) -> Result<(), AppError> {
     let _write = shared.gate.lock().await;
     let (settings, keys) = {
@@ -70,6 +71,9 @@ async fn write_pending(shared: &Shared) -> Result<(), AppError> {
 
     if let Err(error) = (shared.sink)(UiPatch { settings, keys }).await {
         let mut state = shared.state.lock().expect("ui settings mutex poisoned");
+        for key in keys.iter() {
+            state.dirty.insert(key);
+        }
         tracing::error!(error = error.message(), "failed to persist [ui] settings");
         if !state.failure_reported {
             state.failure_reported = true;

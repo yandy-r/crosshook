@@ -4,7 +4,8 @@
 //! immutable read avoids locks and journal sidecar creation. Consequently, an
 //! un-checkpointed WAL is intentionally ignored and may leave an older value.
 
-use std::fs;
+use std::fs::OpenOptions;
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
@@ -38,8 +39,33 @@ pub fn webkit_local_storage_path() -> Option<PathBuf> {
 ///
 /// Every failure returns `None`; imports are optional and never user-facing
 /// errors. Only a regular file within the size limit is accepted.
+///
+/// TOCTOU hardening: the path is first opened with
+/// `O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC` and that descriptor is
+/// `fstat`'d, so a FIFO swapped in after a prior `lstat` can no longer hang
+/// the open (the `O_NONBLOCK` open of a reader-less FIFO fails with `ENXIO`)
+/// and a post-swap symlink is refused. `O_NONBLOCK` is a read-only flag with
+/// no effect on regular files. The descriptor is then closed and SQLite
+/// re-opens the path read-only and immutable, so an un-checkpointed WAL is
+/// intentionally ignored and may leave an older value.
+///
+/// Residual window: between the pre-check and SQLite's own open, an attacker
+/// able to replace the path could still swap in a FIFO or grow the file past
+/// the cap. Closing it fully would require SQLite to consume an existing
+/// descriptor; rusqlite exposes no such API, and its `deserialize` path
+/// cannot query databases whose header declares WAL mode (queries fail with
+/// `SQLITE_CANTOPEN`), so this pre-check is the strongest available
+/// hardening without new dependencies.
 pub fn read_library_view_mode(path: &Path) -> Option<LibraryViewMode> {
-    let metadata = match fs::symlink_metadata(path) {
+    let file = match OpenOptions::new()
+        .read(true)
+        .custom_flags(nix::libc::O_NOFOLLOW | nix::libc::O_NONBLOCK | nix::libc::O_CLOEXEC)
+        .open(path)
+    {
+        Ok(file) => file,
+        Err(_) => return reject("open_failed"),
+    };
+    let metadata = match file.metadata() {
         Ok(metadata) => metadata,
         Err(_) => return reject("metadata_unavailable"),
     };
@@ -49,6 +75,7 @@ pub fn read_library_view_mode(path: &Path) -> Option<LibraryViewMode> {
     if metadata.len() > WEBKIT_MAX_FILE_BYTES {
         return reject("file_too_large");
     }
+    drop(file);
 
     let uri = format!("file:{}?mode=ro&immutable=1", percent_encode_path(path));
     let flags = OpenFlags::SQLITE_OPEN_READ_ONLY
@@ -69,19 +96,23 @@ pub fn read_library_view_mode(path: &Path) -> Option<LibraryViewMode> {
         return reject("query_only_enable_failed");
     }
 
-    let item_table_type = match connection
+    // `rootpage > 0` excludes virtual tables (e.g. FTS5): their sqlite_schema
+    // row reports type 'table' with rootpage 0, and their module code could
+    // run on query despite trusted_schema = off.
+    let item_table_shape = match connection
         .query_row(
-            "SELECT type FROM sqlite_schema WHERE name = 'ItemTable'",
+            "SELECT type = 'table' AND rootpage > 0 FROM sqlite_schema \
+             WHERE name = 'ItemTable'",
             [],
-            |row| row.get::<_, String>(0),
+            |row| row.get::<_, bool>(0),
         )
         .optional()
     {
-        Ok(item_table_type) => item_table_type,
+        Ok(item_table_shape) => item_table_shape,
         Err(_) => return reject("schema_query_failed"),
     };
-    if item_table_type.as_deref() != Some("table") {
-        return reject("item_table_not_table");
+    if item_table_shape != Some(true) {
+        return reject("item_table_not_plain_table");
     }
 
     let value = match connection

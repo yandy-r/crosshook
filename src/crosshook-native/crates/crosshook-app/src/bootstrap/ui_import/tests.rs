@@ -1,9 +1,14 @@
 use super::*;
 
 use std::fs;
+use std::path::{Path, PathBuf};
 
-use crosshook_core::settings::{AppSettingsData, SettingsStore};
-use tempfile::tempdir;
+use crosshook_core::settings::{
+    webkit_import::{WEBKIT_LIBRARY_VIEW_MODE_KEY, WEBKIT_LOCAL_STORAGE_FILE},
+    AppSettingsData, SettingsStore,
+};
+use rusqlite::{params, Connection};
+use tempfile::{tempdir, TempDir};
 
 use crate::bootstrap::{
     BootstrapOptions, BootstrapStep, FlatpakMode, LoggingMode, PreRuntime, StepLog, StepOutcome,
@@ -18,6 +23,41 @@ fn store_in(base: &std::path::Path) -> SettingsStore {
 
 fn load(store: &SettingsStore) -> AppSettingsData {
     store.load().unwrap()
+}
+
+fn utf16le(value: &str) -> Vec<u8> {
+    value.encode_utf16().flat_map(u16::to_le_bytes).collect()
+}
+
+/// Builds a WebKit local-storage fixture mirroring core's
+/// `webkit_import::tests::database`: WAL mode, checkpointed, ItemTable only.
+fn webkit_db(row: Option<(&str, &[u8])>) -> (TempDir, PathBuf) {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join(WEBKIT_LOCAL_STORAGE_FILE);
+    let connection = Connection::open(&path).unwrap();
+    connection
+        .pragma_update(None, "journal_mode", "WAL")
+        .unwrap();
+    connection
+        .execute_batch(
+            "CREATE TABLE ItemTable (\
+             key TEXT UNIQUE ON CONFLICT REPLACE, \
+             value BLOB NOT NULL ON CONFLICT FAIL)",
+        )
+        .unwrap();
+    if let Some((key, value)) = row {
+        connection
+            .execute(
+                "INSERT INTO ItemTable (key, value) VALUES (?1, ?2)",
+                params![key, value],
+            )
+            .unwrap();
+    }
+    connection
+        .execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
+        .unwrap();
+    drop(connection);
+    (dir, path)
 }
 
 #[test]
@@ -93,22 +133,18 @@ fn import_step_unreadable_skips() {
     let store = store_in(temp.path());
     let settings = AppSettingsData::default();
 
-    import_step(&store, &settings, true, &StoreRoots::Xdg);
+    import_step(&store, &settings, true, Some(Path::new("/nonexistent")));
     assert!(!store.settings_path().exists());
     assert_eq!(load(&store).ui.library_view_mode, None);
 }
 
 #[test]
-fn import_step_explicit_roots_skips() {
+fn import_step_without_local_storage_path_skips() {
     let temp = tempdir().unwrap();
     let store = store_in(temp.path());
     let settings = AppSettingsData::default();
-    let roots = StoreRoots::Explicit {
-        config_dir: temp.path().join("config"),
-        data_dir: temp.path().join("data"),
-    };
 
-    import_step(&store, &settings, false, &roots);
+    import_step(&store, &settings, false, None);
     assert!(!store.settings_path().exists());
     assert_eq!(load(&store).ui.library_view_mode, None);
 }
@@ -122,12 +158,30 @@ fn import_step_existing_view_mode_skips() {
     store.save(&settings).unwrap();
     let before = fs::read(store.settings_path()).unwrap();
 
-    import_step(&store, &settings, false, &StoreRoots::Xdg);
+    import_step(&store, &settings, false, Some(Path::new("/nonexistent")));
     assert_eq!(fs::read(store.settings_path()).unwrap(), before);
     assert_eq!(
         load(&store).ui.library_view_mode,
         Some(LibraryViewMode::Grid)
     );
+}
+
+#[test]
+fn import_step_reads_webkit_db_and_writes_setting() {
+    let base = tempdir().unwrap();
+    let store = store_in(base.path());
+    let settings = AppSettingsData::default();
+    let (dir, db) = webkit_db(Some((WEBKIT_LIBRARY_VIEW_MODE_KEY, &utf16le("list"))));
+
+    import_step(&store, &settings, false, Some(&db));
+    assert_eq!(
+        load(&store).ui.library_view_mode,
+        Some(LibraryViewMode::List),
+        "the WebKit value must land in [ui] settings"
+    );
+    let raw = fs::read_to_string(store.settings_path()).unwrap();
+    assert!(raw.contains("library_view_mode = \"list\""), "{raw}");
+    drop(dir);
 }
 #[tokio::test]
 async fn bootstrap_explicit_roots_keeps_view_mode_none_and_step_list_unchanged() {

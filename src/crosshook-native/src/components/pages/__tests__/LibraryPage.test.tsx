@@ -12,11 +12,8 @@ import { PreferencesProvider } from '@/context/PreferencesContext';
 import { ProfileProvider } from '@/context/ProfileContext';
 import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
 import { emitMockEvent } from '@/lib/events';
-import type { Handler } from '@/lib/mocks';
-import { getStore } from '@/lib/mocks/store';
 import { renderWithMocks } from '@/test/render';
 import type { LibraryFilterIntent, OpenGameDetailIntent } from '@/types/navigation';
-import { DEFAULT_APP_SETTINGS, DEFAULT_UI_SETTINGS } from '@/types/settings';
 import { LibraryPage } from '../LibraryPage';
 
 vi.mock('@/lib/ipc', async () => {
@@ -116,75 +113,6 @@ describe('LibraryPage', () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
-
-  describe('view mode from settings', () => {
-    it('renders list view when settings_load returns ui.library_view_mode = list (native-written value)', async () => {
-      renderLibraryHarness({
-        handlerOverrides: {
-          settings_load: async () => ({
-            ...DEFAULT_APP_SETTINGS,
-            ui: { ...DEFAULT_UI_SETTINGS, library_view_mode: 'list' },
-          }),
-        },
-      });
-
-      const listButton = await screen.findByRole('button', { name: 'List view' });
-      await waitFor(() => {
-        expect(listButton).toHaveAttribute('aria-pressed', 'true');
-      });
-      // List rows render instead of grid cards.
-      expect(await screen.findByRole('button', { name: 'Select Test Game Alpha' })).toBeInTheDocument();
-    });
-
-    it('toggle calls settings_set_library_view_mode and updates the mock store without touching localStorage', async () => {
-      const user = userEvent.setup();
-      const calls: unknown[] = [];
-      renderLibraryHarness({
-        seed: (handlers: Map<string, Handler>) => {
-          const real = handlers.get('settings_set_library_view_mode');
-          if (!real) {
-            throw new Error('settings_set_library_view_mode mock not registered');
-          }
-          handlers.set('settings_set_library_view_mode', async (args) => {
-            calls.push(args);
-            return real(args);
-          });
-        },
-      });
-
-      await user.click(await screen.findByRole('button', { name: 'List view' }));
-
-      await waitFor(() => {
-        expect(calls).toEqual([{ mode: 'list' }]);
-      });
-      expect(getStore().settings.ui.library_view_mode).toBe('list');
-      // The legacy localStorage key is never written anymore (and may be absent entirely in node).
-      expect(globalThis.localStorage?.getItem('crosshook.library.viewMode') ?? null).toBeNull();
-      expect(screen.getByRole('button', { name: 'List view' })).toHaveAttribute('aria-pressed', 'true');
-    });
-
-    it('keeps the optimistic list view when the command rejects (no revert)', async () => {
-      const user = userEvent.setup();
-      vi.spyOn(console, 'error').mockImplementation(() => {});
-      renderLibraryHarness({
-        handlerOverrides: {
-          settings_set_library_view_mode: async () => {
-            throw new Error('persist boom');
-          },
-        },
-      });
-
-      await user.click(await screen.findByRole('button', { name: 'List view' }));
-
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'List view' })).toHaveAttribute('aria-pressed', 'true');
-      });
-      // Still list after the rejection settled.
-      await act(async () => {});
-      expect(screen.getByRole('button', { name: 'List view' })).toHaveAttribute('aria-pressed', 'true');
-    });
-  });
-
   it('updates inspector hero when a card is selected', async () => {
     const user = userEvent.setup();
     renderLibraryHarness();

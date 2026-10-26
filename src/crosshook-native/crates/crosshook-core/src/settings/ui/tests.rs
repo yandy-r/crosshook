@@ -37,8 +37,7 @@ fn every_ui_key_round_trips_and_second_save_is_stable() -> Result<(), Box<dyn st
 }
 
 #[test]
-fn unset_options_are_omitted_and_effective_library_mode_is_grid(
-) -> Result<(), Box<dyn std::error::Error>> {
+fn unset_options_are_omitted() -> Result<(), Box<dyn std::error::Error>> {
     let settings = UiSettings::default();
     let serialized = toml::to_string_pretty(&settings)?;
 
@@ -46,13 +45,10 @@ fn unset_options_are_omitted_and_effective_library_mode_is_grid(
         assert!(!serialized.contains(key), "unexpected optional key: {key}");
     }
     assert_eq!(toml::from_str::<UiSettings>(&serialized)?, settings);
+    assert_eq!(settings.library_view_mode, None);
     assert_eq!(
-        settings.library_view_mode_or_default(),
-        LibraryViewMode::Grid
-    );
-    assert_eq!(
-        populated_ui().library_view_mode_or_default(),
-        LibraryViewMode::List
+        populated_ui().library_view_mode,
+        Some(LibraryViewMode::List)
     );
     Ok(())
 }

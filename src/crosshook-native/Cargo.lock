@@ -649,6 +649,7 @@ dependencies = [
  "crosshook-core",
  "flate2",
  "nix",
+ "rusqlite",
  "serde",
  "serde_json",
  "static_assertions",

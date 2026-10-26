@@ -30,6 +30,7 @@ uuid = { version = "1", features = ["v4"] }
 crosshook-app = { path = ".", features = ["test-seams"] }
 
 flate2 = "1"
+rusqlite = { version = "0.40.0", features = ["bundled"] }
 tar = "0.4"
 tempfile = "3"
 tokio = { version = "1", features = ["test-util", "macros", "rt", "io-util"] }

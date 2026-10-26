@@ -241,9 +241,14 @@ pub fn get_capabilities(
 
 #[tauri::command]
 pub fn dismiss_onboarding(store: State<'_, SettingsStore>) -> Result<(), String> {
-    let mut settings = store.load().map_err(|e| e.to_string())?;
-    settings.onboarding_completed = true;
-    store.save(&settings).map_err(|e| e.to_string())
+    store
+        .update(|settings| {
+            settings.onboarding_completed = true;
+            Ok::<(), Infallible>(())
+        })
+        .map_err(|e| e.to_string())?
+        .unwrap();
+    Ok(())
 }
 
 #[tauri::command]

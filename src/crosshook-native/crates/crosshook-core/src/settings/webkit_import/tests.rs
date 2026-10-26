@@ -125,6 +125,18 @@ fn item_table_view_returns_none() {
 }
 
 #[test]
+fn item_table_virtual_table_returns_none() {
+    let dir = tempdir().expect("tempdir");
+    let path = dir.path().join("fts.localstorage");
+    let connection = Connection::open(&path).expect("open fixture");
+    connection
+        .execute_batch("CREATE VIRTUAL TABLE ItemTable USING fts5(key, value)")
+        .expect("create virtual table fixture");
+    drop(connection);
+    assert_eq!(read_library_view_mode(&path), None);
+}
+
+#[test]
 fn wrong_table_name_returns_none() {
     let dir = tempdir().expect("tempdir");
     let path = dir.path().join("wrong-schema.localstorage");

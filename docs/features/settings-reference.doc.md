@@ -64,14 +64,14 @@ controller_mode = "auto"
 sidebar_collapsed = false
 inspector_width = 320
 console_drawer_height = 280
-palette_recent = ["profile:eldens-ring", "launch:elden-ring"]
+palette_recent = ["route:library", "settings:ui:density"]
 ```
 
-## One-time import from the Classic WebKit storage
+## Import from the Classic WebKit storage
 
-On the first launch that finds no `library_view_mode` in `[ui]`, CrossHook
-reads the old Classic preference once from the WebKit `localStorage` database
-(`tauri_localhost_0.localstorage`, key `crosshook.library.viewMode`):
+On every launch that finds no `library_view_mode` in `[ui]`, CrossHook
+attempts to read the old Classic preference from the WebKit `localStorage`
+database (`tauri_localhost_0.localstorage`, key `crosshook.library.viewMode`):
 
 - **Flatpak:** `~/.var/app/dev.crosshook.CrossHook/data/dev.crosshook.CrossHook/localstorage/`
 - **Legacy/AppImage:** `~/.local/share/dev.crosshook.CrossHook/localstorage/`
@@ -79,8 +79,10 @@ reads the old Classic preference once from the WebKit `localStorage` database
 The read is hardened and read-only (the file is opened immutable, without
 locks or journal sidecars, and rejected if it is not a regular file or is
 larger than 16 MiB). Any failure silently falls back to `grid`; the import is
-best-effort and never user-facing. After the import, the Library toggle reads
-and writes `[ui].library_view_mode` in `settings.toml` and no longer touches
+best-effort and never user-facing. A missing or unreadable database writes
+nothing, so the import is retried on each launch until `[ui]` stores a view
+mode. After a successful import, the Library toggle reads and writes
+`[ui].library_view_mode` in `settings.toml` and no longer touches
 `localStorage`.
 
 ## Degraded behaviour
@@ -88,8 +90,11 @@ and writes `[ui].library_view_mode` in `settings.toml` and no longer touches
 If the settings file is not writable, `[ui]` changes still apply in memory for
 the rest of the session but are not persisted; the first failed write is
 logged and surfaced internally as an event, later failures are only logged.
-Writes are throttled to at most one per second, so rapid changes (for example
-a window resize) coalesce into one trailing write.
+Writes are spaced at least one second apart: the first change after an idle
+window is written immediately (leading write), and every change made inside
+the following one-second window coalesces into a single trailing write. A
+burst of rapid changes — for example a window resize — produces one leading
+write plus at most one trailing write.
 
 ## Runtime-only state
 
@@ -98,11 +103,17 @@ per-session and are **not** saved anywhere.
 
 ## Known limitations
 
-- Builds older than this feature do not know the `[ui]` table and drop it
-  when they save settings (unknown-table preservation starts with 0.6.1 for
-  top-level keys; `[ui]` itself is new in 0.7.0).
+- Builds before 0.6.1 do not preserve unknown tables and drop `[ui]` when
+  they save settings. Builds from 0.6.1 until the release that reads it keep
+  the table verbatim but unread; `[ui]` itself is new in 0.7.0.
 - A `renderer` value written by a newer build (for example a future backend)
   reads as `auto` on an older build, and the unknown value is lost on the
   next save from that older build.
 - `window_width` / `window_height` are only written by the native shell on
   resize end; Classic never sets them.
+- The exit-time flush of pending writes only happens on a graceful exit.
+  Changes made in the last second before a non-graceful exit (SIGTERM/`kill`,
+  session logout) can be lost with their trailing write.
+- The WebKit import is skipped when any directory on the localStorage path is
+  a symlink (for example a symlinked `~/.local/share` from a dotfile
+  manager); the hardened read refuses to follow symlinked path components.

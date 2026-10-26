@@ -4,7 +4,7 @@
  * PreferencesContext owns app settings (auto-load, community taps) and recent file
  * paths. Profile CRUD and selection are handled by ProfileContext.
  */
-import React, { createContext, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { createContext, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 import type { AppSettingsData, RecentFilesData } from '../types';
 import type { LibraryViewMode } from '../types/library';
@@ -44,7 +44,14 @@ function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-async function loadPreferences() {
+/** Snapshot returned by the initial/refresh preferences load. */
+interface LoadedPreferences {
+  loadedSettings: AppSettingsData;
+  loadedRecentFiles: RecentFilesData;
+  steamClientInstallPath: string;
+}
+
+async function loadPreferences(): Promise<LoadedPreferences> {
   const [loadedSettings, loadedRecentFiles, steamClientInstallPath] = await Promise.all([
     callCommand<AppSettingsData>('settings_load'),
     callCommand<RecentFilesData>('recent_files_load'),
@@ -64,12 +71,39 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [defaultSteamClientInstallPath, setDefaultSteamClientInstallPath] = useState('');
 
-  const applyLoadedPreferences = useCallback((nextPreferences: Awaited<ReturnType<typeof loadPreferences>>) => {
-    setSettings(nextPreferences.loadedSettings);
-    setRecentFiles(nextPreferences.loadedRecentFiles);
-    setDefaultSteamClientInstallPath(nextPreferences.steamClientInstallPath);
-    setSettingsError(null);
+  const pendingViewModeRef = useRef<LibraryViewMode | null>(null);
+  const viewModePersistedRef = useRef(false);
+
+  // Applies a freshly loaded settings snapshot, preserving the last requested
+  // library view mode while its persist is unconfirmed. The pending guard lifts
+  // once the persist has settled AND a load confirms the mode on the backend
+  // (a stale load resolving with a different value keeps the optimistic mode).
+  const applyLoadedSettings = useCallback((loadedSettings: AppSettingsData) => {
+    const pendingViewMode = pendingViewModeRef.current;
+    if (pendingViewMode === null) {
+      setSettings(loadedSettings);
+      return;
+    }
+    if (loadedSettings.ui.library_view_mode === pendingViewMode && viewModePersistedRef.current) {
+      pendingViewModeRef.current = null;
+      setSettings(loadedSettings);
+      return;
+    }
+    setSettings({
+      ...loadedSettings,
+      ui: { ...loadedSettings.ui, library_view_mode: pendingViewMode },
+    });
   }, []);
+
+  const applyLoadedPreferences = useCallback(
+    (nextPreferences: LoadedPreferences) => {
+      applyLoadedSettings(nextPreferences.loadedSettings);
+      setRecentFiles(nextPreferences.loadedRecentFiles);
+      setDefaultSteamClientInstallPath(nextPreferences.steamClientInstallPath);
+      setSettingsError(null);
+    },
+    [applyLoadedSettings]
+  );
 
   const refreshPreferences = useCallback(async () => {
     try {
@@ -110,10 +144,10 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
       const merged: AppSettingsData = { ...settings, ...patch };
       await callCommand('settings_save', { data: toSettingsSaveRequest(merged) });
       const loaded = await callCommand<AppSettingsData>('settings_load');
-      setSettings(loaded);
+      applyLoadedSettings(loaded);
       setSettingsError(null);
     },
-    [settings]
+    [applyLoadedSettings, settings]
   );
 
   const handleAutoLoadChange = useCallback(
@@ -168,13 +202,25 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
   const libraryViewMode = settings.ui.library_view_mode ?? 'grid';
 
   const setLibraryViewMode = useCallback((mode: LibraryViewMode) => {
+    // Track the requested mode until the persist has settled AND a load confirms
+    // it, so a late settings_load resolution cannot undo the optimistic toggle.
+    pendingViewModeRef.current = mode;
+    viewModePersistedRef.current = false;
     setSettings((previous) => ({
       ...previous,
       ui: { ...previous.ui, library_view_mode: mode },
     }));
-    void callCommand('settings_set_library_view_mode', { mode }).catch((error: unknown) => {
-      console.error('Failed to persist library view mode', error);
-    });
+    void callCommand('settings_set_library_view_mode', { mode })
+      .then(() => {
+        viewModePersistedRef.current = true;
+      })
+      .catch((error: unknown) => {
+        console.error('Failed to persist library view mode', error);
+        // The write never landed: drop the guard so the next load applies as written.
+        if (pendingViewModeRef.current === mode) {
+          pendingViewModeRef.current = null;
+        }
+      });
   }, []);
 
   const value = useMemo<PreferencesContextValue>(

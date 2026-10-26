@@ -313,13 +313,15 @@ async fn dropping_the_last_writer_ends_the_task() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn failed_write_drops_dirty_keys_until_rearmed() {
+async fn failed_write_keeps_keys_dirty_until_a_later_write_persists_them() {
     let calls: Arc<Mutex<Vec<Result<Record, ()>>>> = Arc::new(Mutex::new(Vec::new()));
     let fail = Arc::new(AtomicBool::new(true));
+    let events = EventBus::default();
+    let mut receiver = events.subscribe();
     let writer = UiWriter::spawn(
         UiSettings::default(),
         flaky_sink(Arc::clone(&fail), Arc::clone(&calls)),
-        EventBus::default(),
+        events,
         &Handle::current(),
     );
 
@@ -327,23 +329,30 @@ async fn failed_write_drops_dirty_keys_until_rearmed() {
         ui.density = crosshook_core::settings::UiDensity::Spacious;
     });
     writer.flush().await.expect_err("first write fails");
-    // Dirty keys were dropped: a flush with nothing pending must not call the sink.
+    // The failed keys stay dirty: the background task is not notified and no
+    // retry loop runs, but the very next flush retries them.
     writer
         .flush()
         .await
-        .expect("flush with nothing pending succeeds");
-    assert_eq!(calls.lock().unwrap().len(), 1);
+        .expect_err("retry of kept keys fails again");
+    assert_eq!(
+        calls.lock().unwrap().len(),
+        2,
+        "keys kept dirty are retried on the next flush"
+    );
 
     fail.store(false, Ordering::SeqCst);
-    writer.mutate(UiKey::Density, |ui| {
-        ui.density = crosshook_core::settings::UiDensity::Compact;
-    });
-    writer.flush().await.expect("re-armed write succeeds");
-    let calls = calls.lock().unwrap();
-    assert_eq!(calls.len(), 2, "the next real change re-arms the dirty key");
-    assert!(
-        matches!(&calls[1], Ok((_, patch)) if patch.keys.contains(UiKey::Density)),
-        "the re-armed write carries the dirty key"
-    );
+    writer.flush().await.expect("retried write succeeds");
+    {
+        let calls = calls.lock().unwrap();
+        assert_eq!(calls.len(), 3, "the kept dirty key is persisted");
+        assert!(
+            matches!(&calls[2], Ok((_, patch)) if patch.keys.contains(UiKey::Density)),
+            "the retried write carries the dirty key"
+        );
+    }
+    writer.flush().await.expect("flush after success is quiet");
+    assert_eq!(calls.lock().unwrap().len(), 3);
+    assert_eq!(persist_failures(&mut receiver).await, 1);
     drop(writer);
 }

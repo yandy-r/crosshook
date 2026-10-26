@@ -114,6 +114,74 @@ fn present_but_invalid_library_view_mode_becomes_none() {
 }
 
 #[test]
+fn every_numeric_key_clamps_below_min_and_above_max_on_load() {
+    for (raw, expected) in [
+        (UI_WINDOW_WIDTH_MIN - 1, UI_WINDOW_WIDTH_MIN),
+        (UI_WINDOW_WIDTH_MAX + 1, UI_WINDOW_WIDTH_MAX),
+    ] {
+        assert_eq!(
+            parse_ui(&format!("window_width = {raw}")).ui.window_width,
+            Some(expected),
+            "window_width raw = {raw}"
+        );
+    }
+    for (raw, expected) in [
+        (UI_WINDOW_HEIGHT_MIN - 1, UI_WINDOW_HEIGHT_MIN),
+        (UI_WINDOW_HEIGHT_MAX + 1, UI_WINDOW_HEIGHT_MAX),
+    ] {
+        assert_eq!(
+            parse_ui(&format!("window_height = {raw}")).ui.window_height,
+            Some(expected),
+            "window_height raw = {raw}"
+        );
+    }
+    for (raw, expected) in [
+        (UI_INSPECTOR_WIDTH_MIN - 1, UI_INSPECTOR_WIDTH_MIN),
+        (UI_INSPECTOR_WIDTH_MAX + 1, UI_INSPECTOR_WIDTH_MAX),
+    ] {
+        assert_eq!(
+            parse_ui(&format!("inspector_width = {raw}"))
+                .ui
+                .inspector_width,
+            expected,
+            "inspector_width raw = {raw}"
+        );
+    }
+    for (raw, expected) in [
+        (
+            UI_CONSOLE_DRAWER_HEIGHT_MIN - 1,
+            UI_CONSOLE_DRAWER_HEIGHT_MIN,
+        ),
+        (
+            UI_CONSOLE_DRAWER_HEIGHT_MAX + 1,
+            UI_CONSOLE_DRAWER_HEIGHT_MAX,
+        ),
+    ] {
+        assert_eq!(
+            parse_ui(&format!("console_drawer_height = {raw}"))
+                .ui
+                .console_drawer_height,
+            expected,
+            "console_drawer_height raw = {raw}"
+        );
+    }
+}
+
+#[test]
+fn ui_scale_clamps_below_min_and_above_max_on_load() {
+    assert_eq!(
+        parse_ui("ui_scale = 0.5").ui.ui_scale,
+        UI_SCALE_MIN,
+        "ui_scale below min"
+    );
+    assert_eq!(
+        parse_ui("ui_scale = 2.5").ui.ui_scale,
+        UI_SCALE_MAX,
+        "ui_scale above max"
+    );
+}
+
+#[test]
 fn palette_entries_are_sanitized_deduplicated_and_capped() {
     let mut entries = vec![
         "../secret".to_string(),

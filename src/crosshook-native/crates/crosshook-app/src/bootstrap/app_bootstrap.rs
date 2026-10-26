@@ -11,7 +11,9 @@ use super::{
 use crate::App;
 use crosshook_core::logging::{self, LoggingError};
 use crosshook_core::metadata::MetadataStatus;
-use crosshook_core::settings::{AppSettingsData, SettingsStore};
+use crosshook_core::settings::{
+    webkit_import::webkit_local_storage_path, AppSettingsData, SettingsStore,
+};
 
 const METADATA_UNAVAILABLE: &str = "metadata unavailable or read-only";
 
@@ -97,11 +99,15 @@ impl App {
         let (settings, settings_unreadable) = load_settings_step(&settings_store, &mut steps);
         let logging_unavailable = init_logging_step(opts.logging, &settings, &mut steps);
         relog_degraded_phase_a(&steps);
+        let local_storage = match &opts.store_roots {
+            StoreRoots::Xdg => webkit_local_storage_path(),
+            StoreRoots::Explicit { .. } => None,
+        };
         ui_import::import_step(
             &settings_store,
             &settings,
             settings_unreadable,
-            &opts.store_roots,
+            local_storage.as_deref(),
         );
         development_scripts_step(&mut steps);
         let (stores, metadata_error) =

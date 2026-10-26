@@ -146,11 +146,6 @@ impl fmt::Debug for UiSettings {
 }
 
 impl UiSettings {
-    /// Resolve the library layout, defaulting to grid when unset.
-    pub fn library_view_mode_or_default(&self) -> LibraryViewMode {
-        self.library_view_mode.unwrap_or_default()
-    }
-
     /// Silently clamp numbers and sanitize recent commands, returning whether anything changed.
     pub fn normalize(&mut self) -> bool {
         let window_width = self.window_width.map(clamp_window_width);

@@ -8,8 +8,8 @@
 use std::sync::Arc;
 
 use crosshook_core::settings::{
-    clamp_window_height, clamp_window_width, ControllerMode, LibraryViewMode, SettingsStore,
-    UiDensity, UiKey, UiRenderer, UiSettings,
+    clamp_window_height, clamp_window_width, is_valid_palette_id, ControllerMode, LibraryViewMode,
+    SettingsStore, UiDensity, UiKey, UiRenderer, UiSettings,
 };
 use tokio::runtime::Handle;
 
@@ -122,12 +122,17 @@ impl UiSettingsService {
     }
 
     /// Moves a valid command identifier to the front of the recent list,
-    /// deduplicating and capping at 20 entries. Returns `false` when `id` is
-    /// not a valid palette identifier.
+    /// deduplicating and capping at 20 entries. Returns whether `id` is a
+    /// valid palette identifier; a valid id already at the front is accepted
+    /// (`true`) without marking the key dirty.
     pub fn push_palette_recent(&self, id: &str) -> bool {
+        if !is_valid_palette_id(id) {
+            return false;
+        }
         self.writer.mutate(UiKey::PaletteRecent, |ui| {
             ui.push_palette_recent(id);
-        })
+        });
+        true
     }
 
     /// Writes any pending dirty keys to disk immediately.

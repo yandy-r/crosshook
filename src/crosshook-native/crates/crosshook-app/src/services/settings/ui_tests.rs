@@ -7,7 +7,7 @@
 use std::fs;
 
 use crosshook_core::settings::{
-    ControllerMode, LibraryViewMode, SettingsStore, UiDensity, UiKey, UiRenderer, UiSettings,
+    ControllerMode, LibraryViewMode, SettingsStore, UiDensity, UiRenderer, UiSettings,
     UI_INSPECTOR_WIDTH_MIN, UI_SCALE_MAX, UI_WINDOW_HEIGHT_MIN, UI_WINDOW_WIDTH_MIN,
 };
 use tempfile::tempdir;
@@ -227,21 +227,16 @@ async fn settings_service_update_normalizes_out_of_range_ui() {
     assert_eq!(saved.ui.window_width, Some(800), "window_width is clamped");
 }
 
-/// Compiled-only guard: the independently persisted keys are all reachable
-/// through the service, keeping `UiKey` in this module's API surface honest.
-#[test]
-fn ui_key_covers_every_service_setter() {
-    let keys = [
-        UiKey::LibraryViewMode,
-        UiKey::WindowSize,
-        UiKey::UiScale,
-        UiKey::Density,
-        UiKey::Renderer,
-        UiKey::ControllerMode,
-        UiKey::SidebarCollapsed,
-        UiKey::InspectorWidth,
-        UiKey::ConsoleDrawerHeight,
-        UiKey::PaletteRecent,
-    ];
-    assert_eq!(keys.len(), 10);
+#[tokio::test]
+async fn push_palette_recent_accepts_same_id_twice() {
+    let temp = tempdir().unwrap();
+    let store = SettingsStore::with_base_path(temp.path().to_path_buf());
+    let ui = service(&store);
+
+    assert!(ui.push_palette_recent("route:library"));
+    assert!(
+        ui.push_palette_recent("route:library"),
+        "pushing the already-first id must still report acceptance"
+    );
+    assert_eq!(ui.get().palette_recent, vec!["route:library".to_string()]);
 }
