@@ -16,14 +16,15 @@ So the acceptance item "The docs settings reference is updated" means creating t
 
 Existing user-doc layout and conventions:
 
-| Area | Files | Format |
-| -- | -- | -- |
-| Getting started | `docs/getting-started/quickstart.md` (402 lines; numbered TOC at 7-43; "Related Guides" at 398-402) | `#` title, `##` sections, tables, fenced `toml` blocks (e.g. the profile example at 133-157) |
-| Feature docs | `docs/features/*.doc.md` (`library-context-rail.doc.md`, `console-status-bar.doc.md`, ...) | `# Title` → `## When it appears` / `## User flow` / `## Implementation files` (table) / `## Limitations` |
-| Index links | `README.md:49-52` and `README.md:151-154` ("Docs" list) | Bulleted relative links |
-| Data paths (authoritative wording) | `quickstart.md:106-110,133` | Flatpak live config: `~/.var/app/dev.crosshook.CrossHook/config/crosshook/`. The legacy/AppImage import source is `~/.config/crosshook/`. |
+| Area                               | Files                                                                                               | Format                                                                                                                                    |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Getting started                    | `docs/getting-started/quickstart.md` (402 lines; numbered TOC at 7-43; "Related Guides" at 398-402) | `#` title, `##` sections, tables, fenced `toml` blocks (e.g. the profile example at 133-157)                                              |
+| Feature docs                       | `docs/features/*.doc.md` (`library-context-rail.doc.md`, `console-status-bar.doc.md`, ...)          | `# Title` → `## When it appears` / `## User flow` / `## Implementation files` (table) / `## Limitations`                                  |
+| Index links                        | `README.md:49-52` and `README.md:151-154` ("Docs" list)                                             | Bulleted relative links                                                                                                                   |
+| Data paths (authoritative wording) | `quickstart.md:106-110,133`                                                                         | Flatpak live config: `~/.var/app/dev.crosshook.CrossHook/config/crosshook/`. The legacy/AppImage import source is `~/.config/crosshook/`. |
 
 Formatting:
+
 - `.prettierrc` sets markdown `printWidth: 120` and `proseWrap: "preserve"`.
 - `.prettierignore` only excludes `src/crosshook-native/src/`, so `docs/**` is formatted by `scripts/format.sh` (prettier). CI autofix runs this in `.github/workflows/lint-autofix.yml:43-44`.
 - Tables must be prettier-aligned.
@@ -61,25 +62,28 @@ Formatting:
 
 ### Doc risks: key names disagree across sources (decide once, then document)
 
-| Source | Scale | Console height | Controller | Renderer values | Density default |
-| -- | -- | -- | -- | -- | -- |
-| Issue spec (`/tmp/YAN-869.md`), authoritative | `ui_scale` 0.75–2.0, default 1.0 | `console_drawer_height` 120–800 | `auto`/`on`/`off` | `auto`/`wgpu`/`gl`/`tiny-skia` | not stated |
-| `docs/research/native-ui-migration/README.md:544-548` | `scale` (default `auto`) | — | `auto`/`on`/`off` | `auto`/`wgpu`/`gl`/`software` | `auto` |
-| M1-11 fixture `native/crates/crosshook-core/tests/unknown_settings_keys.rs:8-19` | `scale = 1.1` | `console_height = 220` | `controller_mode = true` (bool!) | `"auto"` | `"compact"` |
+| Source                                                                           | Scale                            | Console height                  | Controller                       | Renderer values                | Density default |
+| -------------------------------------------------------------------------------- | -------------------------------- | ------------------------------- | -------------------------------- | ------------------------------ | --------------- |
+| Issue spec (`/tmp/YAN-869.md`), authoritative                                    | `ui_scale` 0.75–2.0, default 1.0 | `console_drawer_height` 120–800 | `auto`/`on`/`off`                | `auto`/`wgpu`/`gl`/`tiny-skia` | not stated      |
+| `docs/research/native-ui-migration/README.md:544-548`                            | `scale` (default `auto`)         | —                               | `auto`/`on`/`off`                | `auto`/`wgpu`/`gl`/`software`  | `auto`          |
+| M1-11 fixture `native/crates/crosshook-core/tests/unknown_settings_keys.rs:8-19` | `scale = 1.1`                    | `console_height = 220`          | `controller_mode = true` (bool!) | `"auto"`                       | `"compact"`     |
 
 Effects:
+
 - With the spec names, the fixture's `scale` and `console_height` become unknown keys inside `[ui]`.
 - `controller_mode = true` is an invalid value.
 
 The test asserts `saved["ui"] == original["ui"]` (`unknown_settings_keys.rs:56-71`) and byte-stable re-save (`:74-85`). So `UiSettings` must carry its own `#[serde(default, flatten)] extra: toml::Table`, following `ConfigHistorySettings` (`native/crates/crosshook-core/src/settings/types.rs:51-57`). `clear_extra`/`preserve_extra_from` (`types.rs:368-390`) must cover `ui.extra` as well. Otherwise the fixture must be edited and the downgrade promise weakens.
 
 Two more fixtures reference `[ui] scale`:
+
 - `native/crates/crosshook-app/src/services/settings/tests.rs:91`
 - `unknown_settings_keys.rs:124,140`
 
 Line 140 must still fail. It fails because of `config_history`, so that is fine.
 
 There is also a policy conflict to note in the decisions doc:
+
 - The spec's "invalid → clamp/reset + warn" for `[ui]` contradicts the M1-11 "malformed known fields fail" rule (`unknown_settings_keys.rs:133-146`).
 - So `[ui]` fields need lenient per-field deserialization (the `HighContrastPreference` custom `Deserialize` at `types.rs:182-199` is the in-repo pattern).
 - That leniency should not leak to top-level keys.
@@ -98,9 +102,10 @@ The README §10 also says "Classic reads `localStorage` once and writes TOML". T
 ### 3.1 Shared save path: `PreferencesContext`
 
 `native/src/context/PreferencesContext.tsx`:
+
 - **`persistSettings` (103-112):** builds `{...settings, ...patch}`, then calls `settings_save` and `settings_load`, then sets `settings` and clears `settingsError`.
   - It has **no try/catch**. A failure rejects and leaves `settings` unchanged.
-  - The `setSettings` call after a successful save is the only update, so the UI is *pessimistic*. The control snaps back to the old value on the next render.
+  - The `setSettings` call after a successful save is the only update, so the UI is _pessimistic_. The control snaps back to the old value on the next render.
 - **Only these three wrappers set `settingsError`:** `handleAutoLoadChange` (114-127), `handleSteamGridDbApiKeyChange` (129-145) and `clearRecentFiles` (147-162).
 - **Every section call is `void onPersistSettings(...)`:**
   - `components/settings/AccessibilitySection.tsx:62,73`
@@ -113,6 +118,7 @@ The README §10 also says "Classic reads `localStorage` once and writes TOML". T
   - `TrainerDiscoveryPanel.tsx:93-97` (`.then` without `.catch`)
 
   On failure these are **unhandled promise rejections**: there is no banner, no toast and no global `unhandledrejection` handler (grep finds none). The failure is **silent**.
+
 - **`settingsError` display:** shown only on the Settings route, as an inline `role="alert"` banner (`components/pages/SettingsPage.tsx:41-45`). It is invisible from Library.
 - **Error text:** comes from `AppError::message()` via `map_app_error` (`native/src-tauri/src/commands/settings.rs:13-15,131-142`).
   - Store I/O errors are sanitized to the io kind only, e.g. `permission denied` (`native/crates/crosshook-app/src/error.rs:156`).
@@ -121,6 +127,7 @@ The README §10 also says "Classic reads `localStorage` once and writes TOML". T
 ### 3.2 Library view toggle today
 
 `native/src/components/pages/LibraryPage.tsx`:
+
 - 30-35: `VIEW_MODE_KEY = 'crosshook.library.viewMode'`. `loadViewMode()` reads `localStorage` synchronously; anything but `'list'` becomes `'grid'`.
 - 82: `useState(loadViewMode)`.
 - 131-135: `handleViewModeChange` calls `setViewMode(mode)` **first** (optimistic, in-memory), then `localStorage.setItem` with no try/catch. A throwing storage (quota or security) surfaces as an uncaught event-handler error. The view still switches, nothing is shown to the user, and the value is lost on restart.
@@ -131,6 +138,7 @@ The README §10 also says "Classic reads `localStorage` once and writes TOML". T
 ### 3.3 Existing toast infrastructure
 
 There is no global toast service. Toasts are ad-hoc state in `components/layout/AppShell.tsx`:
+
 - 173-177: `collectionDescriptionToast` and `navigationToast` state.
 - 277: Flatpak migration toast hook.
 - 585-630: markup. The shared classes are `crosshook-status-toast crosshook-rename-toast` with `role="status" aria-live="polite"`, plus a `crosshook-rename-toast-dismiss` "×" button with `aria-label="Dismiss"`.
@@ -158,7 +166,7 @@ Spec: "settings file unwritable → in-memory values still apply for the session
    - Hold a runtime-only `uiSaveErrorShown`/`uiSaveError` in `PreferencesContext`. It is never persisted, which matches the storage table.
    - Render one toast in `AppShell` next to `navigationToast` (`AppShell.tsx:605-617`), reusing `crosshook-status-toast` and the dismiss button.
    - Show it **at most once per session**: later failures (including debounced retries) only log.
-   - Suggested copy: *"Couldn't save display preferences to settings.toml ({reason}). Your changes apply until CrossHook closes."*
+   - Suggested copy: _"Couldn't save display preferences to settings.toml ({reason}). Your changes apply until CrossHook closes."_
    - Keep `role="status"` for consistency. An error variant could use `role="alert"`, but that would be a new pattern, so justify it if you choose it.
 5. **Mocks.**
    - `handlers/settings.ts:13-26` shallow-merges and special-cases `config_history`. Add the same nested merge for `ui`, or add the new command's handler.

@@ -13,28 +13,29 @@ Worktree: `/home/yandy/Projects/github.com/yandy-r/crosshook-yan-869`. Paths bel
 
 ## 1. Where WebKit writes it (evidence chain)
 
-| Step | Evidence |
-| ---- | -------- |
-| Tauri identifier | `src-tauri/tauri.conf.json:4` `"identifier": "dev.crosshook.CrossHook"`; mirrored as `CURRENT_TAURI_APP_ID_DIR` in `crates/crosshook-core/src/app_id_migration.rs:55` (legacy `com.crosshook.native` at :53, already migrated at :175-190) |
-| Tauri data dir default (Linux) | `~/.cargo/registry/.../tauri-2.11.2/src/manager/webview.rs:534-545`: when there is no `data_directory`, it uses `path().resolve(identifier, BaseDirectory::LocalData)` |
-| `LocalData` | `tauri-2.11.2/src/path/desktop.rs:86-87`: `dirs::data_local_dir()` (= `$XDG_DATA_HOME` or `~/.local/share`) |
-| wry → WebKit | `wry-0.55.1/src/webkitgtk/web_context.rs:32-40`: `WebsiteDataManager::builder().base_data_directory(data_dir)` |
-| WebKitGTK API | `Cargo.lock:5755-5782`: `webkit2gtk 2.0.2` / `webkit2gtk-sys` → `webkit2gtk-4.1`. In upstream `Source/cmake/OptionsGTK.cmake:196`, 4.1 builds with `ENABLE_2022_GLIB_API OFF` |
-| Storage level | Upstream `UIProcess/WebsiteData/glib/WebsiteDataStoreGLib.cpp` `defaultUnifiedOriginStorageLevel()` returns `None` when the 2022 API is off. At `None`, `OriginStorageManager.cpp:524-526` uses the *custom* localStorage path directly, with no hashed per-origin dirs |
-| Dir name | `UIProcess/API/glib/WebKitWebsiteDataManager.cpp:242-243`: `localStorageDirectory = <base_data>/localstorage`. Same in `WebsiteDataStore.cpp:2631-2636` (`USE(GLIB)` → `"localstorage"`) |
-| File name | `NetworkProcess/storage/LocalStorageManager.cpp:59-66`: `<databaseIdentifier>.localstorage`. `WebCore/page/SecurityOriginData.cpp:108-121`: `protocol + '_' + encodeForFileName(host) + '_' + port.value_or(0)` |
-| Origin (release) | `tauri-2.11.2/src/manager/mod.rs:338-345`: on Linux the app URL is `tauri://localhost` (`http://tauri.localhost` is only used on Windows and Android) → **`tauri_localhost_0.localstorage`** |
-| Origin (`tauri dev`) | `tauri.conf.json:8` `devUrl: http://localhost:1420`. `PROXY_DEV_SERVER = cfg!(all(dev, mobile))` (`manager/webview.rs:43`) is false on desktop, so the dev origin is `http_localhost_1420.localstorage`. This is dev-only state and should **not** be imported (see §6) |
+| Step                           | Evidence                                                                                                                                                                                                                                                                |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tauri identifier               | `src-tauri/tauri.conf.json:4` `"identifier": "dev.crosshook.CrossHook"`; mirrored as `CURRENT_TAURI_APP_ID_DIR` in `crates/crosshook-core/src/app_id_migration.rs:55` (legacy `com.crosshook.native` at :53, already migrated at :175-190)                              |
+| Tauri data dir default (Linux) | `~/.cargo/registry/.../tauri-2.11.2/src/manager/webview.rs:534-545`: when there is no `data_directory`, it uses `path().resolve(identifier, BaseDirectory::LocalData)`                                                                                                  |
+| `LocalData`                    | `tauri-2.11.2/src/path/desktop.rs:86-87`: `dirs::data_local_dir()` (= `$XDG_DATA_HOME` or `~/.local/share`)                                                                                                                                                             |
+| wry → WebKit                   | `wry-0.55.1/src/webkitgtk/web_context.rs:32-40`: `WebsiteDataManager::builder().base_data_directory(data_dir)`                                                                                                                                                          |
+| WebKitGTK API                  | `Cargo.lock:5755-5782`: `webkit2gtk 2.0.2` / `webkit2gtk-sys` → `webkit2gtk-4.1`. In upstream `Source/cmake/OptionsGTK.cmake:196`, 4.1 builds with `ENABLE_2022_GLIB_API OFF`                                                                                           |
+| Storage level                  | Upstream `UIProcess/WebsiteData/glib/WebsiteDataStoreGLib.cpp` `defaultUnifiedOriginStorageLevel()` returns `None` when the 2022 API is off. At `None`, `OriginStorageManager.cpp:524-526` uses the _custom_ localStorage path directly, with no hashed per-origin dirs |
+| Dir name                       | `UIProcess/API/glib/WebKitWebsiteDataManager.cpp:242-243`: `localStorageDirectory = <base_data>/localstorage`. Same in `WebsiteDataStore.cpp:2631-2636` (`USE(GLIB)` → `"localstorage"`)                                                                                |
+| File name                      | `NetworkProcess/storage/LocalStorageManager.cpp:59-66`: `<databaseIdentifier>.localstorage`. `WebCore/page/SecurityOriginData.cpp:108-121`: `protocol + '_' + encodeForFileName(host) + '_' + port.value_or(0)`                                                         |
+| Origin (release)               | `tauri-2.11.2/src/manager/mod.rs:338-345`: on Linux the app URL is `tauri://localhost` (`http://tauri.localhost` is only used on Windows and Android) → **`tauri_localhost_0.localstorage`**                                                                            |
+| Origin (`tauri dev`)           | `tauri.conf.json:8` `devUrl: http://localhost:1420`. `PROXY_DEV_SERVER = cfg!(all(dev, mobile))` (`manager/webview.rs:43`) is false on desktop, so the dev origin is `http_localhost_1420.localstorage`. This is dev-only state and should **not** be imported (see §6) |
 
 ### Concrete paths (process-internal `XDG_DATA_HOME` + `/dev.crosshook.CrossHook/localstorage/tauri_localhost_0.localstorage`)
 
-| Mode | `XDG_DATA_HOME` inside the process | Resulting file |
-| ---- | ---------------------------------- | -------------- |
-| Native/AppImage | `~/.local/share` | `~/.local/share/dev.crosshook.CrossHook/localstorage/tauri_localhost_0.localstorage` |
-| Flatpak default (ADR-0004 per-app isolation) | `~/.var/app/dev.crosshook.CrossHook/data` (Flatpak remap) | `~/.var/app/dev.crosshook.CrossHook/data/dev.crosshook.CrossHook/localstorage/tauri_localhost_0.localstorage` (this matches the issue text) |
-| Flatpak `CROSSHOOK_FLATPAK_HOST_XDG=1` | host data dir (`platform/xdg.rs:39-97`, applied in `pre_runtime` before any lookup) | the same as native |
+| Mode                                         | `XDG_DATA_HOME` inside the process                                                  | Resulting file                                                                                                                              |
+| -------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Native/AppImage                              | `~/.local/share`                                                                    | `~/.local/share/dev.crosshook.CrossHook/localstorage/tauri_localhost_0.localstorage`                                                        |
+| Flatpak default (ADR-0004 per-app isolation) | `~/.var/app/dev.crosshook.CrossHook/data` (Flatpak remap)                           | `~/.var/app/dev.crosshook.CrossHook/data/dev.crosshook.CrossHook/localstorage/tauri_localhost_0.localstorage` (this matches the issue text) |
+| Flatpak `CROSSHOOK_FLATPAK_HOST_XDG=1`       | host data dir (`platform/xdg.rs:39-97`, applied in `pre_runtime` before any lookup) | the same as native                                                                                                                          |
 
 **Observed on this workstation:**
+
 - `~/.var/app/dev.crosshook.CrossHook/data/dev.crosshook.CrossHook/` exists and holds `hsts-storage.sqlite`, `storage/salt`, `CacheStorage/`, `WebKitCache/` and `mediakeys/`. There is **no** `localstorage/` dir, because WebKit only creates the file on the first `setItem`.
 - `~/.local/share/dev.crosshook.CrossHook` does not exist.
 - So "missing file" is the common real-world case, and the code must treat it as silent.
@@ -43,6 +44,7 @@ Worktree: `/home/yandy/Projects/github.com/yandy-r/crosshook-yan-869`. Paths bel
 ## 2. On-disk format
 
 From upstream `NetworkProcess/storage/SQLiteStorageArea.cpp`:
+
 - **Schema (:48-49):** `CREATE TABLE ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB NOT NULL ON CONFLICT FAIL)`. The pre-2.38 `LocalStorageDatabase` used the identical table, so one reader covers both.
 - **Statements:** reads use `SELECT value FROM ItemTable WHERE key=?` (:61). Writes are `bindText(1,key)` + `bindBlob(2,value)` (:402).
 - **Value encoding:**
@@ -64,30 +66,36 @@ From upstream `NetworkProcess/storage/SQLiteStorageArea.cpp`:
 ## 3. Repo precedents and rules
 
 **Path lookup**
+
 - Use `crate::platform::base_dirs()` (`crates/crosshook-core/src/platform/dirs.rs:15-18`, re-exported at `platform/mod.rs:21`). `BaseDirs::new()` is forbidden outside `dirs.rs`.
   - Enforced by `scripts/check-startup-path.sh:13-15,224-233`.
   - Also stated in CLAUDE.md/AGENTS.md (startup-path rule).
 - The reader must run only after `pre_runtime`, because the XDG override must already be applied (`platform/xdg.rs:26-31`). The settings service load already runs well after bootstrap.
 
 **Host gateway**
+
 - No host tool runs and the file is on a path the sandbox can see. Every candidate is inside the sandbox's own `$XDG_DATA_HOME`, or under `$HOME`, which the manifest grants (`packaging/flatpak/dev.crosshook.CrossHook.yml:59` `--filesystem=home`).
 - So the gateway does not apply, and neither do `host_fs` helpers (those are for `/run/host` system paths).
 
 **Read-only rusqlite precedents**
+
 - `crates/crosshook-core/src/metadata/db.rs:14-23` `raw_open`: `SQLITE_OPEN_READ_ONLY | SQLITE_OPEN_NOFOLLOW | SQLITE_OPEN_NO_MUTEX`, plus `busy_timeout`.
   - :86 says "Ordinary READ_ONLY, not immutable: live WAL must remain visible". That choice is right for CrossHook's own live DB. See §4 for why the import differs.
 - `crates/crosshook-core/src/profile/lutris_import/paths.rs:89-96` `read_pga_games`: a third-party SQLite read with `SQLITE_OPEN_READ_ONLY`, a bounded `LIMIT`, and errors mapped to a domain error. It is the closest analogue (importing another app's DB).
 
 **Dependencies**
+
 - `crates/crosshook-core/Cargo.toml:40` `rusqlite = { version = "0.40.0", features = ["bundled"] }`. Bundled SQLite supports `immutable=` and `NOFOLLOW` (`rusqlite-0.40.0/src/lib.rs:1204,1215,1250`).
 - `crosshook-app`, `crosshook-cli` and `src-tauri` do **not** depend on rusqlite, so the reader belongs in core.
 - `tempfile` is already a core dependency (`Cargo.toml:53,73`).
 
 **Settings types**
+
 - `AppSettingsData` has `#[serde(default)]` (`settings/types.rs:234`) and `extra: toml::Table` flatten (:321-323).
 - `SettingsStore::update` (`settings/store.rs:136`) is the atomic load-mutate-save to use when persisting the imported value once.
 
 **Source of the value**
+
 - `src/components/pages/LibraryPage.tsx:30-35`: the key is `crosshook.library.viewMode`, and `loadViewMode` maps `'list'` → list and anything else → grid.
 - :134: `setItem(VIEW_MODE_KEY, mode)` only ever writes `grid` or `list`.
 
@@ -108,12 +116,14 @@ conn.query_row(
 ```
 
 **Why `immutable=1` and not plain READ_ONLY:**
+
 - The spec says the import is "read once, never written".
 - [INFERENCE from SQLite WAL docs] A plain `SQLITE_OPEN_READONLY` connection on a WAL-mode DB may still create or need the `-shm` file, and it takes shared locks. If Classic is running, those locks can contend with WebKit's 500 ms write transactions.
 - `immutable=1` skips locking and WAL entirely.
 
 **Tradeoff (document this in code):**
-- If Classic is running *right now* with an un-checkpointed WAL, the import can see a stale view mode. When WebKit closes cleanly it checkpoints and removes the `-wal`.
+
+- If Classic is running _right now_ with an un-checkpointed WAL, the import can see a stale view mode. When WebKit closes cleanly it checkpoints and removes the `-wal`.
 - This is acceptable because:
   1. the import runs only while `[ui].library_view_mode` is absent;
   2. after this issue, Classic itself writes `[ui]`, so the window closes permanently;
@@ -123,6 +133,7 @@ conn.query_row(
 **Percent-encoding:** SQLite URI filenames need `%`, `?` and `#` escaped (`%25`/`%3F`/`%23`). XDG paths with those characters are rare but possible, so add a small private helper. No new crate is needed.
 
 **Decoding the blob:**
+
 - Require `len % 2 == 0`.
 - Decode with `u16::from_le_bytes` per chunk, then `String::from_utf16`.
 - Match exactly `"grid"` → `Grid` and `"list"` → `List`.
@@ -131,36 +142,40 @@ conn.query_row(
 
 **Failure mapping (all → `None`, no dialog):**
 
-| Case | Handling |
-| ---- | -------- |
-| Path missing | `fs::symlink_metadata` returns `NotFound` |
-| Symlink or not a regular file | reject before open; `NOFOLLOW` covers this too |
-| Oversized | `len() > 16 MiB` |
-| Not a DB / corrupt | the open succeeds lazily, then `query_row` returns `SQLITE_NOTADB`/`CORRUPT` |
-| Wrong schema | `no such table: ItemTable` |
-| Key absent | `QueryReturnedNoRows`, mapped through `.optional()` |
+| Case                          | Handling                                                                     |
+| ----------------------------- | ---------------------------------------------------------------------------- |
+| Path missing                  | `fs::symlink_metadata` returns `NotFound`                                    |
+| Symlink or not a regular file | reject before open; `NOFOLLOW` covers this too                               |
+| Oversized                     | `len() > 16 MiB`                                                             |
+| Not a DB / corrupt            | the open succeeds lazily, then `query_row` returns `SQLITE_NOTADB`/`CORRUPT` |
+| Wrong schema                  | `no such table: ItemTable`                                                   |
+| Key absent                    | `QueryReturnedNoRows`, mapped through `.optional()`                          |
 
 ## 5. Recommended shape
 
 **New core module:** `crates/crosshook-core/src/settings/webkit_import.rs` (well under 500 lines), declared in `settings/mod.rs`.
+
 - `pub(crate) const WEBKIT_LOCAL_STORAGE_FILE: &str = "tauri_localhost_0.localstorage";`
 - `pub fn webkit_local_storage_path() -> Option<PathBuf>` returns `base_dirs()?.data_local_dir().join(CURRENT_TAURI_APP_ID_DIR).join("localstorage").join(FILE)`. Reuse `app_id_migration::CURRENT_TAURI_APP_ID_DIR` and do not hard-code a second copy.
 - `pub fn read_library_view_mode(db: &Path) -> Option<LibraryViewMode>` is a pure function that takes a path, so tests can pass tempdir fixtures without env mutation.
 - `pub fn import_library_view_mode() -> Option<LibraryViewMode>` composes the two functions above.
 
 **Optional second candidate:** when running natively (`!platform::is_flatpak()`), it is reasonable to also try `home/.var/app/dev.crosshook.CrossHook/data/dev.crosshook.CrossHook/localstorage/...`. This covers a user who used the Flatpak Classic and now runs a native build. However:
+
 - the per-app isolation in ADR-0004 implies the data domains are meant to stay separate;
 - the issue only asks for the active environment's file.
 
 Recommend: active-environment path only; mention the cross-install case in decisions.md.
 
 **Caller (crosshook-app settings service, `crates/crosshook-app/src/services/settings.rs:216`):**
+
 - When the loaded `[ui]` has no `library_view_mode`, call the import inside the existing `run_blocking`.
 - If it yields `Some`, persist it once through `SettingsStore::update` so the import never re-runs. A failed write leaves the in-memory value in place, per the spec's degraded behaviour.
 
 **Prerequisite for the types researcher:** "absent" detection requires the field to be `Option<LibraryViewMode>`, or the raw TOML must be inspected before defaults apply. A plain `#[serde(default)]` enum cannot tell absent from `grid`.
 
 **Fixture tests (`settings/tests.rs`, or `settings/webkit_import/tests.rs` if the module becomes a dir):**
+
 1. **Valid DB.** Create it with the exact WebKit DDL, `PRAGMA journal_mode=WAL`, and insert `("crosshook.library.viewMode", utf16le("list"))`. Expect `Some(List)`. Repeat with `grid` → `Some(Grid)`.
 2. **Missing file** → `None`.
 3. **Corrupt file** (`b"not a sqlite database"` written to the path) → `None`.
@@ -187,8 +202,8 @@ Recommend: active-environment path only; mention the cross-install case in decis
 
 ## 7. Persistence classification (for the plan doc)
 
-| Datum | Class | Notes |
-| ----- | ----- | ----- |
-| WebKit localStorage DB | external, read-once, never written (immutable URI open) | — |
-| `[ui].library_view_mode` | TOML settings | written once after a successful import |
-| Import attempted/failed | runtime-only | no marker file. "Absent key" is the trigger, and a failed import just leaves the default in memory; the next save persists `grid` |
+| Datum                    | Class                                                   | Notes                                                                                                                             |
+| ------------------------ | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| WebKit localStorage DB   | external, read-once, never written (immutable URI open) | —                                                                                                                                 |
+| `[ui].library_view_mode` | TOML settings                                           | written once after a successful import                                                                                            |
+| Import attempted/failed  | runtime-only                                            | no marker file. "Absent key" is the trigger, and a failed import just leaves the default in memory; the next save persists `grid` |

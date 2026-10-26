@@ -15,6 +15,7 @@ React PreferencesContext.persistSettings → toSettingsSaveRequest(full snapshot
 ```
 
 ### Core: `crates/crosshook-core/src/settings/`
+
 - `types.rs:233-324`: `AppSettingsData` has `#[derive(Clone, PartialEq, Serialize, Deserialize)]` and `#[serde(default)]` on the struct. Unknown keys go into `#[serde(default, flatten)] pub extra: toml::Table` (`:320-323`).
 - Nested table precedent: `ConfigHistorySettings` (`types.rs:48-69`) has `#[serde(default)]`, a field-level `default = fn`, its own `extra` flatten, and a manual `Default`. **Copy this for `UiSettings`.**
 - Clamp precedent: `pub const *_MIN/_MAX` plus `pub fn clamp_*` (`types.rs:8-37`, `:70-82`), re-exported from `mod.rs:12-18`.
@@ -31,6 +32,7 @@ React PreferencesContext.persistSettings → toSettingsSaveRequest(full snapshot
 - `fs_util.rs:7-33` `write_atomic`: same-directory temp file, fsync, rename, then parent fsync. It follows symlinks and leaves the original untouched on a pre-rename failure.
 
 ### How unknown-key preservation works, and how a typed `[ui]` changes it
+
 - Today `[ui]` is **unknown**, so it lands in `AppSettingsData.extra` and round-trips verbatim. This is pinned by `crates/crosshook-core/tests/unknown_settings_keys.rs:4-33` (fixture with a `[ui]` table) and `:35-67` (`saved["ui"] == original["ui"]`).
 - After the change, `[ui]` is deserialized into `ui: UiSettings` and **no longer appears in the top-level `extra`**. Unknown `[ui]` sub-keys survive only if `UiSettings` has its own `#[serde(flatten)] extra: toml::Table`.
 - **Fixture collisions you must handle:**
@@ -50,6 +52,7 @@ React PreferencesContext.persistSettings → toSettingsSaveRequest(full snapshot
   - Option 1 is simpler and makes "imported once" visible on disk.
 
 ## 2. App layer: `crates/crosshook-app/src/services/settings.rs` (~297 lines)
+
 - `SettingsSnapshot` `:22-33`. `SettingsSaveRequest` `:35-91` is hand-listed. Fields that may be absent use `#[serde(default)] Option<T>`, where absent means preserve. `config_history: Option<ConfigHistorySettings>` (`:89-90`) is the nested-table precedent.
 - `merge_save_request` `:109-173` builds an **exhaustive** `AppSettingsData` literal (`:111-170`), so a new `ui` field is a compile error until it is added here. It then calls `preserve_extra_from(&disk)` (`:171`) and `normalize` (`:172`).
 - `normalize` `:177-187` is private.
@@ -63,13 +66,16 @@ React PreferencesContext.persistSettings → toSettingsSaveRequest(full snapshot
 - Error mapping: `SettingsStoreError` maps to fixed strings (`crates/crosshook-app/src/error.rs:149-165`). This is safe to surface as a toast.
 
 ### Recommended typed API (spec: "typed getters and setters")
+
 Add these to `SettingsService` (or a `UiSettingsHandle` it owns):
+
 - `ui()`: sync read of the in-memory `UiSettings`.
 - `set_library_view_mode`, `set_window_size(w, h)`, `set_ui_scale`, `set_density`, `set_renderer`, `set_controller_mode`, `set_sidebar_collapsed`, `set_inspector_width`, `set_console_drawer_height`, `push_palette_recent(id)`.
 
 Each setter clamps, updates memory immediately (the session keeps working even when the disk is not writable), and marks a debounced flush.
 
 ## 3. Runtime and debounce writer placement
+
 - Runtime: `crosshook-app` depends on `tokio` with `rt-multi-thread, sync, time, macros, …`, plus `tokio-util` (`crates/crosshook-app/Cargo.toml:21-22`). Dev-dependencies include `tokio` `test-util` (`:31`), so `#[tokio::test(start_paused = true)]` works. Precedent: `crates/crosshook-app/src/log_tail/tests.rs:320`.
 - `AppRuntime` either owns a runtime or borrows a handle (`crates/crosshook-app/src/runtime.rs:7-47`); Tauri passes its handle (`src-tauri/src/lib.rs:20`). `App::spawn` (`crates/crosshook-app/src/app.rs:~118-140`) cancels tasks through the `shutdown` token (`app.rs:15-28`); `JobRegistry::start` is another option (`crates/crosshook-app/src/jobs/registry.rs:134`).
 - **There is no debounce or throttle utility today.** The nearest relatives:
@@ -88,6 +94,7 @@ Each setter clamps, updates memory immediately (the session keeps working even w
   - **Write failure:** keep the values in memory and publish a one-shot event. `AppEvent` is `#[non_exhaustive]` (`crates/crosshook-app/src/events.rs:58-80`). Add something like `AppEvent::SettingsWriteFailed { message }` and gate it with `last_error_reported` so only a single toast fires; reset the gate on a successful write. The Tauri bridge already ignores unknown variants (`src-tauri/src/startup_bridge.rs:158`), so Classic is unaffected unless you wire it. This requires passing `EventBus` into `SettingsService::new` (`stores.rs:69-72`).
 
 ## 4. Tauri layer: `src-tauri/src/commands/settings.rs`
+
 - `AppSettingsIpcData` `:17-67` is a hand-written DTO. `from_snapshot` `:69-122` calls `data.clear_extra()` and copies fields one by one. **Add `ui: UiSettings`** (with `ui.extra` cleared by `clear_extra`) so Classic can read `library_view_mode`.
 - `settings_load` `:125-131`, `settings_save` `:135-147` (delegates to `save_request`), `settings_save_steamgriddb_key` `:150-160`. Registered at `src-tauri/src/lib.rs:133-135`; `SettingsService` is managed at `lib.rs:41`.
 - Tests in the same file: the IPC name pin `:181-191` and DTO JSON shape tests. Add a test for `ui` serialization and `ui.extra` stripping.
@@ -110,6 +117,7 @@ Each setter clamps, updates memory immediately (the session keeps working even w
   - Remove every `localStorage` use (clean cutover). The one-time import happens on the Rust side.
 
 ## 5. Best-effort WebKit localStorage import
+
 - No existing code: a grep for `localstorage|LocalStorage|webkitgtk` in `crates/` and `src-tauri/src` finds nothing.
 - `rusqlite` is a core dependency (`crates/crosshook-core/Cargo.toml:40`). Use `platform::is_flatpak()` (`crates/crosshook-core/src/platform/detect.rs:16`) and `base_dirs()` (`crates/crosshook-core/src/platform/dirs.rs:16`). App identifier: `dev.crosshook.CrossHook` (`src-tauri/tauri.conf.json:4`).
 - Paths:
@@ -126,6 +134,7 @@ Each setter clamps, updates memory immediately (the session keeps working even w
   - Note that this adds a write during bootstrap. An alternative is to do it lazily in `SettingsService::load`.
 
 ## 6. Size, modularity and documentation
+
 - `crates/crosshook-core/src/settings/types.rs` is about 470 lines, so adding `UiSettings` there would break the ~500-line soft cap. Create `settings/ui.rs` (types, consts, clamp, lenient deserialize) and re-export it from `mod.rs`. `settings/tests.rs` is already about 632 lines, so put the new tests in a separate `settings/ui_tests.rs`, or wire it as `#[cfg(test)] mod ui_tests;`.
 - `crates/crosshook-app/src/services/settings.rs` is about 297 lines. Put the writer in `services/settings/ui_writer.rs`, with tests in a new file.
 - Docs: **no user-facing settings reference exists** under `docs/`. The only settings mentions are the `docs/getting-started/quickstart.md:108,133` path notes. The acceptance criterion requires one, so create one (for example `docs/getting-started/settings-reference.md`) covering every `[ui]` key, its range and default, the localStorage import, and the runtime-only dismissals.
@@ -133,6 +142,7 @@ Each setter clamps, updates memory immediately (the session keeps working even w
   - The native-migration plan already classifies `[ui]` keys (`docs/research/native-ui-migration/README.md:544-547,586`). Note that its key names (`scale`, `software`) differ from the spec (`ui_scale`, `tiny-skia`). The spec wins; flag the plan doc for a fix.
 
 ## 7. Risks (ranked)
+
 1. **A strict serde `[ui]` hard-fails the whole settings load** on one bad UI value; the existing fixture's `controller_mode = true` already does this. Use the lenient deserializer and update `unknown_settings_keys.rs`.
 2. **Lost trailing write on shutdown** with an owned runtime. Add an explicit `flush_ui()` and have the shells call it.
 3. **Full-snapshot React saves clobbering `[ui]`** if `ui` is put on `SettingsSaveRequest`. Use preserve-only plus a narrow command.
@@ -143,4 +153,5 @@ Each setter clamps, updates memory immediately (the session keeps working even w
 8. Cross-process writes, with Classic and native running concurrently, stay unguarded until M1-12 (`pre_runtime.rs:141` SEAM).
 
 ## Checks for the main agent
+
 `cargo test -p crosshook-core settings`, `cargo test -p crosshook-core --test unknown_settings_keys`, `cargo test -p crosshook-app settings`, `cargo test -p crosshook-native` (src-tauri DTO tests), `./scripts/check-mock-coverage.sh`, `npm run test` / `npm run test:smoke`.
