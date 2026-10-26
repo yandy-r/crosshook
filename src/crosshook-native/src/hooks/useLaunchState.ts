@@ -5,6 +5,7 @@ import { MIN_OFFLINE_READINESS_SCORE } from '../constants/offline';
 import type {
   DiagnosticReport,
   HashVerifyResult,
+  LaunchDiagnosticEvent,
   LaunchFeedback,
   LaunchMethod,
   LaunchRequest,
@@ -263,7 +264,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
   useEffect(() => {
     let active = true;
 
-    const unlistenDiagnostic = subscribeEvent<DiagnosticReport>('launch-diagnostic', (event) => {
+    const unlistenDiagnostic = subscribeEvent<LaunchDiagnosticEvent>('launch-diagnostic', (event) => {
       if (!active || !isDiagnosticReport(event.payload)) {
         return;
       }

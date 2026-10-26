@@ -149,6 +149,13 @@ export interface LaunchResult {
   warnings?: LaunchValidationIssue[];
 }
 
+/** Payload of the `launch-complete` event. `session_id` correlates the event to its launch session. */
+export interface LaunchCompletePayload {
+  code: number | null;
+  signal: number | null;
+  session_id?: string;
+}
+
 // --- Preview / Dry Run Types ---
 
 export type EnvVarSource = 'proton_runtime' | 'launch_optimization' | 'host' | 'steam_proton' | 'profile_custom';

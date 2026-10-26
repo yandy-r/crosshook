@@ -59,4 +59,24 @@ describe('ConsoleDrawer', () => {
     expect(screen.getByText('2 lines')).toBeInTheDocument();
     expect(panelRef.current.expand).not.toHaveBeenCalled();
   });
+
+  it('counts an object launch-log payload carrying a session_id as one line', async () => {
+    const panelRef = createPanelRef();
+
+    renderWithMocks(
+      <HostReadinessProvider>
+        <ConsoleDrawer panelRef={panelRef} mode="drawer" />
+      </HostReadinessProvider>
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    act(() => {
+      emitMockEvent('launch-log', { line: 'a', session_id: 's1' });
+    });
+
+    expect(screen.getByText('1 line')).toBeInTheDocument();
+  });
 });

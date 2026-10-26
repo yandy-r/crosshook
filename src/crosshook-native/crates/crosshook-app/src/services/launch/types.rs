@@ -296,10 +296,6 @@ impl EventPublisher {
         )
     }
 
-    pub(super) fn session_id(&self) -> SessionId {
-        self.id
-    }
-
     /// Publishes `event`; never blocks. Having no receivers is not an error:
     /// the session keeps running when the presenter dropped its stream.
     pub(super) fn publish(&self, event: LaunchEvent) {

@@ -92,7 +92,7 @@ async fn stdout_and_stderr_both_stream_and_final_lines_arrive_before_return() {
         piped_child("echo out-one; echo err-one >&2; sleep 0.1; echo out-two; echo err-two >&2");
     let publisher_clone = publisher.clone();
     let status = stream_child_log(&mut child, &log_path, move |batch| {
-        publisher_clone.log(batch)
+        publisher_clone.log(batch);
     })
     .await
     .unwrap();
@@ -135,7 +135,7 @@ async fn file_mode_child_streams_without_a_tee() {
 
     let publisher_clone = publisher.clone();
     let status = stream_child_log(&mut child, &log_path, move |batch| {
-        publisher_clone.log(batch)
+        publisher_clone.log(batch);
     })
     .await
     .unwrap();
@@ -168,7 +168,7 @@ async fn lagging_receiver_sees_dropped_notice_and_exited_last() {
     let publisher_clone = publisher.clone();
     let stream = tokio::spawn(async move {
         stream_child_log(&mut child, &log_path, move |batch| {
-            publisher_clone.log(batch)
+            publisher_clone.log(batch);
         })
         .await
     });

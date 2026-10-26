@@ -54,8 +54,7 @@ async fn invalid_requests_fail_before_any_side_effect() {
         } else {
             harness.service.start_game(request).await
         }
-        .err()
-        .expect("invalid request rejected");
+        .expect_err("invalid request rejected");
 
         assert!(error.events.is_empty());
         assert!(harness
@@ -90,8 +89,7 @@ async fn spawn_failures_deregister_without_history_and_replay_trainer_injections
         } else {
             harness.service.start_game(request).await
         }
-        .err()
-        .expect("spawn fails");
+        .expect_err("spawn fails");
 
         assert!(harness
             .service

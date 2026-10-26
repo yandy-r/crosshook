@@ -20,6 +20,7 @@ use nix::time::{clock_gettime, ClockId};
 use tauri::{AppHandle, Emitter};
 use tokio::io::AsyncReadExt;
 
+use crate::commands::launch::relay::payloads::LaunchLogPayload;
 const ENV_BENCH: &str = "CROSSHOOK_BENCH";
 const ENV_EXIT: &str = "CROSSHOOK_BENCH_EXIT_AFTER_READY";
 const ENV_ROOT: &str = "CROSSHOOK_BENCH_ROOT";
@@ -289,7 +290,11 @@ async fn replay_log(app: AppHandle, plan: ReplayPlan) {
         .unwrap_or(usize::MAX)
         .min(lines.len());
         for line in &lines[sent..due] {
-            if let Err(error) = app.emit("launch-log", *line) {
+            let payload = LaunchLogPayload {
+                line,
+                session_id: "bench",
+            };
+            if let Err(error) = app.emit("launch-log", payload) {
                 tracing::warn!(%error, "bench log replay: emit failed; stopping");
                 return;
             }

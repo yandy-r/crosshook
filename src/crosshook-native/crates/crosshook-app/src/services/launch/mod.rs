@@ -142,6 +142,7 @@ impl LaunchService {
     }
 
     /// The session registry shared by every launch of this service.
+    #[cfg(test)]
     pub(super) fn registry(&self) -> &Arc<LaunchSessionRegistry> {
         &self.registry
     }

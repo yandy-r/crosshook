@@ -146,6 +146,9 @@ export function isDiagnosticReport(value: unknown): value is DiagnosticReport {
   );
 }
 
+/** Payload of the `launch-diagnostic` event: the report plus the launch session correlation id. */
+export type LaunchDiagnosticEvent = DiagnosticReport & { session_id?: string };
+
 // -- Diagnostic bundle export types --
 
 export interface DiagnosticBundleSummary {
