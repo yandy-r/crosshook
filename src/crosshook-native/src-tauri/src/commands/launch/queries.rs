@@ -1,55 +1,30 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::collections::BTreeMap;
 
+use crosshook_app::services::launch::LaunchService;
 use crosshook_core::launch::{
-    build_launch_preview,
-    build_steam_launch_options_command as build_steam_launch_options_command_core,
-    escape_steam_token, resolve_command_arguments_for_method, validate, LaunchPlatformCapabilities,
-    LaunchPreview, LaunchRequest, LaunchSessionRegistry, LaunchValidationIssue, SessionKind,
-    METHOD_STEAM_APPLAUNCH,
+    LaunchPlatformCapabilities, LaunchPreview, LaunchRequest, LaunchValidationIssue,
 };
-use crosshook_core::metadata::{LaunchHistoryEntry, MetadataStore, MAX_HISTORY_LIST_LIMIT};
-use crosshook_core::profile::{GamescopeConfig, ProfileStore};
-use crosshook_core::settings::{AppSettingsData, SettingsStore};
-use crosshook_core::umu_database;
+use crosshook_core::metadata::LaunchHistoryEntry;
+use crosshook_core::profile::GamescopeConfig;
 use tauri::State;
 
-use super::warnings::collect_mod_coexistence_warnings_ipc;
-
-fn map_error(e: impl ToString) -> String {
-    e.to_string()
-}
-
 #[tauri::command]
-pub fn validate_launch(request: LaunchRequest) -> Result<(), LaunchValidationIssue> {
-    validate(&request).map_err(|error| error.issue())
+pub fn validate_launch(
+    request: LaunchRequest,
+    service: State<'_, LaunchService>,
+) -> Result<(), LaunchValidationIssue> {
+    service.validate(&request)
 }
 
 #[tauri::command]
 pub async fn preview_launch(
     request: LaunchRequest,
-    settings_store: State<'_, SettingsStore>,
-    metadata_store: State<'_, MetadataStore>,
-    profile_store: State<'_, ProfileStore>,
+    service: State<'_, LaunchService>,
 ) -> Result<LaunchPreview, String> {
-    let mut request = request;
-    let settings = settings_store
-        .load()
-        .unwrap_or_else(|_| AppSettingsData::default());
-    request.resolved_umu_game_id = Some(
-        umu_database::resolve_umu_game_id(&request, settings.umu_database_lookup, &metadata_store)
-            .await,
-    );
-    let mut preview = build_launch_preview(&request).map_err(|error| error.to_string())?;
-    preview.validation.issues.extend(
-        collect_mod_coexistence_warnings_ipc(
-            &request,
-            request.profile_name.clone(),
-            profile_store.inner().clone(),
-            metadata_store.inner().clone(),
-        )
-        .await,
-    );
-    Ok(preview)
+    service
+        .preview(request)
+        .await
+        .map_err(|error| error.to_string())
 }
 
 /// Builds a Steam per-game “Launch Options” line from the same optimization IDs as `proton_run`,
@@ -65,31 +40,17 @@ pub fn build_steam_launch_options_command(
     gamescope: Option<GamescopeConfig>,
     enabled_argument_ids: Vec<String>,
     custom_command_args: Vec<String>,
+    service: State<'_, LaunchService>,
 ) -> Result<String, String> {
-    let mut command = build_steam_launch_options_command_core(
-        &enabled_option_ids,
-        &custom_env_vars,
-        gamescope.as_ref(),
-    )
-    .map_err(|error| error.to_string())?;
-
-    if enabled_argument_ids.is_empty() && custom_command_args.is_empty() {
-        return Ok(command);
-    }
-
-    let resolved = resolve_command_arguments_for_method(
-        &enabled_argument_ids,
-        &custom_command_args,
-        METHOD_STEAM_APPLAUNCH,
-    )
-    .map_err(|error| format!("{error:?}"))?;
-
-    for token in resolved.tokens {
-        command.push(' ');
-        command.push_str(&escape_steam_token(&token));
-    }
-
-    Ok(command)
+    service
+        .steam_launch_options_command(
+            &enabled_option_ids,
+            &custom_env_vars,
+            gamescope.as_ref(),
+            &enabled_argument_ids,
+            &custom_command_args,
+        )
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -113,28 +74,19 @@ pub fn check_game_running(exe_name: String) -> bool {
 }
 
 #[tauri::command]
-pub fn list_running_profiles(
-    session_registry: State<'_, Arc<LaunchSessionRegistry>>,
-) -> Vec<String> {
-    session_registry.active_profile_keys(Some(SessionKind::Game))
+pub fn list_running_profiles(service: State<'_, LaunchService>) -> Vec<String> {
+    service.running_profiles()
 }
 
 /// Recent launch rows for a profile (newest first), from `launch_operations` — no `diagnostic_json`.
 #[tauri::command]
-pub fn list_launch_history_for_profile(
+pub async fn list_launch_history_for_profile(
     profile_name: String,
     limit: Option<u32>,
-    metadata_store: State<'_, MetadataStore>,
+    service: State<'_, LaunchService>,
 ) -> Result<Vec<LaunchHistoryEntry>, String> {
-    let profile_name = profile_name.trim();
-    if profile_name.is_empty() {
-        return Err("profile_name is required".to_string());
-    }
-    if !metadata_store.is_available() {
-        return Ok(Vec::new());
-    }
-    let cap = limit.unwrap_or(20).min(MAX_HISTORY_LIST_LIMIT as u32) as usize;
-    metadata_store
-        .query_launch_history_for_profile(profile_name, cap)
-        .map_err(map_error)
+    service
+        .launch_history(profile_name, limit)
+        .await
+        .map_err(|error| error.to_string())
 }

@@ -44,6 +44,7 @@ pub fn run() {
         .manage(services.health.clone())
         .manage(services.profiles.clone())
         .manage(services.background.clone())
+        .manage(services.launch.clone())
         .manage(core.clone())
         .setup(move |app| {
             startup_bridge::spawn(app.handle().clone(), core.startup(), startup_events);
@@ -54,9 +55,6 @@ pub fn run() {
         .manage(commands::prefix_deps::PrefixDepsInstallState::new())
         .manage(std::sync::Arc::new(
             commands::protonup::ProtonInstallRegistry::default(),
-        ))
-        .manage(std::sync::Arc::new(
-            crosshook_core::launch::LaunchSessionRegistry::new(),
         ))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())

@@ -1,0 +1,37 @@
+{
+  "severity": "fatal",
+  "summary": "Process exited with code 1. Matched 1 known issue: The executable could not be started due to a permission error..",
+  "exit_info": {
+    "code": 1,
+    "signal": null,
+    "signal_name": null,
+    "core_dumped": false,
+    "failure_mode": "non_zero_exit",
+    "description": "Process exited with code 1.",
+    "severity": "warning"
+  },
+  "pattern_matches": [
+    {
+      "pattern_id": "permission_denied",
+      "summary": "The executable could not be started due to a permission error.",
+      "severity": "fatal",
+      "matched_line": "Permission denied",
+      "suggestion": "Check file permissions on the game or trainer executable and ensure it is runnable."
+    }
+  ],
+  "suggestions": [
+    {
+      "title": "The executable could not be started due to a permission error.",
+      "description": "Check file permissions on the game or trainer executable and ensure it is runnable.",
+      "severity": "fatal"
+    },
+    {
+      "title": "Next step",
+      "description": "The process returned a non-zero exit code without a recognized log signature. Review the helper log tail for the last error lines.",
+      "severity": "warning"
+    }
+  ],
+  "launch_method": "proton_run",
+  "log_tail_path": "/tmp/crosshook-logs/game-x.log",
+  "analyzed_at": "2026-01-01T00:00:00+00:00"
+}

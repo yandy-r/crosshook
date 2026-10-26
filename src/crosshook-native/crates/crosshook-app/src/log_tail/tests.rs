@@ -30,9 +30,14 @@ fn fifty_thousand_lines_in_growth_steps_are_read_exactly_once() {
     let cuts = [0, 1, 7_777, 123_457, 300_001, 512_345, 700_003, bytes.len()];
     for step in cuts.windows(2) {
         append(&path, &bytes[step[0]..step[1]]);
-        got.extend(tail.poll().expect("poll"));
+        // The per-poll line budget may spread one step over several polls.
+        loop {
+            got.extend(tail.poll().expect("poll"));
+            if !tail.has_backlog() {
+                break;
+            }
+        }
     }
-    got.extend(tail.poll().expect("final poll"));
 
     assert_eq!(got.len(), 50_000);
     for (i, line) in got.iter().enumerate() {
@@ -236,6 +241,7 @@ fn config_clamps_window_and_backoff() {
 }
 
 /// Simulated file: lines become visible at their write time (ms from start).
+#[derive(Debug)]
 struct Timeline {
     start: Instant,
     writes: Vec<(u64, String)>,
@@ -267,8 +273,13 @@ async fn run_timeline(writes: Vec<(u64, String)>, cancel_at_ms: u64) -> Record {
     let poll = move |mut tl: Timeline, mode: PollMode| {
         let rec = Rc::clone(&poll_record);
         async move {
-            assert!(!tl.final_seen, "poll after final poll");
-            tl.final_seen = mode != PollMode::Live;
+            assert!(
+                mode != PollMode::Live || !tl.final_seen,
+                "live poll after final poll"
+            );
+            if mode != PollMode::Live {
+                tl.final_seen = true;
+            }
             let now = ms_since(tl.start);
             rec.borrow_mut().polls.push(now);
             let mut lines = Vec::new();
@@ -279,7 +290,7 @@ async fn run_timeline(writes: Vec<(u64, String)>, cancel_at_ms: u64) -> Record {
                 lines.push(line.clone());
                 tl.next += 1;
             }
-            Ok((tl, lines, false))
+            Ok((tl, lines, false, None))
         }
     };
     let sink_record = Rc::clone(&record);
@@ -366,12 +377,17 @@ async fn cancel_drain_is_bounded_when_backlog_never_ends() {
     let poll_modes = Rc::clone(&modes);
     let poll = move |n: u32, mode: PollMode| {
         poll_modes.borrow_mut().push(mode);
-        async move { Ok((n + 1, vec![format!("chunk {n}")], true)) }
+        async move {
+            let truncated = (mode == PollMode::Last).then_some(9);
+            Ok((n + 1, vec![format!("chunk {n}")], true, truncated))
+        }
     };
-    let mut batches = 0;
+    let mut batches = Vec::new();
     tokio::time::timeout(
         Duration::from_secs(1),
-        drive(0_u32, poll, TailConfig::default(), cancel, |_| batches += 1),
+        drive(0_u32, poll, TailConfig::default(), cancel, |b| {
+            batches.push(b);
+        }),
     )
     .await
     .expect("cancel returns promptly")
@@ -382,7 +398,339 @@ async fn cancel_drain_is_bounded_when_backlog_never_ends() {
     assert_eq!(modes.len(), bound);
     assert!(modes[..bound - 1].iter().all(|m| *m == PollMode::Drain));
     assert_eq!(modes[bound - 1], PollMode::Last);
-    assert_eq!(batches, bound);
+    // One lines batch per drain poll, then the cut-short notice in bytes.
+    assert_eq!(batches.len(), bound + 1);
+    assert_eq!(batches.last(), Some(&LogBatch::Truncated { bytes: 9 }));
+}
+
+#[tokio::test(start_paused = true)]
+async fn live_backlog_polls_again_without_waiting_for_a_window() {
+    let cancel = CancellationToken::new();
+    let canceller = cancel.clone();
+    let start = Instant::now();
+    let record = Rc::new(RefCell::new(Vec::new()));
+    let rec = Rc::clone(&record);
+    let poll = move |n: u32, mode: PollMode| {
+        if n == 3 {
+            canceller.cancel();
+        }
+        rec.borrow_mut().push((n, ms_since(start), mode));
+        // Backlog pending throughout the live phase; drained once cancelled.
+        async move {
+            let more = mode == PollMode::Live;
+            Ok((n + 1, vec![format!("l{n}")], more, None))
+        }
+    };
+    let mut batches = Vec::new();
+    drive(0_u32, poll, TailConfig::default(), cancel, |b| {
+        batches.push(b);
+    })
+    .await
+    .expect("drive");
+    let record = record.borrow();
+    // Four live polls and one drain poll, all at t=0.
+    assert_eq!(record.len(), 5, "polls: {record:?} batches: {batches:?}");
+    assert!(
+        record.iter().all(|(_, at, _)| *at == 0),
+        "backlog polls never slept: {record:?}"
+    );
+    assert!(
+        batches.iter().all(|b| matches!(b, LogBatch::Lines(_))),
+        "only line batches, no Dropped: {batches:?}"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn transient_poll_errors_retry_with_backoff_and_recover() {
+    let cancel = CancellationToken::new();
+    let canceller = cancel.clone();
+    let start = Instant::now();
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let call_log = Rc::clone(&calls);
+    let poll = move |n: u32, _mode: PollMode| {
+        call_log.borrow_mut().push(ms_since(start));
+        let canceller = canceller.clone();
+        async move {
+            match n {
+                1 | 2 => Err((Some(n + 1), io::Error::other("simulated poll failure"))),
+                3 => {
+                    canceller.cancel();
+                    Ok((4, vec!["recovered".to_owned()], false, None))
+                }
+                _ => Ok((n + 1, Vec::new(), false, None)),
+            }
+        }
+    };
+    let mut batches = Vec::new();
+    drive(0_u32, poll, TailConfig::default(), cancel, |b| {
+        batches.push(b);
+    })
+    .await
+    .expect("drive recovers from transient errors");
+
+    let calls = calls.borrow();
+    // Poll 1 (n=0) succeeds but is empty, so the interval backs off to 66;
+    // each subsequent error doubles it again (132, 264). After recovery the
+    // cancellation ends the run immediately (biased select).
+    assert_eq!(*calls, vec![0, 66, 198, 462, 462], "poll times: {calls:?}");
+    assert_eq!(batches, vec![LogBatch::Lines(vec!["recovered".to_owned()])]);
+}
+
+#[tokio::test(start_paused = true)]
+async fn persistent_poll_errors_stop_after_a_bounded_streak() {
+    let cancel = CancellationToken::new();
+    let calls = Rc::new(RefCell::new(0_u32));
+    let call_count = Rc::clone(&calls);
+    let poll = move |n: u32, _mode: PollMode| {
+        *call_count.borrow_mut() += 1;
+        async move {
+            Err::<(u32, Vec<String>, bool, Option<u64>), _>((Some(n), io::Error::other("down")))
+        }
+    };
+    let result = drive(0_u32, poll, TailConfig::default(), cancel, |_| {}).await;
+    assert!(result.is_err(), "a persistent failure surfaces");
+    assert_eq!(
+        *calls.borrow(),
+        MAX_CONSECUTIVE_POLL_ERRORS,
+        "one attempt per error, then give up"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn follow_emits_truncated_notice_when_the_final_drain_is_capped() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("flood.log");
+    // More short lines than the capped drain can deliver
+    // (FINAL_DRAIN_CHUNKS × MAX_LINES_PER_POLL).
+    let total = FINAL_DRAIN_CHUNKS as usize * MAX_LINES_PER_POLL + 50_000;
+    let content: String = (0..total).map(|i| format!("flood {i:06}\n")).collect();
+    append(&path, content.as_bytes());
+
+    let cancel = CancellationToken::new();
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    let task = tokio::spawn(follow(
+        path.clone(),
+        TailConfig::default(),
+        cancel.clone(),
+        move |batch| {
+            tx.send(batch).expect("receiver alive");
+        },
+    ));
+    // Cancel before the live phase can read (test file written above).
+    cancel.cancel();
+    tokio::time::timeout(FOLLOW_WAIT, task)
+        .await
+        .expect("follow stops in time")
+        .expect("join")
+        .expect("follow");
+
+    let mut total_lines = 0usize;
+    let mut truncated = None;
+    while let Ok(Some(batch)) = recv(&mut rx).await {
+        match batch {
+            LogBatch::Lines(lines) => total_lines += lines.len(),
+            LogBatch::Truncated { bytes } => truncated = Some(bytes),
+            LogBatch::Dropped { n } => panic!("lag notice from a file tail: {n}"),
+        }
+    }
+    // Either everything was drained live, or the capped drain left a visible
+    // notice — no silent loss either way.
+    if total_lines < total {
+        let bytes = truncated.expect("a Truncated notice covers the unread remainder");
+        let line_len = "flood 000000\n".len();
+        // Bytes of the undelivered lines, never an event count.
+        assert_eq!(bytes, ((total - total_lines) * line_len) as u64);
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn final_drain_reports_truncation_only_for_a_nonzero_estimate() {
+    for (estimate, expected) in [
+        (Some(0), None),
+        (None, None),
+        (Some(7), Some(LogBatch::Truncated { bytes: 7 })),
+    ] {
+        let cancel = CancellationToken::new();
+        cancel.cancel();
+        let mut batches = Vec::new();
+        let poll = move |n: u32, mode: PollMode| async move {
+            let est = if mode == PollMode::Last {
+                estimate
+            } else {
+                None
+            };
+            Ok((n, Vec::new(), true, est))
+        };
+        drive(0_u32, poll, TailConfig::default(), cancel, |b| {
+            batches.push(b);
+        })
+        .await
+        .expect("drive");
+        assert_eq!(batches, expected.into_iter().collect::<Vec<_>>());
+    }
+}
+
+#[test]
+fn unread_estimate_is_measured_against_the_current_files_after_rotation() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("r.log");
+    let rotated = dir.path().join("r.log.1");
+    append(&path, b"a\n");
+    let mut tail = LogTail::new(&path);
+    assert_eq!(tail.poll().expect("poll"), vec!["a"]);
+    append(&path, b"b\n");
+    fs::rename(&path, &rotated).expect("rename");
+    append(&path, b"x\ny\nzzzz\n");
+
+    // 2 unread bytes on the old handle plus the whole 9-byte new file. A
+    // file-length-minus-bytes-read estimate would say 9 - 2 = 7.
+    assert_eq!(tail.unread_bytes(), 2 + 9);
+}
+
+#[tokio::test]
+async fn a_panicking_blocking_poll_is_a_terminal_error_not_an_unwind() {
+    fn panics(_: &mut LogTail, _: PollMode) -> io::Result<(Vec<String>, bool, Option<u64>)> {
+        panic!("simulated blocking read panic");
+    }
+    let dir = tempfile::tempdir().expect("tempdir");
+    let tail = LogTail::new(dir.path().join("p.log"));
+    let Err((state, error)) = blocking_poll(tail, PollMode::Live, panics).await else {
+        panic!("a panicked poll must not succeed");
+    };
+    assert!(state.is_none(), "the tail is gone with the panicked task");
+    assert!(error.to_string().contains("blocking read task failed"));
+
+    let cancel = CancellationToken::new();
+    let poll = |tail: LogTail, mode: PollMode| blocking_poll(tail, mode, panics);
+    let tail = LogTail::new(dir.path().join("p.log"));
+    let result = drive(tail, poll, TailConfig::default(), cancel, |_| {}).await;
+    assert!(
+        result.is_err(),
+        "drive surfaces it at once instead of retrying"
+    );
+}
+
+/// Reader serving at most `remaining` bytes from the file, then failing.
+pub(super) struct FailAfter<'a> {
+    file: &'a mut File,
+    remaining: u64,
+}
+
+impl<'a> FailAfter<'a> {
+    pub(super) fn new(file: &'a mut File, remaining: u64) -> Self {
+        Self { file, remaining }
+    }
+}
+
+impl Read for FailAfter<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if self.remaining == 0 {
+            return Err(io::Error::other("simulated read failure"));
+        }
+        let cap = buf
+            .len()
+            .min(usize::try_from(self.remaining).unwrap_or(usize::MAX));
+        let n = self.file.read(&mut buf[..cap])?;
+        self.remaining -= n as u64;
+        Ok(n)
+    }
+}
+
+fn assert_position_matches_offset(tail: &mut LogTail) {
+    let open = tail.file.as_mut().expect("open file");
+    assert_eq!(open.file.stream_position().expect("position"), open.offset);
+}
+
+#[test]
+fn a_mid_read_failure_keeps_the_bytes_read_without_loss_or_duplication() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("m.log");
+    append(&path, b"a\nb\nc\nd\n");
+    let mut tail = LogTail::new(&path);
+    tail.fault = Some(5); // serves "a\nb\nc", then fails
+
+    assert_eq!(tail.poll().expect("partial read is kept"), vec!["a", "b"]);
+    assert_eq!(tail.bytes_read(), 5);
+    assert_position_matches_offset(&mut tail);
+    // The rest of the file arrives next, completing the buffered "c".
+    assert_eq!(tail.poll().expect("retry"), vec!["c", "d"]);
+    assert_eq!(tail.bytes_read(), 8);
+    assert_position_matches_offset(&mut tail);
+    assert_eq!(tail.flush_partial(), None);
+}
+
+#[test]
+fn a_read_failing_before_any_byte_leaves_the_tail_untouched_and_retryable() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("z.log");
+    append(&path, b"a\nb\n");
+    let mut tail = LogTail::new(&path);
+    tail.fault = Some(0);
+
+    assert!(tail.poll().is_err());
+    assert_eq!(tail.bytes_read(), 0);
+    assert_position_matches_offset(&mut tail);
+    assert_eq!(tail.poll().expect("retry"), vec!["a", "b"]);
+    assert_position_matches_offset(&mut tail);
+}
+
+#[test]
+fn a_failed_rotation_reopen_still_returns_the_lines_already_collected() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("o.log");
+    let rotated = dir.path().join("o.log.1");
+    append(&path, b"a\n");
+    let mut tail = LogTail::new(&path);
+    assert_eq!(tail.poll().expect("poll"), vec!["a"]);
+
+    append(&path, b"b\nunterminated");
+    fs::rename(&path, &rotated).expect("rename");
+    append(&path, b"x\ny\n");
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o000)).expect("chmod");
+    if File::open(&path).is_ok() {
+        return; // permission bits are not enforced (e.g. running as root)
+    }
+
+    // The reopen fails, but the old file's lines were already consumed.
+    assert_eq!(
+        tail.poll().expect("collected lines are returned"),
+        vec!["b", "unterminated"]
+    );
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).expect("chmod back");
+    assert_eq!(tail.poll().expect("reopen retried"), vec!["x", "y"]);
+    assert_eq!(tail.bytes_read(), 2 + 14 + 4);
+}
+
+#[test]
+fn a_flood_of_one_byte_lines_is_delivered_in_bounded_batches() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("tiny.log");
+    let total = MAX_LINES_PER_POLL * 2 + 123;
+    let content = "a\n".repeat(total);
+    append(&path, content.as_bytes());
+
+    let mut tail = LogTail::new(&path);
+    let mut delivered = 0;
+    let mut batches = Vec::new();
+    loop {
+        let lines = tail.poll().expect("poll");
+        assert!(
+            lines.len() <= MAX_LINES_PER_POLL,
+            "batch of {}",
+            lines.len()
+        );
+        delivered += lines.len();
+        batches.push(lines.len());
+        if !tail.has_backlog() {
+            break;
+        }
+    }
+    assert_eq!(delivered, total, "nothing lost: {batches:?}");
+    assert_eq!(batches.len(), 3, "{batches:?}");
+    assert_eq!(tail.bytes_read(), content.len() as u64);
+    assert_eq!(tail.flush_partial(), None);
 }
 
 const FOLLOW_WAIT: Duration = Duration::from_secs(5);

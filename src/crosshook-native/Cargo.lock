@@ -668,10 +668,12 @@ version = "0.6.1"
 dependencies = [
  "clap",
  "clap_complete",
+ "crosshook-app",
  "crosshook-core",
  "libc",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
 ]
 

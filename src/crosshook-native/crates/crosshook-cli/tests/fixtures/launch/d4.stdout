@@ -1,0 +1,148 @@
+{
+  "cleared_variables": [
+    "WINESERVER",
+    "WINELOADER",
+    "WINEDLLPATH",
+    "WINEDLLOVERRIDES",
+    "WINEDEBUG",
+    "WINEESYNC",
+    "WINEFSYNC",
+    "WINELOADERNOEXEC",
+    "WINE_LARGE_ADDRESS_AWARE",
+    "WINE_DISABLE_KERNEL_WRITEWATCH",
+    "WINE_HEAP_DELAY_FREE",
+    "WINEFSYNC_SPINCOUNT",
+    "LD_PRELOAD",
+    "LD_LIBRARY_PATH",
+    "GST_PLUGIN_PATH",
+    "GST_PLUGIN_SYSTEM_PATH",
+    "GST_PLUGIN_SYSTEM_PATH_1_0",
+    "SteamGameId",
+    "SteamAppId",
+    "GAMEID",
+    "PROTON_LOG",
+    "PROTON_DUMP_DEBUG_COMMANDS",
+    "PROTON_USE_WINED3D",
+    "PROTON_NO_ESYNC",
+    "PROTON_NO_FSYNC",
+    "PROTON_ENABLE_NVAPI",
+    "PROTON_VERB",
+    "DXVK_CONFIG_FILE",
+    "DXVK_STATE_CACHE_PATH",
+    "DXVK_LOG_PATH",
+    "VKD3D_CONFIG",
+    "VKD3D_DEBUG",
+    "STEAM_COMPAT_LIBRARY_PATHS",
+    "PRESSURE_VESSEL_FILESYSTEMS_RW",
+    "PROTONPATH"
+  ],
+  "directives_error": null,
+  "display_text": "[preview]\ngenerated_at = \"@TIMESTAMP@\"\nmethod = \"steam_applaunch\"\ngame = \"@ROOT@/Game.exe\"\ngame_name = \"Game.exe\"\n\n[validation]\npassed = true\nissue_count = 0\n\n[command]\neffective = \"PROTON_NO_STEAMINPUT=1 GOLDEN_STEAM=enabled %command%\"\nsteam_launch_options = \"PROTON_NO_STEAMINPUT=1 GOLDEN_STEAM=enabled %command%\"\n\n[proton]\nproton_executable = \"@ROOT@/proton\"\nwine_prefix_path = \"@ROOT@/steam/steamapps/compatdata/123/pfx\"\ncompat_data_path = \"@ROOT@/steam/steamapps/compatdata/123\"\nsteam_client_install_path = \"@ROOT@/steam\"\n\n[trainer]\npath = \"@ROOT@/Trainer.exe\"\nhost_path = \"@ROOT@/Trainer.exe\"\nloading_mode = \"source_directory\"\n\n[environment]  # 14 vars\nHOME = \"@ROOT@/home\"\nUSER = \"tester\"\nLOGNAME = \"tester\"\nSHELL = \"/bin/bash\"\nPATH = \"@ROOT@/bin:/usr/bin:/bin\"\nDISPLAY = \":99\"\nWAYLAND_DISPLAY = \"wayland-test\"\nXDG_RUNTIME_DIR = \"@ROOT@/run\"\nDBUS_SESSION_BUS_ADDRESS = \"unix:path=@ROOT@/bus\"\nSTEAM_COMPAT_DATA_PATH = \"@ROOT@/steam/steamapps/compatdata/123\"\nSTEAM_COMPAT_CLIENT_INSTALL_PATH = \"@ROOT@/steam\"\nWINEPREFIX = \"@ROOT@/steam/steamapps/compatdata/123/pfx\"\nPROTON_NO_STEAMINPUT = \"1\"\nGOLDEN_STEAM = \"enabled\"\n\n[cleared_variables]  # 35 vars\n  WINESERVER\n  WINELOADER\n  WINEDLLPATH\n  WINEDLLOVERRIDES\n  WINEDEBUG\n  WINEESYNC\n  WINEFSYNC\n  WINELOADERNOEXEC\n  WINE_LARGE_ADDRESS_AWARE\n  WINE_DISABLE_KERNEL_WRITEWATCH\n  WINE_HEAP_DELAY_FREE\n  WINEFSYNC_SPINCOUNT\n  LD_PRELOAD\n  LD_LIBRARY_PATH\n  GST_PLUGIN_PATH\n  GST_PLUGIN_SYSTEM_PATH\n  GST_PLUGIN_SYSTEM_PATH_1_0\n  SteamGameId\n  SteamAppId\n  GAMEID\n  PROTON_LOG\n  PROTON_DUMP_DEBUG_COMMANDS\n  PROTON_USE_WINED3D\n  PROTON_NO_ESYNC\n  PROTON_NO_FSYNC\n  PROTON_ENABLE_NVAPI\n  PROTON_VERB\n  DXVK_CONFIG_FILE\n  DXVK_STATE_CACHE_PATH\n  DXVK_LOG_PATH\n  VKD3D_CONFIG\n  VKD3D_DEBUG\n  STEAM_COMPAT_LIBRARY_PATHS\n  PRESSURE_VESSEL_FILESYSTEMS_RW\n  PROTONPATH",
+  "effective_command": "PROTON_NO_STEAMINPUT=1 GOLDEN_STEAM=enabled %command%",
+  "environment": [
+    {
+      "key": "HOME",
+      "source": "host",
+      "value": "@ROOT@/home"
+    },
+    {
+      "key": "USER",
+      "source": "host",
+      "value": "tester"
+    },
+    {
+      "key": "LOGNAME",
+      "source": "host",
+      "value": "tester"
+    },
+    {
+      "key": "SHELL",
+      "source": "host",
+      "value": "/bin/bash"
+    },
+    {
+      "key": "PATH",
+      "source": "host",
+      "value": "@ROOT@/bin:/usr/bin:/bin"
+    },
+    {
+      "key": "DISPLAY",
+      "source": "host",
+      "value": ":99"
+    },
+    {
+      "key": "WAYLAND_DISPLAY",
+      "source": "host",
+      "value": "wayland-test"
+    },
+    {
+      "key": "XDG_RUNTIME_DIR",
+      "source": "host",
+      "value": "@ROOT@/run"
+    },
+    {
+      "key": "DBUS_SESSION_BUS_ADDRESS",
+      "source": "host",
+      "value": "unix:path=@ROOT@/bus"
+    },
+    {
+      "key": "STEAM_COMPAT_DATA_PATH",
+      "source": "steam_proton",
+      "value": "@ROOT@/steam/steamapps/compatdata/123"
+    },
+    {
+      "key": "STEAM_COMPAT_CLIENT_INSTALL_PATH",
+      "source": "steam_proton",
+      "value": "@ROOT@/steam"
+    },
+    {
+      "key": "WINEPREFIX",
+      "source": "steam_proton",
+      "value": "@ROOT@/steam/steamapps/compatdata/123/pfx"
+    },
+    {
+      "key": "PROTON_NO_STEAMINPUT",
+      "source": "launch_optimization",
+      "value": "1"
+    },
+    {
+      "key": "GOLDEN_STEAM",
+      "source": "profile_custom",
+      "value": "enabled"
+    }
+  ],
+  "game_executable": "@ROOT@/Game.exe",
+  "game_executable_name": "Game.exe",
+  "gamescope_active": false,
+  "gamescope_decision": {
+    "active": false,
+    "allow_nested": false,
+    "enabled": false,
+    "inside_gamescope_session": false,
+    "mangohud_folded_into_gamescope": false,
+    "reason": "disabled in profile"
+  },
+  "generated_at": "@TIMESTAMP@",
+  "proton_setup": {
+    "compat_data_path": "@ROOT@/steam/steamapps/compatdata/123",
+    "proton_executable": "@ROOT@/proton",
+    "steam_client_install_path": "@ROOT@/steam",
+    "umu_run_path": null,
+    "wine_prefix_path": "@ROOT@/steam/steamapps/compatdata/123/pfx"
+  },
+  "resolved_method": "steam_applaunch",
+  "steam_launch_options": "PROTON_NO_STEAMINPUT=1 GOLDEN_STEAM=enabled %command%",
+  "trainer": {
+    "host_path": "@ROOT@/Trainer.exe",
+    "loading_mode": "source_directory",
+    "path": "@ROOT@/Trainer.exe",
+    "staged_path": null
+  },
+  "umu_decision": null,
+  "validation": {
+    "issues": []
+  },
+  "working_directory": "",
+  "wrapper_details": [],
+  "wrappers": []
+}

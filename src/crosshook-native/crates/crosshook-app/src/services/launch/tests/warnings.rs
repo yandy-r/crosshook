@@ -1,8 +1,10 @@
+//! Launch warning collector tests (Task 2.2).
+
 use crosshook_core::launch::{
     LaunchValidationIssue, ValidationSeverity, MAX_COEXISTENCE_ADVISORY_RECORDS,
 };
 
-use crate::commands::launch::warnings::coexistence_records_from_warnings;
+use super::super::warnings::coexistence_records_from_warnings;
 
 fn issue(code: Option<&str>, severity: ValidationSeverity) -> LaunchValidationIssue {
     LaunchValidationIssue {

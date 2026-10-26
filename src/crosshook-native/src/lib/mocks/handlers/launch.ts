@@ -294,12 +294,13 @@ function scheduleLaunchLogSequence(
   helperLogPath: string,
   delayBetweenMs: number,
   afterLogsDelayMs: number,
-  profileName: string | undefined
+  profileName: string | undefined,
+  sessionId: string
 ): void {
   logLines.forEach((line, index) => {
     scheduleLaunchTimeout(
       () => {
-        emitMockEvent('launch-log', line);
+        emitMockEvent('launch-log', { line, session_id: sessionId });
       },
       delayBetweenMs * (index + 1)
     );
@@ -308,7 +309,7 @@ function scheduleLaunchLogSequence(
   const diagnosticDelay = delayBetweenMs * (logLines.length + 1) + afterLogsDelayMs;
   scheduleLaunchTimeout(() => {
     const report = makeDiagnosticReport(helperLogPath);
-    emitMockEvent('launch-diagnostic', report);
+    emitMockEvent('launch-diagnostic', { ...report, session_id: sessionId });
   }, diagnosticDelay);
 
   const completeDelay = diagnosticDelay + 200;
@@ -317,7 +318,7 @@ function scheduleLaunchLogSequence(
     if (trimmed) {
       runningProfiles.delete(trimmed);
     }
-    emitMockEvent('launch-complete', { code: 0, signal: null });
+    emitMockEvent('launch-complete', { code: 0, signal: null, session_id: sessionId });
   }, completeDelay);
 }
 
@@ -342,8 +343,7 @@ function makeInjectionLogEvent(
   };
 }
 
-function scheduleTrainerInjectionLogSequence(request: LaunchRequest, steamAppId: string): void {
-  const sessionId = `mock-trainer-session-${steamAppId}`;
+function scheduleTrainerInjectionLogSequence(request: LaunchRequest, sessionId: string): void {
   const rows: Array<{
     delayMs: number;
     level: InjectionLogEvent['level'];
@@ -447,7 +447,14 @@ export function registerLaunch(map: Map<string, Handler>): void {
       '[mock] Game window detected. Launch sequence complete.',
     ];
 
-    scheduleLaunchLogSequence(gameLogLines, helperLogPath, 150, 300, request.profile_name);
+    scheduleLaunchLogSequence(
+      gameLogLines,
+      helperLogPath,
+      150,
+      300,
+      request.profile_name,
+      `mock-game-session-${steamAppId}`
+    );
 
     return makeLaunchResult('Game launch started.', logSuffix);
   });
@@ -473,8 +480,9 @@ export function registerLaunch(map: Map<string, Handler>): void {
       '[mock] Trainer attached successfully. Cheat engine active.',
     ];
 
-    scheduleTrainerInjectionLogSequence(request, steamAppId);
-    scheduleLaunchLogSequence(trainerLogLines, helperLogPath, 200, 250, request.profile_name);
+    const sessionId = `mock-trainer-session-${steamAppId}`;
+    scheduleTrainerInjectionLogSequence(request, sessionId);
+    scheduleLaunchLogSequence(trainerLogLines, helperLogPath, 200, 250, request.profile_name, sessionId);
 
     return makeLaunchResult('Trainer launch started.', logSuffix);
   });

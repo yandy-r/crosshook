@@ -1,24 +1,16 @@
-//! Launch Tauri commands, split into focused submodules.
+//! Launch Tauri commands: thin delegates to `crosshook_app::LaunchService`.
 //!
-//! - `shared`      — shared DTOs, constants, and log-relay helpers
-//! - `queries`     — lightweight read-only launch commands
-//! - `warnings`    — non-blocking advisory collectors
-//! - `portal`      — Flatpak GameMode portal registration helpers
-//! - `diagnostics` — launch-log diagnostic helpers
-//! - `streaming`   — child/log streaming orchestration
-//! - `execution`   — launch command entrypoints, session-lifecycle mutation
-//!   (`launch_game`, `launch_trainer`, `launch_reset_sessions`), and
-//!   watchdog spawning
+//! - `shared`    — the `LaunchResult` IPC DTO
+//! - `queries`   — read-only launch commands and stateless host probes
+//! - `execution` — `launch_game`, `launch_trainer`, `launch_reset_sessions`
+//! - `relay`     — maps service session events to the `launch-*` Tauri events
 
-mod diagnostics;
 mod execution;
-mod portal;
 mod queries;
+pub(crate) mod relay;
 mod shared;
-mod streaming;
 #[cfg(test)]
 mod tests;
-mod warnings;
 
 pub use execution::{launch_game, launch_reset_sessions, launch_trainer};
 pub use queries::{

@@ -24,4 +24,7 @@ pub use events::{
     AppEvent, EventBus, EventReceiver, ProfileChangeReason, StartupJobKind, DEFAULT_EVENT_CAPACITY,
     MAX_EVENT_CAPACITY,
 };
-pub use services::ProfileWriter;
+pub use services::launch::{
+    InjectionLogData, LaunchEvent, LaunchEvents, LaunchSession, LaunchStartError,
+};
+pub use services::{LaunchService, ProfileWriter};

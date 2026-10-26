@@ -21,8 +21,8 @@ use super::options::StoreRoots;
 use super::{BootstrapError, StoreKind};
 use crate::events::EventBus;
 use crate::services::{
-    BackgroundGrantHolder, DiagnosticsService, HealthService, ProfileWriter, RecentFilesService,
-    SettingsService,
+    BackgroundGrantHolder, DiagnosticsService, HealthService, LaunchService, ProfileWriter,
+    RecentFilesService, SettingsService,
 };
 
 /// The persistent stores the application owns. Clones are cheap; clones of
@@ -56,12 +56,15 @@ pub struct Services {
     pub profiles: ProfileWriter,
     /// Background-protection portal grant holder.
     pub background: Arc<BackgroundGrantHolder>,
+    /// Launch pipeline: validation, spawn, log streaming and session finalization.
+    pub launch: LaunchService,
 }
 
 impl Services {
     /// Builds the service bundle over `stores`; `events` is the app bus that
     /// services publish change notifications on.
     pub fn new(stores: &Stores, events: EventBus) -> Self {
+        let background = Arc::new(BackgroundGrantHolder::new());
         Self {
             settings: SettingsService::new(
                 stores.settings.clone(),
@@ -83,7 +86,13 @@ impl Services {
                 stores.settings.clone(),
                 events,
             ),
-            background: Arc::new(BackgroundGrantHolder::new()),
+            launch: LaunchService::new(
+                stores.profiles.clone(),
+                stores.settings.clone(),
+                stores.metadata.clone(),
+                Some(background.clone()),
+            ),
+            background,
         }
     }
 }

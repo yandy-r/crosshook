@@ -1,10 +1,14 @@
 use std::error::Error;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
 use crate::args::{GlobalOptions, LaunchCommand};
 use crate::cli_error::CliError;
 use crate::store::profile_store;
+use crosshook_app::log_tail::LogBatch;
+use crosshook_app::services::launch::{read_log_tail, stream_child_log};
+use crosshook_core::launch::diagnostics::MAX_LOG_TAIL_BYTES;
 use crosshook_core::launch::{
     self, build_launch_preview, LaunchRequest, ValidationSeverity, METHOD_NATIVE,
     METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
@@ -14,9 +18,6 @@ use crosshook_core::profile::resolve_launch_method;
 use crosshook_core::runtime_helpers::{self, RuntimeHelper};
 use crosshook_core::settings::SettingsStore;
 use crosshook_core::umu_database;
-use tokio::fs::{self, OpenOptions};
-use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
-use tokio::time::{sleep, Duration};
 
 pub(crate) async fn launch_profile(
     command: LaunchCommand,
@@ -146,15 +147,31 @@ pub(crate) async fn launch_profile(
             )))
         }
     };
-    let status = stream_helper_log(&mut child, &log_path)
-        .await
-        .map_err(|e| CliError::LaunchFailure(e.to_string()))?;
+    let mut output_error = None;
+    let status = stream_child_log(&mut child, &log_path, |batch| match batch {
+        LogBatch::Lines(lines) => {
+            if output_error.is_none() {
+                let mut stdout = std::io::stdout().lock();
+                output_error = lines
+                    .iter()
+                    .try_for_each(|line| writeln!(stdout, "{line}"))
+                    .and_then(|()| stdout.flush())
+                    .err();
+            }
+        }
+        LogBatch::Dropped { .. } | LogBatch::Truncated { .. } => {
+            if let Some(notice) = output_loss_notice(&batch, &log_path) {
+                eprintln!("{notice}");
+            }
+        }
+    })
+    .await
+    .map_err(|e| CliError::LaunchFailure(e.to_string()))?;
+    if let Some(error) = output_error {
+        return Err(CliError::LaunchFailure(error.to_string()));
+    }
 
-    let log_tail = safe_read_tail(
-        &log_path,
-        crosshook_core::launch::diagnostics::MAX_LOG_TAIL_BYTES,
-    )
-    .await;
+    let log_tail = read_log_tail(&log_path, MAX_LOG_TAIL_BYTES).await;
     let report = launch::analyze(Some(status), &log_tail, &request.method);
     if launch::should_surface_report(&report) {
         eprintln!("{}", report.summary);
@@ -275,74 +292,20 @@ fn spawn_helper(
     Ok(command.spawn()?)
 }
 
-async fn stream_helper_log(
-    child: &mut tokio::process::Child,
-    log_path: &Path,
-) -> Result<std::process::ExitStatus, Box<dyn Error>> {
-    let mut offset = 0u64;
-    let mut stdout = tokio::io::stdout();
-
-    loop {
-        if let Some(status) = child.try_wait()? {
-            let _ = drain_log(log_path, offset, &mut stdout).await?;
-            stdout.flush().await?;
-            return Ok(status);
-        }
-
-        offset = drain_log(log_path, offset, &mut stdout).await?;
-        stdout.flush().await?;
-        sleep(Duration::from_millis(500)).await;
+/// Stderr notice for a [`LogBatch`] that reports lost console output; `None`
+/// for batches that carry lines. stdout stays untouched.
+fn output_loss_notice(batch: &LogBatch, log_path: &Path) -> Option<String> {
+    match batch {
+        LogBatch::Lines(_) => None,
+        LogBatch::Dropped { n } => Some(format!(
+            "warning: launch output skipped {n} log batches; see the log at {}",
+            log_path.display()
+        )),
+        LogBatch::Truncated { bytes } => Some(format!(
+            "warning: launch output truncated (about {bytes} bytes not shown); see the log at {}",
+            log_path.display()
+        )),
     }
-}
-
-async fn drain_log(
-    log_path: &Path,
-    offset: u64,
-    stdout: &mut tokio::io::Stdout,
-) -> Result<u64, Box<dyn Error>> {
-    let file = match OpenOptions::new().read(true).open(log_path).await {
-        Ok(file) => file,
-        Err(_) => return Ok(offset),
-    };
-
-    let mut file = file;
-    file.seek(std::io::SeekFrom::Start(offset)).await?;
-
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).await?;
-    if !buffer.is_empty() {
-        stdout.write_all(&buffer).await?;
-        return Ok(offset + buffer.len() as u64);
-    }
-
-    Ok(offset)
-}
-
-async fn safe_read_tail(path: &Path, max_bytes: u64) -> String {
-    let file = match fs::File::open(path).await {
-        Ok(file) => file,
-        Err(_) => return String::new(),
-    };
-
-    let metadata = match file.metadata().await {
-        Ok(metadata) => metadata,
-        Err(_) => return String::new(),
-    };
-
-    let mut file = file;
-    if metadata.len() > max_bytes {
-        let offset = -(max_bytes as i64);
-        if file.seek(std::io::SeekFrom::End(offset)).await.is_err() {
-            return String::new();
-        }
-    }
-
-    let mut buffer = Vec::new();
-    if file.read_to_end(&mut buffer).await.is_err() {
-        return String::new();
-    }
-
-    String::from_utf8_lossy(&buffer).into_owned()
 }
 
 fn severity_label(severity: ValidationSeverity) -> &'static str {
@@ -350,5 +313,39 @@ fn severity_label(severity: ValidationSeverity) -> &'static str {
         ValidationSeverity::Fatal => "fatal",
         ValidationSeverity::Warning => "warning",
         ValidationSeverity::Info => "info",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn truncated_batch_warns_with_bytes_and_log_path() {
+        let notice = output_loss_notice(
+            &LogBatch::Truncated { bytes: 4096 },
+            Path::new("/tmp/launch.log"),
+        )
+        .expect("notice");
+        assert_eq!(
+            notice,
+            "warning: launch output truncated (about 4096 bytes not shown); see the log at /tmp/launch.log"
+        );
+    }
+
+    #[test]
+    fn dropped_batch_warns_with_count_and_log_path() {
+        let notice = output_loss_notice(&LogBatch::Dropped { n: 7 }, Path::new("/tmp/launch.log"))
+            .expect("notice");
+        assert!(notice.starts_with("warning: launch output skipped 7 log batches"));
+        assert!(notice.ends_with("/tmp/launch.log"));
+    }
+
+    #[test]
+    fn line_batches_produce_no_notice() {
+        assert_eq!(
+            output_loss_notice(&LogBatch::Lines(vec!["x".into()]), Path::new("/tmp/l.log")),
+            None
+        );
     }
 }

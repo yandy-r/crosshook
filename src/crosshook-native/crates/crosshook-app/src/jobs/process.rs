@@ -220,24 +220,61 @@ fn group_alive(pgid: Pid) -> io::Result<bool> {
     }))
 }
 
+/// Production log directory shared by every launch kind.
+pub(crate) const LOG_DIR: &str = "/tmp/crosshook-logs";
+
 /// Creates an empty `/tmp/crosshook-logs/<prefix>-<slug>-<millis>.log` file
 /// and returns its path.
 ///
 /// # Errors
 /// The I/O error message when the directory or file cannot be created.
 pub fn create_log_path(prefix: &str, target_slug: &str) -> Result<PathBuf, String> {
-    let log_dir = PathBuf::from("/tmp/crosshook-logs");
-    std::fs::create_dir_all(&log_dir).map_err(|error| error.to_string())?;
+    create_log_path_in(PathBuf::from(LOG_DIR), prefix, target_slug)
+}
+
+/// [`create_log_path`] in an explicit directory, so services and tests can
+/// point log creation anywhere (the log-dir seam).
+///
+/// The file is created with `create_new` and a `-N` uniqueness suffix when the
+/// same-millisecond name already exists, so two sessions that start within one
+/// millisecond never share — and never truncate — one log file.
+///
+/// # Errors
+/// The I/O error message when the directory or file cannot be created.
+pub fn create_log_path_in(
+    dir: PathBuf,
+    prefix: &str,
+    target_slug: &str,
+) -> Result<PathBuf, String> {
+    std::fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
 
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|error| error.to_string())?
         .as_millis();
 
-    let file_name = format!("{prefix}-{target_slug}-{timestamp}.log");
-    let log_path = log_dir.join(file_name);
-    std::fs::File::create(&log_path).map_err(|error| error.to_string())?;
-    Ok(log_path)
+    let stem = format!("{prefix}-{target_slug}-{timestamp}");
+    for suffix in 0..1000 {
+        let file_name = if suffix == 0 {
+            format!("{stem}.log")
+        } else {
+            format!("{stem}-{suffix}.log")
+        };
+        let log_path = dir.join(file_name);
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&log_path)
+        {
+            Ok(_file) => return Ok(log_path),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error.to_string()),
+        }
+    }
+    Err(format!(
+        "no free log file name for `{stem}` in {}",
+        dir.display()
+    ))
 }
 
 /// Lowercases ASCII alphanumerics, maps everything else to `-`, trims `-`;

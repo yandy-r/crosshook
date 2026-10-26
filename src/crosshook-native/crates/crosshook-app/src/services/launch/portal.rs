@@ -1,3 +1,5 @@
+//! GameMode portal registration for launches.
+
 use crosshook_core::launch::{should_register_gamemode_portal, LaunchRequest};
 use crosshook_core::platform::portals::gamemode::{self as gamemode_portal, GameModeRegistration};
 

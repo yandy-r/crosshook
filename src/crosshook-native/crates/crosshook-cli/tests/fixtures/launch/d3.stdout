@@ -1,0 +1,20 @@
+Method:     steam_applaunch
+Game:       @ROOT@/Game.exe
+Trainer:    @ROOT@/Trainer.exe
+Command:    PROTON_NO_STEAMINPUT=1 GOLDEN_STEAM=enabled %command%
+Environment:
+  HOME=@ROOT@/home
+  USER=tester
+  LOGNAME=tester
+  SHELL=/bin/bash
+  PATH=@ROOT@/bin:/usr/bin:/bin
+  DISPLAY=:99
+  WAYLAND_DISPLAY=wayland-test
+  XDG_RUNTIME_DIR=@ROOT@/run
+  DBUS_SESSION_BUS_ADDRESS=unix:path=@ROOT@/bus
+  STEAM_COMPAT_DATA_PATH=@ROOT@/steam/steamapps/compatdata/123
+  STEAM_COMPAT_CLIENT_INSTALL_PATH=@ROOT@/steam
+  WINEPREFIX=@ROOT@/steam/steamapps/compatdata/123/pfx
+  PROTON_NO_STEAMINPUT=1
+  GOLDEN_STEAM=enabled
+Steam opts: PROTON_NO_STEAMINPUT=1 GOLDEN_STEAM=enabled %command%

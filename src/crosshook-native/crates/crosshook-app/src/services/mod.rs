@@ -10,6 +10,7 @@ pub mod background;
 pub mod catalog;
 pub mod diagnostics;
 pub mod health;
+pub mod launch;
 pub mod profiles;
 pub mod recent_files;
 pub mod settings;
@@ -24,6 +25,7 @@ pub use diagnostics::{
     DiagnosticAttachment, DiagnosticsExport, DiagnosticsRequest, DiagnosticsService,
 };
 pub use health::HealthService;
+pub use launch::LaunchService;
 pub use profiles::ProfileWriter;
 pub use recent_files::{RecentFileKind, RecentFilesService};
 pub use settings::{merge_save_request, SettingsSaveRequest, SettingsService, SettingsSnapshot};
