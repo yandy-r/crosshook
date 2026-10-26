@@ -156,7 +156,7 @@ regular Linux processes alongside the game.
 ## Build
 
 CrossHook is built with [Tauri v2](https://v2.tauri.app/) (Rust backend + React/TypeScript
-frontend). Building from source requires Rust, Node.js, and system libraries for WebKitGTK.
+frontend). Building from source requires Rust, Node.js 24.22.1 or newer, and system libraries for WebKitGTK. CI pins 24.22.1 (`engines` in `src/crosshook-native/package.json`). Node.js 20 is end of life and does not include the October 2026 security fixes. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Prerequisites
 

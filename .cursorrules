@@ -11,7 +11,7 @@ Normative guidelines for AI agents in this repository. Stack overview, directory
 ## MUST / MUST NOT
 
 - **Platform**: CrossHook is a **native Linux** desktop app (Tauri v2, Flatpak distribution). It does **not** run under Wine/Proton; it **orchestrates** launching Windows games via Proton/Wine.
-- **Architecture**: Business logic lives in `crosshook-core`. Keep `crosshook-cli` and `src-tauri` thin (IPC and CLI only).
+- **Architecture**: Domain logic lives in `crosshook-core`. `crosshook-app` holds bootstrap, the job registry, and the toolkit-independent services (`ProfileWriter`, `LaunchService`, settings, catalogs, diagnostics, health, recent files, and the background portal). Keep `src-tauri` and `crosshook-cli` thin. Profile, launch, settings, catalog, diagnostics, health, recent-files, and background commands delegate to `crosshook-app`; other Tauri commands call `crosshook-core`. The CLI calls `crosshook-core`, and uses `stream_child_log` and `read_log_tail` for launch logs.
 - **Profile writes**: Every profile mutation (save, delete, rename, duplicate, favorite, section/preset saves, rollback, legacy/Lutris/community imports, migration apply, ProtonDB accept) goes through `crosshook_app::services::profiles::ProfileWriter`, which validates and trims the profile name before any side effect and serializes writes under one lock; Tauri commands only delegate to it. Do not call `ProfileStore` mutators, core importers that write profiles, metadata observe, or config-revision helpers from `src-tauri`. Only full save, rename, duplicate, rollback, migration, imports and delete invalidate the cached health snapshot; section/optimization/command-argument saves, presets and ProtonDB accepts do not, and favorites are metadata-only. The `profiles-changed` event carries `{ reason: { kind, ... }, names }` (`ProfileChangeReason`, snake_case `kind`; `names: []` means conservative resync); frontend listeners parse it with `parseProfilesChanged` and skip health re-validation for `favorite_toggled`; the health listener coalesces other changes into one in-flight batch plus at most one trailing re-run, and drops stale results. See [`src/crosshook-native/crates/crosshook-app/README.md`](src/crosshook-native/crates/crosshook-app/README.md) § _ProfileWriter_.
 - **Launch**: Every game/trainer launch goes through `crosshook_app::services::launch::LaunchService` — Tauri commands are thin delegates plus a per-session relay mapping `LaunchEvent`s to `launch-log`/`launch-diagnostic`/`launch-complete`/`injection-log` (each payload carries `session_id`); `crosshook-cli` reuses only `stream_child_log`/`read_log_tail`. The service owns the one `LaunchSessionRegistry` (via `Services`; never `.manage(Arc<LaunchSessionRegistry>)` separately), spawns through the `ProcessSpawner` seam, gates the watchdog on the pure `gamescope_required(request, kind, env)` predicate (core's `should_skip_gamescope` decides builder args only), and has **no kill path** (no `killpg`/process groups/`JobRegistry` jobs/kill on the spawner). `Exited` is published exactly once, last, under a drop-safe finalizer guard.
 - **Trainer execution parity**: Treat trainer subprocesses by their **actual runtime path**, not just the parent game launch method. Steam profiles still launch trainers through Proton, so Steam trainer launches must stay aligned with `proton_run` semantics for `effective_trainer_gamescope()`, launch optimization env, and `runtime.working_directory`. In Flatpak, if the shell-helper path diverges from the working `proton_run` trainer path, prefer reusing the direct Proton trainer builder and record/analyze the execution as `proton_run` rather than keeping a separate helper-only env reconstruction path.
@@ -91,15 +91,16 @@ Primary source root: `src/crosshook-native/`. Release workflow: `.github/workflo
 
 ## Stack Overview
 
-| Layer                  | Technology                         | Notes                                                                                         |
-| ---------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------- |
-| Desktop shell          | **Tauri v2**                       | Rust backend + WebView frontend; distributed as a Flatpak                                     |
-| Core business logic    | **Rust** (`crosshook-core` crate)  | All launch orchestration, profile management, community taps, metadata persistence, settings  |
-| IPC layer              | **Tauri commands** (`src-tauri`)   | Thin wrappers over `crosshook-core`; `snake_case` command names; Serde on all boundary types  |
-| Frontend               | **React 18 + TypeScript** (strict) | Vite dev server; `invoke()` wrapped in custom hooks; BEM-like `crosshook-*` CSS classes       |
-| Persistence — settings | **TOML** (`settings.toml`)         | User-editable preferences; deserialized via `AppSettingsData`                                 |
-| Persistence — metadata | **SQLite** via `rusqlite`          | WAL mode, `0600` permissions; schema migrations in `crosshook-core`; see SQLite section below |
-| CLI                    | `crosshook-cli` crate              | Thin wrapper over `crosshook-core`; no business logic                                         |
+| Layer                  | Technology                         | Notes                                                                                                                                                                                                                                            |
+| ---------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Desktop shell          | **Tauri v2**                       | Rust backend + WebView frontend; distributed as a Flatpak                                                                                                                                                                                        |
+| Domain logic           | **Rust** (`crosshook-core` crate)  | Profile store, launch builders, session registry, diagnostics, community taps, metadata, settings types                                                                                                                                          |
+| Application services   | **Rust** (`crosshook-app` crate)   | Bootstrap, job registry, `ProfileWriter`, `LaunchService`, settings, catalogs, diagnostics, health, recent files, background portal. No UI toolkit. See [`crates/crosshook-app/README.md`](src/crosshook-native/crates/crosshook-app/README.md). |
+| IPC layer              | **Tauri commands** (`src-tauri`)   | Thin shell. Profile, launch, settings, catalog, diagnostics, health, recent-files, and background commands delegate to `crosshook-app`; other commands call `crosshook-core`. `snake_case` names; Serde on boundary types.                       |
+| Frontend               | **React 18 + TypeScript** (strict) | Vite dev server; `invoke()` wrapped in custom hooks; BEM-like `crosshook-*` CSS classes                                                                                                                                                          |
+| Persistence — settings | **TOML** (`settings.toml`)         | User-editable preferences; deserialized via `AppSettingsData`                                                                                                                                                                                    |
+| Persistence — metadata | **SQLite** via `rusqlite`          | WAL mode, `0600` permissions; schema migrations in `crosshook-core`; see SQLite section below                                                                                                                                                    |
+| CLI                    | `crosshook-cli` crate              | Thin wrapper. Launch log tailing uses `stream_child_log` and `read_log_tail`; other commands call `crosshook-core`.                                                                                                                              |
 
 ---
 
@@ -109,17 +110,23 @@ Primary source root: `src/crosshook-native/`. Release workflow: `.github/workflo
 src/crosshook-native/              # Primary source root
 ├── src-tauri/
 │   └── src/
-│       ├── commands/              # Tauri IPC command handlers (one file per domain)
-│       │   ├── launch.rs
-│       │   ├── profile.rs
+│       ├── commands/              # Thin Tauri IPC handlers
+│       │   ├── launch/            # Delegates to LaunchService; relay adds session_id
+│       │   ├── profile/           # Delegates to ProfileWriter
 │       │   ├── community.rs
 │       │   ├── settings.rs
 │       │   └── ...
 │       └── lib.rs                 # Tauri shell: pre_runtime → App::bootstrap, registers all commands
 ├── crates/
+│   ├── crosshook-app/
+│   │   └── src/
+│   │       ├── bootstrap/         # pre_runtime, then App::bootstrap
+│   │       ├── jobs/              # Generic job registry
+│   │       └── services/          # ProfileWriter, LaunchService, settings, catalogs, diagnostics, health, recent files, background portal
+│   ├── crosshook-cli/             # CLI over crosshook-core; launch logs use stream_child_log and read_log_tail
 │   └── crosshook-core/
 │       └── src/
-│           ├── launch/            # Launch orchestration, directives, validation
+│           ├── launch/            # Builders, session registry, diagnostics, request validation
 │           ├── profile/           # Profile load/save, override layers, export
 │           ├── metadata/          # MetadataStore, migrations, schema versioning
 │           ├── steam/             # Steam manifest parsing, app discovery
@@ -144,9 +151,9 @@ src/crosshook-native/              # Primary source root
 **Location**: `~/.local/share/crosshook/metadata.db`
 **Mode**: WAL (write-ahead logging)
 **Permissions**: `0600` (owner read/write only)
-**Current schema version**: 21
+**Current schema version**: 28
 **Access**: `MetadataStore::try_new()` in `crosshook-core`
-**Migrations**: `src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs`
+**Migrations**: `src/crosshook-native/crates/crosshook-core/src/metadata/migrations/mod.rs`
 
 ### Table inventory
 
@@ -165,7 +172,7 @@ src/crosshook-native/              # Primary source root
 | `version_snapshots`              |      v9      | Game/trainer version correlation records; includes `trainer_file_hash` |
 | `bundled_optimization_presets`   |     v10      | Built-in optimization preset definitions                               |
 | `profile_launch_preset_metadata` |     v10      | Per-profile preset activation state                                    |
-| `config_revisions`               |     v11      | TOML snapshots with SHA-256 for config history/rollback                |
+| `config_revisions`               |     v11      | TOML snapshots with SHA-256; v28 adds nullable `hmac_signature` (ADR-0005) |
 | `optimization_catalog`           |     v12      | Data-driven optimization catalog entries                               |
 | `trainer_hash_cache`             |     v13      | SHA-256 hash per trainer per profile                                   |
 | `offline_readiness_snapshots`    |     v13      | Offline readiness state snapshots                                      |
@@ -173,6 +180,8 @@ src/crosshook-native/              # Primary source root
 | `host_readiness_catalog`         |     v21      | Persisted host-tool readiness catalog (from TOML merge)                |
 | `readiness_nag_dismissals`       |     v21      | TTL dismissals for per-tool readiness nags (global)                    |
 | `host_readiness_snapshots`       |     v21      | Last cached generalized host readiness snapshot (single row)           |
+
+Tables and columns added after v21, including the v28 `config_revisions.hmac_signature` details, are listed in [`AGENTS.md`](AGENTS.md) § SQLite Metadata DB.
 
 ### Persistence design classification
 
