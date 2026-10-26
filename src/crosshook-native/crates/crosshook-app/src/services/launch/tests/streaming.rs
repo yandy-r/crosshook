@@ -49,9 +49,10 @@ async fn lossy_pipe_tee_survives_bad_utf8_and_overlong_line() {
     let log_path = root.path().join("h2.log");
     std::fs::File::create(&log_path).unwrap();
 
-    // \xff\xfe line, then 1 MiB with no newline, then exit 0 (H-2).
+    // \377\376 (invalid UTF-8) line, then 1 MiB with no newline, then exit 0
+    // (H-2). Octal escapes: POSIX printf (dash on CI) has no `\x`.
     let mut child = piped_child(
-        "printf 'bad\\xff\\xfe\\n'; head -c 1048576 /dev/zero | tr '\\0' 'A'; printf '\\n'",
+        "printf 'bad\\377\\376\\n'; head -c 1048576 /dev/zero | tr '\\0' 'A'; printf '\\n'",
     );
     let status = stream_child_log(&mut child, &log_path, |_| {})
         .await
