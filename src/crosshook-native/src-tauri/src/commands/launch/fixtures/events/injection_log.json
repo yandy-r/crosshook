@@ -1,0 +1,10 @@
+{
+  "timestamp": "2026-01-01T00:00:00+00:00",
+  "profile_name": "Synthetic Quest",
+  "session_id": "@SESSION@",
+  "session_kind": "trainer",
+  "level": "warning",
+  "source": "injection",
+  "message": "DLL injection engine is not available; stored hook configuration was not applied.",
+  "unsupported_runtime": true
+}

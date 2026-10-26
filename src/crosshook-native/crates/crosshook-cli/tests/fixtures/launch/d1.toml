@@ -1,0 +1,7 @@
+[game]
+name = "Golden Game"
+executable_path = "@ROOT@/game.sh"
+
+[launch]
+method = "native"
+network_isolation = false

@@ -1,0 +1,20 @@
+[game]
+name = "Golden Game"
+executable_path = "@ROOT@/Game.exe"
+
+[trainer]
+path = "@ROOT@/Trainer.exe"
+
+[steam]
+enabled = true
+app_id = "123"
+compatdata_path = "@ROOT@/steam/steamapps/compatdata/123"
+proton_path = "@ROOT@/proton"
+
+[launch]
+method = "steam_applaunch"
+network_isolation = false
+custom_env_vars = { GOLDEN_STEAM = "enabled" }
+
+[launch.optimizations]
+enabled_option_ids = ["disable_steam_input"]

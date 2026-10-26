@@ -1,0 +1,21 @@
+Method:     proton_run
+Game:       @ROOT@/Game.exe
+Command:    @ROOT@/proton run @ROOT@/Game.exe
+Environment:
+  HOME=@ROOT@/home
+  USER=tester
+  LOGNAME=tester
+  SHELL=/bin/bash
+  PATH=@ROOT@/bin:/usr/bin:/bin
+  DISPLAY=:99
+  WAYLAND_DISPLAY=wayland-test
+  XDG_RUNTIME_DIR=@ROOT@/run
+  DBUS_SESSION_BUS_ADDRESS=unix:path=@ROOT@/bus
+  WINEPREFIX=@ROOT@/prefix
+  STEAM_COMPAT_DATA_PATH=@ROOT@/prefix
+  PROTON_VERB=waitforexitandrun
+  STEAM_COMPAT_LIBRARY_PATHS=@ROOT@
+  PRESSURE_VESSEL_FILESYSTEMS_RW=@ROOT@
+  PROTON_NO_STEAMINPUT=1
+  A_GOLDEN=first
+  Z_GOLDEN=last

@@ -1,0 +1,5 @@
+{
+  "succeeded": true,
+  "message": "Trainer launch started.",
+  "helper_log_path": "/tmp/crosshook-logs/trainer-x.log"
+}

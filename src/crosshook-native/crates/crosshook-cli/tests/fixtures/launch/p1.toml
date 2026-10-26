@@ -1,0 +1,14 @@
+[game]
+name = "Golden Game"
+executable_path = "@ROOT@/Game.exe"
+
+[runtime]
+prefix_path = "@ROOT@/prefix"
+proton_path = "@ROOT@/proton"
+umu_preference = "proton"
+working_directory = "@ROOT@"
+steam_app_id = "123"
+
+[launch]
+method = "proton_run"
+network_isolation = false
