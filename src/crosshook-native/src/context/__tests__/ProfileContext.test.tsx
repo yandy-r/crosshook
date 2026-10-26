@@ -4,6 +4,7 @@ import { ProfileProvider, useProfileContext } from '@/context/ProfileContext';
 import { makeProfileDraft } from '@/test/fixtures';
 import { renderWithMocks } from '@/test/render';
 import { makeStartupReport } from '@/test/startupReportFixture';
+import { DEFAULT_UI_SETTINGS } from '@/types/settings';
 import type { StartupReport } from '@/types/startup';
 
 vi.mock('@/lib/ipc', async () => {
@@ -19,6 +20,7 @@ const baseSettings = {
   steamgriddb_api_key: null,
   community_taps: [],
   steam_client_install_path: null,
+  ui: { ...DEFAULT_UI_SETTINGS },
 };
 
 const baseOverrides = {

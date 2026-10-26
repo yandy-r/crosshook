@@ -13,10 +13,25 @@ use crosshook_core::settings::{
 use serde::{Deserialize, Deserializer, Serialize};
 
 use super::run_blocking;
+
 use crate::{AppError, AppErrorKind};
+
+mod ui;
+mod ui_writer;
+
+pub use ui::UiSettingsService;
 
 /// Log filter used when the configured filter is empty or whitespace.
 const DEFAULT_LOG_FILTER: &str = "info";
+
+#[cfg(test)]
+mod tests;
+
+#[cfg(test)]
+mod ui_tests;
+
+#[cfg(test)]
+mod ui_writer_tests;
 
 /// Settings read together with the profiles-directory restart state.
 #[derive(Debug, Clone)]
@@ -167,6 +182,8 @@ pub fn merge_save_request(data: SettingsSaveRequest, current: AppSettingsData) -
             .protonup_include_prereleases
             .unwrap_or(current.protonup_include_prereleases),
         config_history: data.config_history.unwrap_or(current.config_history),
+        // The form never carries `[ui]`; keep the stored table (D4).
+        ui: current.ui,
     };
     merged.preserve_extra_from(&disk_extras);
     normalize(&mut merged);
@@ -178,6 +195,7 @@ fn normalize(settings: &mut AppSettingsData) {
     settings.recent_files_limit = clamp_recent_files_limit(settings.recent_files_limit);
     settings.config_history.max_revisions =
         clamp_config_history_max_revisions(settings.config_history.max_revisions);
+    settings.ui.normalize();
     let log_filter = settings.log_filter.trim();
     settings.log_filter = if log_filter.is_empty() {
         DEFAULT_LOG_FILTER.to_string()
@@ -289,6 +307,3 @@ impl SettingsService {
         .await
     }
 }
-
-#[cfg(test)]
-mod tests;

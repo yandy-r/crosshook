@@ -115,8 +115,8 @@ fn init_remaining_explicit_file_as_data_dir_is_fatal_for_recent_files() {
     }
 }
 
-#[test]
-fn services_new_builds_bundle_from_stores() {
+#[tokio::test]
+async fn services_new_builds_bundle_from_stores() {
     let temp = tempdir().unwrap();
     let config = temp.path().join("config");
     let data = temp.path().join("data");
@@ -124,7 +124,11 @@ fn services_new_builds_bundle_from_stores() {
     let settings = init_settings(&roots).unwrap();
     let (stores, _) = init_remaining(&roots, &settings, &AppSettingsData::default()).unwrap();
 
-    let services = Services::new(&stores, crate::EventBus::default());
+    let services = Services::new(
+        &stores,
+        crate::EventBus::default(),
+        tokio::runtime::Handle::current(),
+    );
 
     // Bundle is built; clones are cheap and Arc-shared background holder.
     let cloned = services.clone();

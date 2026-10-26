@@ -1,6 +1,6 @@
 import { act, screen, waitFor } from '@testing-library/react';
 import * as React from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { AppShell } from '@/components/layout/AppShell';
 import { CollectionsProvider } from '@/context/CollectionsContext';
 import { HostReadinessProvider } from '@/context/HostReadinessContext';
@@ -35,30 +35,6 @@ function AppShellInAppProviders() {
 }
 
 describe('AppShell startup', () => {
-  beforeEach(() => {
-    const memory = new Map<string, string>();
-    vi.stubGlobal('localStorage', {
-      get length() {
-        return memory.size;
-      },
-      clear: (): void => {
-        memory.clear();
-      },
-      getItem: (key: string): string | null => memory.get(key) ?? null,
-      key: (index: number): string | null => Array.from(memory.keys())[index] ?? null,
-      removeItem: (key: string): void => {
-        memory.delete(key);
-      },
-      setItem: (key: string, value: string): void => {
-        memory.set(key, value);
-      },
-    } as Storage);
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
   it('opens onboarding once when the startup report shows it and there are no profiles', async () => {
     renderWithMocks(<AppShellInAppProviders />, {
       handlerOverrides: {

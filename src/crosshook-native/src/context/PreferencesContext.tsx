@@ -7,6 +7,7 @@
 import React, { createContext, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 import type { AppSettingsData, RecentFilesData } from '../types';
+import type { LibraryViewMode } from '../types/library';
 import { DEFAULT_APP_SETTINGS, toSettingsSaveRequest } from '../types/settings';
 
 export interface PreferencesContextValue {
@@ -20,6 +21,10 @@ export interface PreferencesContextValue {
   handleAutoLoadChange: (enabled: boolean) => Promise<void>;
   handleSteamGridDbApiKeyChange: (key: string) => Promise<void>;
   clearRecentFiles: () => Promise<void>;
+  /** Library view mode from `[ui].library_view_mode`; `'grid'` while settings load or when unset. */
+  libraryViewMode: LibraryViewMode;
+  /** Optimistically updates `libraryViewMode` and persists via `settings_set_library_view_mode` (fire-and-forget). */
+  setLibraryViewMode: (mode: LibraryViewMode) => void;
 }
 
 export interface PreferencesProviderProps {
@@ -160,6 +165,18 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
     }
   }, []);
 
+  const libraryViewMode = settings.ui.library_view_mode ?? 'grid';
+
+  const setLibraryViewMode = useCallback((mode: LibraryViewMode) => {
+    setSettings((previous) => ({
+      ...previous,
+      ui: { ...previous.ui, library_view_mode: mode },
+    }));
+    void callCommand('settings_set_library_view_mode', { mode }).catch((error: unknown) => {
+      console.error('Failed to persist library view mode', error);
+    });
+  }, []);
+
   const value = useMemo<PreferencesContextValue>(
     () => ({
       settings,
@@ -171,15 +188,19 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
       handleAutoLoadChange,
       handleSteamGridDbApiKeyChange,
       clearRecentFiles,
+      libraryViewMode,
+      setLibraryViewMode,
     }),
     [
       clearRecentFiles,
       defaultSteamClientInstallPath,
       handleAutoLoadChange,
       handleSteamGridDbApiKeyChange,
+      libraryViewMode,
       persistSettings,
       recentFiles,
       refreshPreferences,
+      setLibraryViewMode,
       settings,
       settingsError,
     ]

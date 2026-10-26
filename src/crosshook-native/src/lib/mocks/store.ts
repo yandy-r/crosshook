@@ -23,7 +23,7 @@ let store: MockStore | null = null;
 export function getStore(): MockStore {
   if (!store) {
     store = {
-      settings: { ...DEFAULT_APP_SETTINGS },
+      settings: structuredClone(DEFAULT_APP_SETTINGS),
       recentFiles: structuredClone(EMPTY_RECENT_FILES),
       profiles: new Map(),
       activeProfileId: null,

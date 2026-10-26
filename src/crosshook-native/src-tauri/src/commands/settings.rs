@@ -1,11 +1,13 @@
 use crosshook_app::services::RecentFilesService;
-use crosshook_app::services::{SettingsSaveRequest, SettingsService, SettingsSnapshot};
+use crosshook_app::services::{
+    SettingsSaveRequest, SettingsService, SettingsSnapshot, UiSettingsService,
+};
 use crosshook_app::AppError;
 use crosshook_core::community::CommunityTapSubscription;
 use crosshook_core::discovery::ExternalTrainerSourceSubscription;
 use crosshook_core::settings::{
-    ConfigHistorySettings, HighContrastPreference, RecentFilesData, ReducedMotionPreference,
-    UmuDatabaseLookupPreference, UmuPreference,
+    ConfigHistorySettings, HighContrastPreference, LibraryViewMode, RecentFilesData,
+    ReducedMotionPreference, UiSettings, UmuDatabaseLookupPreference, UmuPreference,
 };
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -64,6 +66,8 @@ pub struct AppSettingsIpcData {
     /// Default category filter for the Host Tools dashboard (`None` = all).
     pub host_tool_dashboard_default_category_filter: Option<String>,
     pub config_history: ConfigHistorySettings,
+    /// Typed `[ui]` preferences (unknown keys are never sent to the frontend).
+    pub ui: UiSettings,
 }
 
 impl AppSettingsIpcData {
@@ -118,6 +122,7 @@ impl AppSettingsIpcData {
             host_tool_dashboard_default_category_filter: data
                 .host_tool_dashboard_default_category_filter,
             config_history: data.config_history,
+            ui: data.ui,
         }
     }
 }
@@ -125,8 +130,11 @@ impl AppSettingsIpcData {
 #[tauri::command]
 pub async fn settings_load(
     service: State<'_, SettingsService>,
+    ui: State<'_, UiSettingsService>,
 ) -> Result<AppSettingsIpcData, String> {
-    let snapshot = service.load().await.map_err(map_app_error)?;
+    let mut snapshot = service.load().await.map_err(map_app_error)?;
+    // The in-memory snapshot may be ahead of disk while a throttled write is pending.
+    snapshot.data.ui = ui.get();
     Ok(AppSettingsIpcData::from_snapshot(snapshot))
 }
 
@@ -158,6 +166,16 @@ pub async fn settings_save_steamgriddb_key(
         .map_err(map_app_error)
 }
 
+/// Persists the Library view mode through the throttled `[ui]` writer.
+#[tauri::command]
+pub async fn settings_set_library_view_mode(
+    mode: LibraryViewMode,
+    ui: State<'_, UiSettingsService>,
+) -> Result<(), String> {
+    ui.set_library_view_mode(mode);
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn recent_files_load(
     service: State<'_, RecentFilesService>,
@@ -186,6 +204,7 @@ mod tests {
         let _ = settings_load;
         let _ = settings_save;
         let _ = settings_save_steamgriddb_key;
+        let _ = settings_set_library_view_mode;
         let _ = recent_files_load;
         let _ = recent_files_save;
     }
@@ -354,5 +373,35 @@ mod tests {
         );
         assert!(json.contains("gamescope"));
         assert!(json.contains("runtime"));
+    }
+
+    #[test]
+    fn ipc_dto_serializes_ui_without_unknown_keys() {
+        let data: AppSettingsData =
+            toml::from_str("[ui]\nlibrary_view_mode = \"list\"\nfuture = 1\n").unwrap();
+        let json = serde_json::to_string(&ipc_from(data)).unwrap();
+        assert!(json.contains("\"library_view_mode\":\"list\""), "{json}");
+        assert!(!json.contains("future"), "{json}");
+    }
+
+    #[test]
+    fn ipc_dto_default_ui_omits_library_view_mode() {
+        let value = serde_json::to_value(ipc_from(AppSettingsData::default())).unwrap();
+        let ui = serde_json::to_value(UiSettings::default()).unwrap();
+        assert_eq!(value["ui"], ui);
+        let ui = value["ui"].as_object().expect("ui must be an object");
+        assert!(!ui.contains_key("library_view_mode"));
+        for key in [
+            "ui_scale",
+            "density",
+            "renderer",
+            "controller_mode",
+            "sidebar_collapsed",
+            "inspector_width",
+            "console_drawer_height",
+            "palette_recent",
+        ] {
+            assert!(ui.contains_key(key), "missing default ui key {key}");
+        }
     }
 }

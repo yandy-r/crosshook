@@ -1,4 +1,5 @@
 import type { ExternalTrainerSourceSubscription } from './discovery';
+import type { LibraryViewMode } from './library';
 
 export type { ExternalTrainerSourceSubscription } from './discovery';
 
@@ -10,6 +11,47 @@ export type UmuDatabaseLookupPreference = 'disabled' | 'enabled';
 export type HighContrastPreference = 'auto' | 'on' | 'off';
 /** Mirrors Rust `crosshook_core::settings::ReducedMotionPreference`. */
 export type ReducedMotionPreference = 'auto' | 'reduced' | 'full';
+
+/** Mirrors Rust `crosshook_core::settings::UiDensity`. */
+export type UiDensity = 'compact' | 'comfortable' | 'spacious';
+/** Mirrors Rust `crosshook_core::settings::UiRenderer`. */
+export type UiRenderer = 'auto' | 'wgpu' | 'gl' | 'tiny-skia';
+/** Mirrors Rust `crosshook_core::settings::ControllerMode`. */
+export type ControllerMode = 'auto' | 'on' | 'off';
+
+/**
+ * The `[ui]` settings table (layout and display preferences). Mirrors Rust
+ * `crosshook_core::settings::UiSettings` as returned by `settings_load`
+ * (unknown keys in `ui.extra` are never sent to the frontend). Optional keys
+ * are absent when unset; `library_view_mode` reads as `'grid'` when absent.
+ *
+ * Classic never writes `[ui]` through `settings_save`; the only Classic write
+ * path is the `settings_set_library_view_mode` command.
+ */
+export interface UiSettings {
+  library_view_mode?: LibraryViewMode;
+  window_width?: number;
+  window_height?: number;
+  ui_scale: number;
+  density: UiDensity;
+  renderer: UiRenderer;
+  controller_mode: ControllerMode;
+  sidebar_collapsed: boolean;
+  inspector_width: number;
+  console_drawer_height: number;
+  palette_recent: string[];
+}
+
+export const DEFAULT_UI_SETTINGS: UiSettings = {
+  ui_scale: 1,
+  density: 'comfortable',
+  renderer: 'auto',
+  controller_mode: 'auto',
+  sidebar_collapsed: false,
+  inspector_width: 320,
+  console_drawer_height: 280,
+  palette_recent: [],
+};
 
 export interface CommunityTapSubscription {
   url: string;
@@ -80,6 +122,8 @@ export interface AppSettingsData extends SettingsSaveRequest {
   high_contrast: HighContrastPreference;
   /** Tri-state reduced-motion preference (`auto` follows the OS media query). */
   reduced_motion: ReducedMotionPreference;
+  /** `[ui]` table; returned by `settings_load` but never part of `SettingsSaveRequest`. */
+  ui: UiSettings;
 }
 
 export function toSettingsSaveRequest(s: AppSettingsData): SettingsSaveRequest {
@@ -163,6 +207,7 @@ export const DEFAULT_APP_SETTINGS: AppSettingsData = {
   install_nag_dismissed_at: null,
   steam_deck_caveats_dismissed_at: null,
   config_history: { max_revisions: 20 },
+  ui: { ...DEFAULT_UI_SETTINGS },
 };
 
 export interface RecentFilesData {

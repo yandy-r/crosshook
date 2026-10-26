@@ -168,24 +168,6 @@ describe('LaunchSubTabs', () => {
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    const memory = new Map<string, string>();
-    vi.stubGlobal('localStorage', {
-      get length() {
-        return memory.size;
-      },
-      clear: (): void => {
-        memory.clear();
-      },
-      getItem: (key: string): string | null => memory.get(key) ?? null,
-      key: (index: number): string | null => Array.from(memory.keys())[index] ?? null,
-      removeItem: (key: string): void => {
-        memory.delete(key);
-      },
-      setItem: (key: string, value: string): void => {
-        memory.set(key, value);
-      },
-    } as Storage);
-
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.spyOn(console, 'debug').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -193,7 +175,6 @@ describe('LaunchSubTabs', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
-    vi.unstubAllGlobals();
     vi.useRealTimers();
   });
 

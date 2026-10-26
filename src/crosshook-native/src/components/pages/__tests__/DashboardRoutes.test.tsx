@@ -57,24 +57,6 @@ describe('dashboard routes', () => {
     setInnerWidth(1920);
     setInnerHeight(1080);
 
-    const memory = new Map<string, string>();
-    vi.stubGlobal('localStorage', {
-      get length() {
-        return memory.size;
-      },
-      clear: (): void => {
-        memory.clear();
-      },
-      getItem: (key: string): string | null => memory.get(key) ?? null,
-      key: (index: number): string | null => Array.from(memory.keys())[index] ?? null,
-      removeItem: (key: string): void => {
-        memory.delete(key);
-      },
-      setItem: (key: string, value: string): void => {
-        memory.set(key, value);
-      },
-    } as Storage);
-
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.spyOn(console, 'debug').mockImplementation(() => {});
   });
@@ -83,7 +65,6 @@ describe('dashboard routes', () => {
     setInnerWidth(previousWidth);
     setInnerHeight(previousHeight);
     vi.restoreAllMocks();
-    vi.unstubAllGlobals();
   });
 
   it('keeps the Health dashboard banner and shows the empty-library fallback', async () => {

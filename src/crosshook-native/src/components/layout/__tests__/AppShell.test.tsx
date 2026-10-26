@@ -72,29 +72,11 @@ describe('AppShell (integration)', () => {
   beforeEach(() => {
     prevWidth = window.innerWidth;
     prevHeight = window.innerHeight;
-    const memory = new Map<string, string>();
-    vi.stubGlobal('localStorage', {
-      get length() {
-        return memory.size;
-      },
-      clear: (): void => {
-        memory.clear();
-      },
-      getItem: (k: string): string | null => memory.get(k) ?? null,
-      key: (i: number): string | null => Array.from(memory.keys())[i] ?? null,
-      removeItem: (k: string): void => {
-        memory.delete(k);
-      },
-      setItem: (k: string, v: string): void => {
-        memory.set(k, v);
-      },
-    } as Storage);
   });
 
   afterEach(() => {
     setInnerWidth(prevWidth);
     setInnerHeight(prevHeight);
-    vi.unstubAllGlobals();
   });
 
   it('renders the resizable layout shell and primary navigation (parity with App wrapper)', () => {

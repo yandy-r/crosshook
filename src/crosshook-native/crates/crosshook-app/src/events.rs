@@ -76,6 +76,12 @@ pub enum AppEvent {
         /// Affected profile names.
         names: Vec<String>,
     },
+    /// The first failed `[ui]` settings write of this session. The in-memory
+    /// values keep applying for the session; later failures only log.
+    UiSettingsPersistFailed {
+        /// Sanitized [`AppError`](crate::AppError) text, safe to show.
+        message: String,
+    },
 }
 
 /// Bounded broadcast bus. Slow subscribers lose the oldest events and are told

@@ -1,8 +1,11 @@
 //! Toolkit-independent application services over `crosshook-core` stores.
 //!
-//! Every public service function is `async`; blocking store I/O runs inside
-//! [`tokio::task::spawn_blocking`] so callers never stall an async executor.
-//! Task panics and cancellations surface as sanitized [`AppError`]s.
+//! Every public service function is `async` and blocking store I/O runs inside
+//! [`tokio::task::spawn_blocking`] so callers never stall an async executor;
+//! task panics and cancellations surface as sanitized [`AppError`]s. Services
+//! with typed getters and setters over in-memory snapshots (for example
+//! [`settings::UiSettingsService`]) may expose them as plain synchronous
+//! methods — only the throttled persistence behind them stays async.
 
 use crate::AppError;
 
@@ -28,7 +31,9 @@ pub use health::HealthService;
 pub use launch::LaunchService;
 pub use profiles::ProfileWriter;
 pub use recent_files::{RecentFileKind, RecentFilesService};
-pub use settings::{merge_save_request, SettingsSaveRequest, SettingsService, SettingsSnapshot};
+pub use settings::{
+    merge_save_request, SettingsSaveRequest, SettingsService, SettingsSnapshot, UiSettingsService,
+};
 
 /// Runs blocking `work` on Tokio's blocking pool; a panic or cancellation maps
 /// to a sanitized [`AppError`] through its `From<JoinError>` impl.

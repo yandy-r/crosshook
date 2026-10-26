@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useInspectorSelection } from '@/context/InspectorSelectionContext';
+import { usePreferencesContext } from '@/context/PreferencesContext';
 import { useCollections } from '@/hooks/useCollections';
 import { useProfileContext } from '../../context/ProfileContext';
 import { useProfileHealthContext } from '../../context/ProfileHealthContext';
@@ -13,7 +14,6 @@ import {
   type LibraryCardData,
   type LibraryFilterKey,
   type LibrarySortKey,
-  type LibraryViewMode,
   libraryCardDataEqual,
 } from '../../types/library';
 import type { LibraryFilterIntent, OpenGameDetailIntent } from '../../types/navigation';
@@ -26,13 +26,6 @@ import { LibraryGrid } from '../library/LibraryGrid';
 import { LibraryList } from '../library/LibraryList';
 import { LibraryToolbar } from '../library/LibraryToolbar';
 import { OnboardingWizard } from '../OnboardingWizard';
-
-const VIEW_MODE_KEY = 'crosshook.library.viewMode';
-
-function loadViewMode(): LibraryViewMode {
-  const stored = localStorage.getItem(VIEW_MODE_KEY);
-  return stored === 'list' ? 'list' : 'grid';
-}
 
 interface LibraryPageProps {
   libraryFilterIntent?: LibraryFilterIntent | null;
@@ -79,7 +72,7 @@ export function LibraryPage({
   const [detailSummarySnapshot, setDetailSummarySnapshot] = useState<LibraryCardData | null>(null);
   const [requestedDetailTab, setRequestedDetailTab] = useState<HeroDetailTabId | undefined>();
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<LibraryViewMode>(loadViewMode);
+  const { libraryViewMode: viewMode, setLibraryViewMode } = usePreferencesContext();
   const [sortBy, setSortBy] = useState<LibrarySortKey>('recent');
   const [filterKey, setFilterKey] = useState<LibraryFilterKey>('all');
   const [inspectorPickName, setInspectorPickName] = useState<string | null>(null);
@@ -127,12 +120,6 @@ export function LibraryPage({
   useEffect(() => {
     onLibraryFilterChange?.(filterKey);
   }, [filterKey, onLibraryFilterChange]);
-
-  // Persist view mode
-  const handleViewModeChange = useCallback((mode: LibraryViewMode) => {
-    setViewMode(mode);
-    localStorage.setItem(VIEW_MODE_KEY, mode);
-  }, []);
 
   const searched = useLibraryProfiles(summaries, searchQuery);
 
@@ -395,7 +382,7 @@ export function LibraryPage({
                         searchQuery={searchQuery}
                         onSearchChange={setSearchQuery}
                         viewMode={viewMode}
-                        onViewModeChange={handleViewModeChange}
+                        onViewModeChange={setLibraryViewMode}
                         sortBy={sortBy}
                         onSortChange={setSortBy}
                         filter={filterKey}

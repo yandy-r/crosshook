@@ -106,6 +106,12 @@ impl App {
         &self.inner.events
     }
 
+    /// Returns a clone of the app runtime's [`Handle`], for spawning
+    /// service-owned background tasks that follow the app's lifetime.
+    pub(crate) fn runtime_handle(&self) -> Handle {
+        self.inner.runtime.handle().clone()
+    }
+
     /// Returns the app's job registry. Jobs spawn on the app runtime and their
     /// cancellation tokens are children of the app shutdown token, so app
     /// shutdown cancels every running job.

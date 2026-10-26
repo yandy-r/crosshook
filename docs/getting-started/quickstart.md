@@ -399,4 +399,5 @@ crosshook diagnostics export --redact-paths --output /tmp/diag
 
 - [Steam / Proton trainer workflow](../features/steam-proton-trainer-launch.doc.md)
 - [Profile duplication](../features/profile-duplication.doc.md)
+- [Settings reference](../features/settings-reference.doc.md)
 - [README](../../README.md)

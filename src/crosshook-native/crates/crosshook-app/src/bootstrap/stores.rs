@@ -12,6 +12,8 @@
 
 use std::sync::Arc;
 
+use tokio::runtime::Handle;
+
 use crosshook_core::community::CommunityTapStore;
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::ProfileStore;
@@ -22,7 +24,7 @@ use super::{BootstrapError, StoreKind};
 use crate::events::EventBus;
 use crate::services::{
     BackgroundGrantHolder, DiagnosticsService, HealthService, LaunchService, ProfileWriter,
-    RecentFilesService, SettingsService,
+    RecentFilesService, SettingsService, UiSettingsService,
 };
 
 /// The persistent stores the application owns. Clones are cheap; clones of
@@ -46,6 +48,8 @@ pub struct Stores {
 pub struct Services {
     /// Typed settings reads and saves.
     pub settings: SettingsService,
+    /// Typed `[ui]` settings.
+    pub ui_settings: UiSettingsService,
     /// Recent-files lists.
     pub recent_files: RecentFilesService,
     /// Diagnostic bundle export.
@@ -62,14 +66,16 @@ pub struct Services {
 
 impl Services {
     /// Builds the service bundle over `stores`; `events` is the app bus that
-    /// services publish change notifications on.
-    pub fn new(stores: &Stores, events: EventBus) -> Self {
+    /// services publish change notifications on, and `runtime` spawns the
+    /// `[ui]` settings writer.
+    pub fn new(stores: &Stores, events: EventBus, runtime: Handle) -> Self {
         let background = Arc::new(BackgroundGrantHolder::new());
         Self {
             settings: SettingsService::new(
                 stores.settings.clone(),
                 stores.profiles.base_path.clone(),
             ),
+            ui_settings: UiSettingsService::new(stores.settings.clone(), events.clone(), runtime),
             recent_files: RecentFilesService::new(
                 stores.settings.clone(),
                 stores.recent_files.clone(),

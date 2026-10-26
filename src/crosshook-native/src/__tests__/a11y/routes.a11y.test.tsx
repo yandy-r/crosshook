@@ -1,7 +1,7 @@
 import { TooltipProvider } from '@radix-ui/react-tooltip';
 import { screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { MetadataStatusBanner } from '@/components/layout/MetadataStatusBanner';
 import { CommunityPage } from '@/components/pages/CommunityPage';
 import { CompatibilityPage } from '@/components/pages/CompatibilityPage';
@@ -21,6 +21,7 @@ import { ProfileProvider } from '@/context/ProfileContext';
 import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
 import { renderWithMocks } from '@/test/render';
 import { axe } from '@/test/setup';
+import { DEFAULT_UI_SETTINGS } from '@/types/settings';
 
 vi.mock('@/lib/ipc', async () => {
   const { mockCallCommand } = await import('@/test/render');
@@ -61,6 +62,7 @@ const EMPTY_PROFILE_OVERRIDES = {
     steamgriddb_api_key: null,
     community_taps: [],
     steam_client_install_path: null,
+    ui: { ...DEFAULT_UI_SETTINGS },
   }),
   settings_save: async () => null,
   recent_files_load: async () => ({ game_paths: [], trainer_paths: [], dll_paths: [] }),
@@ -102,32 +104,6 @@ const ROUTE_PAGES = [
 
 for (const [name, renderPage] of ROUTE_PAGES) {
   describe(`${name} accessibility`, () => {
-    beforeEach(() => {
-      // LibraryPage reads localStorage for view-mode persistence. Stub it so
-      // the test environment doesn't crash on `localStorage.getItem`.
-      const memory = new Map<string, string>();
-      vi.stubGlobal('localStorage', {
-        get length() {
-          return memory.size;
-        },
-        clear: (): void => {
-          memory.clear();
-        },
-        getItem: (key: string): string | null => memory.get(key) ?? null,
-        key: (index: number): string | null => Array.from(memory.keys())[index] ?? null,
-        removeItem: (key: string): void => {
-          memory.delete(key);
-        },
-        setItem: (key: string, value: string): void => {
-          memory.set(key, value);
-        },
-      } as Storage);
-    });
-
-    afterEach(() => {
-      vi.unstubAllGlobals();
-    });
-
     it('has no axe violations', async () => {
       const { container } = renderWithMocks(<AllProviders>{renderPage()}</AllProviders>, {
         handlerOverrides: EMPTY_PROFILE_OVERRIDES,
@@ -152,31 +128,6 @@ for (const [name, renderPage] of ROUTE_PAGES) {
 // ---------------------------------------------------------------------------
 
 describe('MetadataStatusBanner route integration', () => {
-  beforeEach(() => {
-    // LibraryPage reads localStorage for view-mode persistence; stub like the route suite above.
-    const memory = new Map<string, string>();
-    vi.stubGlobal('localStorage', {
-      get length() {
-        return memory.size;
-      },
-      clear: (): void => {
-        memory.clear();
-      },
-      getItem: (key: string): string | null => memory.get(key) ?? null,
-      key: (index: number): string | null => Array.from(memory.keys())[index] ?? null,
-      removeItem: (key: string): void => {
-        memory.delete(key);
-      },
-      setItem: (key: string, value: string): void => {
-        memory.set(key, value);
-      },
-    } as Storage);
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
   it('LibraryPage with visible degraded banner has no axe violations', async () => {
     sessionStorage.clear();
     const { container } = renderWithMocks(
@@ -198,30 +149,6 @@ describe('MetadataStatusBanner route integration', () => {
 });
 
 describe('populated-fixture accessibility', () => {
-  beforeEach(() => {
-    const memory = new Map<string, string>();
-    vi.stubGlobal('localStorage', {
-      get length() {
-        return memory.size;
-      },
-      clear: (): void => {
-        memory.clear();
-      },
-      getItem: (key: string): string | null => memory.get(key) ?? null,
-      key: (index: number): string | null => Array.from(memory.keys())[index] ?? null,
-      removeItem: (key: string): void => {
-        memory.delete(key);
-      },
-      setItem: (key: string, value: string): void => {
-        memory.set(key, value);
-      },
-    } as Storage);
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
   it('LibraryPage with populated profiles has no axe violations', async () => {
     // Default mock handlers seed 8 demo profiles via seedDemoProfiles(), so
     // library cards, toolbar chips, and sort controls are all rendered.
