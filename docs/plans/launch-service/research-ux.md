@@ -213,7 +213,7 @@ Existing perf caveat, unchanged under option A: ConsoleView keeps an unbounded `
 
 1. **Commands:** keep all six as thin `#[tauri::command]` wrappers in `src-tauri`, with identical names, args and return/error shapes. In particular, keep the `validate_launch` error as an unmodified `LaunchValidationIssue`.
 2. **Event mapping:** map `LaunchEvent` to the four existing event names in a single per-session forwarding task.
-   - Order: Log* → suppression summary → Diagnostic (conditional) → Exited → trainer `injection-log` finalization.
+   - Order: Log\* → suppression summary → Diagnostic (conditional) → Exited → trainer `injection-log` finalization.
    - Still emit the pre-spawn trainer `injection-log` rows, including the spawn-failure row.
 3. **Adding `session_id`:** use adapter-local DTOs. Never add it to `DiagnosticReport`, `LaunchValidationIssue` or any persisted model.
 4. **Log mapping:** use option A (one `launch-log` per line), filter blank lines, and map `Dropped` to a visible line. Make the bench replay (`bench.rs:292`) emit the same `{line, session_id}` shape (fixed `bench` id) so G8 measures the real payload.
