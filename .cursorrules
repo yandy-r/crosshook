@@ -91,16 +91,16 @@ Primary source root: `src/crosshook-native/`. Release workflow: `.github/workflo
 
 ## Stack Overview
 
-| Layer                  | Technology                         | Notes                                                                                         |
-| ---------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------- |
-| Desktop shell          | **Tauri v2**                       | Rust backend + WebView frontend; distributed as a Flatpak                                                                                                                          |
-| Domain logic           | **Rust** (`crosshook-core` crate)  | Profile store, launch builders, session registry, diagnostics, community taps, metadata, settings types                                                                                 |
+| Layer                  | Technology                         | Notes                                                                                                                                                                                                                                            |
+| ---------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Desktop shell          | **Tauri v2**                       | Rust backend + WebView frontend; distributed as a Flatpak                                                                                                                                                                                        |
+| Domain logic           | **Rust** (`crosshook-core` crate)  | Profile store, launch builders, session registry, diagnostics, community taps, metadata, settings types                                                                                                                                          |
 | Application services   | **Rust** (`crosshook-app` crate)   | Bootstrap, job registry, `ProfileWriter`, `LaunchService`, settings, catalogs, diagnostics, health, recent files, background portal. No UI toolkit. See [`crates/crosshook-app/README.md`](src/crosshook-native/crates/crosshook-app/README.md). |
-| IPC layer              | **Tauri commands** (`src-tauri`)   | Thin shell. Profile, launch, settings, catalog, diagnostics, health, recent-files, and background commands delegate to `crosshook-app`; other commands call `crosshook-core`. `snake_case` names; Serde on boundary types. |
-| Frontend               | **React 18 + TypeScript** (strict) | Vite dev server; `invoke()` wrapped in custom hooks; BEM-like `crosshook-*` CSS classes       |
-| Persistence — settings | **TOML** (`settings.toml`)         | User-editable preferences; deserialized via `AppSettingsData`                                 |
-| Persistence — metadata | **SQLite** via `rusqlite`          | WAL mode, `0600` permissions; schema migrations in `crosshook-core`; see SQLite section below |
-| CLI                    | `crosshook-cli` crate              | Thin wrapper. Launch log tailing uses `stream_child_log` and `read_log_tail`; other commands call `crosshook-core`.                                |
+| IPC layer              | **Tauri commands** (`src-tauri`)   | Thin shell. Profile, launch, settings, catalog, diagnostics, health, recent-files, and background commands delegate to `crosshook-app`; other commands call `crosshook-core`. `snake_case` names; Serde on boundary types.                       |
+| Frontend               | **React 18 + TypeScript** (strict) | Vite dev server; `invoke()` wrapped in custom hooks; BEM-like `crosshook-*` CSS classes                                                                                                                                                          |
+| Persistence — settings | **TOML** (`settings.toml`)         | User-editable preferences; deserialized via `AppSettingsData`                                                                                                                                                                                    |
+| Persistence — metadata | **SQLite** via `rusqlite`          | WAL mode, `0600` permissions; schema migrations in `crosshook-core`; see SQLite section below                                                                                                                                                    |
+| CLI                    | `crosshook-cli` crate              | Thin wrapper. Launch log tailing uses `stream_child_log` and `read_log_tail`; other commands call `crosshook-core`.                                                                                                                              |
 
 ---
 
