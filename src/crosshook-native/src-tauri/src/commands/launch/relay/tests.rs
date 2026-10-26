@@ -354,3 +354,75 @@ fn xdg_backend_summary_precedes_diagnostic_after_log_lines() {
     assert_eq!(emits.len(), 1);
     assert!(matches!(emits[0], RelayEmit::Complete(_)));
 }
+
+#[test]
+fn xdg_backend_summary_survives_leading_injection_and_precedes_complete() {
+    // Trainer sessions emit Injection rows before any log line. That must not
+    // consume the once-per-session summary slot.
+    let (id, _) = session();
+    let mut state = LaunchLogRelayState::default();
+    let data = InjectionLogData::new(
+        Some("Synthetic Quest"),
+        SessionKind::Trainer,
+        InjectionLevel::Info,
+        InjectionSource::Trainer,
+        "Trainer launch requested.",
+        false,
+    );
+    let emits = map_event(
+        &mut state,
+        LaunchEvent::Injection {
+            session_id: id,
+            event: data,
+        },
+    );
+    assert_eq!(emits.len(), 1);
+    assert!(matches!(emits[0], RelayEmit::Injection(_)));
+    assert!(!state.summary_emitted);
+
+    let noise =
+        "[gamescope] [Error] xdg_backend: Compositor released us but we were not acquired. Oh no.";
+    for _ in 0..3 {
+        map_event(
+            &mut state,
+            LaunchEvent::Log {
+                session_id: id,
+                batch: LogBatch::Lines(vec![noise.to_string()]),
+            },
+        );
+    }
+    assert_eq!(state.gamescope_xdg_backend_suppressed, 2);
+
+    let emits = map_event(
+        &mut state,
+        LaunchEvent::Exited {
+            session_id: id,
+            code: Some(0),
+            signal: None,
+        },
+    );
+    assert_eq!(emits.len(), 2);
+    assert!(emits[0].payload_value()["line"]
+        .as_str()
+        .unwrap()
+        .contains("2 repeated gamescope xdg_backend lines"));
+    assert!(matches!(emits[1], RelayEmit::Complete(_)));
+}
+
+#[test]
+fn truncated_becomes_one_visible_line_distinct_from_dropped() {
+    let (id, id_str) = session();
+    let mut state = LaunchLogRelayState::default();
+    let emits = map_event(
+        &mut state,
+        LaunchEvent::Log {
+            session_id: id,
+            batch: LogBatch::Truncated { bytes: 4096 },
+        },
+    );
+    assert_eq!(emits.len(), 1);
+    assert_eq!(
+        emits[0].payload_value(),
+        json!({"line": "[crosshook] Console output truncated: about 4096 bytes were not shown; the raw launch log is complete.", "session_id": id_str})
+    );
+}

@@ -191,7 +191,10 @@ are testable without Proton.
 per-session bounded `broadcast` stream (`LAUNCH_EVENT_CAPACITY` = 256) of
 `LaunchEvent::{Log, Injection, Diagnostic, Exited}`; every event carries its
 `session_id`. A lagging receiver gets a `Log(LogBatch::Dropped { n })` notice
-instead of the skipped events, and `Exited` is published exactly once, last.
+(`n` counts skipped events) instead of the skipped events. If the bounded final
+drain at exit cannot read the whole backlog, the stream carries one
+`Log(LogBatch::Truncated { bytes })` notice (estimated unread bytes; never 0);
+the raw log file stays complete. `Exited` is published exactly once, last.
 A spawn failure returns `LaunchStartError { error, events }` carrying the
 pre-spawn injection rows via `drain_ready()`.
 

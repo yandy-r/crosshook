@@ -23,10 +23,18 @@ mod tests;
 pub enum LogBatch {
     /// Complete lines (without trailing `\n`/`\r\n`) read in one window.
     Lines(Vec<String>),
-    /// The subscriber fell behind and `n` earlier events were dropped.
+    /// The subscriber fell behind and `n` earlier **events** were dropped
+    /// (broadcast lag). The unit is events, never bytes.
     Dropped {
         /// Number of dropped events.
         n: u64,
+    },
+    /// The bounded final drain was cut short by [`FINAL_DRAIN_CHUNKS`]: about
+    /// `bytes` of log output were left unread. The log file itself is
+    /// complete. Never emitted when the estimate is 0.
+    Truncated {
+        /// Estimated unread **bytes** in the log file.
+        bytes: u64,
     },
 }
 
@@ -34,6 +42,12 @@ pub enum LogBatch {
 /// is consumed over successive polls ([`LogTail::has_backlog`] reports when
 /// more may be pending), bounding per-poll memory and batch size.
 pub const READ_CHUNK: u64 = 256 * 1024;
+
+/// Maximum complete lines one [`LogTail::poll`] returns. Bytes already read
+/// but not yet split into lines stay buffered (bounded by [`READ_CHUNK`]) and
+/// are delivered by the following polls, so a flood of tiny lines cannot
+/// inflate a single batch (each empty line still costs a `String`).
+pub const MAX_LINES_PER_POLL: usize = 4096;
 
 /// Maximum length in bytes of the buffered unterminated line. When an
 /// unterminated line grows past this, its first `PARTIAL_CAP` bytes (cut back
@@ -63,9 +77,17 @@ pub struct LogTail {
     path: PathBuf,
     file: Option<OpenFile>,
     partial: Vec<u8>,
+    /// Bytes read from disk and not yet split into lines; `buf[buf_pos..]` is
+    /// the pending part, delivered by later polls once the line budget allows.
     buf: Vec<u8>,
+    buf_pos: usize,
     bytes_read: u64,
+    /// The last disk read used its whole byte budget, so the file may hold more.
+    disk_backlog: bool,
     backlog: bool,
+    /// Test seam: serve this many bytes of the next read, then fail.
+    #[cfg(test)]
+    fault: Option<u64>,
 }
 
 #[derive(Debug)]
@@ -86,8 +108,12 @@ impl LogTail {
             file: None,
             partial: Vec::new(),
             buf: Vec::new(),
+            buf_pos: 0,
             bytes_read: 0,
+            disk_backlog: false,
             backlog: false,
+            #[cfg(test)]
+            fault: None,
         }
     }
 
@@ -101,22 +127,67 @@ impl LogTail {
         self.bytes_read
     }
 
-    /// Whether the last poll stopped at [`READ_CHUNK`], so more bytes may
-    /// already be waiting on disk.
+    /// Whether the last poll stopped at [`READ_CHUNK`] or
+    /// [`MAX_LINES_PER_POLL`], so more lines may already be waiting.
     pub fn has_backlog(&self) -> bool {
         self.backlog
     }
 
+    /// Estimated bytes not yet delivered as lines, measured against the
+    /// *current* files: bytes buffered but unsplit, plus what the open handle
+    /// has not read yet, plus the whole file at the path if it was rotated
+    /// (or not yet opened). Writers can run ahead, so this may undercount.
+    fn unread_bytes(&self) -> u64 {
+        let pending = (self.buf.len() - self.buf_pos) as u64;
+        let path_meta = std::fs::metadata(&self.path).ok();
+        let Some(open) = &self.file else {
+            return pending + path_meta.map_or(0, |meta| meta.len());
+        };
+        let on_handle = open
+            .file
+            .metadata()
+            .map_or(0, |meta| meta.len().saturating_sub(open.offset));
+        let on_path = path_meta
+            .filter(|meta| meta.ino() != open.ino || meta.dev() != open.dev)
+            .map_or(0, |meta| meta.len());
+        pending + on_handle + on_path
+    }
+
     /// Reads up to [`READ_CHUNK`] bytes appended since the last poll and
-    /// returns the newly completed lines (trailing `\r` stripped, invalid
-    /// UTF-8 replaced with U+FFFD). An unterminated trailing line stays
-    /// buffered (up to [`PARTIAL_CAP`] bytes) until completed or
+    /// returns up to [`MAX_LINES_PER_POLL`] newly completed lines (trailing
+    /// `\r` stripped, invalid UTF-8 replaced with U+FFFD). Bytes beyond the
+    /// line budget stay buffered for the next poll. An unterminated trailing
+    /// line stays buffered (up to [`PARTIAL_CAP`] bytes) until completed or
     /// [`flush_partial`](Self::flush_partial) is called.
     ///
+    /// Lines already collected are never discarded by a later failure in the
+    /// same poll (e.g. reopening a rotated file): they are returned and the
+    /// failed step is retried by the next poll. A read that fails midway keeps
+    /// the bytes it did read.
+    ///
     /// # Errors
-    /// Returns I/O errors other than the file not existing.
+    /// Returns I/O errors other than the file not existing, when no line was
+    /// collected by this poll.
     pub fn poll(&mut self) -> io::Result<Vec<String>> {
         let mut lines = Vec::new();
+        match self.poll_into(&mut lines) {
+            Ok(()) => Ok(lines),
+            Err(error) if !lines.is_empty() => {
+                // Those lines are already consumed from disk; failing the
+                // poll would lose them. The failed step left its state
+                // retryable, so a persistent error resurfaces next poll.
+                tracing::warn!(
+                    %error,
+                    lines = lines.len(),
+                    "log tail poll failed after collecting lines; delivering them first"
+                );
+                Ok(lines)
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    fn poll_into(&mut self, lines: &mut Vec<String>) -> io::Result<()> {
         self.backlog = false;
         let mut budget = READ_CHUNK;
         let path_meta = match std::fs::metadata(&self.path) {
@@ -133,26 +204,29 @@ impl LogTail {
         if rotated {
             // Drain whatever the writer appended to the old file, then finish
             // its last line: the old file will never grow again.
-            let n = self.read_available(&mut lines, budget)?;
+            let n = self.read_available(lines, budget)?;
             if self.backlog {
                 // Old file not drained yet; keep it and continue next poll.
-                return Ok(lines);
+                return Ok(());
             }
             budget -= n;
             if let Some(line) = self.flush_partial() {
                 lines.push(line);
             }
             self.file = None;
+            self.disk_backlog = false;
+            self.buf.clear();
+            self.buf_pos = 0;
         }
 
         let Some(meta) = path_meta else {
-            return Ok(lines);
+            return Ok(());
         };
         if self.file.is_none() {
             let file = match File::open(&self.path) {
                 Ok(file) => file,
                 // Removed between metadata() and open(); retry next poll.
-                Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(lines),
+                Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(()),
                 Err(err) => return Err(err),
             };
             // Use the handle's own metadata so inode and contents agree.
@@ -168,10 +242,13 @@ impl LogTail {
                 open.file.seek(SeekFrom::Start(0))?;
                 open.offset = 0;
                 self.partial.clear();
+                self.buf.clear();
+                self.buf_pos = 0;
+                self.disk_backlog = false;
             }
         }
-        self.read_available(&mut lines, budget)?;
-        Ok(lines)
+        self.read_available(lines, budget)?;
+        Ok(())
     }
 
     /// Takes the buffered unterminated line, if any (use at end-of-stream).
@@ -184,48 +261,87 @@ impl LogTail {
         Some(line)
     }
 
-    /// Reads at most `budget` bytes from the open handle, appends completed
-    /// lines to `lines`, sets `backlog` if the budget was exhausted, and
-    /// returns the number of bytes read.
+    /// Reads at most `budget` new bytes from the open handle (only when no
+    /// bytes are still pending), appends completed lines to `lines` up to
+    /// [`MAX_LINES_PER_POLL`] in total, sets `backlog` if either budget ran
+    /// out, and returns the number of bytes read from disk.
+    ///
+    /// The handle's position always equals `offset`: a read that fails after
+    /// delivering some bytes keeps and accounts for them, and a read that
+    /// delivered none leaves both untouched.
     fn read_available(&mut self, lines: &mut Vec<String>, budget: u64) -> io::Result<u64> {
         let Some(open) = self.file.as_mut() else {
             return Ok(0);
         };
-        self.buf.clear();
-        let n = (&mut open.file).take(budget).read_to_end(&mut self.buf)? as u64;
-        if self.buf.len() <= BUF_RETAIN && self.buf.capacity() > BUF_RETAIN {
-            self.buf.shrink_to(BUF_RETAIN);
-        }
-        if n == 0 {
-            return Ok(0);
-        }
-        self.backlog = n == budget;
-        open.offset += n;
-        self.bytes_read += n;
-
-        let mut chunk: &[u8] = &self.buf;
-        // Complete the buffered partial line first, if this chunk ends it.
-        if !self.partial.is_empty() {
-            match chunk.iter().position(|&b| b == b'\n') {
-                Some(nl) => {
-                    self.partial.extend_from_slice(&chunk[..nl]);
-                    lines.push(decode_line(&self.partial));
-                    self.partial.clear();
-                    chunk = &chunk[nl + 1..];
+        let mut read = 0;
+        if self.buf_pos >= self.buf.len() {
+            self.buf.clear();
+            self.buf_pos = 0;
+            #[cfg(test)]
+            let mut faulty;
+            #[cfg(test)]
+            let reader: &mut dyn Read = match self.fault.take() {
+                Some(remaining) => {
+                    faulty = tests::FailAfter::new(&mut open.file, remaining);
+                    &mut faulty
                 }
-                None => {
-                    buffer_partial(&mut self.partial, chunk, lines);
-                    return Ok(n);
+                None => &mut open.file,
+            };
+            #[cfg(not(test))]
+            let reader: &mut dyn Read = &mut open.file;
+            let (n, error) = read_up_to(reader, &mut self.buf, budget);
+            if let Some(error) = error {
+                if n == 0 {
+                    return Err(error);
                 }
+                tracing::warn!(%error, bytes = n, "log tail read failed midway; keeping the bytes read");
             }
+            if self.buf.len() <= BUF_RETAIN && self.buf.capacity() > BUF_RETAIN {
+                self.buf.shrink_to(BUF_RETAIN);
+            }
+            open.offset += n;
+            self.bytes_read += n;
+            self.disk_backlog = n > 0 && n == budget;
+            read = n;
         }
-        while let Some(nl) = chunk.iter().position(|&b| b == b'\n') {
-            lines.push(decode_line(&chunk[..nl]));
-            chunk = &chunk[nl + 1..];
-        }
-        buffer_partial(&mut self.partial, chunk, lines);
-        Ok(n)
+        self.consume_pending(lines);
+        self.backlog = self.disk_backlog || self.buf_pos < self.buf.len();
+        Ok(read)
     }
+
+    /// Splits pending bytes into lines until `lines` holds
+    /// [`MAX_LINES_PER_POLL`]; the rest stays pending for the next poll.
+    fn consume_pending(&mut self, lines: &mut Vec<String>) {
+        let data = &self.buf[self.buf_pos..];
+        let mut pos = 0;
+        while lines.len() < MAX_LINES_PER_POLL {
+            let Some(nl) = data[pos..].iter().position(|&b| b == b'\n') else {
+                buffer_partial(&mut self.partial, &data[pos..], lines);
+                pos = data.len();
+                break;
+            };
+            let segment = &data[pos..pos + nl];
+            if self.partial.is_empty() {
+                lines.push(decode_line(segment));
+            } else {
+                // Complete the buffered partial line.
+                self.partial.extend_from_slice(segment);
+                lines.push(decode_line(&self.partial));
+                self.partial.clear();
+            }
+            pos += nl + 1;
+        }
+        self.buf_pos += pos;
+    }
+}
+
+/// Appends up to `budget` bytes from `reader` to `buf`. Returns the bytes
+/// appended and the error that cut the read short, if any; bytes read before
+/// an error stay in `buf` and are counted.
+fn read_up_to(reader: &mut dyn Read, buf: &mut Vec<u8>, budget: u64) -> (u64, Option<io::Error>) {
+    let before = buf.len();
+    let result = reader.take(budget).read_to_end(buf);
+    ((buf.len() - before) as u64, result.err())
 }
 
 /// Appends `bytes` to the unterminated-line buffer, emitting capped prefixes
@@ -297,12 +413,14 @@ impl Default for TailConfig {
     }
 }
 
-/// Maximum polls [`follow`] runs after cancellation to drain a backlog
-/// (16 × [`READ_CHUNK`] = 4 MiB), so cancellation stays prompt even when a
-/// writer outpaces the reader. When this cap cuts the drain short while the
-/// tail still reports a backlog, a [`LogBatch::Dropped`] notice estimates
-/// the unread bytes instead of losing them silently.
-pub const FINAL_DRAIN_CHUNKS: u32 = 16;
+/// Maximum polls [`follow`] runs after cancellation to drain a backlog, so
+/// cancellation stays prompt even when a writer outpaces the reader. Each
+/// poll reads at most [`READ_CHUNK`] bytes and [`MAX_LINES_PER_POLL`] lines,
+/// so the drain reaches 16 MiB of long lines (64 × [`READ_CHUNK`]) or about
+/// 262 000 short ones. When this cap cuts the drain short while the tail
+/// still reports a backlog, a [`LogBatch::Truncated`] notice estimates the
+/// unread bytes instead of losing them silently.
+pub const FINAL_DRAIN_CHUNKS: u32 = 64;
 
 /// Consecutive poll errors [`drive`] tolerates before giving up. Between
 /// errors the poll is retried with a doubling delay starting at the
@@ -322,64 +440,75 @@ enum PollMode {
     Last,
 }
 
+/// One finished poll: the state handed back, the lines read, whether more is
+/// already pending, and the unread-byte estimate when the final drain was cut
+/// short.
+type PollDone = (LogTail, Vec<String>, bool, Option<u64>);
+
 /// Tails `path` until `cancel` fires, delivering coalesced lines to `sink`.
 ///
 /// Polls once immediately, then every coalescing window while data flows;
 /// while the tail reports a backlog the next poll runs without delay. Each
 /// empty poll doubles the interval up to `idle_backoff_max`, and new data
-/// resets it. All lines read by one poll (at most [`READ_CHUNK`] bytes) form
-/// one [`LogBatch::Lines`]; a larger backlog is delivered over the following
-/// polls. Empty batches are never emitted. On cancellation the remaining
-/// bytes are read without waiting, up to [`FINAL_DRAIN_CHUNKS`] polls; if
-/// that cap cuts the drain short, a [`LogBatch::Dropped`] notice estimates
-/// the unread bytes. Then the unterminated trailing line (if any) is
-/// flushed and the function returns. A live-phase poll I/O error is logged
-/// and retried with backoff, up to a bounded streak. File reads run on
-/// Tokio's blocking pool, so `sink` should be non-blocking.
+/// resets it. All lines read by one poll (at most [`READ_CHUNK`] bytes and
+/// [`MAX_LINES_PER_POLL`] lines) form one [`LogBatch::Lines`]; a larger
+/// backlog is delivered over the following polls. Empty batches are never
+/// emitted. On cancellation the remaining bytes are read without waiting, up
+/// to [`FINAL_DRAIN_CHUNKS`] polls; if that cap cuts the drain short, a
+/// [`LogBatch::Truncated`] notice estimates the unread bytes (never emitted
+/// for 0). Then the unterminated trailing line (if any) is flushed and the
+/// function returns. A live-phase poll I/O error is logged and retried with
+/// backoff, up to a bounded streak. File reads run on Tokio's blocking pool,
+/// so `sink` should be non-blocking.
 ///
 /// # Errors
 /// Returns the I/O error after a bounded streak of consecutive poll
-/// failures, a drain-phase poll error, or an error if the blocking read
-/// task panicked.
+/// failures, or a drain-phase poll error. Returns a terminal error at once
+/// (no retry, since the tail state is lost) if the blocking read task
+/// panicked or was cancelled.
 pub async fn follow(
     path: impl Into<PathBuf>,
     config: TailConfig,
     cancel: CancellationToken,
     sink: impl FnMut(LogBatch),
 ) -> io::Result<()> {
-    let poll = |mut tail: LogTail, mode: PollMode| async move {
-        let (tail, result) = tokio::task::spawn_blocking(move || {
-            let result = tail.poll().map(|mut lines| {
-                let more = tail.has_backlog();
-                if mode == PollMode::Last || (mode == PollMode::Drain && !more) {
-                    lines.extend(tail.flush_partial());
-                }
-                (lines, more)
-            });
-            (tail, result)
-        })
-        .await
-        .unwrap_or_else(|join_error| {
-            panic!("log tail blocking read task failed: {join_error}");
-        });
-        match result {
-            Ok((lines, more)) => {
-                let dropped = if mode == PollMode::Last && more {
-                    // The bounded drain was cut short with bytes still
-                    // pending; estimate them instead of losing them
-                    // silently.
-                    Some(dropped_estimate(&tail))
-                } else {
-                    None
-                };
-                Ok((tail, lines, more, dropped))
-            }
-            Err(error) => Err((tail, error)),
-        }
-    };
-    match drive(LogTail::new(path), poll, config, cancel, sink).await {
-        Ok(()) => Ok(()),
-        Err((_, error)) => Err(error),
+    let poll = |tail: LogTail, mode: PollMode| blocking_poll(tail, mode, poll_once);
+    drive(LogTail::new(path), poll, config, cancel, sink).await
+}
+
+/// Synchronous body of one [`follow`] poll.
+fn poll_once(tail: &mut LogTail, mode: PollMode) -> io::Result<(Vec<String>, bool, Option<u64>)> {
+    let mut lines = tail.poll()?;
+    let more = tail.has_backlog();
+    if mode == PollMode::Last || (mode == PollMode::Drain && !more) {
+        lines.extend(tail.flush_partial());
+    }
+    // The bounded drain was cut short with bytes still pending; estimate
+    // them instead of losing them silently.
+    let truncated = (mode == PollMode::Last && more).then(|| tail.unread_bytes());
+    Ok((lines, more, truncated))
+}
+
+/// Runs `work` on the blocking pool. A task that panicked or was cancelled
+/// has taken the tail with it, so that is reported as a terminal error (`None`
+/// state) instead of unwinding into the caller.
+async fn blocking_poll(
+    mut tail: LogTail,
+    mode: PollMode,
+    work: fn(&mut LogTail, PollMode) -> io::Result<(Vec<String>, bool, Option<u64>)>,
+) -> Result<PollDone, (Option<LogTail>, io::Error)> {
+    let joined = tokio::task::spawn_blocking(move || {
+        let result = work(&mut tail, mode);
+        (tail, result)
+    })
+    .await;
+    match joined {
+        Ok((tail, Ok((lines, more, truncated)))) => Ok((tail, lines, more, truncated)),
+        Ok((tail, Err(error))) => Err((Some(tail), error)),
+        Err(join_error) => Err((
+            None,
+            io::Error::other(format!("log tail blocking read task failed: {join_error}")),
+        )),
     }
 }
 
@@ -390,18 +519,19 @@ pub async fn follow(
 /// While it reports more pending, the next poll runs without delay. After
 /// cancellation it is called with [`PollMode::Drain`] without delay while it
 /// reports more pending, at most [`FINAL_DRAIN_CHUNKS`] times in total, the
-/// last of which uses [`PollMode::Last`]. A live-phase poll error is
-/// retried with backoff up to a bounded streak, not propagated at once.
+/// last of which uses [`PollMode::Last`]. A live-phase poll error that hands
+/// the state back (`Some`) is retried with backoff up to a bounded streak; an
+/// error with a lost state (`None`) is terminal.
 async fn drive<S, P, F>(
     state: S,
     mut poll: P,
     config: TailConfig,
     cancel: CancellationToken,
     mut sink: impl FnMut(LogBatch),
-) -> Result<(), (S, io::Error)>
+) -> io::Result<()>
 where
     P: FnMut(S, PollMode) -> F,
-    F: Future<Output = Result<(S, Vec<String>, bool, Option<u64>), (S, io::Error)>>,
+    F: Future<Output = Result<(S, Vec<String>, bool, Option<u64>), (Option<S>, io::Error)>>,
 {
     let (window, idle_max) = config.effective();
     // Held in an Option so a failed poll can hand the state back for the
@@ -422,15 +552,15 @@ where
             }
         };
         let polled = poll(slot.take().expect("state in slot"), mode).await;
-        let (next, lines, more, dropped) = match polled {
+        let (next, lines, more, truncated) = match polled {
             Ok(done) => {
                 errors = 0;
                 done
             }
-            Err((prev, error)) if mode == PollMode::Live => {
+            Err((Some(prev), error)) if mode == PollMode::Live => {
                 errors += 1;
                 if errors >= MAX_CONSECUTIVE_POLL_ERRORS {
-                    return Err((prev, error));
+                    return Err(error);
                 }
                 slot = Some(prev);
                 tracing::warn!(
@@ -446,8 +576,9 @@ where
                 }
                 continue;
             }
-            // An error in the drain phase keeps cancellation prompt.
-            Err((state, error)) => return Err((state, error)),
+            // An error in the drain phase keeps cancellation prompt; a lost
+            // state cannot be retried.
+            Err((_, error)) => return Err(error),
         };
         slot = Some(next);
         let got_lines = !lines.is_empty();
@@ -456,10 +587,8 @@ where
         }
         match mode {
             PollMode::Last => {
-                if more {
-                    sink(LogBatch::Dropped {
-                        n: dropped.unwrap_or(0),
-                    });
+                if let Some(bytes) = truncated.filter(|&bytes| bytes > 0) {
+                    sink(LogBatch::Truncated { bytes });
                 }
                 return Ok(());
             }
@@ -487,12 +616,4 @@ where
             () = tokio::time::sleep(interval) => {}
         }
     }
-}
-
-/// Rough estimate of bytes the bounded final drain could have left behind:
-/// what the writer produced beyond what the tail already consumed. The tail
-/// may lag the writer further (in-flight bytes), so this can undercount.
-fn dropped_estimate(tail: &LogTail) -> u64 {
-    let written = std::fs::metadata(tail.path()).map(|m| m.len()).unwrap_or(0);
-    written.saturating_sub(tail.bytes_read())
 }

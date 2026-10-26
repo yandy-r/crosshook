@@ -96,6 +96,12 @@ pub(crate) fn map_event(state: &mut LaunchLogRelayState, event: LaunchEvent) -> 
                     ),
                     session_id,
                 }],
+                LogBatch::Truncated { bytes } => vec![RelayEmit::Log {
+                    line: format!(
+                        "[crosshook] Console output truncated: about {bytes} bytes were not shown; the raw launch log is complete."
+                    ),
+                    session_id,
+                }],
             }
         }
         LaunchEvent::Diagnostic { session_id, report } => {
@@ -140,14 +146,17 @@ fn pending_suppression_summary(
     if state.summary_emitted {
         return Vec::new();
     }
+    // Only a returned summary consumes the once-per-session slot: trainer
+    // sessions emit Injection rows before any log line, and suppression may
+    // happen later, so `Exited` must still be able to emit it.
+    let Some(line) = suppression_summary_line(state) else {
+        return Vec::new();
+    };
     state.summary_emitted = true;
-    suppression_summary_line(state)
-        .map(|line| RelayEmit::Log {
-            line,
-            session_id: session_id.to_string(),
-        })
-        .into_iter()
-        .collect()
+    vec![RelayEmit::Log {
+        line,
+        session_id: session_id.to_string(),
+    }]
 }
 
 fn emit_one(app: &AppHandle, emit: &RelayEmit) {

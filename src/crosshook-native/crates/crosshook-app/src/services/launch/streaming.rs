@@ -49,8 +49,11 @@ const PIPE_CHANNEL_CAPACITY: usize = 256;
 /// bounded `broadcast::send`.
 ///
 /// # Errors
-/// Returns the I/O error of `child.wait()` or of following the log file. Pipe
-/// tee errors (open, write, reader) are logged and absorbed.
+/// Returns the I/O error of `child.wait()`. A failure of the log follow
+/// (poll errors past the retry streak, or a panicked or cancelled blocking
+/// read task) is logged and does not fail the call: the real exit status is
+/// still returned. Pipe tee errors (open, write, reader) are likewise logged
+/// and absorbed.
 pub async fn stream_child_log(
     child: &mut Child,
     log_path: &Path,
@@ -184,7 +187,12 @@ where
                     dead = true;
                 }
             }
-            Err(_) => return,
+            Err(error) => {
+                // The pipe is unreadable from here on; the tee for this
+                // stream ends, so say so instead of silently losing output.
+                tracing::warn!(%error, "launch log pipe read failed; this stream is no longer teed");
+                return;
+            }
         }
     }
 }

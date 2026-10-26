@@ -148,8 +148,8 @@ pub(crate) async fn launch_profile(
         }
     };
     let mut output_error = None;
-    let status = stream_child_log(&mut child, &log_path, |batch| {
-        if let LogBatch::Lines(lines) = batch {
+    let status = stream_child_log(&mut child, &log_path, |batch| match batch {
+        LogBatch::Lines(lines) => {
             if output_error.is_none() {
                 let mut stdout = std::io::stdout().lock();
                 output_error = lines
@@ -157,6 +157,11 @@ pub(crate) async fn launch_profile(
                     .try_for_each(|line| writeln!(stdout, "{line}"))
                     .and_then(|()| stdout.flush())
                     .err();
+            }
+        }
+        LogBatch::Dropped { .. } | LogBatch::Truncated { .. } => {
+            if let Some(notice) = output_loss_notice(&batch, &log_path) {
+                eprintln!("{notice}");
             }
         }
     })
@@ -287,10 +292,60 @@ fn spawn_helper(
     Ok(command.spawn()?)
 }
 
+/// Stderr notice for a [`LogBatch`] that reports lost console output; `None`
+/// for batches that carry lines. stdout stays untouched.
+fn output_loss_notice(batch: &LogBatch, log_path: &Path) -> Option<String> {
+    match batch {
+        LogBatch::Lines(_) => None,
+        LogBatch::Dropped { n } => Some(format!(
+            "warning: launch output skipped {n} log batches; see the log at {}",
+            log_path.display()
+        )),
+        LogBatch::Truncated { bytes } => Some(format!(
+            "warning: launch output truncated (about {bytes} bytes not shown); see the log at {}",
+            log_path.display()
+        )),
+    }
+}
+
 fn severity_label(severity: ValidationSeverity) -> &'static str {
     match severity {
         ValidationSeverity::Fatal => "fatal",
         ValidationSeverity::Warning => "warning",
         ValidationSeverity::Info => "info",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn truncated_batch_warns_with_bytes_and_log_path() {
+        let notice = output_loss_notice(
+            &LogBatch::Truncated { bytes: 4096 },
+            Path::new("/tmp/launch.log"),
+        )
+        .expect("notice");
+        assert_eq!(
+            notice,
+            "warning: launch output truncated (about 4096 bytes not shown); see the log at /tmp/launch.log"
+        );
+    }
+
+    #[test]
+    fn dropped_batch_warns_with_count_and_log_path() {
+        let notice = output_loss_notice(&LogBatch::Dropped { n: 7 }, Path::new("/tmp/launch.log"))
+            .expect("notice");
+        assert!(notice.starts_with("warning: launch output skipped 7 log batches"));
+        assert!(notice.ends_with("/tmp/launch.log"));
+    }
+
+    #[test]
+    fn line_batches_produce_no_notice() {
+        assert_eq!(
+            output_loss_notice(&LogBatch::Lines(vec!["x".into()]), Path::new("/tmp/l.log")),
+            None
+        );
     }
 }
