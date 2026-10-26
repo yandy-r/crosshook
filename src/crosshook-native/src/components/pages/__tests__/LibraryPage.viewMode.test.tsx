@@ -148,25 +148,36 @@ describe('LibraryPage view mode from settings', () => {
     expect(screen.getByRole('button', { name: 'List view' })).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('keeps the optimistic list view when the command rejects (no revert)', async () => {
+  it('refreshes to the backend view mode when the command rejects', async () => {
     const user = userEvent.setup();
+    const persistGate = Promise.withResolvers<void>();
+    let loadCount = 0;
     vi.spyOn(console, 'error').mockImplementation(() => {});
     renderLibraryHarness({
       handlerOverrides: {
-        settings_set_library_view_mode: async () => {
-          throw new Error('persist boom');
+        settings_load: async () => {
+          loadCount += 1;
+          return {
+            ...DEFAULT_APP_SETTINGS,
+            ui: { ...DEFAULT_UI_SETTINGS, library_view_mode: 'grid' },
+          };
         },
+        settings_set_library_view_mode: () => persistGate.promise,
       },
     });
+    await waitFor(() => expect(loadCount).toBe(1));
 
     await user.click(await screen.findByRole('button', { name: 'List view' }));
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'List view' })).toHaveAttribute('aria-pressed', 'true');
-    });
-    // Still list after the rejection settled.
-    await act(async () => {});
     expect(screen.getByRole('button', { name: 'List view' })).toHaveAttribute('aria-pressed', 'true');
+    await act(async () => {
+      persistGate.reject(new Error('persist boom'));
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Grid view' })).toHaveAttribute('aria-pressed', 'true');
+    });
+    expect(loadCount).toBe(2);
+    expect(document.querySelector('.crosshook-library-list-row')).toBeNull();
+    expect(document.querySelector('.crosshook-library-card')).not.toBeNull();
   });
 
   it('keeps the optimistic toggle when a deferred settings_load resolves afterwards with the stale value', async () => {
@@ -204,7 +215,7 @@ describe('LibraryPage view mode from settings', () => {
     expect(document.querySelector('.crosshook-library-list-row')).not.toBeNull();
     expect(document.querySelector('.crosshook-library-card')).toBeNull();
 
-    // Once the persist settles, the pending guard lifts and later loads apply as written.
+    // Persist settling does not itself replace the optimistic mode.
     await act(async () => {
       await persistGate.promise;
     });

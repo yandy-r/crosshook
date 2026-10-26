@@ -72,32 +72,34 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
   const [defaultSteamClientInstallPath, setDefaultSteamClientInstallPath] = useState('');
 
   const pendingViewModeRef = useRef<LibraryViewMode | null>(null);
-  const viewModePersistedRef = useRef(false);
+  const latestViewModeRequestRef = useRef(0);
+  const settledViewModeRequestRef = useRef(0);
 
-  // Applies a freshly loaded settings snapshot, preserving the last requested
-  // library view mode while its persist is unconfirmed. The pending guard lifts
-  // once the persist has settled AND a load confirms the mode on the backend
-  // (a stale load resolving with a different value keeps the optimistic mode).
-  const applyLoadedSettings = useCallback((loadedSettings: AppSettingsData) => {
-    const pendingViewMode = pendingViewModeRef.current;
-    if (pendingViewMode === null) {
-      setSettings(loadedSettings);
-      return;
-    }
-    if (loadedSettings.ui.library_view_mode === pendingViewMode && viewModePersistedRef.current) {
+  // A load is authoritative only when no view-mode request started after it and
+  // it started after the latest request settled. Older loads retain the current
+  // optimistic mode, even when that request settles before the load finishes.
+  const applyLoadedSettings = useCallback((loadedSettings: AppSettingsData, loadStartSettleSequence: number) => {
+    const loadIsAuthoritative =
+      loadStartSettleSequence === settledViewModeRequestRef.current &&
+      latestViewModeRequestRef.current === settledViewModeRequestRef.current;
+    if (loadIsAuthoritative) {
       pendingViewModeRef.current = null;
       setSettings(loadedSettings);
       return;
     }
-    setSettings({
+
+    setSettings((previous) => ({
       ...loadedSettings,
-      ui: { ...loadedSettings.ui, library_view_mode: pendingViewMode },
-    });
+      ui: {
+        ...loadedSettings.ui,
+        library_view_mode: pendingViewModeRef.current ?? previous.ui.library_view_mode,
+      },
+    }));
   }, []);
 
   const applyLoadedPreferences = useCallback(
-    (nextPreferences: LoadedPreferences) => {
-      applyLoadedSettings(nextPreferences.loadedSettings);
+    (nextPreferences: LoadedPreferences, loadStartSettleSequence: number) => {
+      applyLoadedSettings(nextPreferences.loadedSettings, loadStartSettleSequence);
       setRecentFiles(nextPreferences.loadedRecentFiles);
       setDefaultSteamClientInstallPath(nextPreferences.steamClientInstallPath);
       setSettingsError(null);
@@ -106,8 +108,9 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
   );
 
   const refreshPreferences = useCallback(async () => {
+    const loadStartSettleSequence = settledViewModeRequestRef.current;
     try {
-      applyLoadedPreferences(await loadPreferences());
+      applyLoadedPreferences(await loadPreferences(), loadStartSettleSequence);
     } catch (error) {
       setSettingsError(formatError(error));
       throw error;
@@ -119,12 +122,13 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
 
     async function initializePreferences() {
       try {
+        const loadStartSettleSequence = settledViewModeRequestRef.current;
         const nextPreferences = await loadPreferences();
         if (!active) {
           return;
         }
 
-        applyLoadedPreferences(nextPreferences);
+        applyLoadedPreferences(nextPreferences, loadStartSettleSequence);
       } catch (error) {
         if (active) {
           setSettingsError(formatError(error));
@@ -143,8 +147,9 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
     async (patch: Partial<AppSettingsData>) => {
       const merged: AppSettingsData = { ...settings, ...patch };
       await callCommand('settings_save', { data: toSettingsSaveRequest(merged) });
+      const loadStartSettleSequence = settledViewModeRequestRef.current;
       const loaded = await callCommand<AppSettingsData>('settings_load');
-      applyLoadedSettings(loaded);
+      applyLoadedSettings(loaded, loadStartSettleSequence);
       setSettingsError(null);
     },
     [applyLoadedSettings, settings]
@@ -201,27 +206,37 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
 
   const libraryViewMode = settings.ui.library_view_mode ?? 'grid';
 
-  const setLibraryViewMode = useCallback((mode: LibraryViewMode) => {
-    // Track the requested mode until the persist has settled AND a load confirms
-    // it, so a late settings_load resolution cannot undo the optimistic toggle.
-    pendingViewModeRef.current = mode;
-    viewModePersistedRef.current = false;
-    setSettings((previous) => ({
-      ...previous,
-      ui: { ...previous.ui, library_view_mode: mode },
-    }));
-    void callCommand('settings_set_library_view_mode', { mode })
-      .then(() => {
-        viewModePersistedRef.current = true;
-      })
-      .catch((error: unknown) => {
-        console.error('Failed to persist library view mode', error);
-        // The write never landed: drop the guard so the next load applies as written.
-        if (pendingViewModeRef.current === mode) {
+  const setLibraryViewMode = useCallback(
+    (mode: LibraryViewMode) => {
+      const requestSequence = latestViewModeRequestRef.current + 1;
+      latestViewModeRequestRef.current = requestSequence;
+      pendingViewModeRef.current = mode;
+      setSettings((previous) => ({
+        ...previous,
+        ui: { ...previous.ui, library_view_mode: mode },
+      }));
+      void callCommand('settings_set_library_view_mode', { mode })
+        .then(() => {
+          if (latestViewModeRequestRef.current !== requestSequence) {
+            return;
+          }
+          // Retain the mode for loads that started before this settle. The next
+          // authoritative load clears the guard regardless of the backend value.
+          settledViewModeRequestRef.current = requestSequence;
+        })
+        .catch((error: unknown) => {
+          console.error('Failed to persist library view mode', error);
+          if (latestViewModeRequestRef.current !== requestSequence) {
+            return;
+          }
+          settledViewModeRequestRef.current = requestSequence;
           pendingViewModeRef.current = null;
-        }
-      });
-  }, []);
+          // refreshPreferences records a recovery-load failure in settingsError.
+          void refreshPreferences().catch(() => undefined);
+        });
+    },
+    [refreshPreferences]
+  );
 
   const value = useMemo<PreferencesContextValue>(
     () => ({

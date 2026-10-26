@@ -91,7 +91,7 @@ fn symlink_returns_none() {
 
 #[cfg(unix)]
 #[test]
-fn fifo_returns_none_without_opening_it() {
+fn fifo_returns_none_without_blocking() {
     let dir = tempdir().expect("tempdir");
     let path = dir.path().join("fifo.localstorage");
     nix::unistd::mkfifo(&path, nix::sys::stat::Mode::from_bits_truncate(0o600)).expect("FIFO");
@@ -106,6 +106,24 @@ fn sparse_oversize_file_returns_none() {
     file.set_len(WEBKIT_MAX_FILE_BYTES + 1)
         .expect("grow sparse fixture");
     drop(file);
+    assert_eq!(read_library_view_mode(&path), None);
+}
+
+#[test]
+fn item_table_with_generated_value_returns_none() {
+    let dir = tempdir().expect("tempdir");
+    let path = dir.path().join("generated.localstorage");
+    let connection = Connection::open(&path).expect("open fixture");
+    connection
+        .execute_batch(
+            "CREATE TABLE ItemTable (\
+             key TEXT, \
+             value BLOB GENERATED ALWAYS AS (X'6C00690073007400') VIRTUAL);\
+             INSERT INTO ItemTable (key) VALUES ('crosshook.library.viewMode')",
+        )
+        .expect("create generated-column fixture");
+    drop(connection);
+
     assert_eq!(read_library_view_mode(&path), None);
 }
 
