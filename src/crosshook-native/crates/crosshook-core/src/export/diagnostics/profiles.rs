@@ -30,11 +30,20 @@ pub(super) fn collect_profiles(store: &ProfileStore, redact_paths: bool) -> Vec<
     profiles
 }
 
-/// Reads the settings TOML file as raw text.
+/// Reads the settings TOML, omitting the private recent-palette identifiers.
 pub(super) fn collect_settings(settings_store: &SettingsStore, redact_paths: bool) -> String {
     let path = settings_store.settings_path();
     match fs::read_to_string(&path) {
         Ok(content) => {
+            let content = match content.parse::<toml::Table>() {
+                Ok(mut settings) => {
+                    if let Some(ui) = settings.get_mut("ui").and_then(toml::Value::as_table_mut) {
+                        ui.remove("palette_recent");
+                    }
+                    toml::to_string(&settings).unwrap_or(content)
+                }
+                Err(_) => "(settings file could not be parsed; contents omitted)".to_string(),
+            };
             if redact_paths {
                 redact_home_paths(&content)
             } else {
@@ -90,5 +99,47 @@ mod tests {
         let (_, content) = &profiles[0];
         assert!(content.contains("~/games/test.exe"));
         assert!(!content.contains(&home));
+    }
+
+    #[test]
+    fn collect_settings_excludes_only_recent_palette_ids() {
+        let temp = tempdir().unwrap();
+        let store = SettingsStore::with_base_path(temp.path().to_path_buf());
+        fs::write(
+            store.settings_path(),
+            "last_used_profile = \"daily\"\n\
+             [ui]\n\
+             library_view_mode = \"list\"\n\
+             palette_recent = [\"private-palette-id\"]\n\
+             [ui.extra]\n\
+             custom_palette = \"keep-me\"\n",
+        )
+        .unwrap();
+
+        let content = collect_settings(&store, false);
+
+        assert!(!content.contains("palette_recent"));
+        assert!(!content.contains("private-palette-id"));
+        assert!(content.contains("last_used_profile = \"daily\""));
+        assert!(content.contains("library_view_mode = \"list\""));
+        assert!(content.contains("custom_palette = \"keep-me\""));
+    }
+
+    #[test]
+    fn collect_settings_omits_malformed_file_with_private_palette_ids() {
+        let temp = tempdir().unwrap();
+        let store = SettingsStore::with_base_path(temp.path().to_path_buf());
+        fs::write(
+            store.settings_path(),
+            "[ui]\npalette_recent = [\"private-palette-id\"]\ninvalid = [",
+        )
+        .unwrap();
+
+        for redact_paths in [false, true] {
+            assert_eq!(
+                collect_settings(&store, redact_paths),
+                "(settings file could not be parsed; contents omitted)"
+            );
+        }
     }
 }

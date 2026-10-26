@@ -4,9 +4,10 @@
  * PreferencesContext owns app settings (auto-load, community taps) and recent file
  * paths. Profile CRUD and selection are handled by ProfileContext.
  */
-import React, { createContext, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { createContext, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 import type { AppSettingsData, RecentFilesData } from '../types';
+import type { LibraryViewMode } from '../types/library';
 import { DEFAULT_APP_SETTINGS, toSettingsSaveRequest } from '../types/settings';
 
 export interface PreferencesContextValue {
@@ -20,6 +21,10 @@ export interface PreferencesContextValue {
   handleAutoLoadChange: (enabled: boolean) => Promise<void>;
   handleSteamGridDbApiKeyChange: (key: string) => Promise<void>;
   clearRecentFiles: () => Promise<void>;
+  /** Library view mode from `[ui].library_view_mode`; `'grid'` while settings load or when unset. */
+  libraryViewMode: LibraryViewMode;
+  /** Optimistically updates `libraryViewMode` and persists via `settings_set_library_view_mode` (serialized; failure restores the last confirmed mode). */
+  setLibraryViewMode: (mode: LibraryViewMode) => void;
 }
 
 export interface PreferencesProviderProps {
@@ -39,7 +44,14 @@ function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-async function loadPreferences() {
+/** Snapshot returned by the initial/refresh preferences load. */
+interface LoadedPreferences {
+  loadedSettings: AppSettingsData;
+  loadedRecentFiles: RecentFilesData;
+  steamClientInstallPath: string;
+}
+
+async function loadPreferences(): Promise<LoadedPreferences> {
   const [loadedSettings, loadedRecentFiles, steamClientInstallPath] = await Promise.all([
     callCommand<AppSettingsData>('settings_load'),
     callCommand<RecentFilesData>('recent_files_load'),
@@ -59,16 +71,50 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [defaultSteamClientInstallPath, setDefaultSteamClientInstallPath] = useState('');
 
-  const applyLoadedPreferences = useCallback((nextPreferences: Awaited<ReturnType<typeof loadPreferences>>) => {
-    setSettings(nextPreferences.loadedSettings);
-    setRecentFiles(nextPreferences.loadedRecentFiles);
-    setDefaultSteamClientInstallPath(nextPreferences.steamClientInstallPath);
-    setSettingsError(null);
+  const pendingViewModeRef = useRef<LibraryViewMode | null>(null);
+  const latestViewModeRequestRef = useRef(0);
+  const settledViewModeRequestRef = useRef(0);
+  /** Last confirmed backend view mode (authoritative load or successful persist). */
+  const lastConfirmedViewModeRef = useRef<LibraryViewMode | null>(null);
+
+  // A load is authoritative only when no view-mode request started after it and
+  // it started after the latest request settled. Older loads retain the current
+  // optimistic mode, even when that request settles before the load finishes.
+  const applyLoadedSettings = useCallback((loadedSettings: AppSettingsData, loadStartSettleSequence: number) => {
+    const loadIsAuthoritative =
+      loadStartSettleSequence === settledViewModeRequestRef.current &&
+      latestViewModeRequestRef.current === settledViewModeRequestRef.current;
+    if (loadIsAuthoritative) {
+      pendingViewModeRef.current = null;
+      setSettings(loadedSettings);
+      // Authoritative loads confirm the backend value.
+      lastConfirmedViewModeRef.current = loadedSettings.ui.library_view_mode ?? 'grid';
+      return;
+    }
+
+    setSettings((previous) => ({
+      ...loadedSettings,
+      ui: {
+        ...loadedSettings.ui,
+        library_view_mode: pendingViewModeRef.current ?? previous.ui.library_view_mode,
+      },
+    }));
   }, []);
 
+  const applyLoadedPreferences = useCallback(
+    (nextPreferences: LoadedPreferences, loadStartSettleSequence: number) => {
+      applyLoadedSettings(nextPreferences.loadedSettings, loadStartSettleSequence);
+      setRecentFiles(nextPreferences.loadedRecentFiles);
+      setDefaultSteamClientInstallPath(nextPreferences.steamClientInstallPath);
+      setSettingsError(null);
+    },
+    [applyLoadedSettings]
+  );
+
   const refreshPreferences = useCallback(async () => {
+    const loadStartSettleSequence = settledViewModeRequestRef.current;
     try {
-      applyLoadedPreferences(await loadPreferences());
+      applyLoadedPreferences(await loadPreferences(), loadStartSettleSequence);
     } catch (error) {
       setSettingsError(formatError(error));
       throw error;
@@ -80,12 +126,13 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
 
     async function initializePreferences() {
       try {
+        const loadStartSettleSequence = settledViewModeRequestRef.current;
         const nextPreferences = await loadPreferences();
         if (!active) {
           return;
         }
 
-        applyLoadedPreferences(nextPreferences);
+        applyLoadedPreferences(nextPreferences, loadStartSettleSequence);
       } catch (error) {
         if (active) {
           setSettingsError(formatError(error));
@@ -104,11 +151,12 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
     async (patch: Partial<AppSettingsData>) => {
       const merged: AppSettingsData = { ...settings, ...patch };
       await callCommand('settings_save', { data: toSettingsSaveRequest(merged) });
+      const loadStartSettleSequence = settledViewModeRequestRef.current;
       const loaded = await callCommand<AppSettingsData>('settings_load');
-      setSettings(loaded);
+      applyLoadedSettings(loaded, loadStartSettleSequence);
       setSettingsError(null);
     },
-    [settings]
+    [applyLoadedSettings, settings]
   );
 
   const handleAutoLoadChange = useCallback(
@@ -160,6 +208,77 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
     }
   }, []);
 
+  const libraryViewMode = settings.ui.library_view_mode ?? 'grid';
+
+  // Promise queue serializing `settings_set_library_view_mode` so the backend
+  // applies selections in user order even under rapid toggles.
+  const viewModePersistQueueRef = useRef<Promise<void>>(Promise.resolve());
+
+  const setLibraryViewMode = useCallback(
+    (mode: LibraryViewMode) => {
+      const requestSequence = latestViewModeRequestRef.current + 1;
+      latestViewModeRequestRef.current = requestSequence;
+      pendingViewModeRef.current = mode;
+      setSettings((previous) => ({
+        ...previous,
+        ui: { ...previous.ui, library_view_mode: mode },
+      }));
+      const run = viewModePersistQueueRef.current
+        .catch(() => undefined)
+        .then(() => callCommand('settings_set_library_view_mode', { mode }));
+      viewModePersistQueueRef.current = run.then(
+        () => undefined,
+        () => undefined
+      );
+      void run.then(
+        () => {
+          if (latestViewModeRequestRef.current !== requestSequence) {
+            return;
+          }
+          // Retain the mode for loads that started before this settle. The next
+          // authoritative load clears the guard regardless of the backend value.
+          settledViewModeRequestRef.current = requestSequence;
+          lastConfirmedViewModeRef.current = mode;
+        },
+        (error: unknown) => {
+          console.error('Failed to persist library view mode', error);
+          const restoreFallback = () => {
+            // Restore the last confirmed mode only when no newer selection started.
+            if (latestViewModeRequestRef.current !== requestSequence) {
+              return;
+            }
+            const fallback = lastConfirmedViewModeRef.current;
+            if (fallback === null || fallback === mode) {
+              return;
+            }
+            pendingViewModeRef.current = null;
+            setSettings((previous) => ({
+              ...previous,
+              ui: { ...previous.ui, library_view_mode: fallback },
+            }));
+          };
+          // refreshPreferences records a recovery-load failure in settingsError.
+          // A successful refresh is authoritative only when no load was already in
+          // flight with stale data; without one (or on refresh failure), restore
+          // the last confirmed mode. A superseded request only recovers via the
+          // refresh when it is still awaiting its persist slot (settled === 0).
+          const shouldRefresh =
+            latestViewModeRequestRef.current === requestSequence || settledViewModeRequestRef.current === 0;
+          if (shouldRefresh) {
+            if (latestViewModeRequestRef.current === requestSequence) {
+              settledViewModeRequestRef.current = requestSequence;
+              pendingViewModeRef.current = null;
+            }
+            void refreshPreferences().then(restoreFallback, restoreFallback);
+          } else {
+            restoreFallback();
+          }
+        }
+      );
+    },
+    [refreshPreferences]
+  );
+
   const value = useMemo<PreferencesContextValue>(
     () => ({
       settings,
@@ -171,15 +290,19 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
       handleAutoLoadChange,
       handleSteamGridDbApiKeyChange,
       clearRecentFiles,
+      libraryViewMode,
+      setLibraryViewMode,
     }),
     [
       clearRecentFiles,
       defaultSteamClientInstallPath,
       handleAutoLoadChange,
       handleSteamGridDbApiKeyChange,
+      libraryViewMode,
       persistSettings,
       recentFiles,
       refreshPreferences,
+      setLibraryViewMode,
       settings,
       settingsError,
     ]

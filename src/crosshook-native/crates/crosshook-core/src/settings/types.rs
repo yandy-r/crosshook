@@ -1,6 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
+use super::ui::UiSettings;
 use crate::community::CommunityTapSubscription;
 use crate::discovery::models::{
     default_external_trainer_sources, ExternalTrainerSourceSubscription,
@@ -318,6 +319,9 @@ pub struct AppSettingsData {
     /// Config revision history preferences (retention cap, etc.).
     #[serde(default)]
     pub config_history: ConfigHistorySettings,
+    /// Layout and display preferences (`[ui]` table).
+    #[serde(default)]
+    pub ui: UiSettings,
     /// Unknown TOML fields retained for forward-compatible local persistence.
     #[serde(default, flatten)]
     pub extra: toml::Table,
@@ -359,6 +363,7 @@ impl Default for AppSettingsData {
             install_nag_dismissed_at: None,
             steam_deck_caveats_dismissed_at: None,
             config_history: ConfigHistorySettings::default(),
+            ui: UiSettings::default(),
         }
     }
 }
@@ -368,6 +373,7 @@ impl AppSettingsData {
     pub fn clear_extra(&mut self) {
         self.extra.clear();
         self.config_history.extra.clear();
+        self.ui.extra.clear();
         for tap in &mut self.community_taps {
             tap.extra.clear();
         }
@@ -384,6 +390,7 @@ impl AppSettingsData {
         self.config_history
             .extra
             .clone_from(&current.config_history.extra);
+        self.ui.extra.clone_from(&current.ui.extra);
         for tap in &mut self.community_taps {
             if let Some(old) = current.community_taps.iter().find(|old| {
                 old.url == tap.url
@@ -470,6 +477,7 @@ impl fmt::Debug for AppSettingsData {
                 "steam_deck_caveats_dismissed_at",
                 &self.steam_deck_caveats_dismissed_at,
             )
+            .field("ui", &self.ui)
             .finish()
     }
 }

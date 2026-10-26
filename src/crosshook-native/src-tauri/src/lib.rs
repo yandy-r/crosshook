@@ -32,6 +32,7 @@ pub fn run() {
     let startup_events = core.subscribe();
     let stores = core.stores();
     let services = core.services();
+    let ui_settings = services.ui_settings.clone();
     tauri::Builder::default()
         .manage(stores.settings.clone())
         .manage(stores.profiles.clone())
@@ -39,6 +40,7 @@ pub fn run() {
         .manage(stores.community_taps.clone())
         .manage(stores.metadata.clone())
         .manage(services.settings.clone())
+        .manage(services.ui_settings.clone())
         .manage(services.recent_files.clone())
         .manage(services.diagnostics.clone())
         .manage(services.health.clone())
@@ -133,6 +135,7 @@ pub fn run() {
             commands::settings::settings_load,
             commands::settings::settings_save,
             commands::settings::settings_save_steamgriddb_key,
+            commands::settings::settings_set_library_view_mode,
             commands::storage::scan_prefix_storage,
             commands::storage::cleanup_prefix_storage,
             commands::storage::get_prefix_storage_history,
@@ -228,6 +231,14 @@ pub fn run() {
             commands::umu_database::check_umu_coverage,
             commands::umu_database::clear_umu_gameid_lookup_cache,
         ])
-        .run(context)
-        .expect("error while running CrossHook Native");
+        .build(context)
+        .expect("error while building CrossHook Native")
+        .run(move |_app, event| {
+            if let tauri::RunEvent::Exit = event {
+                // Persist any trailing `[ui]` write still waiting on the throttle.
+                if let Err(error) = tauri::async_runtime::block_on(ui_settings.flush()) {
+                    tracing::warn!(error = %error.message(), "failed to flush [ui] settings on exit");
+                }
+            }
+        });
 }

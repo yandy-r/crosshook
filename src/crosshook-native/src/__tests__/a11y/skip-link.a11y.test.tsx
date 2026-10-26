@@ -1,6 +1,6 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { AppShell } from '@/components/layout/AppShell';
 import { MAIN_CONTENT_ID } from '@/components/layout/SkipToContentLink';
 import { CollectionsProvider } from '@/context/CollectionsContext';
@@ -40,30 +40,6 @@ async function renderAppShell() {
 }
 
 describe('SkipToContentLink (AppShell integration)', () => {
-  beforeEach(() => {
-    const memory = new Map<string, string>();
-    vi.stubGlobal('localStorage', {
-      get length() {
-        return memory.size;
-      },
-      clear: (): void => {
-        memory.clear();
-      },
-      getItem: (k: string): string | null => memory.get(k) ?? null,
-      key: (i: number): string | null => Array.from(memory.keys())[i] ?? null,
-      removeItem: (k: string): void => {
-        memory.delete(k);
-      },
-      setItem: (k: string, v: string): void => {
-        memory.set(k, v);
-      },
-    } as Storage);
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
   it('skip link is the first tab stop', async () => {
     const user = userEvent.setup();
     await renderAppShell();

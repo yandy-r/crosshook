@@ -1,4 +1,5 @@
 import type { RecentFilesData } from '../../../types';
+import type { LibraryViewMode } from '../../../types/library';
 import type { SettingsSaveRequest } from '../../../types/settings';
 import { getStore } from '../store';
 import type { Handler } from './types';
@@ -23,6 +24,19 @@ export function registerSettings(map: Map<string, Handler>): void {
     }
     getStore().settings = structuredClone(merged);
     return structuredClone(getStore().settings);
+  });
+
+  map.set('settings_set_library_view_mode', async (args) => {
+    const { mode } = args as { mode?: string };
+    if (mode !== 'grid' && mode !== 'list') {
+      throw new Error(`[dev-mock] invalid library view mode: ${String(mode)}`);
+    }
+    const settings = getStore().settings;
+    getStore().settings = {
+      ...settings,
+      ui: { ...settings.ui, library_view_mode: mode as LibraryViewMode },
+    };
+    return null;
   });
 
   map.set('settings_save_steamgriddb_key', async (args) => {

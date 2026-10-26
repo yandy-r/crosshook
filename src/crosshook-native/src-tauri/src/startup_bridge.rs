@@ -41,6 +41,24 @@ fn emit_profiles_changed(handle: &AppHandle, payload: ProfilesChangedPayload) {
     }
 }
 
+/// Tauri event name Classic listens to for one `[ui]` persist failure per
+/// session.
+const UI_SETTINGS_PERSIST_FAILED_EVENT: &str = "ui-settings-persist-failed";
+
+/// `ui-settings-persist-failed` wire payload: `{ message }`, where `message`
+/// is the already-sanitized `AppError` text.
+#[derive(Debug, Clone, Serialize)]
+struct UiSettingsPersistFailedPayload {
+    message: String,
+}
+
+fn emit_ui_settings_persist_failed(handle: &AppHandle, message: String) {
+    let payload = UiSettingsPersistFailedPayload { message };
+    if let Err(error) = handle.emit(UI_SETTINGS_PERSIST_FAILED_EVENT, payload) {
+        tracing::warn!(%error, "failed to emit ui-settings-persist-failed event");
+    }
+}
+
 fn finished_payload(job: StartupJobKind, jobs: &StartupJobs) -> Option<FinishedPayload> {
     let state = match job {
         StartupJobKind::HealthBatch => jobs.health.kind(),
@@ -154,6 +172,9 @@ pub(crate) fn spawn(handle: AppHandle, startup: StartupHandle, mut rx: EventRece
                 }
                 AppEvent::ProfilesChanged { reason, names } => {
                     emit_profiles_changed(&handle, ProfilesChangedPayload { reason, names });
+                }
+                AppEvent::UiSettingsPersistFailed { message } => {
+                    emit_ui_settings_persist_failed(&handle, message);
                 }
                 // AppEvent is non-exhaustive; future unrelated events need no bridge.
                 _ => {}

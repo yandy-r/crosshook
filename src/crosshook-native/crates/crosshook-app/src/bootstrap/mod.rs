@@ -51,6 +51,7 @@ mod scans;
 mod state;
 mod steps;
 mod stores;
+mod ui_import;
 mod version_scan;
 
 pub use app_bootstrap::BootstrappedApp;

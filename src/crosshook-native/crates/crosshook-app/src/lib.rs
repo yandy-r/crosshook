@@ -27,4 +27,4 @@ pub use events::{
 pub use services::launch::{
     InjectionLogData, LaunchEvent, LaunchEvents, LaunchSession, LaunchStartError,
 };
-pub use services::{LaunchService, ProfileWriter};
+pub use services::{LaunchService, ProfileWriter, UiSettingsService};

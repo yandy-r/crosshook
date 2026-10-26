@@ -3,8 +3,9 @@
 use std::path::{Path, PathBuf};
 
 use crosshook_core::settings::{
-    AppSettingsData, ConfigHistorySettings, HighContrastPreference, ReducedMotionPreference,
-    SettingsStore, CONFIG_HISTORY_MAX_REVISIONS_MAX, RECENT_FILES_LIMIT_MAX,
+    AppSettingsData, ConfigHistorySettings, HighContrastPreference, LibraryViewMode,
+    ReducedMotionPreference, SettingsStore, CONFIG_HISTORY_MAX_REVISIONS_MAX,
+    RECENT_FILES_LIMIT_MAX,
 };
 use tempfile::tempdir;
 
@@ -88,7 +89,7 @@ fn paths_need_restart_table() {
 #[test]
 fn merge_preserves_disk_extras_and_ignores_request_extras() {
     let current: AppSettingsData = toml::from_str(
-        "future = 2026-10-08\n[ui]\nscale = 1.25\n[config_history]\nmax_revisions = 20\nfuture = true\n",
+        "future = 2026-10-08\n[ui]\nui_scale = 1.25\nfuture_key = 1\n[config_history]\nmax_revisions = 20\nfuture = true\n",
     )
     .unwrap();
     let mut request = make_save_request();
@@ -102,6 +103,39 @@ fn merge_preserves_disk_extras_and_ignores_request_extras() {
     assert_eq!(merged.config_history.max_revisions, 30);
     assert_eq!(merged.extra, current.extra);
     assert_eq!(merged.config_history.extra, current.config_history.extra);
+    // `[ui]` is not part of the form save: known and unknown keys survive
+    // verbatim from `current` (D4).
+    assert_eq!(merged.ui.ui_scale, 1.25);
+    assert_eq!(merged.ui.extra, current.ui.extra);
+}
+
+/// A full form save must never touch `[ui]`: view mode, palette and unknown
+/// keys all stay exactly as stored (D4).
+#[test]
+fn merge_keeps_ui_from_current() {
+    let current: AppSettingsData = toml::from_str(
+        "[ui]\nlibrary_view_mode = \"list\"\nui_scale = 1.5\ndensity = \"compact\"\nrenderer = \"tiny-skia\"\ninspector_width = 400\npalette_recent = [\"route:library\"]\nfuture_key = \"kept\"\n",
+    )
+    .unwrap();
+    let merged = merge_save_request(make_save_request(), current.clone());
+    assert_eq!(merged.ui, current.ui);
+    assert_eq!(merged.ui.library_view_mode, Some(LibraryViewMode::List));
+    assert_eq!(merged.ui.palette_recent, vec!["route:library".to_string()]);
+    assert_eq!(merged.ui.extra, current.ui.extra);
+}
+
+/// `SettingsSaveRequest` carries no `ui`, so a request body cannot inject or
+/// clear unknown `[ui]` keys (D4).
+#[test]
+fn save_request_cannot_inject_ui_extra() {
+    let current: AppSettingsData = toml::from_str("[ui]\nfuture_key = \"kept\"\n").unwrap();
+    let mut body = serde_json::to_value(make_save_request()).expect("fixture must serialize");
+    let map = body.as_object_mut().expect("request body is a JSON object");
+    map.insert("ui".to_string(), serde_json::json!({ "injected": true }));
+    let parsed: SettingsSaveRequest = serde_json::from_value(body).unwrap();
+    let merged = merge_save_request(parsed, current.clone());
+    assert_eq!(merged.ui.extra, current.ui.extra);
+    assert!(!merged.ui.extra.contains_key("injected"));
 }
 
 #[test]

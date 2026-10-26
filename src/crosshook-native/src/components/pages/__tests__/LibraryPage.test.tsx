@@ -108,30 +108,11 @@ describe('LibraryPage', () => {
     lastWizardProps = {};
     useBenchReadyMock.mockClear();
     vi.spyOn(console, 'debug').mockImplementation(() => {});
-    const memory = new Map<string, string>();
-    vi.stubGlobal('localStorage', {
-      get length() {
-        return memory.size;
-      },
-      clear: (): void => {
-        memory.clear();
-      },
-      getItem: (k: string): string | null => memory.get(k) ?? null,
-      key: (i: number): string | null => Array.from(memory.keys())[i] ?? null,
-      removeItem: (k: string): void => {
-        memory.delete(k);
-      },
-      setItem: (k: string, v: string): void => {
-        memory.set(k, v);
-      },
-    } as Storage);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
-    vi.unstubAllGlobals();
   });
-
   it('updates inspector hero when a card is selected', async () => {
     const user = userEvent.setup();
     renderLibraryHarness();

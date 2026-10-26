@@ -186,3 +186,22 @@ fn resync_emits_conservative_saved_with_no_names() {
         json!({"reason": {"kind": "saved"}, "names": []})
     );
 }
+
+#[test]
+fn ui_settings_persist_failed_payload_is_an_object_with_message() {
+    let payload = UiSettingsPersistFailedPayload {
+        message: "could not save settings".to_owned(),
+    };
+    assert_eq!(
+        serde_json::to_value(payload).unwrap(),
+        json!({"message": "could not save settings"})
+    );
+}
+
+#[test]
+fn ui_settings_persist_failed_uses_classic_event_name() {
+    assert_eq!(
+        UI_SETTINGS_PERSIST_FAILED_EVENT,
+        "ui-settings-persist-failed"
+    );
+}
