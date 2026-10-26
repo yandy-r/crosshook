@@ -71,8 +71,11 @@ impl RelayEmit {
 ///
 /// `Log::Lines` becomes one [`RelayEmit::Log`] per non-empty line after the
 /// relay transform (xdg_backend suppression per session); `Log::Dropped{n}`
-/// becomes one visible dropped-batches line; `Exited` becomes the suppression
-/// summary line (if any) **then** [`RelayEmit::Complete`].
+/// becomes one visible dropped-batches line. The xdg_backend suppression
+/// summary line is emitted right after the last log line, before the first
+/// `Diagnostic` or `Injection` that follows any log line (D5 order); if
+/// neither arrives, `Exited` emits it (if any) **then**
+/// [`RelayEmit::Complete`]. It is emitted at most once per session.
 pub(crate) fn map_event(state: &mut LaunchLogRelayState, event: LaunchEvent) -> Vec<RelayEmit> {
     match event {
         LaunchEvent::Log { session_id, batch } => {
@@ -95,14 +98,18 @@ pub(crate) fn map_event(state: &mut LaunchLogRelayState, event: LaunchEvent) -> 
                 }],
             }
         }
-        LaunchEvent::Diagnostic { session_id, report } => vec![RelayEmit::Diagnostic {
-            report,
-            session_id: session_id.to_string(),
-        }],
+        LaunchEvent::Diagnostic { session_id, report } => {
+            let session_id = session_id.to_string();
+            let mut emits = pending_suppression_summary(state, &session_id);
+            emits.push(RelayEmit::Diagnostic { report, session_id });
+            emits
+        }
         LaunchEvent::Injection { session_id, event } => {
-            vec![RelayEmit::Injection(InjectionLogEvent::from_data(
+            let mut emits = pending_suppression_summary(state, &session_id.to_string());
+            emits.push(RelayEmit::Injection(InjectionLogEvent::from_data(
                 session_id, &event,
-            ))]
+            )));
+            emits
         }
         LaunchEvent::Exited {
             session_id,
@@ -110,13 +117,9 @@ pub(crate) fn map_event(state: &mut LaunchLogRelayState, event: LaunchEvent) -> 
             signal,
         } => {
             let session_id = session_id.to_string();
-            let mut emits = Vec::new();
-            if let Some(summary) = suppression_summary_line(state) {
-                emits.push(RelayEmit::Log {
-                    line: summary,
-                    session_id: session_id.clone(),
-                });
-            }
+            // Fallback: the summary normally precedes the first post-log
+            // Diagnostic/Injection; emit it here when neither arrived.
+            let mut emits = pending_suppression_summary(state, &session_id);
             emits.push(RelayEmit::Complete(LaunchCompletePayload {
                 code,
                 signal,
@@ -125,6 +128,26 @@ pub(crate) fn map_event(state: &mut LaunchLogRelayState, event: LaunchEvent) -> 
             emits
         }
     }
+}
+
+/// Emits the xdg_backend suppression summary line at most once per session,
+/// so it lands right after the last log line and before the first
+/// `Diagnostic`/`Injection` (D5 order); `Exited` is the fallback.
+fn pending_suppression_summary(
+    state: &mut LaunchLogRelayState,
+    session_id: &str,
+) -> Vec<RelayEmit> {
+    if state.summary_emitted {
+        return Vec::new();
+    }
+    state.summary_emitted = true;
+    suppression_summary_line(state)
+        .map(|line| RelayEmit::Log {
+            line,
+            session_id: session_id.to_string(),
+        })
+        .into_iter()
+        .collect()
 }
 
 fn emit_one(app: &AppHandle, emit: &RelayEmit) {

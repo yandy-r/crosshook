@@ -486,3 +486,93 @@ async fn panic_still_publishes_exited_and_tears_down() {
         "the linked trainer stays registered"
     );
 }
+/// LOW regression (guard built inside the spawned task): a session task that
+/// is dropped before its first poll must still tear down — the guard is now
+/// constructed before `tokio::spawn`, so dropping the un-polled task runs
+/// `Drop` (`Exited`, cascade, hooks, deregister).
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_session_task_never_polled_still_tears_down() {
+    let harness = Harness::new(Metadata::Disabled);
+    let registry = Arc::new(LaunchSessionRegistry::new());
+    let (game_id, _game_cancel) = registry.register(SessionKind::Game, PROFILE);
+    let (trainer_id, mut trainer_rx) = registry.register(SessionKind::Trainer, PROFILE);
+    registry.link_to_parent(trainer_id, game_id).unwrap();
+
+    let (publisher, mut events) = EventPublisher::channel(game_id);
+    let ctx = session_context(
+        &harness,
+        Arc::clone(&registry),
+        game_id,
+        &LaunchCase::new(SessionKind::Game, METHOD_PROTON_RUN, String::new()),
+    );
+    // A child that would block for 30 s *if* the task were ever polled; the
+    // test aborts the task before its first poll, so the guard's `Drop` is
+    // the only teardown that can run.
+    let mut command = tokio::process::Command::new("sh");
+    command.arg("-c").arg("sleep 30").kill_on_drop(true);
+    let child = command.spawn().unwrap();
+
+    // The real session-task spawner: the guard is built before the spawn.
+    let task = super::super::run::spawn_session_task(ctx, child, publisher);
+    // Abort before the task is ever polled: the async body never runs, but
+    // the guard moved into it is dropped and must tear the session down.
+    task.abort();
+    let _ = task.await;
+
+    let collected = collect(&mut events).await;
+    assert_exited(&collected, None, None);
+    let reason = tokio::time::timeout(COLLECT_TIMEOUT, trainer_rx.recv())
+        .await
+        .expect("linked trainer notified by the drop-path cascade")
+        .expect("cancel channel open");
+    assert_eq!(reason, TeardownReason::LinkedSessionExit);
+    assert!(
+        registry
+            .sessions_for_profile(PROFILE, Some(SessionKind::Game))
+            .is_empty(),
+        "the aborted session deregistered"
+    );
+}
+
+/// LOW regression (duplicated finalizer cascade): the drop path and the
+/// normal finish path share one cascade implementation — a guard whose
+/// `finish` runs to completion must still cascade exactly once, and the
+/// linked trainer must observe exactly one `LinkedSessionExit`.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn finish_and_drop_paths_cascade_the_linked_trainer_exactly_once() {
+    let harness = Harness::new(Metadata::Disabled);
+    let registry = Arc::new(LaunchSessionRegistry::new());
+    let (game_id, _game_cancel) = registry.register(SessionKind::Game, PROFILE);
+    let (trainer_id, mut trainer_rx) = registry.register(SessionKind::Trainer, PROFILE);
+    registry.link_to_parent(trainer_id, game_id).unwrap();
+
+    let (publisher, _events) = EventPublisher::channel(game_id);
+    let ctx = session_context(
+        &harness,
+        Arc::clone(&registry),
+        game_id,
+        &LaunchCase::new(SessionKind::Game, METHOD_PROTON_RUN, String::new()),
+    );
+
+    // finish() runs the normal-path cascade; the guard is consumed, so Drop
+    // cannot replay it. The trainer sees one reason, not two.
+    SessionGuard::new(ctx, publisher)
+        .finish(Some(exit_code(0)))
+        .await;
+
+    let reason = tokio::time::timeout(COLLECT_TIMEOUT, trainer_rx.recv())
+        .await
+        .expect("linked trainer notified")
+        .expect("cancel channel open");
+    assert_eq!(reason, TeardownReason::LinkedSessionExit);
+    assert!(
+        trainer_rx.try_recv().is_err(),
+        "no duplicate cascade signal after the normal finish"
+    );
+    assert!(
+        registry
+            .sessions_for_profile(PROFILE, Some(SessionKind::Game))
+            .is_empty(),
+        "the finished game session deregistered (the trainer stays: only the cascade signalled it)"
+    );
+}

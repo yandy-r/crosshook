@@ -236,6 +236,7 @@ fn config_clamps_window_and_backoff() {
 }
 
 /// Simulated file: lines become visible at their write time (ms from start).
+#[derive(Debug)]
 struct Timeline {
     start: Instant,
     writes: Vec<(u64, String)>,
@@ -267,8 +268,13 @@ async fn run_timeline(writes: Vec<(u64, String)>, cancel_at_ms: u64) -> Record {
     let poll = move |mut tl: Timeline, mode: PollMode| {
         let rec = Rc::clone(&poll_record);
         async move {
-            assert!(!tl.final_seen, "poll after final poll");
-            tl.final_seen = mode != PollMode::Live;
+            assert!(
+                mode != PollMode::Live || !tl.final_seen,
+                "live poll after final poll"
+            );
+            if mode != PollMode::Live {
+                tl.final_seen = true;
+            }
             let now = ms_since(tl.start);
             rec.borrow_mut().polls.push(now);
             let mut lines = Vec::new();
@@ -279,7 +285,7 @@ async fn run_timeline(writes: Vec<(u64, String)>, cancel_at_ms: u64) -> Record {
                 lines.push(line.clone());
                 tl.next += 1;
             }
-            Ok((tl, lines, false))
+            Ok((tl, lines, false, None))
         }
     };
     let sink_record = Rc::clone(&record);
@@ -366,7 +372,7 @@ async fn cancel_drain_is_bounded_when_backlog_never_ends() {
     let poll_modes = Rc::clone(&modes);
     let poll = move |n: u32, mode: PollMode| {
         poll_modes.borrow_mut().push(mode);
-        async move { Ok((n + 1, vec![format!("chunk {n}")], true)) }
+        async move { Ok((n + 1, vec![format!("chunk {n}")], true, None)) }
     };
     let mut batches = 0;
     tokio::time::timeout(
@@ -382,7 +388,144 @@ async fn cancel_drain_is_bounded_when_backlog_never_ends() {
     assert_eq!(modes.len(), bound);
     assert!(modes[..bound - 1].iter().all(|m| *m == PollMode::Drain));
     assert_eq!(modes[bound - 1], PollMode::Last);
-    assert_eq!(batches, bound);
+    // The lines of every drain poll plus the cut-short Dropped notice.
+    assert_eq!(batches, bound + 1);
+}
+
+#[tokio::test(start_paused = true)]
+async fn live_backlog_polls_again_without_waiting_for_a_window() {
+    let cancel = CancellationToken::new();
+    let canceller = cancel.clone();
+    let start = Instant::now();
+    let record = Rc::new(RefCell::new(Vec::new()));
+    let rec = Rc::clone(&record);
+    let poll = move |n: u32, mode: PollMode| {
+        if n == 3 {
+            canceller.cancel();
+        }
+        rec.borrow_mut().push((n, ms_since(start), mode));
+        // Backlog pending throughout the live phase; drained once cancelled.
+        async move {
+            let more = mode == PollMode::Live;
+            Ok((n + 1, vec![format!("l{n}")], more, None))
+        }
+    };
+    let mut batches = Vec::new();
+    drive(0_u32, poll, TailConfig::default(), cancel, |b| {
+        batches.push(b);
+    })
+    .await
+    .expect("drive");
+    let record = record.borrow();
+    // Four live polls and one drain poll, all at t=0.
+    assert_eq!(record.len(), 5, "polls: {record:?} batches: {batches:?}");
+    assert!(
+        record.iter().all(|(_, at, _)| *at == 0),
+        "backlog polls never slept: {record:?}"
+    );
+    assert!(
+        batches.iter().all(|b| matches!(b, LogBatch::Lines(_))),
+        "only line batches, no Dropped: {batches:?}"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn transient_poll_errors_retry_with_backoff_and_recover() {
+    let cancel = CancellationToken::new();
+    let canceller = cancel.clone();
+    let start = Instant::now();
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let call_log = Rc::clone(&calls);
+    let poll = move |n: u32, _mode: PollMode| {
+        call_log.borrow_mut().push(ms_since(start));
+        let canceller = canceller.clone();
+        async move {
+            match n {
+                1 | 2 => Err((n + 1, io::Error::other("simulated poll failure"))),
+                3 => {
+                    canceller.cancel();
+                    Ok((4, vec!["recovered".to_owned()], false, None))
+                }
+                _ => Ok((n + 1, Vec::new(), false, None)),
+            }
+        }
+    };
+    let mut batches = Vec::new();
+    drive(0_u32, poll, TailConfig::default(), cancel, |b| {
+        batches.push(b);
+    })
+    .await
+    .expect("drive recovers from transient errors");
+
+    let calls = calls.borrow();
+    // Poll 1 (n=0) succeeds but is empty, so the interval backs off to 66;
+    // each subsequent error doubles it again (132, 264). After recovery the
+    // cancellation ends the run immediately (biased select).
+    assert_eq!(*calls, vec![0, 66, 198, 462, 462], "poll times: {calls:?}");
+    assert_eq!(batches, vec![LogBatch::Lines(vec!["recovered".to_owned()])]);
+}
+
+#[tokio::test(start_paused = true)]
+async fn persistent_poll_errors_stop_after_a_bounded_streak() {
+    let cancel = CancellationToken::new();
+    let calls = Rc::new(RefCell::new(0_u32));
+    let call_count = Rc::clone(&calls);
+    let poll = move |n: u32, _mode: PollMode| {
+        *call_count.borrow_mut() += 1;
+        async move { Err::<(u32, Vec<String>, bool, Option<u64>), _>((n, io::Error::other("down"))) }
+    };
+    let result = drive(0_u32, poll, TailConfig::default(), cancel, |_| {}).await;
+    assert!(result.is_err(), "a persistent failure surfaces");
+    assert_eq!(
+        *calls.borrow(),
+        MAX_CONSECUTIVE_POLL_ERRORS,
+        "one attempt per error, then give up"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn follow_emits_dropped_notice_when_the_final_drain_is_capped() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("flood.log");
+    // More than FINAL_DRAIN_CHUNKS × READ_CHUNK (4 MiB) of complete lines.
+    let content: String = (0..400_000)
+        .map(|i| format!("flood line {i:06}\n"))
+        .collect();
+    assert!(content.len() as u64 > FINAL_DRAIN_CHUNKS as u64 * READ_CHUNK);
+    append(&path, content.as_bytes());
+
+    let cancel = CancellationToken::new();
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    let task = tokio::spawn(follow(
+        path.clone(),
+        TailConfig::default(),
+        cancel.clone(),
+        move |batch| {
+            tx.send(batch).expect("receiver alive");
+        },
+    ));
+    // Cancel before the live phase can read (test file written above).
+    cancel.cancel();
+    tokio::time::timeout(FOLLOW_WAIT, task)
+        .await
+        .expect("follow stops in time")
+        .expect("join")
+        .expect("follow");
+
+    let mut total_lines = 0usize;
+    let mut dropped = None;
+    while let Ok(Some(batch)) = recv(&mut rx).await {
+        match batch {
+            LogBatch::Lines(lines) => total_lines += lines.len(),
+            LogBatch::Dropped { n } => dropped = Some(n),
+        }
+    }
+    // Either everything was drained live, or the capped drain left a visible
+    // notice — no silent loss either way.
+    if total_lines < 400_000 {
+        let n = dropped.expect("a Dropped notice covers the unread remainder");
+        assert!(n > 0, "the estimate counts unread bytes");
+    }
 }
 
 const FOLLOW_WAIT: Duration = Duration::from_secs(5);

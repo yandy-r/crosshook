@@ -264,9 +264,12 @@ other public `host_command*` builders omit `--watch-bus`, so cancelling a job
 that uses them leaves the host process running.
 
 `jobs` also hosts the process helpers used by the Tauri shell:
-`create_log_path` (`/tmp/crosshook-logs/<prefix>-<slug>-<millis>.log`),
-`slugify_target`, and `kill_processes_using_prefix` (`/proc/*/environ`
-prefix sweep via the host gateway `kill`).
+`create_log_path` (`/tmp/crosshook-logs/<prefix>-<slug>-<millis>.log`) and its
+log-dir seam `create_log_path_in(dir, …)` (used by `LaunchService::with_log_dir`
+in tests), `slugify_target`, and `kill_processes_using_prefix` (`/proc/*/environ`
+prefix sweep via the host gateway `kill`). Log files are created with
+`create_new` plus a `-N` uniqueness suffix, so two same-millisecond launches
+never share or truncate one log.
 
 ## Storage boundary
 

@@ -23,6 +23,9 @@ pub(crate) struct LaunchLogRelayState {
     pub(crate) gamescope_xdg_backend_seen: bool,
     pub(crate) gamescope_xdg_backend_suppressed: usize,
     pub(crate) suppression_notice_emitted: bool,
+    /// Whether the suppression summary line has been emitted (at most once
+    /// per session, before the first post-log diagnostic/injection).
+    pub(crate) summary_emitted: bool,
 }
 
 pub(crate) fn is_gamescope_xdg_backend_line(line: &str) -> bool {
@@ -164,14 +167,11 @@ impl InjectionLogEvent {
     /// Builds the unchanged wire shape from service row data; `at` is
     /// formatted RFC 3339 here (the service carries `SystemTime`, S4).
     pub(crate) fn from_data(session_id: SessionId, data: &InjectionLogData) -> Self {
-        let trimmed = data.profile_name.trim();
         Self {
             timestamp: chrono::DateTime::<chrono::Utc>::from(data.at).to_rfc3339(),
-            profile_name: if trimmed.is_empty() {
-                "Unknown profile".to_string()
-            } else {
-                trimmed.to_string()
-            },
+            // `InjectionLogData::new` already trims and falls back to
+            // "Unknown profile"; clone as-is (no double normalisation).
+            profile_name: data.profile_name.clone(),
             session_id: session_id.to_string(),
             session_kind: data.session_kind.into(),
             level: data.level.into(),

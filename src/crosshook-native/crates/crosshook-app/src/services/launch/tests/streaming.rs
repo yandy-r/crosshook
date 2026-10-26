@@ -58,25 +58,136 @@ async fn lossy_pipe_tee_survives_bad_utf8_and_overlong_line() {
         .unwrap();
     assert!(status.success(), "exit 0 despite bad bytes and a huge line");
 
-    // Every byte is in the log; decoded lines are lossy and bounded (D7).
+    // Every byte is in the log, byte-exact: over-long reads pass through
+    // without inserted separators; decoded lines are lossy and bounded (D7).
     let log = std::fs::read(&log_path).unwrap();
-    // The 1 MiB line is split into 16 capped pieces; each inserted '\n'
-    // separator adds one byte, so the log holds the payload plus separators.
     assert_eq!(
         log.len(),
-        6 + 1_048_576 + 1 + 16,
-        "every tee byte landed in the log"
+        6 + 1_048_576 + 1,
+        "every tee byte landed in the log, with no synthetic separators"
     );
+    assert_eq!(log[6..].iter().filter(|b| **b == b'\n').count(), 1);
     assert!(log.starts_with(b"bad\xff\xfe\n"));
     let text = String::from_utf8_lossy(&log);
     assert!(
         text.contains("bad\u{FFFD}\u{FFFD}"),
         "invalid UTF-8 decoded lossily"
     );
+    // The log itself is byte-exact, so it still holds the full 1 MiB
+    // newline-free run; the 64 KiB cap applies to the *decoded tail lines*
+    // (`LogTail`), not to the stored bytes.
+    assert_eq!(text.lines().count(), 2);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn newline_free_flood_is_streamed_with_bounded_memory() {
+    let root = TempDir::new().unwrap();
+    let log_path = root.path().join("flood.log");
+    std::fs::File::create(&log_path).unwrap();
+    let registry = crosshook_core::launch::LaunchSessionRegistry::new();
+    let (session_id, _rx) = registry.register(SessionKind::Game, "newline-free");
+    let (publisher, mut events) = EventPublisher::channel(session_id);
+
+    // 8 MiB with no newline, then sleep: the tail must already be flowing
+    // (bounded reads, LogTail's partial cap) long before the child exits.
+    let mut child = piped_child("head -c 8388608 /dev/zero | tr '\\0' 'A'; sleep 2; printf '\\n'");
+    let publisher_clone = publisher.clone();
+    let log_for_stream = log_path.clone();
+    let stream = tokio::spawn(async move {
+        stream_child_log(&mut child, &log_for_stream, move |batch| {
+            publisher_clone.log(batch);
+        })
+        .await
+    });
+
+    // Wait until the writer has streamed well past one PARTIAL_CAP piece,
+    // while the child is still sleeping.
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        let written = std::fs::metadata(&log_path).map(|m| m.len()).unwrap_or(0);
+        if written > (PARTIAL_CAP * 4) as u64 {
+            break;
+        }
+        assert!(Instant::now() < deadline, "log never grew; pipe blocked");
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+
+    // The sink is already receiving capped partial lines, even though the
+    // child has not written a newline or exited.
+    let deadline = Instant::now() + Duration::from_secs(2);
+    let mut streamed_bytes = 0usize;
+    while Instant::now() < deadline {
+        match events.recv().await {
+            Some(LaunchEvent::Log {
+                batch: LogBatch::Lines(lines),
+                ..
+            }) => streamed_bytes += lines.iter().map(|l| l.len() + 1).sum::<usize>(),
+            Some(_) => {}
+            None => break,
+        }
+        if streamed_bytes > PARTIAL_CAP * 2 {
+            break;
+        }
+    }
     assert!(
-        text.lines().all(|line| line.len() <= PARTIAL_CAP),
-        "no decoded line exceeds the 64 KiB partial cap"
+        streamed_bytes > PARTIAL_CAP * 2,
+        "partial lines streamed live, got {streamed_bytes} bytes"
     );
+    assert!(!stream.is_finished(), "child is still sleeping");
+
+    let status = stream.await.unwrap().unwrap();
+    assert!(status.success(), "child exited on its own");
+
+    // Byte-exact: 8 MiB of 'A' plus the trailing newline, nothing inserted.
+    let log = std::fs::read(&log_path).unwrap();
+    assert_eq!(log.len(), 8_388_608 + 1, "log is byte-exact");
+    assert!(log.iter().take(8_388_608).all(|b| *b == b'A'));
+    assert_eq!(log[8_388_608], b'\n');
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn exiting_after_a_large_burst_delivers_every_line_or_a_dropped_notice() {
+    let root = TempDir::new().unwrap();
+    let log_path = root.path().join("burst.log");
+    std::fs::File::create(&log_path).unwrap();
+    let registry = crosshook_core::launch::LaunchSessionRegistry::new();
+    let (session_id, _rx) = registry.register(SessionKind::Game, "burst-exit");
+    let (publisher, mut events) = EventPublisher::channel(session_id);
+
+    // ~9 MiB of distinct numbered lines written in one burst, then exit:
+    // larger than the bounded final drain (4 MiB).
+    let mut child = piped_child("seq 1 360000");
+    let publisher_clone = publisher.clone();
+    let status = stream_child_log(&mut child, &log_path, move |batch| {
+        publisher_clone.log(batch);
+    })
+    .await
+    .unwrap();
+    assert!(status.success());
+    // Close the channel so the drain terminates once the queue is empty.
+    drop(publisher);
+
+    let mut saw: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut dropped = 0u64;
+    for event in events.drain_ready() {
+        if let LaunchEvent::Log { batch, .. } = event {
+            match batch {
+                LogBatch::Lines(lines) => saw.extend(lines),
+                LogBatch::Dropped { n } => dropped += n,
+            }
+        }
+    }
+    if dropped == 0 {
+        for n in [1u32, 180_000, 360_000] {
+            assert!(
+                saw.contains(&n.to_string()),
+                "line {n} delivered; saw {} lines, dropped {dropped}",
+                saw.len()
+            );
+        }
+    } else {
+        assert!(dropped > 0, "the Dropped notice counts unread bytes");
+    }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

@@ -299,8 +299,16 @@ impl Default for TailConfig {
 
 /// Maximum polls [`follow`] runs after cancellation to drain a backlog
 /// (16 × [`READ_CHUNK`] = 4 MiB), so cancellation stays prompt even when a
-/// writer outpaces the reader. Bytes still pending afterwards are not read.
+/// writer outpaces the reader. When this cap cuts the drain short while the
+/// tail still reports a backlog, a [`LogBatch::Dropped`] notice estimates
+/// the unread bytes instead of losing them silently.
 pub const FINAL_DRAIN_CHUNKS: u32 = 16;
+
+/// Consecutive poll errors [`drive`] tolerates before giving up. Between
+/// errors the poll is retried with a doubling delay starting at the
+/// coalescing window and capped at the idle backoff ceiling, so a transient
+/// I/O error does not end streaming for the rest of the session.
+const MAX_CONSECUTIVE_POLL_ERRORS: u32 = 8;
 
 /// What a poll in [`drive`] must do with the buffered partial line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -317,18 +325,22 @@ enum PollMode {
 /// Tails `path` until `cancel` fires, delivering coalesced lines to `sink`.
 ///
 /// Polls once immediately, then every coalescing window while data flows;
-/// each empty poll doubles the interval up to `idle_backoff_max`, and new
-/// data resets it. All lines read by one poll (at most [`READ_CHUNK`] bytes)
-/// form one [`LogBatch::Lines`]; a larger backlog is delivered over the
-/// following windows. Empty batches are never emitted. On cancellation the
-/// remaining bytes are read without waiting, up to [`FINAL_DRAIN_CHUNKS`]
-/// polls; then the unterminated trailing line (if any) is flushed and the
-/// function returns. File reads run on Tokio's blocking pool, so `sink`
-/// should be non-blocking.
+/// while the tail reports a backlog the next poll runs without delay. Each
+/// empty poll doubles the interval up to `idle_backoff_max`, and new data
+/// resets it. All lines read by one poll (at most [`READ_CHUNK`] bytes) form
+/// one [`LogBatch::Lines`]; a larger backlog is delivered over the following
+/// polls. Empty batches are never emitted. On cancellation the remaining
+/// bytes are read without waiting, up to [`FINAL_DRAIN_CHUNKS`] polls; if
+/// that cap cuts the drain short, a [`LogBatch::Dropped`] notice estimates
+/// the unread bytes. Then the unterminated trailing line (if any) is
+/// flushed and the function returns. A live-phase poll I/O error is logged
+/// and retried with backoff, up to a bounded streak. File reads run on
+/// Tokio's blocking pool, so `sink` should be non-blocking.
 ///
 /// # Errors
-/// Returns the first I/O error from reading the file, or an error if the
-/// blocking read task panicked.
+/// Returns the I/O error after a bounded streak of consecutive poll
+/// failures, a drain-phase poll error, or an error if the blocking read
+/// task panicked.
 pub async fn follow(
     path: impl Into<PathBuf>,
     config: TailConfig,
@@ -347,33 +359,57 @@ pub async fn follow(
             (tail, result)
         })
         .await
-        .map_err(io::Error::other)?;
-        let (lines, more) = result?;
-        Ok((tail, lines, more))
+        .unwrap_or_else(|join_error| {
+            panic!("log tail blocking read task failed: {join_error}");
+        });
+        match result {
+            Ok((lines, more)) => {
+                let dropped = if mode == PollMode::Last && more {
+                    // The bounded drain was cut short with bytes still
+                    // pending; estimate them instead of losing them
+                    // silently.
+                    Some(dropped_estimate(&tail))
+                } else {
+                    None
+                };
+                Ok((tail, lines, more, dropped))
+            }
+            Err(error) => Err((tail, error)),
+        }
     };
-    drive(LogTail::new(path), poll, config, cancel, sink).await
+    match drive(LogTail::new(path), poll, config, cancel, sink).await {
+        Ok(()) => Ok(()),
+        Err((_, error)) => Err(error),
+    }
 }
 
 /// Time-driven core of [`follow`], generic over the poll so the cadence can
 /// be tested deterministically. The poll takes the state by value and hands
-/// it back with the lines read and whether more bytes are already pending.
-/// After cancellation it is called with [`PollMode::Drain`] without delay
-/// while it reports more pending, at most [`FINAL_DRAIN_CHUNKS`] times in
-/// total, the last of which uses [`PollMode::Last`].
+/// it back with the lines read, whether more bytes are already pending, and
+/// an estimate of unread bytes when the bounded final drain is cut short.
+/// While it reports more pending, the next poll runs without delay. After
+/// cancellation it is called with [`PollMode::Drain`] without delay while it
+/// reports more pending, at most [`FINAL_DRAIN_CHUNKS`] times in total, the
+/// last of which uses [`PollMode::Last`]. A live-phase poll error is
+/// retried with backoff up to a bounded streak, not propagated at once.
 async fn drive<S, P, F>(
-    mut state: S,
+    state: S,
     mut poll: P,
     config: TailConfig,
     cancel: CancellationToken,
     mut sink: impl FnMut(LogBatch),
-) -> io::Result<()>
+) -> Result<(), (S, io::Error)>
 where
     P: FnMut(S, PollMode) -> F,
-    F: Future<Output = io::Result<(S, Vec<String>, bool)>>,
+    F: Future<Output = Result<(S, Vec<String>, bool, Option<u64>), (S, io::Error)>>,
 {
     let (window, idle_max) = config.effective();
+    // Held in an Option so a failed poll can hand the state back for the
+    // retry instead of losing it to the moved-into future.
+    let mut slot = Some(state);
     let mut interval = window;
     let mut drain_polls = 0;
+    let mut errors = 0;
     loop {
         let mode = if !cancel.is_cancelled() {
             PollMode::Live
@@ -385,27 +421,78 @@ where
                 PollMode::Drain
             }
         };
-        let (next, lines, more) = poll(state, mode).await?;
-        state = next;
+        let polled = poll(slot.take().expect("state in slot"), mode).await;
+        let (next, lines, more, dropped) = match polled {
+            Ok(done) => {
+                errors = 0;
+                done
+            }
+            Err((prev, error)) if mode == PollMode::Live => {
+                errors += 1;
+                if errors >= MAX_CONSECUTIVE_POLL_ERRORS {
+                    return Err((prev, error));
+                }
+                slot = Some(prev);
+                tracing::warn!(
+                    %error,
+                    attempt = errors,
+                    "log tail poll failed; retrying with backoff"
+                );
+                interval = interval.saturating_mul(2).min(idle_max);
+                tokio::select! {
+                    biased;
+                    () = cancel.cancelled() => {}
+                    () = tokio::time::sleep(interval) => {}
+                }
+                continue;
+            }
+            // An error in the drain phase keeps cancellation prompt.
+            Err((state, error)) => return Err((state, error)),
+        };
+        slot = Some(next);
         let got_lines = !lines.is_empty();
         if got_lines {
             sink(LogBatch::Lines(lines));
         }
         match mode {
-            PollMode::Last => return Ok(()),
+            PollMode::Last => {
+                if more {
+                    sink(LogBatch::Dropped {
+                        n: dropped.unwrap_or(0),
+                    });
+                }
+                return Ok(());
+            }
             PollMode::Drain if !more => return Ok(()),
+            // A drain poll with more pending reruns immediately.
             PollMode::Drain => continue,
-            PollMode::Live => {}
+            PollMode::Live => {
+                // Backlog pending: poll again without delay so a writer
+                // faster than the window cannot leave lines for the final
+                // drain to lose.
+                if more {
+                    interval = window;
+                    continue;
+                }
+                interval = if got_lines {
+                    window
+                } else {
+                    interval.saturating_mul(2).min(idle_max)
+                };
+            }
         }
-        interval = if more || got_lines {
-            window
-        } else {
-            interval.saturating_mul(2).min(idle_max)
-        };
         tokio::select! {
             biased;
             () = cancel.cancelled() => {}
             () = tokio::time::sleep(interval) => {}
         }
     }
+}
+
+/// Rough estimate of bytes the bounded final drain could have left behind:
+/// what the writer produced beyond what the tail already consumed. The tail
+/// may lag the writer further (in-flight bytes), so this can undercount.
+fn dropped_estimate(tail: &LogTail) -> u64 {
+    let written = std::fs::metadata(tail.path()).map(|m| m.len()).unwrap_or(0);
+    written.saturating_sub(tail.bytes_read())
 }

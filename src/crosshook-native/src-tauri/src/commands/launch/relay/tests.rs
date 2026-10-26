@@ -8,8 +8,8 @@ use crosshook_core::launch::{DiagnosticReport, SessionKind};
 use serde_json::{json, Value};
 
 use super::payloads::{
-    suppression_summary_line, transform_launch_log_line_for_ui, InjectionLogEvent,
-    LaunchCompletePayload, LaunchLogRelayState,
+    suppression_summary_line, transform_launch_log_line_for_ui, LaunchCompletePayload,
+    LaunchLogRelayState,
 };
 use super::{map_event, RelayEmit};
 
@@ -300,23 +300,57 @@ fn blank_lines_not_emitted_and_dropped_becomes_one_visible_line() {
 }
 
 #[test]
-fn injection_event_trims_and_falls_back_to_unknown_profile() {
-    let (id, _) = session();
-    let mut data = InjectionLogData::new(
-        Some("   "),
-        SessionKind::Game,
-        InjectionLevel::Info,
-        InjectionSource::Runtime,
-        "Trainer lifecycle complete.",
-        false,
+fn xdg_backend_summary_precedes_diagnostic_after_log_lines() {
+    // D5 order: the suppression summary lands right after the last log line,
+    // before the first Diagnostic (or Injection), not after them.
+    let (id, id_str) = session();
+    let mut state = LaunchLogRelayState::default();
+    let noise =
+        "[gamescope] [Error] xdg_backend: Compositor released us but we were not acquired. Oh no.";
+    let batch = |state: &mut LaunchLogRelayState| {
+        map_event(
+            state,
+            LaunchEvent::Log {
+                session_id: id,
+                batch: LogBatch::Lines(vec![noise.to_string()]),
+            },
+        )
+    };
+    // First line verbatim; two more suppressed (notice + silent).
+    assert_eq!(batch(&mut state).len(), 1);
+    assert_eq!(batch(&mut state).len(), 1);
+    assert!(batch(&mut state).is_empty());
+    assert_eq!(state.gamescope_xdg_backend_suppressed, 2);
+
+    let report: DiagnosticReport =
+        serde_json::from_value(login_fixture("launch_diagnostic.json")).expect("report");
+    let emits = map_event(
+        &mut state,
+        LaunchEvent::Diagnostic {
+            session_id: id,
+            report: Box::new(report),
+        },
     );
-    data.at = UNIX_EPOCH;
-    // InjectionLogData::new already normalises, so build the wire event directly.
-    let event = InjectionLogEvent::from_data(id, &data);
-    let value = serde_json::to_value(&event).unwrap();
-    assert_eq!(value["profile_name"], "Unknown profile");
-    assert_eq!(value["session_kind"], "game");
-    assert_eq!(value["level"], "info");
-    assert_eq!(value["source"], "runtime");
-    assert!(value.get("unsupported_runtime").is_none());
+    assert_eq!(emits.len(), 2);
+    assert!(matches!(emits[0], RelayEmit::Log { .. }));
+    let summary = &emits[0].payload_value();
+    assert_eq!(summary["session_id"], id_str);
+    assert!(summary["line"]
+        .as_str()
+        .unwrap()
+        .contains("2 repeated gamescope xdg_backend lines"));
+    assert!(matches!(emits[1], RelayEmit::Diagnostic { .. }));
+    assert!(state.summary_emitted);
+
+    // Emitted once: Exited no longer prepends the summary.
+    let emits = map_event(
+        &mut state,
+        LaunchEvent::Exited {
+            session_id: id,
+            code: Some(0),
+            signal: None,
+        },
+    );
+    assert_eq!(emits.len(), 1);
+    assert!(matches!(emits[0], RelayEmit::Complete(_)));
 }

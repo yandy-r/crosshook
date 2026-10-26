@@ -15,7 +15,8 @@ use std::sync::Arc;
 use crosshook_core::launch::diagnostics::{FailureMode, MAX_LOG_TAIL_BYTES};
 use crosshook_core::launch::{
     analyze, run_post_exit_hooks, should_surface_report, DiagnosticReport,
-    LaunchHookExecutionContext, SessionKind, TeardownReason, ValidationSeverity,
+    LaunchHookExecutionContext, LaunchSessionRegistry, SessionId, SessionKind, TeardownReason,
+    ValidationSeverity,
 };
 use crosshook_core::profile::LaunchHook;
 use tokio::runtime::Handle;
@@ -208,20 +209,11 @@ impl SessionGuard {
         if self.cascaded {
             return;
         }
-        if self.ctx.kind == SessionKind::Game {
-            let signalled = self
-                .ctx
-                .registry
-                .cancel_linked_children(self.ctx.session_id, TeardownReason::LinkedSessionExit);
-            if signalled > 0 {
-                tracing::info!(
-                    game_session_id = %self.ctx.session_id,
-                    linked_trainers = signalled,
-                    "launch session: cascading LinkedSessionExit to trainer children"
-                );
-            }
-        }
         self.cascaded = true;
+        if self.ctx.kind != SessionKind::Game {
+            return;
+        }
+        cascade_linked_children(&self.ctx.registry, self.ctx.session_id);
     }
 
     async fn run_hooks(&mut self) {
@@ -282,19 +274,9 @@ impl SessionGuard {
         if self.ctx.kind != SessionKind::Game {
             return;
         }
-        let registry = Arc::clone(&self.ctx.registry);
-        let session_id = self.ctx.session_id;
-        catch_registry(move || {
-            let signalled =
-                registry.cancel_linked_children(session_id, TeardownReason::LinkedSessionExit);
-            if signalled > 0 {
-                tracing::info!(
-                    game_session_id = %session_id,
-                    linked_trainers = signalled,
-                    "launch session: cascading LinkedSessionExit to trainer children"
-                );
-            }
-        });
+        // Registry locks panic on poison; a panic while already unwinding
+        // would abort, so the call is caught.
+        catch_registry(|| cascade_linked_children(&self.ctx.registry, self.ctx.session_id));
     }
 
     fn hooks_from_drop(&mut self) {
@@ -346,6 +328,20 @@ fn log_hook_warnings(hooks: &[LaunchHook], context: &LaunchHookExecutionContext)
             code = warning.code.as_deref().unwrap_or(""),
             message = %warning.message,
             "post-exit launch hook warning"
+        );
+    }
+}
+
+/// Signals a game session's linked trainers with `LinkedSessionExit`. Shared
+/// by the normal finish path and the drop path so the cascade can only ever
+/// run once, from one implementation.
+fn cascade_linked_children(registry: &Arc<LaunchSessionRegistry>, session_id: SessionId) {
+    let signalled = registry.cancel_linked_children(session_id, TeardownReason::LinkedSessionExit);
+    if signalled > 0 {
+        tracing::info!(
+            game_session_id = %session_id,
+            linked_trainers = signalled,
+            "launch session: cascading LinkedSessionExit to trainer children"
         );
     }
 }

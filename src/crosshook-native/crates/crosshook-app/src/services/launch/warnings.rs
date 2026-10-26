@@ -16,6 +16,8 @@ use crosshook_core::offline::readiness::MIN_OFFLINE_READINESS_SCORE;
 use crosshook_core::profile::ProfileStore;
 use crosshook_core::storage::{check_low_disk_warning, DEFAULT_LOW_DISK_WARNING_MB};
 
+use super::run_blocking;
+
 /// All advisories collected for one launch.
 pub(super) struct LaunchWarnings {
     /// Every warning, in collector order: low-disk, offline, trainer-hash,
@@ -64,33 +66,41 @@ async fn collect_offline_warnings(
     }
     let ps = profiles.clone();
     let ms = metadata.clone();
-    tokio::task::spawn_blocking(move || {
+    // `run_blocking` maps a join error (panic/cancel) to a logged, sanitized
+    // `AppError` instead of silently discarding it.
+    match run_blocking(move || {
         let profile = match ps.load(&name) {
             Ok(p) => p,
-            Err(_) => return Vec::new(),
+            Err(_) => return Ok(Vec::new()),
         };
         if profile.effective_profile().trainer.path.trim().is_empty() {
-            return Vec::new();
+            return Ok(Vec::new());
         }
         let profile_id = match ms.lookup_profile_id(&name) {
             Ok(Some(id)) => id,
-            Ok(None) | Err(_) => return Vec::new(),
+            Ok(None) | Err(_) => return Ok(Vec::new()),
         };
         let report = match ms.check_offline_readiness_for_profile(&name, &profile_id, &profile) {
             Ok(r) => r,
-            Err(_) => return Vec::new(),
+            Err(_) => return Ok(Vec::new()),
         };
         if report.score >= MIN_OFFLINE_READINESS_SCORE {
-            return Vec::new();
+            return Ok(Vec::new());
         }
-        vec![ValidationError::OfflineReadinessInsufficient {
+        Ok(vec![ValidationError::OfflineReadinessInsufficient {
             score: report.score,
             reasons: report.blocking_reasons.clone(),
         }
-        .issue()]
+        .issue()])
     })
     .await
-    .unwrap_or_default()
+    {
+        Ok(issues) => issues,
+        Err(error) => {
+            tracing::warn!(%error, "offline readiness join failed");
+            Vec::new()
+        }
+    }
 }
 
 /// SHA-256 baseline / community digest advisory (non-blocking).
@@ -111,19 +121,29 @@ async fn collect_trainer_hash_warnings(
     }
     let ps = profiles.clone();
     let ms = metadata.clone();
-    tokio::task::spawn_blocking(move || {
+    match run_blocking(move || {
         let profile = match ps.load(&name) {
             Ok(p) => p,
-            Err(_) => return Vec::new(),
+            Err(_) => return Ok(Vec::new()),
         };
         let profile_id = match ms.lookup_profile_id(&name) {
             Ok(Some(id)) => id,
-            Ok(None) | Err(_) => return Vec::new(),
+            Ok(None) | Err(_) => return Ok(Vec::new()),
         };
-        collect_trainer_hash_launch_warnings(&ms, &profile_id, &profile)
+        Ok(collect_trainer_hash_launch_warnings(
+            &ms,
+            &profile_id,
+            &profile,
+        ))
     })
     .await
-    .unwrap_or_default()
+    {
+        Ok(issues) => issues,
+        Err(error) => {
+            tracing::warn!(%error, "trainer hash warning join failed");
+            Vec::new()
+        }
+    }
 }
 
 /// Mod-coexistence advisories (non-blocking). Also the only collector the
@@ -146,25 +166,36 @@ pub(super) async fn collect_mod_coexistence_warnings(
     let request = request.clone();
     let profile_store = profiles.clone();
     let metadata_store = metadata.clone();
-    tokio::task::spawn_blocking(move || {
+    match run_blocking(move || {
         // Cheap DB checks first — skip the profile TOML load entirely when the
         // profile is unknown or has no enabled mods (the common preview case).
         let profile_id = match metadata_store.lookup_profile_id(&name) {
             Ok(Some(id)) => id,
-            Ok(None) | Err(_) => return Vec::new(),
+            Ok(None) | Err(_) => return Ok(Vec::new()),
         };
         match metadata_store.list_enabled_profile_mods(&profile_id) {
             Ok(mods) if !mods.is_empty() => {}
-            _ => return Vec::new(),
+            _ => return Ok(Vec::new()),
         }
         let profile = match profile_store.load(&name) {
             Ok(p) => p,
-            Err(_) => return Vec::new(),
+            Err(_) => return Ok(Vec::new()),
         };
-        collect_mod_coexistence_launch_warnings(&metadata_store, &profile_id, &profile, &request)
+        Ok(collect_mod_coexistence_launch_warnings(
+            &metadata_store,
+            &profile_id,
+            &profile,
+            &request,
+        ))
     })
     .await
-    .unwrap_or_default()
+    {
+        Ok(issues) => issues,
+        Err(error) => {
+            tracing::warn!(%error, "mod coexistence warning join failed");
+            Vec::new()
+        }
+    }
 }
 
 /// Compacts mod-coexistence issues into diagnostic records (codes + severity),

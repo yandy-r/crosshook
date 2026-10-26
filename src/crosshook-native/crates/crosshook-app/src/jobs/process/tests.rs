@@ -10,7 +10,10 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio_util::sync::CancellationToken;
 
-use super::{environ_entry_contains_prefix_path, slugify_target, supervise_child, ChildExit};
+use super::{
+    create_log_path, create_log_path_in, environ_entry_contains_prefix_path, slugify_target,
+    supervise_child, ChildExit, LOG_DIR,
+};
 
 const GRACE: Duration = Duration::from_millis(200);
 
@@ -231,4 +234,51 @@ fn prefix_path_accepts_colon_separated_path_list() {
         b"PATH=/a:/foo/bar:/c",
         prefix
     ));
+}
+
+#[test]
+fn create_log_path_writes_into_the_shared_tmp_directory() {
+    let path = create_log_path("logdir-prod", "slug").expect("production log path");
+
+    assert_eq!(path.parent(), Some(Path::new(LOG_DIR)));
+    assert!(path.is_file());
+    let _ = std::fs::remove_file(path);
+}
+
+#[test]
+fn create_log_path_in_creates_the_directory_and_a_unique_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let nested = dir.path().join("deep/logs");
+
+    let path = create_log_path_in(nested.clone(), "game", "quest")
+        .expect("log file in the given directory");
+
+    assert_eq!(path.parent(), Some(nested.as_path()));
+    assert!(path.is_file(), "the log file exists and is empty");
+    assert!(path
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .starts_with("game-quest-"));
+}
+
+#[test]
+fn create_log_path_in_never_truncates_an_existing_same_millisecond_file() {
+    let dir = tempfile::tempdir().unwrap();
+    // Two sessions in the same millisecond resolve to the same stem; the
+    // second call must not open (and truncate) the first file.
+    let first =
+        create_log_path_in(dir.path().to_path_buf(), "game", "twin").expect("first log file");
+    std::fs::write(&first, b"first-session-bytes").unwrap();
+
+    let second =
+        create_log_path_in(dir.path().to_path_buf(), "game", "twin").expect("second log file");
+
+    assert_ne!(first, second, "the second session gets its own file");
+    assert_eq!(
+        std::fs::read(&first).unwrap(),
+        b"first-session-bytes",
+        "the first session's log is never truncated"
+    );
+    assert!(second.is_file());
 }

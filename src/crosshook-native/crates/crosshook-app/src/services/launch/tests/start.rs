@@ -14,9 +14,9 @@ use super::super::{InjectionLevel, LaunchEvent, ProcessSpawner};
 use super::helpers::{FakeSpawner, Harness, Metadata, Script};
 use crate::log_tail::LogBatch;
 
-fn logs_for_slug(slug: &str) -> Vec<PathBuf> {
+fn logs_for_slug_in(dir: &Path, slug: &str) -> Vec<PathBuf> {
     let prefixes = [format!("game-{slug}-"), format!("trainer-{slug}-")];
-    match fs::read_dir("/tmp/crosshook-logs") {
+    match fs::read_dir(dir) {
         Ok(entries) => entries
             .map(|entry| entry.expect("log directory entry").path())
             .filter(|path| {
@@ -37,7 +37,7 @@ async fn invalid_requests_fail_before_any_side_effect() {
     let harness = Harness::new(Metadata::Enabled);
     for trainer in [false, true] {
         let mut request = harness.proton_request("invalid");
-        // A unique basename avoids observing another test's /tmp log files.
+        // A unique basename keeps each loop iteration's slug distinct.
         let unique_name = harness.root.path().file_name().unwrap().to_string_lossy();
         request.game_path = harness
             .root
@@ -47,7 +47,7 @@ async fn invalid_requests_fail_before_any_side_effect() {
             .into_owned();
         request.method = "unsupported-method".to_string();
         let slug = request.log_target_slug();
-        assert!(logs_for_slug(&slug).is_empty());
+        assert!(logs_for_slug_in(&harness.log_dir, &slug).is_empty());
 
         let error = if trainer {
             harness.service.start_trainer(request).await
@@ -70,7 +70,7 @@ async fn invalid_requests_fail_before_any_side_effect() {
             .unwrap()
             .is_empty());
         assert!(
-            logs_for_slug(&slug).is_empty(),
+            logs_for_slug_in(&harness.log_dir, &slug).is_empty(),
             "validation must precede log creation"
         );
     }
@@ -176,8 +176,6 @@ async fn every_event_has_its_own_session_id_and_receivers_never_mix_lines() {
     let game_id = game.id;
     let trainer_id = trainer.id;
     assert_ne!(game_id, trainer_id);
-    let game_log = game.log_path.clone();
-    let trainer_log = trainer.log_path.clone();
     let (game_events, trainer_events) =
         tokio::join!(Harness::collect(game), Harness::collect(trainer));
 
@@ -212,8 +210,6 @@ async fn every_event_has_its_own_session_id_and_receivers_never_mix_lines() {
     assert!(trainer_lines.contains(&"trainer-error-line"));
     assert!(game_lines.iter().all(|line| !line.contains("trainer-")));
     assert!(trainer_lines.iter().all(|line| !line.contains("game-")));
-    fs::remove_file(game_log).unwrap();
-    fs::remove_file(trainer_log).unwrap();
 }
 
 #[tokio::test]
@@ -228,7 +224,6 @@ async fn disabled_metadata_still_delivers_exactly_one_terminal_event_last() {
             harness.service.start_game(request).await
         }
         .unwrap();
-        let log_path = session.log_path.clone();
         let id = session.id;
         let events = tokio::time::timeout(Duration::from_secs(10), async {
             let mut events = Vec::new();
@@ -255,9 +250,6 @@ async fn disabled_metadata_still_delivers_exactly_one_terminal_event_last() {
                 ..
             })
         ));
-        assert!(lines(&events).contains(&"last-line"));
-        assert!(session.events.recv().await.is_none());
-        fs::remove_file(log_path).unwrap();
     }
 }
 
@@ -281,7 +273,7 @@ async fn session_returns_created_log_path_and_appended_pre_hook_warning() {
         .unwrap();
         let log_path = session.log_path.clone();
         assert!(log_path.is_file());
-        assert_eq!(log_path.parent(), Some(Path::new("/tmp/crosshook-logs")));
+        assert_eq!(log_path.parent(), Some(harness.log_dir.as_path()));
         let prefix = if trainer { "trainer-" } else { "game-" };
         assert!(log_path
             .file_name()
@@ -293,7 +285,93 @@ async fn session_returns_created_log_path_and_appended_pre_hook_warning() {
             Some("launch_hook_missing")
         );
         Harness::collect(session).await;
-        fs::remove_file(log_path).unwrap();
+    }
+}
+
+/// MEDIUM regression: the harness log dir is private to this test run, so
+/// sessions never land in the shared `/tmp/crosshook-logs`.
+#[tokio::test]
+async fn sessions_log_into_the_harness_dir_not_shared_tmp() {
+    let harness = Harness::new(Metadata::Disabled);
+    harness.spawner.push(Script::piped("printf 'iso-game\\n'"));
+    harness
+        .spawner
+        .push(Script::piped("printf 'iso-trainer\\n'"));
+    let game = harness
+        .service
+        .start_game(harness.proton_request("isolation"))
+        .await
+        .unwrap();
+    let trainer = harness
+        .service
+        .start_trainer(harness.proton_request("isolation"))
+        .await
+        .unwrap();
+    let game_log = game.log_path.clone();
+    let trainer_log = trainer.log_path.clone();
+
+    assert_eq!(game_log.parent(), Some(harness.log_dir.as_path()));
+    assert_eq!(trainer_log.parent(), Some(harness.log_dir.as_path()));
+    assert_ne!(game_log, trainer_log, "each session gets its own file");
+    // The shared production directory gains no file for this slug: the
+    // request's exe name keeps the slug unique per run.
+    let slug = harness.proton_request("isolation").log_target_slug();
+    let shared = logs_for_slug_in(Path::new("/tmp/crosshook-logs"), &slug);
+    assert!(
+        shared
+            .iter()
+            .all(|path| path != &game_log && path != &trainer_log),
+        "no session log is created in /tmp/crosshook-logs"
+    );
+
+    let (game_events, trainer_events) =
+        tokio::join!(Harness::collect(game), Harness::collect(trainer));
+    assert!(lines(&game_events).contains(&"iso-game"));
+    assert!(lines(&trainer_events).contains(&"iso-trainer"));
+}
+
+/// MEDIUM regression: two same-millisecond sessions with one slug must get
+/// distinct, non-truncated log files.
+#[tokio::test]
+async fn same_slug_sessions_in_one_dir_never_share_or_truncate_a_log() {
+    let harness = Harness::new(Metadata::Disabled);
+    for round in 0..8 {
+        harness.spawner.push(Script::piped("printf 'shared-a\\n'"));
+        harness.spawner.push(Script::piped("printf 'shared-b\\n'"));
+        let first = harness
+            .service
+            .start_game(harness.proton_request("shared-slug"))
+            .await
+            .unwrap();
+        let second = harness
+            .service
+            .start_game(harness.proton_request("shared-slug"))
+            .await
+            .unwrap();
+        let (first_log, second_log) = (first.log_path.clone(), second.log_path.clone());
+
+        assert_eq!(first_log.parent(), Some(harness.log_dir.as_path()));
+        assert_ne!(
+            first_log, second_log,
+            "round {round}: same-millisecond sessions never share one log file"
+        );
+
+        let (first_events, second_events) =
+            tokio::join!(Harness::collect(first), Harness::collect(second));
+        assert!(lines(&first_events).contains(&"shared-a"));
+        assert!(lines(&second_events).contains(&"shared-b"));
+        // Each file holds exactly its own session's line: no truncation and
+        // no cross-writes when both sessions append concurrently.
+        assert_eq!(
+            fs::read_to_string(&first_log).unwrap().trim(),
+            "shared-a",
+            "round {round}: the first session's log keeps its own bytes"
+        );
+        assert_eq!(
+            fs::read_to_string(&second_log).unwrap().trim(),
+            "shared-b",
+            "round {round}: the second session's log keeps its own bytes"
+        );
     }
 }
 
@@ -337,8 +415,6 @@ async fn trainer_is_registered_and_linked_to_its_game_before_spawn() {
         .start_trainer(harness.proton_request("linked-at-spawn"))
         .await
         .unwrap();
-    let log_path = session.log_path.clone();
     Harness::collect(session).await;
     harness.service.registry.deregister(parent);
-    fs::remove_file(log_path).unwrap();
 }

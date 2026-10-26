@@ -151,7 +151,7 @@ impl LaunchService {
         };
 
         // Stream first, then the cancel consumer (I-29). Neither path kills.
-        spawn_session_task(ctx, child, publisher);
+        drop(spawn_session_task(ctx, child, publisher));
         let consumer = choose_cancel_consumer(&gamescope, &request, kind, child_pid);
         spawn_cancel_consumer(
             consumer,
@@ -303,11 +303,17 @@ fn non_empty_trimmed(path: &str) -> Option<String> {
     }
 }
 
-fn spawn_session_task(ctx: SessionContext, child: Child, publisher: EventPublisher) {
+pub(super) fn spawn_session_task(
+    ctx: SessionContext,
+    child: Child,
+    publisher: EventPublisher,
+) -> tokio::task::JoinHandle<()> {
     let log_path = ctx.log_path.clone();
+    // The guard is built before the spawn: if the task is dropped before it
+    // is first polled, `Drop` still tears the session down.
+    let guard = SessionGuard::new(ctx, publisher.clone());
     tokio::spawn(async move {
-        let guard = SessionGuard::new(ctx, publisher.clone());
         let status = stream_session(child, &log_path, &publisher).await;
         guard.finish(status).await;
-    });
+    })
 }

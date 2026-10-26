@@ -2,7 +2,7 @@
 //!
 //! One streaming path serves both spawn modes. When the child's stdout or
 //! stderr is piped, a lossy byte tee drains both pipes into the log file
-//! (one writer task, bounded channel, [`PARTIAL_CAP`] partial-line cap) so a
+//! (one writer task, bounded channel, [`PARTIAL_CAP`]-bounded reads) so a
 //! pipe is never left undrained — even on invalid UTF-8, where the old
 //! line-based reader used to stop (D7). Whether or not a tee is needed,
 //! [`follow`] tails the log file and delivers coalesced [`LogBatch`]es to the
@@ -14,7 +14,7 @@ use std::path::Path;
 use std::process::ExitStatus;
 
 use tokio::fs::OpenOptions;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
 use tokio::process::Child;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -33,12 +33,13 @@ const PIPE_CHANNEL_CAPACITY: usize = 256;
 /// If `child.stdout` or `child.stderr` is piped, one reader per pipe drains
 /// raw bytes (decoding is deferred and lossy) and a single writer appends the
 /// chunks to `log_path` in arrival order, so both streams interleave as one
-/// log. A chunk longer than [`PARTIAL_CAP`] is split into capped pieces; a
-/// write failure stops file writes but never the draining, so the child can
-/// never stall on a full pipe. In every mode [`follow`] runs concurrently,
-/// delivering coalesced, lossily decoded lines to `sink`.
+/// log. Reads are bounded to [`PARTIAL_CAP`] and forwarded byte-exact, so
+/// even a newline-free stream flows in capped pieces; a write failure stops
+/// file writes but never the draining, so the child can never stall on a
+/// full pipe. In every mode [`follow`] runs concurrently, delivering
+/// coalesced, lossily decoded lines to `sink`.
 ///
-/// drain and partial-line flush deliver the last lines before this function
+/// On exit the tee is flushed and the tail runs its bounded final drain and
 /// returns. The child is never killed; with `kill_on_drop` configured, a
 /// still-running child is left to the caller's `Child` drop semantics.
 ///
@@ -101,9 +102,13 @@ pub(super) async fn stream_session(
 ) -> Option<ExitStatus> {
     let mut child = child;
     let publisher = publisher.clone();
-    stream_child_log(&mut child, log_path, move |batch| publisher.log(batch))
-        .await
-        .ok()
+    match stream_child_log(&mut child, log_path, move |batch| publisher.log(batch)).await {
+        Ok(status) => Some(status),
+        Err(error) => {
+            tracing::warn!(%error, "launch log streaming failed; exit status unknown");
+            None
+        }
+    }
 }
 
 /// The running pipe tee: join handles of the per-pipe readers plus the single
@@ -147,12 +152,13 @@ async fn spawn_pipe_tee(child: &mut Child, log_path: &Path) -> PipeTee {
 
 /// Drains one pipe into `tx` until EOF.
 ///
-/// Reads bytes with `read_until(b'\n')`; a chunk that grows past
-/// [`PARTIAL_CAP`] (an over-long line) is flushed as capped pieces and the
-/// buffer is reused. Decoding is deferred to the writer and the tail, both of
-/// which are lossy, so invalid UTF-8 never stops the drain (D7). The child is
-/// never killed; if the channel closes, draining continues to EOF without
-/// sending.
+/// Each read is bounded to [`PARTIAL_CAP`] bytes via `take`, so a
+/// newline-free stream is forwarded as capped raw pieces instead of being
+/// buffered whole in memory. Pieces are written through byte-exact — no
+/// separator is inserted — and decoding plus partial-line capping are
+/// deferred to the writer and the tail, both of which are lossy, so invalid
+/// UTF-8 never stops the drain (D7). The child is never killed; if the
+/// channel closes, draining continues to EOF without sending.
 async fn pipe_reader<R>(pipe: R, tx: mpsc::Sender<Vec<u8>>)
 where
     R: tokio::io::AsyncRead + Unpin + Send + 'static,
@@ -162,26 +168,17 @@ where
     let mut dead = false;
     loop {
         chunk.clear();
-        match pipe.read_until(b'\n', &mut chunk).await {
+        match (&mut pipe)
+            .take(PARTIAL_CAP as u64)
+            .read_until(b'\n', &mut chunk)
+            .await
+        {
             Ok(0) => return,
             Ok(_) => {
-                if dead {
+                if dead || chunk.is_empty() {
                     continue;
                 }
-                // Split over-long chunks so no tee write exceeds PARTIAL_CAP;
-                // every piece except the last ends with '\n', which keeps
-                // tail lines newline-complete and preserves the cap (D7).
-                while chunk.len() > PARTIAL_CAP {
-                    let mut piece: Vec<u8> = chunk.drain(..PARTIAL_CAP - 1).collect();
-                    piece.push(b'\n');
-                    chunk.shrink_to(PIPE_BUF_CAPACITY);
-                    if tx.send(piece).await.is_err() {
-                        dead = true;
-                        break;
-                    }
-                }
-                if !dead && !chunk.is_empty() && tx.send(std::mem::take(&mut chunk)).await.is_err()
-                {
+                if tx.send(std::mem::take(&mut chunk)).await.is_err() {
                     // Writer gone: keep draining to EOF so the child never
                     // blocks on a full pipe, just stop sending.
                     dead = true;

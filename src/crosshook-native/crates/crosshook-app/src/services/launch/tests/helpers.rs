@@ -197,6 +197,9 @@ impl ProcessSpawner for FakeSpawner {
 pub(super) struct Harness {
     /// Keeps the tempdir alive for the harness lifetime.
     pub(super) root: TempDir,
+    /// Where this harness's session logs land (inside [`Self::root`], never
+    /// the shared `/tmp/crosshook-logs`).
+    pub(super) log_dir: PathBuf,
     pub(super) profiles: ProfileStore,
     pub(super) settings: SettingsStore,
     pub(super) metadata: MetadataStore,
@@ -214,6 +217,9 @@ impl Harness {
             Metadata::Enabled => MetadataStore::open_in_memory().unwrap(),
             Metadata::Disabled => MetadataStore::disabled(),
         };
+
+        let log_dir = root.path().join("launch-logs");
+        fs::create_dir_all(&log_dir).unwrap();
 
         // The flatpak-resources candidate is exempt from the trust check, so
         // plain 0755 stubs resolve without any uid games.
@@ -235,10 +241,12 @@ impl Harness {
                     flatpak_resources: Some(helper_dir),
                     exe_dir: None,
                     dev_dir: None,
-                }));
+                }))
+                .with_log_dir(log_dir.clone());
 
         Self {
             root,
+            log_dir,
             profiles,
             settings,
             metadata,
@@ -255,7 +263,7 @@ impl Harness {
         fs::create_dir_all(prefix.join("pfx")).unwrap();
         let proton = dir.join("proton");
         // Unique per request: the log slug derives from the exe name, so
-        // parallel tests never share a /tmp/crosshook-logs file.
+        // distinct requests never share a log file even inside one harness.
         let game = dir.join(format!("{name}.exe"));
         let trainer = dir.join("trainer.exe");
         write_file(&proton, "#!/bin/sh\nexit 0\n", 0o755);

@@ -77,6 +77,10 @@ pub struct LaunchService {
     spawner: Arc<dyn ProcessSpawner>,
     helpers: HelperSource,
     env: Option<LaunchEnv>,
+    /// Where [`crate::jobs::create_log_path_in`] creates the session log.
+    /// Production defaults to [`crate::jobs::LOG_DIR`]; tests point it at
+    /// their tempdir so no test writes to the shared `/tmp` directory.
+    log_dir: PathBuf,
 }
 
 impl LaunchService {
@@ -99,7 +103,16 @@ impl LaunchService {
             spawner: Arc::new(TokioSpawner),
             helpers: HelperSource::Detect,
             env: None,
+            log_dir: PathBuf::from(crate::jobs::LOG_DIR),
         }
+    }
+
+    /// Replaces where session logs are created (test seam). Production stays
+    /// at [`crate::jobs::LOG_DIR`].
+    #[must_use]
+    pub fn with_log_dir(mut self, log_dir: PathBuf) -> Self {
+        self.log_dir = log_dir;
+        self
     }
 
     /// Replaces the process spawner (test seam).

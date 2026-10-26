@@ -14,7 +14,7 @@ use super::gamescope::{execution_method, gamescope_plan, GamescopePlan};
 use super::queries::enrich_umu_gameid;
 use super::warnings::collect_launch_warnings;
 use super::LaunchService;
-use crate::jobs::create_log_path;
+use crate::jobs::create_log_path_in;
 use crate::{AppError, AppErrorKind};
 
 /// Validated launch plus the facts both entry points need before building a command.
@@ -58,8 +58,12 @@ impl LaunchService {
         let collected = collect_launch_warnings(&request, &self.profiles, &self.metadata).await;
         let env = self.launch_env();
         let method = execution_method(&request, kind, env);
-        let log_path = create_log_path(log_prefix(kind), &request.log_target_slug())
-            .map_err(|error| AppError::new(AppErrorKind::Io, error))?;
+        let log_path = create_log_path_in(
+            self.log_dir.clone(),
+            log_prefix(kind),
+            &request.log_target_slug(),
+        )
+        .map_err(|error| AppError::new(AppErrorKind::Io, error))?;
         let gamescope = gamescope_plan(&request, kind, env, &log_path);
 
         Ok(Prepared {
