@@ -22,7 +22,7 @@ use crosshook_core::profile::GameProfile;
 
 use super::super::finalizer::SessionGuard;
 use super::super::types::{
-    EventPublisher, InjectionLevel, InjectionLogData, InjectionSource, LaunchEvent, SessionContext,
+    EventPublisher, InjectionLevel, InjectionSource, LaunchEvent, SessionContext,
 };
 use super::helpers::{Harness, Metadata};
 
@@ -312,7 +312,7 @@ async fn signal_nine_records_failed_with_signal() {
 #[tokio::test]
 async fn watchdog_killed_exit_143_succeeds_without_diagnostic() {
     let (harness, profile_id, operation_id) = seeded(METHOD_PROTON_RUN);
-    let mut spec = LaunchCase::new(SessionKind::Trainer, METHOD_PROTON_RUN, operation_id);
+    let spec = LaunchCase::new(SessionKind::Trainer, METHOD_PROTON_RUN, operation_id);
     spec.outcome.mark(TeardownReason::WatchdogNaturalExit);
 
     let events = finish(&harness, spec, exit_code(143)).await;
@@ -487,6 +487,3 @@ async fn panic_still_publishes_exited_and_tears_down() {
     );
 }
 
-fn _injection_data_anchor(data: &InjectionLogData) -> &str {
-    data.message.as_str()
-}
