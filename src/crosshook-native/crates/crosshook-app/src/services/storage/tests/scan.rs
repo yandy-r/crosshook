@@ -3,6 +3,7 @@ use std::fs;
 use crate::jobs::{JobEventKind, JobId, JobRegistry, JobRegistryConfig, Outcome};
 
 use crate::log_tail::LogBatch;
+use crate::services::storage::scan::ScanResultGuard;
 use crate::services::storage::StorageService;
 use crate::AppErrorKind;
 
@@ -69,17 +70,37 @@ async fn concurrent_start_conflicts_and_job_result_is_taken_once_across_clones()
     );
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn dropped_scan_waiter_removes_its_stored_result_slot() {
+#[tokio::test]
+async fn dropping_the_waiter_guard_removes_an_already_stored_result() {
     let harness = Harness::new(true);
-    let service = harness.service.clone();
-    let scan = tokio::spawn(async move { service.scan().await });
-    while harness.service.scan_results.lock().unwrap().is_empty() {
-        tokio::task::yield_now().await;
-    }
+    let (handle, abandoned) = harness.service.start_scan_inner().unwrap();
+    let id = handle.id().clone();
+    let guard = ScanResultGuard::new(&harness.service, id.clone(), abandoned);
 
-    scan.abort();
-    assert!(scan.await.unwrap_err().is_cancelled());
+    assert_eq!(finish(handle).await, Outcome::Succeeded);
+    assert!(harness
+        .service
+        .scan_results
+        .lock()
+        .unwrap()
+        .contains_key(&id));
+
+    drop(guard);
+    assert!(harness.service.scan_results.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn a_waiter_abandoned_before_the_scan_finishes_never_stores_a_result() {
+    let harness = Harness::new(true);
+    // Current-thread runtime: the job cannot run until this task awaits.
+    let (handle, abandoned) = harness.service.start_scan_inner().unwrap();
+    drop(ScanResultGuard::new(
+        &harness.service,
+        handle.id().clone(),
+        abandoned,
+    ));
+
+    assert_eq!(finish(handle).await, Outcome::Succeeded);
     assert!(harness.service.scan_results.lock().unwrap().is_empty());
 }
 

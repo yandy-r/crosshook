@@ -19,7 +19,7 @@ use crate::jobs::{
 use crate::services::run_blocking;
 use crate::{AppError, AppErrorKind};
 
-struct ScanResultGuard {
+pub(super) struct ScanResultGuard {
     results: Arc<Mutex<HashMap<JobId, PrefixStorageScanResult>>>,
     id: JobId,
     abandoned: Arc<AtomicBool>,
@@ -34,6 +34,16 @@ impl Drop for ScanResultGuard {
     }
 }
 
+impl ScanResultGuard {
+    pub(super) fn new(service: &StorageService, id: JobId, abandoned: Arc<AtomicBool>) -> Self {
+        Self {
+            results: service.scan_results.clone(),
+            id,
+            abandoned,
+        }
+    }
+}
+
 impl StorageService {
     /// Starts the exclusive prefix-storage scan job and prunes slots whose job
     /// outcomes have already been evicted from the registry.
@@ -41,7 +51,7 @@ impl StorageService {
         self.start_scan_inner().map(|(handle, _)| handle)
     }
 
-    fn start_scan_inner(&self) -> Result<(JobHandle, Arc<AtomicBool>), AppError> {
+    pub(super) fn start_scan_inner(&self) -> Result<(JobHandle, Arc<AtomicBool>), AppError> {
         if let Ok(mut results) = self.scan_results.lock() {
             results.retain(|id, _| self.jobs.outcome(id).is_ok());
         }
@@ -97,11 +107,7 @@ impl StorageService {
         let id = handle.id().clone();
         let cancel = handle.cancel_token().clone();
         let mut events = handle.into_events();
-        let _result_guard = ScanResultGuard {
-            results: self.scan_results.clone(),
-            id: id.clone(),
-            abandoned,
-        };
+        let _result_guard = ScanResultGuard::new(self, id.clone(), abandoned);
         let outcome = tokio::time::timeout(Duration::from_secs(300), async {
             while let Some(event) = events.recv().await {
                 if let JobEventKind::Finished(outcome) = event.kind {
