@@ -42,3 +42,7 @@ harness = false
 [[test]]
 name = "profile_writer_golden"
 harness = false
+
+[[test]]
+name = "launcher_export_golden"
+harness = false
