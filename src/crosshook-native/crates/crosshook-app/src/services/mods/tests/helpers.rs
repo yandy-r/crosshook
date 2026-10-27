@@ -117,3 +117,17 @@ pub(super) fn mod_input(name: &str) -> ProfileModInput {
         provenance: ModProvenance::Manual,
     }
 }
+
+/// Runs raw `sql` against the harness store (fixture corruption only).
+pub(super) fn execute_sql(metadata: &MetadataStore, sql: &str) {
+    metadata
+        .with_sqlite_conn("mods test fixture", |conn| {
+            conn.execute_batch(sql).map_err(|source| {
+                crosshook_core::metadata::MetadataStoreError::Database {
+                    action: "mods test fixture",
+                    source,
+                }
+            })
+        })
+        .unwrap();
+}

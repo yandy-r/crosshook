@@ -4,14 +4,48 @@ use std::path::{Path, PathBuf};
 use crate::metadata::sha256_hex;
 
 use super::client::validate_image_bytes;
-use super::models::GameImageType;
+use super::models::{GameImageError, GameImageType};
+
+/// Custom-art import failure categories.
+///
+/// Display text is fixed and never embeds filesystem paths or OS error detail,
+/// so it is safe to surface to the UI. Underlying I/O detail is logged at
+/// debug level by kind only.
+#[derive(Debug)]
+enum ImportError {
+    UnsupportedType(GameImageType),
+    HomeDirNotFound,
+    MissingSource,
+    ReadSource,
+    Validation(GameImageError),
+    CreateMediaDir,
+    WriteImported,
+    NonUtf8MediaPath,
+}
+
+impl std::fmt::Display for ImportError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnsupportedType(art_type) => {
+                write!(f, "Unsupported art type for custom import: {art_type}")
+            }
+            Self::HomeDirNotFound => write!(f, "home directory not found"),
+            Self::MissingSource => write!(f, "source file does not exist"),
+            Self::ReadSource => write!(f, "failed to read source file"),
+            Self::Validation(error) => write!(f, "image validation failed: {error}"),
+            Self::CreateMediaDir => write!(f, "failed to create media directory"),
+            Self::WriteImported => write!(f, "failed to write imported art"),
+            Self::NonUtf8MediaPath => write!(f, "media path contains non-UTF-8 characters"),
+        }
+    }
+}
 
 /// Base directory for user-imported media files.
 ///
 /// Resolves to `~/.local/share/crosshook/media` on Linux.
-fn media_base_dir() -> Result<PathBuf, String> {
+fn media_base_dir() -> Result<PathBuf, ImportError> {
     crate::platform::base_dirs()
-        .ok_or_else(|| "home directory not found".to_string())
+        .ok_or(ImportError::HomeDirNotFound)
         .map(|dirs| dirs.data_local_dir().join("crosshook").join("media"))
 }
 
@@ -32,7 +66,7 @@ pub fn is_in_managed_media_dir(path: &str) -> bool {
 ///
 /// Returns the absolute path of the imported file.
 pub fn import_custom_art(source_path: &str, art_type: GameImageType) -> Result<String, String> {
-    import_custom_art_into(source_path, art_type, &media_base_dir()?)
+    import_custom_art_impl(source_path, art_type, None).map_err(|e| e.to_string())
 }
 
 /// Imports art into an explicit media root, using the same validation and layout
@@ -42,45 +76,61 @@ pub fn import_custom_art_into(
     art_type: GameImageType,
     media_base: &Path,
 ) -> Result<String, String> {
+    import_custom_art_impl(source_path, art_type, Some(media_base)).map_err(|e| e.to_string())
+}
+
+fn import_custom_art_impl(
+    source_path: &str,
+    art_type: GameImageType,
+    media_base: Option<&Path>,
+) -> Result<String, ImportError> {
     let subdir = match art_type {
         GameImageType::Cover => "covers",
         GameImageType::Portrait => "portraits",
         GameImageType::Background => "backgrounds",
         GameImageType::Hero | GameImageType::Capsule => {
-            return Err(format!(
-                "Unsupported art type for custom import: {art_type}"
-            ))
+            return Err(ImportError::UnsupportedType(art_type));
         }
+    };
+    let media_base = match media_base {
+        Some(base) => base.to_path_buf(),
+        None => media_base_dir()?,
     };
     let dest_dir = media_base.join(subdir);
 
     let source = Path::new(source_path.trim());
     if !source.exists() {
-        return Err(format!("source file does not exist: {}", source.display()));
+        return Err(ImportError::MissingSource);
     }
 
-    let source_file =
-        std::fs::File::open(source).map_err(|e| format!("failed to read source file: {e}"))?;
+    let source_file = std::fs::File::open(source).map_err(|e| {
+        tracing::debug!(error_kind = ?e.kind(), "custom art source open failed");
+        ImportError::ReadSource
+    })?;
     let bytes = read_bounded_image(source_file)?;
 
-    let mime = validate_image_bytes(&bytes).map_err(|e| format!("image validation failed: {e}"))?;
+    let mime = validate_image_bytes(&bytes).map_err(ImportError::Validation)?;
     let ext = mime_extension(mime);
 
-    std::fs::create_dir_all(&dest_dir)
-        .map_err(|e| format!("failed to create media directory: {e}"))?;
+    std::fs::create_dir_all(&dest_dir).map_err(|e| {
+        tracing::debug!(error_kind = ?e.kind(), "custom art media directory creation failed");
+        ImportError::CreateMediaDir
+    })?;
 
     let hash = sha256_hex(&bytes);
     let dest_path = dest_dir.join(format!("{}.{ext}", &hash[..16]));
 
     // Idempotent: skip write if the content-addressed file already exists.
     if !dest_path.exists() {
-        std::fs::write(&dest_path, &bytes)
-            .map_err(|e| format!("failed to write imported art: {e}"))?;
+        std::fs::write(&dest_path, &bytes).map_err(|e| {
+            tracing::debug!(error_kind = ?e.kind(), "custom art write failed");
+            ImportError::WriteImported
+        })?;
     }
 
     dest_path
         .to_str()
-        .ok_or_else(|| "media path contains non-UTF-8 characters".to_string())
+        .ok_or(ImportError::NonUtf8MediaPath)
         .map(String::from)
 }
 
@@ -94,16 +144,19 @@ pub fn import_custom_cover_art(source_path: &str) -> Result<String, String> {
 
 const MAX_IMPORT_BYTES: u64 = 5 * 1024 * 1024;
 
-fn read_bounded_image(reader: impl Read) -> Result<Vec<u8>, String> {
+fn read_bounded_image(reader: impl Read) -> Result<Vec<u8>, ImportError> {
     let mut bytes = Vec::new();
     // Read one extra byte to distinguish an exact-limit file from an oversized
     // stream. Never read the rest of a file that fails the size policy.
     reader
         .take(MAX_IMPORT_BYTES + 1)
         .read_to_end(&mut bytes)
-        .map_err(|e| format!("failed to read source file: {e}"))?;
+        .map_err(|e| {
+            tracing::debug!(error_kind = ?e.kind(), "custom art source read failed");
+            ImportError::ReadSource
+        })?;
     if bytes.len() as u64 > MAX_IMPORT_BYTES {
-        return Err("image validation failed: image response exceeds the 5 MB size limit".into());
+        return Err(ImportError::Validation(GameImageError::TooLarge));
     }
     Ok(bytes)
 }
@@ -132,7 +185,9 @@ mod tests {
             }
         }
         let mut consumed = 0;
-        let error = read_bounded_image(Endless(&mut consumed)).unwrap_err();
+        let error = read_bounded_image(Endless(&mut consumed))
+            .unwrap_err()
+            .to_string();
         assert_eq!(consumed, MAX_IMPORT_BYTES + 1);
         assert!(error.contains("size limit"));
     }
@@ -158,6 +213,44 @@ mod tests {
         let result = import_custom_cover_art("/nonexistent/path.jpg");
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("does not exist"));
+    }
+
+    #[test]
+    fn import_errors_do_not_include_source_paths() {
+        let missing = "/nonexistent-crosshook-test/x.png";
+        let error = import_custom_cover_art(missing).unwrap_err();
+        assert!(error.contains("does not exist"));
+        assert!(!error.contains("nonexistent-crosshook-test"));
+        assert!(!error.contains(missing));
+
+        let tmp = tempfile::tempdir().unwrap();
+        let media = tmp.path().join("media");
+        let dir_source = tmp.path().join("source-dir-marker");
+        std::fs::create_dir(&dir_source).unwrap();
+        let error =
+            import_custom_art_into(dir_source.to_str().unwrap(), GameImageType::Cover, &media)
+                .unwrap_err();
+        assert!(!error.contains("source-dir-marker"), "{error}");
+        assert!(!error.contains(tmp.path().to_str().unwrap()), "{error}");
+
+        let text_source = tmp.path().join("notes-marker.txt");
+        std::fs::write(&text_source, b"not an image").unwrap();
+        let error =
+            import_custom_art_into(text_source.to_str().unwrap(), GameImageType::Cover, &media)
+                .unwrap_err();
+        assert!(error.contains("image validation failed"));
+        assert!(!error.contains("notes-marker"), "{error}");
+        assert!(!error.contains(tmp.path().to_str().unwrap()), "{error}");
+
+        let blocker = tmp.path().join("blocked-media");
+        std::fs::write(&blocker, b"x").unwrap();
+        let png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0];
+        let png_source = tmp.path().join("ok.png");
+        std::fs::write(&png_source, png).unwrap();
+        let error =
+            import_custom_art_into(png_source.to_str().unwrap(), GameImageType::Cover, &blocker)
+                .unwrap_err();
+        assert!(!error.contains(tmp.path().to_str().unwrap()), "{error}");
     }
 
     #[test]

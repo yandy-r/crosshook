@@ -6,7 +6,7 @@ use crosshook_core::profile::{CollectionDefaultsSection, GameProfile};
 use super::crud::{require_available, store_error};
 use super::CollectionsService;
 use crate::services::run_blocking;
-use crate::AppError;
+use crate::{AppError, AppErrorKind};
 
 /// Resolves the defaults layer of `collection_id` with the launch fail-open
 /// policy: `Ok(None)` when there is no collection context (absent or blank id),
@@ -39,6 +39,28 @@ fn resolve_defaults(
             );
             Ok(None)
         }
+    }
+}
+
+/// Maps a `resolve_defaults` failure: corrupt defaults keep the legacy
+/// `profile_load` text (collection id + JSON parse detail; no paths), so the
+/// user can tell which collection to fix. Other errors use the fixed mapping.
+fn resolve_error(collection_id: Option<&str>, error: MetadataStoreError) -> AppError {
+    match error {
+        MetadataStoreError::Corrupt(detail) => {
+            let cid = collection_id.map(str::trim).unwrap_or("");
+            // Core's detail already names the id; guard if it ever does not.
+            let detail = if cid.is_empty() || detail.contains(cid) {
+                detail
+            } else {
+                format!("corrupt collection defaults JSON for {cid}: {detail}")
+            };
+            AppError::new(
+                AppErrorKind::Internal,
+                format!("metadata database is corrupt: {detail}"),
+            )
+        }
+        other => store_error(other),
     }
 }
 
@@ -110,8 +132,8 @@ impl CollectionsService {
         let metadata = self.metadata.clone();
         let collection_id = collection_id.map(str::to_owned);
         run_blocking(move || {
-            let defaults =
-                resolve_defaults(&metadata, collection_id.as_deref()).map_err(store_error)?;
+            let defaults = resolve_defaults(&metadata, collection_id.as_deref())
+                .map_err(|error| resolve_error(collection_id.as_deref(), error))?;
             Ok(Self::resolve(profile, defaults.as_ref()))
         })
         .await
@@ -124,7 +146,8 @@ impl CollectionsService {
         &self,
         collection_id: Option<&str>,
     ) -> Result<Option<CollectionDefaultsSection>, AppError> {
-        resolve_defaults(&self.metadata, collection_id).map_err(store_error)
+        resolve_defaults(&self.metadata, collection_id)
+            .map_err(|error| resolve_error(collection_id, error))
     }
 
     /// Pure, store-free merge of `defaults` into `profile`; `None` is the

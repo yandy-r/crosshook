@@ -12,13 +12,22 @@ use crate::AppError;
 impl SteamService {
     /// Resolves the default client root without blocking the caller's executor.
     pub async fn default_client_install_path(&self) -> String {
-        run_blocking(|| {
+        match run_blocking(|| {
             Ok(default_client_install_path_with_env(|key| {
                 std::env::var_os(key)
             }))
         })
         .await
-        .unwrap_or_default()
+        {
+            Ok(path) => path,
+            Err(error) => {
+                tracing::warn!(
+                    error_kind = ?error.kind(),
+                    "default Steam client path resolution task failed"
+                );
+                String::new()
+            }
+        }
     }
 
     /// Discovers Steam fields for the supplied game without modifying a profile.

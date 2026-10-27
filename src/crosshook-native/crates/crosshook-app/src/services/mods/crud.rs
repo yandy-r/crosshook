@@ -24,15 +24,20 @@ pub(super) fn store_error(error: MetadataStoreError) -> AppError {
     AppError::from_metadata_validation("mod", error)
 }
 
-/// Looks up the metadata id of `name`; lookup failures keep the legacy
-/// `metadata_unavailable: {error}` text.
+/// Legacy `metadata_unavailable: {error}` text for a registry read failure;
+/// `useProfileMods` keys off this prefix to mark the registry unavailable.
+fn metadata_unavailable(error: MetadataStoreError) -> AppError {
+    AppError::new(
+        AppErrorKind::Unavailable,
+        format!("metadata_unavailable: {error}"),
+    )
+}
+
+/// Looks up the metadata id of `name`.
 fn lookup_id(metadata: &MetadataStore, name: &str) -> Result<Option<String>, AppError> {
-    metadata.lookup_profile_id(name).map_err(|error| {
-        AppError::new(
-            AppErrorKind::Unavailable,
-            format!("metadata_unavailable: {error}"),
-        )
-    })
+    metadata
+        .lookup_profile_id(name)
+        .map_err(metadata_unavailable)
 }
 
 /// Resolves a profile name to its loaded profile and metadata id. A profile
@@ -67,7 +72,7 @@ impl ModsService {
             let mods = match lookup_id(&metadata, &profile_name)? {
                 Some(profile_id) => metadata
                     .list_profile_mods(&profile_id)
-                    .map_err(store_error)?,
+                    .map_err(metadata_unavailable)?,
                 None => Vec::new(),
             };
             Ok(ProfileModsResponse {

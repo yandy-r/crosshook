@@ -1,5 +1,8 @@
 //! Exclusive prefix scan job and take-once result retrieval.
 
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use crosshook_core::metadata::{MetadataStore, PrefixStorageSnapshotRow};
@@ -16,13 +19,38 @@ use crate::jobs::{
 use crate::services::run_blocking;
 use crate::{AppError, AppErrorKind};
 
+struct ScanResultGuard {
+    results: Arc<Mutex<HashMap<JobId, PrefixStorageScanResult>>>,
+    id: JobId,
+    abandoned: Arc<AtomicBool>,
+}
+
+impl Drop for ScanResultGuard {
+    fn drop(&mut self) {
+        self.abandoned.store(true, Ordering::Relaxed);
+        if let Ok(mut results) = self.results.lock() {
+            results.remove(&self.id);
+        }
+    }
+}
+
 impl StorageService {
-    /// Starts the exclusive prefix-storage scan job.
+    /// Starts the exclusive prefix-storage scan job and prunes slots whose job
+    /// outcomes have already been evicted from the registry.
     pub fn start_scan(&self) -> Result<JobHandle, AppError> {
+        self.start_scan_inner().map(|(handle, _)| handle)
+    }
+
+    fn start_scan_inner(&self) -> Result<(JobHandle, Arc<AtomicBool>), AppError> {
+        if let Ok(mut results) = self.scan_results.lock() {
+            results.retain(|id, _| self.jobs.outcome(id).is_ok());
+        }
         let profiles = self.profiles.clone();
         let metadata = self.metadata.clone();
         let results = self.scan_results.clone();
-        self.jobs.start(
+        let abandoned = Arc::new(AtomicBool::new(false));
+        let job_abandoned = abandoned.clone();
+        let handle = self.jobs.start(
             JobSpec::new(STORAGE_SCAN_JOB_KIND).with_key(JobKey::new(STORAGE_SCAN_JOB_KEY)),
             move |ctx| async move {
                 let id = ctx.id().clone();
@@ -44,6 +72,9 @@ impl StorageService {
                                 return Outcome::Failed(result_slot_error());
                             }
                         };
+                        if job_abandoned.load(Ordering::Relaxed) {
+                            return Outcome::Succeeded;
+                        }
                         results.insert(id, result);
                         Outcome::Succeeded
                     }
@@ -52,15 +83,25 @@ impl StorageService {
                     Err(error) => Outcome::Failed(error),
                 }
             },
-        )
+        )?;
+        Ok((handle, abandoned))
     }
 
     /// Starts a scan, waits up to five minutes, and takes its result.
+    ///
+    /// Dropping this future removes any result already stored for its job. On
+    /// timeout the scan keeps running and holds the exclusive job key until the
+    /// blocking work observes cancellation or finishes (D3).
     pub async fn scan(&self) -> Result<PrefixStorageScanResult, AppError> {
-        let handle = self.start_scan()?;
+        let (handle, abandoned) = self.start_scan_inner()?;
         let id = handle.id().clone();
         let cancel = handle.cancel_token().clone();
         let mut events = handle.into_events();
+        let _result_guard = ScanResultGuard {
+            results: self.scan_results.clone(),
+            id: id.clone(),
+            abandoned,
+        };
         let outcome = tokio::time::timeout(Duration::from_secs(300), async {
             while let Some(event) = events.recv().await {
                 if let JobEventKind::Finished(outcome) = event.kind {

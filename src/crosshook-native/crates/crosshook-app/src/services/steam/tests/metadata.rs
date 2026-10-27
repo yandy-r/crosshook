@@ -271,6 +271,13 @@ async fn public_imports_preserve_validation_and_missing_source_errors() {
         .unwrap_err()
         .message()
         .contains("does not exist"));
+    let missing = "/nonexistent-crosshook-test/x.png";
+    let error = service
+        .import_custom_cover_art(missing.into())
+        .await
+        .unwrap_err();
+    assert!(error.message().contains("does not exist"));
+    assert!(!error.message().contains("nonexistent-crosshook-test"));
     assert!(service
         .fetch_cover_art("../bad".into(), None)
         .await

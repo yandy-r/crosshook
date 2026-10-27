@@ -20,3 +20,33 @@ Binding for the plan and implementation of M1-35 (move storage, mods, collection
 | D14 | **Security hardening limited to moved code.** `rename_launcher` validates and sanitizes the **old** slug the same way delete-by-slug does, and requires the old and new paths to stay inside the launcher directories. Custom-art import keeps its magic-byte and 5 MiB checks and adds a bounded read: it stops reading once the limit is passed.                                                                                                                                                                                                                                                                                                                         | Closes path-containment gaps in code being moved without widening scope.                                                                                                                                          |
 | D15 | **Preserved as-is, filed as follow-ups:** `rename_launcher` resetting the umu/runtime fields; the settings-failure inconsistency (hard error in `check_launcher_for_profile`, soft fallback in stale/slug matching); the duplicated appmanifest lookup outside `version/`; SteamGridDB initial-URL host/scheme validation in core; handle-pinned (openat/beneath) deletion for the ancestor-swap race; consulting `offline_mode` for art fetch; and the manual prefix storage cleanup test from the issue's test plan.                                                                                                                                                     | Behaviour-preserving refactor; the issue does not ask for these changes.                                                                                                                                          |
 | D16 | Collections TOML import stays a non-mutating preview; the frontend still orchestrates the apply step. Mods add/remove stay metadata-only and never touch the filesystem.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | "Collections TOML export/import is unchanged"; no new mutation surface.                                                                                                                                           |
+
+## Status / observable deltas
+
+D1–D16 landed. Beyond the frozen IPC contract (D12), review surfaced these
+observable behaviour deltas, all accepted as intended:
+
+- **Concurrent scan (D3):** a concurrent `scan_prefix_storage` gets `Conflict`,
+  and `scan()` waits at most 300 s. On timeout the blocking scan is **not**
+  stopped (`spawn_blocking` cannot be cancelled): it keeps running and holds
+  the `prefix-storage-scan` key until it finishes, so a scan started in that
+  window also gets `Conflict`. The result slot is keyed by `JobId` and taken
+  exactly once by `scan_result`.
+- **D6 skipped entries:** a request tuple missing from the fresh scan (wrong
+  kind, changed prefix or target path) is no longer dropped silently — it
+  appears in `skipped` with the fixed reason `not present in a fresh storage
+scan` and gets a `skipped` audit row.
+- **D7 `Unavailable` scope:** collections `list` and `collections_for_profile`
+  keep returning an **empty list** on a disabled metadata store (no startup
+  error banner), while `list_profiles` and `get_defaults` return `Unavailable`.
+  Collection and version **writes** return `Unavailable` before any write.
+- **Error text (D8, extends the profile-writer D11 policy):** non-Validation
+  metadata and profile/store errors surfaced by the moved commands now use the
+  sanitized fixed `AppError` texts (e.g. `metadata database operation failed`,
+  `profile file is not valid TOML`) instead of the raw store `Display`, and
+  paths are home-redacted. Existing project policy, same as profile-writer D11;
+  user-entered Validation messages are kept verbatim.
+- **Staged cleanup authorization:** staged-trainer cleanup is now
+  inventory-authorized — a `compatdata/<id>/pfx` entry discovered outside the
+  trusted roots cannot be authorized by the fresh scan alone (D4/D5 boundary
+  extended to the staged root).

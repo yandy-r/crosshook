@@ -280,10 +280,62 @@ fn staged_happy_path_deletes_immediate_child_file() {
     make_prefix(&prefix);
     let entry = staged_root(&prefix).join("trainer.exe");
     fs::write(&entry, b"trainer").unwrap();
-    let result = cleanup_prefix_storage(&[], &[staged_target(&prefix, &entry)]);
+    // The prefix is explicitly referenced by the inventory.
+    let refs = vec![reference("a", &prefix)];
+    let result = cleanup_prefix_storage(&refs, &[staged_target(&prefix, &entry)]);
     assert_eq!(result.deleted.len(), 1);
     assert!(!entry.exists());
     assert!(prefix.exists());
+}
+
+#[test]
+fn staged_unreferenced_prefix_inside_trusted_root_is_deleted() {
+    let layout = layout();
+    let referenced = layout.root.join("ref");
+    let prefix = layout.root.join("prefix");
+    make_prefix(&referenced);
+    make_prefix(&prefix);
+    let entry = staged_root(&prefix).join("trainer.exe");
+    fs::write(&entry, b"trainer").unwrap();
+    let refs = vec![reference("a", &referenced)];
+    let result = cleanup_prefix_storage(&refs, &[staged_target(&prefix, &entry)]);
+    assert_eq!(result.deleted.len(), 1);
+    assert!(!entry.exists());
+}
+
+#[test]
+fn staged_empty_inventory_fails_closed() {
+    let layout = layout();
+    let prefix = layout.root.join("prefix");
+    make_prefix(&prefix);
+    let entry = staged_root(&prefix).join("trainer.exe");
+    fs::write(&entry, b"trainer").unwrap();
+    let result = cleanup_prefix_storage(&[], &[staged_target(&prefix, &entry)]);
+    assert_skipped(
+        &result,
+        "resolved prefix is not strictly inside a trusted prefix root",
+    );
+    assert!(entry.exists());
+}
+
+#[test]
+fn staged_prefix_outside_inventory_roots_is_skipped_payload_intact() {
+    let layout = layout();
+    let referenced = layout.root.join("ref");
+    make_prefix(&referenced);
+    // A prefix elsewhere (sibling of the trusted root), e.g. reached via a
+    // `pfx` link that escapes the inventory roots.
+    let outside = layout.root.parent().unwrap().join("elsewhere/pfx");
+    make_prefix(&outside);
+    let entry = staged_root(&outside).join("trainer.exe");
+    fs::write(&entry, b"payload").unwrap();
+    let refs = vec![reference("a", &referenced)];
+    let result = cleanup_prefix_storage(&refs, &[staged_target(&outside, &entry)]);
+    assert_skipped(
+        &result,
+        "resolved prefix is not strictly inside a trusted prefix root",
+    );
+    assert_eq!(fs::read(&entry).unwrap(), b"payload");
 }
 
 #[test]

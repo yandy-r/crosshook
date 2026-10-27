@@ -170,15 +170,22 @@ pub async fn protonup_get_suggestion(
         Some(path) => path,
         None => steam.default_client_install_path().await,
     };
-    let mut diagnostics = Vec::new();
-    let steam_root_candidates = discover_steam_root_candidates(configured_path, &mut diagnostics);
-    let installs = discover_compat_tools(&steam_root_candidates, &mut diagnostics);
+    let suggestion = tauri::async_runtime::spawn_blocking(move || {
+        let mut diagnostics = Vec::new();
+        let steam_root_candidates =
+            discover_steam_root_candidates(configured_path, &mut diagnostics);
+        let installs = discover_compat_tools(&steam_root_candidates, &mut diagnostics);
 
-    for entry in &diagnostics {
-        tracing::debug!(entry, "protonup suggestion diagnostic");
-    }
+        for entry in &diagnostics {
+            tracing::debug!(entry, "protonup suggestion diagnostic");
+        }
 
-    Ok(match_community_version(&community_version, &installs))
+        match_community_version(&community_version, &installs)
+    })
+    .await
+    .map_err(|error| error.to_string())?;
+
+    Ok(suggestion)
 }
 
 // ── new commands (Batch 4, Steps 4.1 + 4.2) ──────────────────────────────────

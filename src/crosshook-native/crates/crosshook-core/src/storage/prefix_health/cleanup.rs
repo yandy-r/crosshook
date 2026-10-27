@@ -142,6 +142,34 @@ fn is_strict_descendant(path: &Path, root: &Path) -> bool {
     path != root && path.starts_with(root)
 }
 
+/// Authorizes a canonical prefix against the reference inventory: either it
+/// is itself an explicitly referenced prefix, or it lies strictly inside a
+/// trusted root derived from the inventory. The cleanup request is never
+/// used to establish trust; an empty inventory authorizes nothing.
+fn authorize_prefix_against_inventory(
+    referenced: &BTreeMap<String, Vec<String>>,
+    canonical_prefix: &Path,
+) -> Result<(), CleanupRejection> {
+    let explicitly_referenced = referenced.keys().any(|key| {
+        fs::canonicalize(key)
+            .map(|canonical| canonical == canonical_prefix)
+            .unwrap_or(false)
+    });
+    if explicitly_referenced {
+        return Ok(());
+    }
+    let trusted_roots = canonical_trusted_roots(referenced)?;
+    if trusted_roots
+        .iter()
+        .any(|root| is_strict_descendant(canonical_prefix, root))
+    {
+        return Ok(());
+    }
+    Err(CleanupRejection::new(
+        "resolved prefix is not strictly inside a trusted prefix root",
+    ))
+}
+
 pub fn cleanup_prefix_storage(
     references: &[PrefixReference],
     targets: &[PrefixCleanupTarget],
@@ -155,7 +183,7 @@ pub fn cleanup_prefix_storage(
                 cleanup_orphan_prefix(&referenced, target, &mut result);
             }
             PrefixCleanupTargetKind::StaleStagedTrainer => {
-                cleanup_stale_staged_trainer(target, &mut result);
+                cleanup_stale_staged_trainer(&referenced, target, &mut result);
             }
         }
     }
@@ -275,13 +303,18 @@ fn cleanup_orphan_prefix(
             result.deleted.push(target.clone());
             result.reclaimed_bytes = result.reclaimed_bytes.saturating_add(bytes_before);
         }
-        Err(_) => {
+        Err(error) => {
+            tracing::warn!(error = %error, "failed to delete orphan prefix");
             skip(result, target, "failed to delete orphan prefix");
         }
     }
 }
 
-fn cleanup_stale_staged_trainer(target: &PrefixCleanupTarget, result: &mut PrefixCleanupResult) {
+fn cleanup_stale_staged_trainer(
+    referenced: &BTreeMap<String, Vec<String>>,
+    target: &PrefixCleanupTarget,
+    result: &mut PrefixCleanupResult,
+) {
     let resolved_prefix_path = PathBuf::from(&target.resolved_prefix_path);
     let staged_root = resolved_prefix_path.join(STAGED_TRAINERS_RELATIVE);
     let target_path = PathBuf::from(&target.target_path);
@@ -307,25 +340,19 @@ fn cleanup_stale_staged_trainer(target: &PrefixCleanupTarget, result: &mut Prefi
             return;
         }
     }
+    // Reject a symlinked staged root with the stable legacy reason. A
+    // missing/unverifiable root falls through to the no-follow walk below,
+    // which fails closed with a fixed reason.
     if fs::symlink_metadata(&staged_root)
         .map(|meta| meta.file_type().is_symlink())
-        .unwrap_or(true)
+        .unwrap_or(false)
     {
-        // Distinguish a genuinely missing root (already covered by the
-        // target check in practice) only via the fixed legacy reason.
-        if fs::symlink_metadata(&staged_root)
-            .map(|meta| meta.file_type().is_symlink())
-            .unwrap_or(false)
-        {
-            skip(
-                result,
-                target,
-                "staged trainers root is a symlink; refusing cleanup",
-            );
-            return;
-        }
-        // Missing/unverifiable staged root: fall through to the no-follow
-        // walk, which fails closed with a fixed reason.
+        skip(
+            result,
+            target,
+            "staged trainers root is a symlink; refusing cleanup",
+        );
+        return;
     }
 
     let verified_staged_root = match ensure_no_follow_directories(
@@ -372,6 +399,10 @@ fn cleanup_stale_staged_trainer(target: &PrefixCleanupTarget, result: &mut Prefi
         );
         return;
     }
+    if let Err(rejection) = authorize_prefix_against_inventory(referenced, &canonical_prefix) {
+        skip(result, target, &rejection.reason);
+        return;
+    }
     let canonical_target =
         match canonicalize_or_reject(&target_path, "failed to canonicalize staged trainer entry") {
             Ok(value) => value,
@@ -402,7 +433,8 @@ fn cleanup_stale_staged_trainer(target: &PrefixCleanupTarget, result: &mut Prefi
             result.deleted.push(target.clone());
             result.reclaimed_bytes = result.reclaimed_bytes.saturating_add(bytes_before);
         }
-        Err(_) => {
+        Err(error) => {
+            tracing::warn!(error = %error, "failed to delete staged trainer entry");
             skip(result, target, "failed to delete staged trainer entry");
         }
     }

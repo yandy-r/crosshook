@@ -136,16 +136,8 @@ async fn services_new_builds_bundle_from_stores() {
     let cloned = services.clone();
     assert!(Arc::ptr_eq(&services.background, &cloned.background));
 
-    // The six storage-family services build over the shared stores; the
-    // storage service owns a clone of the app job registry, so the exclusive
+    // The storage service owns a clone of the app job registry, so the exclusive
     // scan key held through `jobs` is a conflict for the service's registry.
-    let _ = (
-        &services.mods,
-        &services.collections,
-        &services.launcher_export,
-        &services.version,
-        &services.steam,
-    );
     let spec = || {
         crate::jobs::JobSpec::new(crate::services::storage::STORAGE_SCAN_JOB_KIND).with_key(
             crate::jobs::JobKey::new(crate::services::storage::STORAGE_SCAN_JOB_KEY),

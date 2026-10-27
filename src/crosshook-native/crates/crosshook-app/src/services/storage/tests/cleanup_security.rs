@@ -3,6 +3,7 @@
 use std::fs;
 use std::os::unix::fs::symlink;
 use std::path::Path;
+use std::time::{Duration, SystemTime};
 
 use crosshook_core::storage::{PrefixCleanupResult, PrefixCleanupTarget, PrefixCleanupTargetKind};
 
@@ -353,6 +354,57 @@ async fn compatdata_nested_pfx_link_discovered_outside_trusted_roots_is_rejected
     assert_eq!(
         fs::read(outside_prefix.join("drive_c/sentinel")).unwrap(),
         b"outside survives"
+    );
+    assert!(fs::symlink_metadata(link).unwrap().file_type().is_symlink());
+    assert!(active.is_dir());
+}
+
+#[tokio::test]
+async fn compatdata_nested_pfx_link_outside_trusted_roots_rejects_stale_staged_entry() {
+    let harness = Harness::new(true);
+    let outside = tempfile::tempdir().unwrap();
+    let outside_prefix = create_prefix(&outside.path().join("protected"));
+    let staged_entry = outside_prefix.join(STAGED_ROOT).join("old-trainer");
+    fs::create_dir_all(&staged_entry).unwrap();
+    fs::write(staged_entry.join("trainer.exe"), b"outside payload").unwrap();
+    fs::File::open(&staged_entry)
+        .unwrap()
+        .set_times(
+            fs::FileTimes::new().set_modified(SystemTime::UNIX_EPOCH + Duration::from_secs(1)),
+        )
+        .unwrap();
+    let compatdata = harness.root.path().join("compatdata");
+    let active = create_prefix(&compatdata.join("100/pfx"));
+    let mut profile = harness.profiles.load("Active").unwrap();
+    profile.runtime.prefix_path = path_string(&active);
+    harness.profiles.save("Active", &profile).unwrap();
+    fs::create_dir_all(compatdata.join("200")).unwrap();
+    let link = compatdata.join("200/pfx");
+    symlink(&outside_prefix, &link).unwrap();
+    // Discovery canonicalizes the nested pfx link, so the fresh scan emits a
+    // server-produced stale tuple for the outside prefix. Core must still
+    // reject it against inventory-derived trusted roots.
+    let target = harness
+        .service
+        .scan()
+        .await
+        .unwrap()
+        .stale_staged_targets
+        .into_iter()
+        .find(|target| target.target_path == path_string(&staged_entry))
+        .expect("discovery must surface the stale entry under the linked prefix");
+
+    assert_rejected(
+        &harness,
+        vec![target.clone()],
+        &target,
+        &["resolved prefix is not strictly inside a trusted prefix root"],
+    )
+    .await;
+
+    assert_eq!(
+        fs::read(staged_entry.join("trainer.exe")).unwrap(),
+        b"outside payload"
     );
     assert!(fs::symlink_metadata(link).unwrap().file_type().is_symlink());
     assert!(active.is_dir());

@@ -28,31 +28,41 @@ pub async fn check_proton_migrations(
     steam: State<'_, SteamService>,
 ) -> Result<MigrationScanResult, String> {
     // A-5: validate caller-supplied steam path; fall back to default if invalid.
-    let resolved_path = match steam_client_install_path.filter(|p| {
-        let candidate = PathBuf::from(p.trim());
-        !candidate.as_os_str().is_empty() && candidate.join("steamapps").is_dir()
-    }) {
+    let supplied_path = tauri::async_runtime::spawn_blocking(move || {
+        steam_client_install_path.filter(|p| {
+            let candidate = PathBuf::from(p.trim());
+            !candidate.as_os_str().is_empty() && candidate.join("steamapps").is_dir()
+        })
+    })
+    .await
+    .map_err(|error| error.to_string())?;
+    let resolved_path = match supplied_path {
         Some(path) => path,
         None => steam.default_client_install_path().await,
     };
 
-    let mut diagnostics = Vec::new();
-    let steam_root_candidates = discover_steam_root_candidates(resolved_path, &mut diagnostics);
-    let mut result = scan_proton_migrations(&store, &steam_root_candidates, &mut diagnostics);
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut diagnostics = Vec::new();
+        let steam_root_candidates = discover_steam_root_candidates(resolved_path, &mut diagnostics);
+        let mut result = scan_proton_migrations(&store, &steam_root_candidates, &mut diagnostics);
 
-    // A-4: sanitize all IPC-bound path strings before returning.
-    for suggestion in &mut result.suggestions {
-        suggestion.old_path = sanitize_display_path(&suggestion.old_path);
-        suggestion.new_path = sanitize_display_path(&suggestion.new_path);
-    }
-    for unmatched in &mut result.unmatched {
-        unmatched.stale_path = sanitize_display_path(&unmatched.stale_path);
-    }
-    for install_info in &mut result.installed_proton_versions {
-        install_info.path = sanitize_display_path(&install_info.path);
-    }
+        // A-4: sanitize all IPC-bound path strings before returning.
+        for suggestion in &mut result.suggestions {
+            suggestion.old_path = sanitize_display_path(&suggestion.old_path);
+            suggestion.new_path = sanitize_display_path(&suggestion.new_path);
+        }
+        for unmatched in &mut result.unmatched {
+            unmatched.stale_path = sanitize_display_path(&unmatched.stale_path);
+        }
+        for install_info in &mut result.installed_proton_versions {
+            install_info.path = sanitize_display_path(&install_info.path);
+        }
 
-    Ok(result)
+        result
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 /// Applies a single Proton path migration to the named profile.

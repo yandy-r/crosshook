@@ -1,7 +1,9 @@
 use std::fs;
 
-use crate::jobs::{JobEventKind, JobId, Outcome};
+use crate::jobs::{JobEventKind, JobId, JobRegistry, JobRegistryConfig, Outcome};
+
 use crate::log_tail::LogBatch;
+use crate::services::storage::StorageService;
 use crate::AppErrorKind;
 
 use super::helpers::{finish, Harness};
@@ -65,6 +67,46 @@ async fn concurrent_start_conflicts_and_job_result_is_taken_once_across_clones()
         finish(harness.service.start_scan().unwrap()).await,
         Outcome::Succeeded
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn dropped_scan_waiter_removes_its_stored_result_slot() {
+    let harness = Harness::new(true);
+    let service = harness.service.clone();
+    let scan = tokio::spawn(async move { service.scan().await });
+    while harness.service.scan_results.lock().unwrap().is_empty() {
+        tokio::task::yield_now().await;
+    }
+
+    scan.abort();
+    assert!(scan.await.unwrap_err().is_cancelled());
+    assert!(harness.service.scan_results.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn start_scan_prunes_finished_results_evicted_from_the_registry() {
+    let harness = Harness::new(true);
+    let jobs = JobRegistry::new(JobRegistryConfig {
+        event_capacity: 8,
+        retention: 0,
+    })
+    .unwrap();
+    let service = StorageService::new(harness.profiles, harness.metadata, jobs);
+
+    let first = service.start_scan().unwrap();
+    let first_id = first.id().clone();
+    assert_eq!(finish(first).await, Outcome::Succeeded);
+    assert_eq!(service.scan_results.lock().unwrap().len(), 1);
+    assert_eq!(
+        service.scan_result(&first_id).unwrap_err().kind(),
+        AppErrorKind::NotFound
+    );
+
+    assert_eq!(
+        finish(service.start_scan().unwrap()).await,
+        Outcome::Succeeded
+    );
+    assert_eq!(service.scan_results.lock().unwrap().len(), 1);
 }
 
 #[tokio::test]
@@ -141,12 +183,6 @@ async fn disabled_metadata_does_not_prevent_scan() {
 async fn snapshot_insert_error_is_fail_soft() {
     let harness = Harness::new(true);
     super::helpers::execute_sql(&harness.metadata, "DROP TABLE prefix_storage_snapshots");
-    assert_eq!(harness.service.scan().await.unwrap().prefixes.len(), 1);
-}
-
-#[tokio::test]
-async fn incomplete_profile_inventory_suppresses_orphans() {
-    let harness = Harness::new(true);
     let orphan = harness.orphan();
     fs::write(
         harness.profiles.base_path.join("Broken.toml"),

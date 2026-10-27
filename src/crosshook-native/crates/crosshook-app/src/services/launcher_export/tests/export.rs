@@ -2,6 +2,8 @@
 
 use std::fs;
 use std::os::unix::fs::symlink;
+use std::sync::{mpsc, Arc, Mutex};
+use std::time::Duration;
 
 use super::helpers::{mode_of, Harness, Metadata};
 use crate::AppErrorKind;
@@ -37,6 +39,56 @@ async fn export_writes_files_with_modes_and_observes_metadata() {
     assert_eq!(mode_of(&harness.script_path("mode-check")), 0o700);
     assert_eq!(mode_of(&harness.desktop_path("mode-check")), 0o644);
     assert_eq!(harness.launcher_rows("mode-check", "aligned"), 1);
+}
+
+#[test]
+fn export_yields_while_blocking_pool_is_gated() {
+    let harness = Harness::new(Metadata::Enabled);
+    let service = harness.service.clone();
+    let request = harness.request("Gated Export");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .max_blocking_threads(1)
+        .build()
+        .unwrap();
+    let (entered_tx, entered_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    let gate = runtime.spawn_blocking(move || {
+        entered_tx.send(()).unwrap();
+        release_rx.recv().unwrap();
+    });
+    entered_rx.recv().unwrap();
+    let release = Arc::new(Mutex::new(Some(release_tx)));
+    let unblock = release.clone();
+    let (done_tx, done_rx) = mpsc::channel();
+    // Watchdog only releases the gate if the executor stops making progress;
+    // no sleeps or runtime timers are needed to detect a synchronous regression.
+    let watchdog = std::thread::spawn(move || {
+        if done_rx.recv_timeout(Duration::from_secs(5)).is_err() {
+            if let Some(sender) = unblock.lock().unwrap().take() {
+                let _ = sender.send(());
+            }
+        }
+    });
+    runtime.block_on(async {
+        let export = tokio::spawn(async move { service.export(request).await });
+        tokio::task::yield_now().await;
+        let queued_on_blocking_pool = !export.is_finished();
+        if let Some(sender) = release.lock().unwrap().take() {
+            sender.send(()).unwrap();
+        }
+        done_tx.send(()).unwrap();
+        gate.await.unwrap();
+        let result = export.await.unwrap().unwrap();
+        assert!(
+            queued_on_blocking_pool,
+            "export ran synchronously on the caller thread"
+        );
+        assert_eq!(result.launcher_slug, "gated-export");
+    });
+    watchdog.join().unwrap();
+    assert!(harness.script_path("gated-export").is_file());
+    assert!(harness.desktop_path("gated-export").is_file());
 }
 
 #[tokio::test]

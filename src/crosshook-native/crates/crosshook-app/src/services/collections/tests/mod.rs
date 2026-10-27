@@ -2,5 +2,6 @@
 
 mod crud;
 mod defaults_merge;
+mod defaults_resolve;
 mod helpers;
 mod transfer;

@@ -48,6 +48,23 @@ async fn list_for_missing_profile_is_not_found() {
 }
 
 #[tokio::test]
+async fn list_with_a_failing_registry_read_keeps_the_metadata_unavailable_prefix() {
+    let harness = Harness::new(Metadata::Enabled);
+    harness.seed_profile("alpha", &harness.game_exe());
+    // Break the registry read the way a runtime DB failure would.
+    super::helpers::execute_sql(&harness.metadata, "DROP TABLE profile_mods");
+
+    let error = harness.service.list("alpha".into()).await.unwrap_err();
+
+    assert_eq!(error.kind(), AppErrorKind::Unavailable);
+    assert!(
+        error.message().starts_with("metadata_unavailable: "),
+        "got {:?}",
+        error.message()
+    );
+}
+
+#[tokio::test]
 async fn add_then_list_returns_the_mod_sorted_by_name() {
     let harness = Harness::new(Metadata::Enabled);
     let profile_id = harness.seed_profile("alpha", &harness.game_exe()).unwrap();

@@ -36,17 +36,13 @@ impl ModsService {
     /// effort and every failure leaves the flags `false`.
     pub async fn detect(&self, profile_name: String) -> Result<DetectionScanReport, AppError> {
         let profiles = self.profiles.clone();
-        let name = profile_name.clone();
-        let root = run_blocking(move || {
-            let profile = profiles.load(&name)?;
-            scan_root(&profile.effective_profile().game.executable_path)
-        })
-        .await?;
-
         let metadata = self.metadata.clone();
         run_blocking(move || {
+            let profile = profiles.load(&profile_name)?;
+            let root = scan_root(&profile.effective_profile().game.executable_path)?;
             let mut report = scan_game_directory(&root)
                 .map_err(|error| AppError::new(AppErrorKind::Io, error.to_string()))?;
+            // Best-effort enrichment; with the DB down every flag stays false.
             if metadata.is_available() {
                 let existing = metadata
                     .lookup_profile_id(&profile_name)
