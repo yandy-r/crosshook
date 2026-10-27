@@ -54,6 +54,26 @@ impl AppError {
         Self::new(AppErrorKind::Validation { field }, message)
     }
 
+    /// Maps `MetadataStoreError::Validation(msg)` from the collections, mods
+    /// and version stores to `Validation { field }` while keeping `msg`
+    /// (user-entered names only; no paths). The message equals
+    /// `MetadataStoreError::Validation`'s `Display` text so adapters reproduce
+    /// today's IPC strings; [`AppError::new`] still sanitizes it. Every other
+    /// variant delegates to the fixed-message `From<MetadataStoreError>`.
+    pub(crate) fn from_metadata_validation(
+        field: &'static str,
+        error: crosshook_core::metadata::MetadataStoreError,
+    ) -> Self {
+        use crosshook_core::metadata::MetadataStoreError as E;
+        match error {
+            E::Validation(message) => Self::new(
+                AppErrorKind::Validation { field },
+                format!("metadata validation error: {message}"),
+            ),
+            other => Self::from(other),
+        }
+    }
+
     /// Returns the stable error category.
     pub fn kind(&self) -> AppErrorKind {
         self.kind

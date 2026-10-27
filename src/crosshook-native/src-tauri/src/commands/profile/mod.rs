@@ -1,7 +1,6 @@
 //! Profile Tauri commands, split into per-domain submodules. Each command is a
 //! thin async delegate to `crosshook_app::services::profiles::ProfileWriter`.
 //!
-//! - `shared`            — collection launch-defaults composition (stays in the shell until M1-35)
 //! - `lifecycle`         — CRUD and import/export commands
 //! - `optimizations`     — launch optimization, section and preset commands
 //! - `command_arguments` — command-argument section commands
@@ -13,7 +12,6 @@ mod config_history;
 mod favorites;
 mod lifecycle;
 mod optimizations;
-mod shared;
 
 #[cfg(test)]
 mod tests;

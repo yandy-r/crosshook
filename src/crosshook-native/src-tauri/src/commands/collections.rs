@@ -1,166 +1,169 @@
-use std::path::PathBuf;
-
-use crosshook_core::metadata::{CollectionRow, MetadataStore};
+use crosshook_app::{AppError, CollectionsService};
+use crosshook_core::metadata::CollectionRow;
 use crosshook_core::profile::{
-    export_collection_preset_to_toml, preview_collection_preset_import, CollectionDefaultsSection,
-    CollectionExportResult, CollectionImportPreview, ProfileStore,
+    CollectionDefaultsSection, CollectionExportResult, CollectionImportPreview,
 };
 use tauri::State;
 
-fn map_error(e: impl ToString) -> String {
-    e.to_string()
+fn map_app_error(error: AppError) -> String {
+    error.message().to_string()
 }
 
 #[tauri::command]
-pub fn collection_list(
-    metadata_store: State<'_, MetadataStore>,
+pub async fn collection_list(
+    service: State<'_, CollectionsService>,
 ) -> Result<Vec<CollectionRow>, String> {
-    metadata_store.list_collections().map_err(map_error)
+    service.list().await.map_err(map_app_error)
 }
 
 #[tauri::command]
-pub fn collection_create(
+pub async fn collection_create(
     name: String,
-    metadata_store: State<'_, MetadataStore>,
+    service: State<'_, CollectionsService>,
 ) -> Result<String, String> {
-    metadata_store.create_collection(&name).map_err(map_error)
+    service.create(name).await.map_err(map_app_error)
 }
 
 #[tauri::command]
-pub fn collection_delete(
+pub async fn collection_delete(
     collection_id: String,
-    metadata_store: State<'_, MetadataStore>,
+    service: State<'_, CollectionsService>,
 ) -> Result<(), String> {
-    metadata_store
-        .delete_collection(&collection_id)
-        .map_err(map_error)
+    service.delete(collection_id).await.map_err(map_app_error)
 }
 
 #[tauri::command]
-pub fn collection_add_profile(
+pub async fn collection_add_profile(
     collection_id: String,
     profile_name: String,
-    metadata_store: State<'_, MetadataStore>,
+    service: State<'_, CollectionsService>,
 ) -> Result<(), String> {
-    metadata_store
-        .add_profile_to_collection(&collection_id, &profile_name)
-        .map_err(map_error)
+    service
+        .add_profile(collection_id, profile_name)
+        .await
+        .map_err(map_app_error)
 }
 
 #[tauri::command]
-pub fn collection_remove_profile(
+pub async fn collection_remove_profile(
     collection_id: String,
     profile_name: String,
-    metadata_store: State<'_, MetadataStore>,
+    service: State<'_, CollectionsService>,
 ) -> Result<(), String> {
-    metadata_store
-        .remove_profile_from_collection(&collection_id, &profile_name)
-        .map_err(map_error)
+    service
+        .remove_profile(collection_id, profile_name)
+        .await
+        .map_err(map_app_error)
 }
 
 #[tauri::command]
-pub fn collection_list_profiles(
+pub async fn collection_list_profiles(
     collection_id: String,
-    metadata_store: State<'_, MetadataStore>,
+    service: State<'_, CollectionsService>,
 ) -> Result<Vec<String>, String> {
-    metadata_store
-        .list_profiles_in_collection(&collection_id)
-        .map_err(map_error)
+    service
+        .list_profiles(collection_id)
+        .await
+        .map_err(map_app_error)
 }
 
 #[tauri::command]
-pub fn collection_rename(
+pub async fn collection_rename(
     collection_id: String,
     new_name: String,
-    metadata_store: State<'_, MetadataStore>,
+    service: State<'_, CollectionsService>,
 ) -> Result<(), String> {
-    metadata_store
-        .rename_collection(&collection_id, &new_name)
-        .map_err(map_error)
+    service
+        .rename(collection_id, new_name)
+        .await
+        .map_err(map_app_error)
 }
 
 #[tauri::command]
-pub fn collection_update_description(
+pub async fn collection_update_description(
     collection_id: String,
     description: Option<String>,
-    metadata_store: State<'_, MetadataStore>,
+    service: State<'_, CollectionsService>,
 ) -> Result<(), String> {
-    metadata_store
-        .update_collection_description(&collection_id, description.as_deref())
-        .map_err(map_error)
+    service
+        .update_description(collection_id, description)
+        .await
+        .map_err(map_app_error)
 }
 
 #[tauri::command]
-pub fn collections_for_profile(
+pub async fn collections_for_profile(
     profile_name: String,
-    metadata_store: State<'_, MetadataStore>,
+    service: State<'_, CollectionsService>,
 ) -> Result<Vec<CollectionRow>, String> {
-    metadata_store
-        .collections_for_profile(&profile_name)
-        .map_err(map_error)
+    service
+        .collections_for_profile(profile_name)
+        .await
+        .map_err(map_app_error)
 }
 
 #[tauri::command]
-pub fn collection_get_defaults(
+pub async fn collection_get_defaults(
     collection_id: String,
-    metadata_store: State<'_, MetadataStore>,
+    service: State<'_, CollectionsService>,
 ) -> Result<Option<CollectionDefaultsSection>, String> {
-    let mut defaults = metadata_store
-        .get_collection_defaults(&collection_id)
-        .map_err(map_error)?;
-    if let Some(defaults) = &mut defaults {
-        defaults.clear_extra();
-    }
-    Ok(defaults)
+    service
+        .get_defaults(collection_id)
+        .await
+        .map_err(map_app_error)
 }
 
 #[tauri::command]
-pub fn collection_set_defaults(
+pub async fn collection_set_defaults(
     collection_id: String,
-    mut defaults: Option<CollectionDefaultsSection>,
-    metadata_store: State<'_, MetadataStore>,
+    defaults: Option<CollectionDefaultsSection>,
+    service: State<'_, CollectionsService>,
 ) -> Result<(), String> {
-    if let Some(defaults) = &mut defaults {
-        defaults.clear_extra();
-        if let Some(existing) = metadata_store
-            .get_collection_defaults(&collection_id)
-            .map_err(map_error)?
-        {
-            defaults.preserve_extra_from(&existing);
-        }
-    }
-    metadata_store
-        .set_collection_defaults(&collection_id, defaults.as_ref())
-        .map_err(map_error)
+    service
+        .set_defaults(collection_id, defaults)
+        .await
+        .map_err(map_app_error)
 }
 
 #[tauri::command]
-pub fn collection_export_to_toml(
+pub async fn collection_export_to_toml(
     collection_id: String,
     output_path: String,
-    metadata_store: State<'_, MetadataStore>,
-    profile_store: State<'_, ProfileStore>,
+    service: State<'_, CollectionsService>,
 ) -> Result<CollectionExportResult, String> {
-    let cid = collection_id.trim();
-    if cid.is_empty() {
-        return Err("collection_id must not be empty".to_string());
-    }
-    if output_path.is_empty() {
-        return Err("output_path must not be empty".to_string());
-    }
-    let path = PathBuf::from(output_path);
-    export_collection_preset_to_toml(&metadata_store, &profile_store, cid, &path)
-        .map_err(|e| e.to_string())
+    service
+        .export_to_toml(collection_id, output_path)
+        .await
+        .map_err(map_app_error)
 }
 
 #[tauri::command]
-pub fn collection_import_from_toml(
+pub async fn collection_import_from_toml(
     path: String,
-    profile_store: State<'_, ProfileStore>,
+    service: State<'_, CollectionsService>,
 ) -> Result<CollectionImportPreview, String> {
-    if path.is_empty() {
-        return Err("path must not be empty".to_string());
+    service.import_from_toml(path).await.map_err(map_app_error)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn command_names_match_expected_ipc_contract() {
+        // Async commands cannot be cast to function pointers; pin their exported names.
+        let _ = collection_list;
+        let _ = collection_create;
+        let _ = collection_delete;
+        let _ = collection_add_profile;
+        let _ = collection_remove_profile;
+        let _ = collection_list_profiles;
+        let _ = collection_rename;
+        let _ = collection_update_description;
+        let _ = collections_for_profile;
+        let _ = collection_get_defaults;
+        let _ = collection_set_defaults;
+        let _ = collection_export_to_toml;
+        let _ = collection_import_from_toml;
     }
-    let p = PathBuf::from(path);
-    preview_collection_preset_import(&profile_store, &p).map_err(|e| e.to_string())
 }

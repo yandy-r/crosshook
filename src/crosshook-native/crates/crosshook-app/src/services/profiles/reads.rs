@@ -39,7 +39,7 @@ impl ProfileWriter {
     /// that fail to load are skipped with a warning.
     ///
     /// `resolve_collection_defaults` supplies the collection launch-defaults
-    /// layer (collection composition stays with the caller until M1-35). It
+    /// layer (the shell passes `CollectionsService::resolve_defaults_sync`). It
     /// runs at most once, and only when at least one profile loaded, so an
     /// empty library never surfaces a collection error.
     ///

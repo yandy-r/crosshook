@@ -47,6 +47,12 @@ pub fn run() {
         .manage(services.profiles.clone())
         .manage(services.background.clone())
         .manage(services.launch.clone())
+        .manage(services.storage.clone())
+        .manage(services.mods.clone())
+        .manage(services.collections.clone())
+        .manage(services.launcher_export.clone())
+        .manage(services.version.clone())
+        .manage(services.steam.clone())
         .manage(core.clone())
         .setup(move |app| {
             startup_bridge::spawn(app.handle().clone(), core.startup(), startup_events);

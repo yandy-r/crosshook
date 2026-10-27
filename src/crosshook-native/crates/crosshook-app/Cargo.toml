@@ -14,6 +14,7 @@ test-seams = ["crosshook-core/bootstrap-trace"]
 
 [dependencies]
 
+chrono = "0.4"
 crosshook-core = { path = "../crosshook-core" }
 nix = { version = "0.31.2", default-features = false, features = ["process", "signal"] }
 serde = { version = "1", features = ["derive", "rc"] }
@@ -41,4 +42,8 @@ harness = false
 
 [[test]]
 name = "profile_writer_golden"
+harness = false
+
+[[test]]
+name = "launcher_export_golden"
 harness = false

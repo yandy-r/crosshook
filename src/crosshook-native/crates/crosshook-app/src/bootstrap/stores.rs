@@ -22,9 +22,11 @@ use crosshook_core::settings::{AppSettingsData, RecentFilesStore, SettingsStore}
 use super::options::StoreRoots;
 use super::{BootstrapError, StoreKind};
 use crate::events::EventBus;
+use crate::jobs::JobRegistry;
 use crate::services::{
-    BackgroundGrantHolder, DiagnosticsService, HealthService, LaunchService, ProfileWriter,
-    RecentFilesService, SettingsService, UiSettingsService,
+    BackgroundGrantHolder, CollectionsService, DiagnosticsService, HealthService, LaunchService,
+    LauncherExportService, ModsService, ProfileWriter, RecentFilesService, SettingsService,
+    SteamService, StorageService, UiSettingsService, VersionService,
 };
 
 /// The persistent stores the application owns. Clones are cheap; clones of
@@ -62,13 +64,26 @@ pub struct Services {
     pub background: Arc<BackgroundGrantHolder>,
     /// Launch pipeline: validation, spawn, log streaming and session finalization.
     pub launch: LaunchService,
+    /// Prefix storage scan job, hardened cleanup and history.
+    pub storage: StorageService,
+    /// Per-profile mod registry, detection and coexistence analysis.
+    pub mods: ModsService,
+    /// Collections, their defaults and TOML export/import preview.
+    pub collections: CollectionsService,
+    /// External launcher export, preview, list, rename and delete.
+    pub launcher_export: LauncherExportService,
+    /// Version snapshots and correlation.
+    pub version: VersionService,
+    /// Steam client path, Proton installs, auto-populate and game metadata/art.
+    pub steam: SteamService,
 }
 
 impl Services {
     /// Builds the service bundle over `stores`; `events` is the app bus that
-    /// services publish change notifications on, and `runtime` spawns the
-    /// `[ui]` settings writer.
-    pub fn new(stores: &Stores, events: EventBus, runtime: Handle) -> Self {
+    /// services publish change notifications on, `runtime` spawns the `[ui]`
+    /// settings writer, and `jobs` is the app job registry (cancelled on app
+    /// shutdown) that supervises storage scan jobs.
+    pub fn new(stores: &Stores, events: EventBus, runtime: Handle, jobs: JobRegistry) -> Self {
         let background = Arc::new(BackgroundGrantHolder::new());
         Self {
             settings: SettingsService::new(
@@ -98,6 +113,16 @@ impl Services {
                 stores.metadata.clone(),
                 Some(background.clone()),
             ),
+            storage: StorageService::new(stores.profiles.clone(), stores.metadata.clone(), jobs),
+            mods: ModsService::new(stores.profiles.clone(), stores.metadata.clone()),
+            collections: CollectionsService::new(stores.metadata.clone(), stores.profiles.clone()),
+            launcher_export: LauncherExportService::new(
+                stores.profiles.clone(),
+                stores.settings.clone(),
+                stores.metadata.clone(),
+            ),
+            version: VersionService::new(stores.profiles.clone(), stores.metadata.clone()),
+            steam: SteamService::new(stores.metadata.clone(), stores.settings.clone()),
             background,
         }
     }

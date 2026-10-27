@@ -1,65 +1,77 @@
-use crosshook_core::game_images::{
-    download_and_cache_image, import_custom_art as core_import_art,
-    import_custom_cover_art as core_import_cover_art, GameImageType,
-};
-use crosshook_core::metadata::MetadataStore;
-use crosshook_core::settings::SettingsStore;
-use crosshook_core::steam_metadata::{lookup_steam_metadata, SteamMetadataLookupResult};
+//! Thin IPC adapters for Steam game metadata and cover art.
+//! All logic lives in [`crosshook_app::services::steam`].
+
+use crosshook_app::services::SteamService;
+use crosshook_app::{AppError, AppErrorKind};
+use crosshook_core::steam_metadata::SteamMetadataLookupResult;
 use tauri::State;
+
+fn map_error(error: AppError) -> String {
+    error.message().to_string()
+}
 
 #[tauri::command]
 pub async fn fetch_game_metadata(
     app_id: String,
     force_refresh: Option<bool>,
-    metadata_store: State<'_, MetadataStore>,
+    service: State<'_, SteamService>,
 ) -> Result<SteamMetadataLookupResult, String> {
-    let store = metadata_store.inner().clone();
-    Ok(lookup_steam_metadata(&store, &app_id, force_refresh.unwrap_or(false)).await)
+    service
+        .fetch_game_metadata(app_id, force_refresh)
+        .await
+        .map_err(map_error)
 }
 
+/// Cover-art lookup for a Steam app id. A service `Unavailable` (core found no
+/// usable art: no cache and the network fetch failed) maps to `Ok(None)` per
+/// the frozen IPC contract (D12); cached art is always returned first.
 #[tauri::command]
 pub async fn fetch_game_cover_art(
     app_id: String,
     image_type: Option<String>,
-    metadata_store: State<'_, MetadataStore>,
-    settings_store: State<'_, SettingsStore>,
+    service: State<'_, SteamService>,
 ) -> Result<Option<String>, String> {
-    let store = metadata_store.inner().clone();
-    let image_type = match image_type.as_deref().unwrap_or("cover") {
-        "cover" => GameImageType::Cover,
-        "hero" => GameImageType::Hero,
-        "capsule" => GameImageType::Capsule,
-        "portrait" => GameImageType::Portrait,
-        "background" => GameImageType::Background,
-        other => {
-            tracing::warn!("Unknown image_type requested: {other}");
-            return Err(format!("Unknown image type: {other}"));
-        }
-    };
-
-    // Read the SteamGridDB API key from settings (non-fatal on error).
-    let api_key_owned: Option<String> = settings_store
-        .load()
-        .ok()
-        .and_then(|s| s.steamgriddb_api_key)
-        .filter(|k| !k.trim().is_empty());
-    let api_key = api_key_owned.as_deref();
-
-    download_and_cache_image(&store, &app_id, image_type, api_key).await
+    match service.fetch_cover_art(app_id, image_type).await {
+        Ok(path) => Ok(path),
+        Err(error) if error.kind() == AppErrorKind::Unavailable => Ok(None),
+        Err(error) => Err(error.message().to_string()),
+    }
 }
 
 #[tauri::command]
-pub fn import_custom_cover_art(source_path: String) -> Result<String, String> {
-    core_import_cover_art(&source_path)
+pub async fn import_custom_cover_art(
+    source_path: String,
+    service: State<'_, SteamService>,
+) -> Result<String, String> {
+    service
+        .import_custom_cover_art(source_path)
+        .await
+        .map_err(map_error)
 }
 
 #[tauri::command]
-pub fn import_custom_art(source_path: String, art_type: Option<String>) -> Result<String, String> {
-    let image_type = match art_type.as_deref().unwrap_or("cover") {
-        "cover" => GameImageType::Cover,
-        "portrait" => GameImageType::Portrait,
-        "background" => GameImageType::Background,
-        other => return Err(format!("Unknown art type: {other}")),
-    };
-    core_import_art(&source_path, image_type)
+pub async fn import_custom_art(
+    source_path: String,
+    art_type: Option<String>,
+    service: State<'_, SteamService>,
+) -> Result<String, String> {
+    service
+        .import_custom_art(source_path, art_type)
+        .await
+        .map_err(map_error)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn command_names_match_expected_ipc_contract() {
+        // Async commands cannot be cast to fn pointers; naming them pins the
+        // exported symbol (and thus the IPC command name).
+        let _ = fetch_game_metadata;
+        let _ = fetch_game_cover_art;
+        let _ = import_custom_cover_art;
+        let _ = import_custom_art;
+    }
 }
