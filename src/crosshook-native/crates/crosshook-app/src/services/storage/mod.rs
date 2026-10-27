@@ -1,11 +1,6 @@
 //! Prefix storage service: scan job, hardened cleanup and history over the profile
 //! prefix inventory and the metadata audit tables.
 
-#![expect(
-    dead_code,
-    reason = "B2 fills the methods; B4/B5 removes this once everything is wired"
-)]
-
 mod audit;
 mod cleanup;
 mod scan;
@@ -49,6 +44,7 @@ impl StorageService {
         }
     }
 
+    #[cfg(test)]
     /// The job registry the scan job runs on.
     pub(crate) fn jobs(&self) -> &JobRegistry {
         &self.jobs

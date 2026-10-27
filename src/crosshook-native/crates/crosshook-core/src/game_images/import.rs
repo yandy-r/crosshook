@@ -1,3 +1,4 @@
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use crate::metadata::sha256_hex;
@@ -31,24 +32,36 @@ pub fn is_in_managed_media_dir(path: &str) -> bool {
 ///
 /// Returns the absolute path of the imported file.
 pub fn import_custom_art(source_path: &str, art_type: GameImageType) -> Result<String, String> {
+    import_custom_art_into(source_path, art_type, &media_base_dir()?)
+}
+
+/// Imports art into an explicit media root, using the same validation and layout
+/// as [`import_custom_art`]. Useful for callers with an already resolved root.
+pub fn import_custom_art_into(
+    source_path: &str,
+    art_type: GameImageType,
+    media_base: &Path,
+) -> Result<String, String> {
     let subdir = match art_type {
         GameImageType::Cover => "covers",
         GameImageType::Portrait => "portraits",
         GameImageType::Background => "backgrounds",
-        _ => {
+        GameImageType::Hero | GameImageType::Capsule => {
             return Err(format!(
                 "Unsupported art type for custom import: {art_type}"
             ))
         }
     };
-    let dest_dir = media_base_dir()?.join(subdir);
+    let dest_dir = media_base.join(subdir);
 
     let source = Path::new(source_path.trim());
     if !source.exists() {
         return Err(format!("source file does not exist: {}", source.display()));
     }
 
-    let bytes = std::fs::read(source).map_err(|e| format!("failed to read source file: {e}"))?;
+    let source_file =
+        std::fs::File::open(source).map_err(|e| format!("failed to read source file: {e}"))?;
+    let bytes = read_bounded_image(source_file)?;
 
     let mime = validate_image_bytes(&bytes).map_err(|e| format!("image validation failed: {e}"))?;
     let ext = mime_extension(mime);
@@ -79,6 +92,22 @@ pub fn import_custom_cover_art(source_path: &str) -> Result<String, String> {
     import_custom_art(source_path, GameImageType::Cover)
 }
 
+const MAX_IMPORT_BYTES: u64 = 5 * 1024 * 1024;
+
+fn read_bounded_image(reader: impl Read) -> Result<Vec<u8>, String> {
+    let mut bytes = Vec::new();
+    // Read one extra byte to distinguish an exact-limit file from an oversized
+    // stream. Never read the rest of a file that fails the size policy.
+    reader
+        .take(MAX_IMPORT_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| format!("failed to read source file: {e}"))?;
+    if bytes.len() as u64 > MAX_IMPORT_BYTES {
+        return Err("image validation failed: image response exceeds the 5 MB size limit".into());
+    }
+    Ok(bytes)
+}
+
 fn mime_extension(mime_type: &str) -> &'static str {
     match mime_type {
         "image/jpeg" => "jpg",
@@ -91,6 +120,28 @@ fn mime_extension(mime_type: &str) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bounded_read_stops_after_first_excess_byte() {
+        struct Endless<'a>(&'a mut u64);
+        impl Read for Endless<'_> {
+            fn read(&mut self, output: &mut [u8]) -> std::io::Result<usize> {
+                *self.0 += output.len() as u64;
+                output.fill(0);
+                Ok(output.len())
+            }
+        }
+        let mut consumed = 0;
+        let error = read_bounded_image(Endless(&mut consumed)).unwrap_err();
+        assert_eq!(consumed, MAX_IMPORT_BYTES + 1);
+        assert!(error.contains("size limit"));
+    }
+
+    #[test]
+    fn bounded_read_accepts_exact_limit() {
+        let bytes = read_bounded_image(std::io::repeat(0).take(MAX_IMPORT_BYTES)).unwrap();
+        assert_eq!(bytes.len() as u64, MAX_IMPORT_BYTES);
+    }
 
     #[test]
     fn is_in_managed_media_dir_detects_managed_paths() {

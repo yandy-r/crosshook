@@ -60,10 +60,6 @@ impl AppError {
     /// `MetadataStoreError::Validation`'s `Display` text so adapters reproduce
     /// today's IPC strings; [`AppError::new`] still sanitizes it. Every other
     /// variant delegates to the fixed-message `From<MetadataStoreError>`.
-    #[allow(
-        dead_code,
-        reason = "first callers land with the mods/collections/version services"
-    )]
     pub(crate) fn from_metadata_validation(
         field: &'static str,
         error: crosshook_core::metadata::MetadataStoreError,

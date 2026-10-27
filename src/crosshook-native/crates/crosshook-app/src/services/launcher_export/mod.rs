@@ -1,11 +1,6 @@
 //! Launcher export service: validate, export, preview, list, rename and delete
 //! external launcher scripts and desktop entries.
 
-#![expect(
-    dead_code,
-    reason = "B2 fills the methods; B4/B5 removes this once everything is wired"
-)]
-
 mod export;
 mod list;
 mod preview;

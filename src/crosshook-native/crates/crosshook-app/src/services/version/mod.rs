@@ -1,10 +1,5 @@
 //! Version service: Steam build and trainer version correlation reads and writes.
 
-#![expect(
-    dead_code,
-    reason = "B2 fills the methods; B4/B5 removes this once everything is wired"
-)]
-
 mod ops;
 mod status;
 

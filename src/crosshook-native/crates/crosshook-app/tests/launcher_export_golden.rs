@@ -1,8 +1,7 @@
 //! Golden byte compatibility for launcher export (YAN-847 Task 0.1, AC3).
 //!
-//! Each case drives the launcher export core (`export_launchers`,
-//! `preview_trainer_script_content`, `preview_desktop_entry_content`) with a
-//! fixed request and compares the written script and desktop entry (plus the
+//! Each case drives `LauncherExportService` (`export`, `preview_script`,
+//! `preview_desktop`) with a fixed request and compares the written script and desktop entry (plus the
 //! preview strings for two cases) byte-for-byte with the fixtures under
 //! `fixtures/launcher_export/`. The fixtures were captured from the unmodified
 //! Tauri-era code before any source moved. They are frozen: a mismatch is an
@@ -34,21 +33,22 @@
 //! ```
 //!
 //! This is a `harness = false` binary. `main` points `HOME` at a tempdir before
-//! any runtime or other thread exists, then runs the cases sequentially, so no
-//! thread can observe the environment while it changes and the real user's
-//! launchers are never touched.
+//! any runtime or other thread exists, then builds a current-thread runtime and
+//! runs the cases sequentially, so no thread can observe the environment while
+//! it changes and the real user's launchers are never touched.
 
 use std::fs;
+use std::future::Future;
 use std::os::unix::fs::PermissionsExt;
 use std::panic::AssertUnwindSafe;
 use std::path::Path;
+use std::pin::Pin;
 
-use crosshook_core::export::{
-    export_launchers, preview_desktop_entry_content, preview_trainer_script_content,
-    SteamExternalLauncherExportRequest,
-};
-use crosshook_core::profile::{GamescopeConfig, TrainerLoadingMode};
-use crosshook_core::settings::UmuPreference;
+use crosshook_app::LauncherExportService;
+use crosshook_core::export::SteamExternalLauncherExportRequest;
+use crosshook_core::metadata::MetadataStore;
+use crosshook_core::profile::{GamescopeConfig, ProfileStore, TrainerLoadingMode};
+use crosshook_core::settings::{SettingsStore, UmuPreference};
 
 const HOME_PLACEHOLDER: &str = "@HOME@";
 
@@ -140,7 +140,8 @@ fn proton_run_copy_to_prefix(home: &Path) -> SteamExternalLauncherExportRequest 
 
 /// Exports `request` under `home`, asserts the on-disk modes, and returns the
 /// placeholder-substituted bytes. Previews are produced when `with_previews`.
-fn produce(
+async fn produce(
+    service: &LauncherExportService,
     home: &Path,
     request: &SteamExternalLauncherExportRequest,
     with_previews: bool,
@@ -148,7 +149,10 @@ fn produce(
     let home_str = home.to_string_lossy().into_owned();
     let normalize = |text: String| text.replace(&home_str, HOME_PLACEHOLDER).into_bytes();
 
-    let result = export_launchers(request).expect("export launchers");
+    let result = service
+        .export(request.clone())
+        .await
+        .expect("export launchers");
     let script_mode = fs::metadata(&result.script_path)
         .expect("script metadata")
         .permissions()
@@ -172,10 +176,16 @@ fn produce(
     let (preview_script, preview_desktop) = if with_previews {
         (
             Some(normalize(
-                preview_trainer_script_content(request).expect("preview script"),
+                service
+                    .preview_script(request.clone())
+                    .await
+                    .expect("preview script"),
             )),
             Some(normalize(
-                preview_desktop_entry_content(request).expect("preview desktop"),
+                service
+                    .preview_desktop(request.clone())
+                    .await
+                    .expect("preview desktop"),
             )),
         )
     } else {
@@ -214,7 +224,8 @@ fn assert_bytes(label: &str, actual: &[u8], expected: &[u8]) {
     );
 }
 
-fn check_case(
+async fn check_case(
+    service: &LauncherExportService,
     case: &str,
     request: fn(&Path) -> SteamExternalLauncherExportRequest,
     expected: &Expected,
@@ -226,7 +237,7 @@ fn check_case(
     fs::create_dir_all(&case_home).expect("case home");
     let request = request(&case_home);
     let with_previews = expected.preview_script.is_some();
-    let produced = produce(&case_home, &request, with_previews);
+    let produced = produce(service, &case_home, &request, with_previews).await;
     assert_bytes(
         &format!("{case}/script.sh"),
         &produced.script,
@@ -245,8 +256,9 @@ fn check_case(
     }
 }
 
-fn steam_applaunch_plain_matches_golden() {
+async fn steam_applaunch_plain_matches_golden(service: LauncherExportService) {
     check_case(
+        &service,
         "steam_applaunch_plain",
         steam_applaunch_plain,
         &Expected {
@@ -255,11 +267,13 @@ fn steam_applaunch_plain_matches_golden() {
             preview_script: Some(fixture!("steam_applaunch_plain", "preview-script.txt")),
             preview_desktop: Some(fixture!("steam_applaunch_plain", "preview-desktop.txt")),
         },
-    );
+    )
+    .await;
 }
 
-fn steam_applaunch_gamescope_matches_golden() {
+async fn steam_applaunch_gamescope_matches_golden(service: LauncherExportService) {
     check_case(
+        &service,
         "steam_applaunch_gamescope",
         steam_applaunch_gamescope,
         &Expected {
@@ -268,11 +282,13 @@ fn steam_applaunch_gamescope_matches_golden() {
             preview_script: None,
             preview_desktop: None,
         },
-    );
+    )
+    .await;
 }
 
-fn proton_run_plain_matches_golden() {
+async fn proton_run_plain_matches_golden(service: LauncherExportService) {
     check_case(
+        &service,
         "proton_run_plain",
         proton_run_plain,
         &Expected {
@@ -281,11 +297,13 @@ fn proton_run_plain_matches_golden() {
             preview_script: None,
             preview_desktop: None,
         },
-    );
+    )
+    .await;
 }
 
-fn proton_run_network_env_matches_golden() {
+async fn proton_run_network_env_matches_golden(service: LauncherExportService) {
     check_case(
+        &service,
         "proton_run_network_env",
         proton_run_network_env,
         &Expected {
@@ -294,11 +312,13 @@ fn proton_run_network_env_matches_golden() {
             preview_script: Some(fixture!("proton_run_network_env", "preview-script.txt")),
             preview_desktop: Some(fixture!("proton_run_network_env", "preview-desktop.txt")),
         },
-    );
+    )
+    .await;
 }
 
-fn proton_run_umu_proton_matches_golden() {
+async fn proton_run_umu_proton_matches_golden(service: LauncherExportService) {
     check_case(
+        &service,
         "proton_run_umu_proton",
         proton_run_umu_proton,
         &Expected {
@@ -307,11 +327,13 @@ fn proton_run_umu_proton_matches_golden() {
             preview_script: None,
             preview_desktop: None,
         },
-    );
+    )
+    .await;
 }
 
-fn proton_run_copy_to_prefix_matches_golden() {
+async fn proton_run_copy_to_prefix_matches_golden(service: LauncherExportService) {
     check_case(
+        &service,
         "proton_run_copy_to_prefix",
         proton_run_copy_to_prefix,
         &Expected {
@@ -320,35 +342,32 @@ fn proton_run_copy_to_prefix_matches_golden() {
             preview_script: None,
             preview_desktop: None,
         },
-    );
+    )
+    .await;
 }
 
+type GoldenFuture = Pin<Box<dyn Future<Output = ()>>>;
+
 /// Every golden case, by libtest-style name.
-const TESTS: [(&str, fn()); 6] = [
-    (
-        "steam_applaunch_plain_matches_golden",
-        steam_applaunch_plain_matches_golden,
-    ),
-    (
-        "steam_applaunch_gamescope_matches_golden",
-        steam_applaunch_gamescope_matches_golden,
-    ),
-    (
-        "proton_run_plain_matches_golden",
-        proton_run_plain_matches_golden,
-    ),
-    (
-        "proton_run_network_env_matches_golden",
-        proton_run_network_env_matches_golden,
-    ),
-    (
-        "proton_run_umu_proton_matches_golden",
-        proton_run_umu_proton_matches_golden,
-    ),
-    (
-        "proton_run_copy_to_prefix_matches_golden",
-        proton_run_copy_to_prefix_matches_golden,
-    ),
+const TESTS: [(&str, fn(LauncherExportService) -> GoldenFuture); 6] = [
+    ("steam_applaunch_plain_matches_golden", |service| {
+        Box::pin(steam_applaunch_plain_matches_golden(service))
+    }),
+    ("steam_applaunch_gamescope_matches_golden", |service| {
+        Box::pin(steam_applaunch_gamescope_matches_golden(service))
+    }),
+    ("proton_run_plain_matches_golden", |service| {
+        Box::pin(proton_run_plain_matches_golden(service))
+    }),
+    ("proton_run_network_env_matches_golden", |service| {
+        Box::pin(proton_run_network_env_matches_golden(service))
+    }),
+    ("proton_run_umu_proton_matches_golden", |service| {
+        Box::pin(proton_run_umu_proton_matches_golden(service))
+    }),
+    ("proton_run_copy_to_prefix_matches_golden", |service| {
+        Box::pin(proton_run_copy_to_prefix_matches_golden(service))
+    }),
 ];
 
 /// The subset of the libtest command line cargo, nextest and IDEs pass.
@@ -425,10 +444,23 @@ fn main() {
         std::env::set_var("HOME", home.path());
     }
 
+    // The runtime (and its threads) starts only after the `HOME` write above.
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("tokio runtime");
+    let service = LauncherExportService::new(
+        ProfileStore::with_base_path(home.path().join("profiles")),
+        SettingsStore::with_base_path(home.path().join("config")),
+        MetadataStore::disabled(),
+    );
+
     println!("\nrunning {} tests", selected.len());
     let mut failed = Vec::new();
     for (name, test) in &selected {
-        let outcome = std::panic::catch_unwind(AssertUnwindSafe(test));
+        let outcome = std::panic::catch_unwind(AssertUnwindSafe(|| {
+            runtime.block_on(test(service.clone()));
+        }));
         match outcome {
             Ok(()) => println!("test {name} ... ok"),
             Err(_) => {
@@ -437,6 +469,7 @@ fn main() {
             }
         }
     }
+    drop(runtime);
     drop(home);
 
     let passed = selected.len() - failed.len();

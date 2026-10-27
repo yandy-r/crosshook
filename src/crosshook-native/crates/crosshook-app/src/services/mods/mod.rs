@@ -1,11 +1,6 @@
 //! Profile mods service: registry reads and writes, directory detection and
 //! coexistence analysis.
 
-#![expect(
-    dead_code,
-    reason = "B2 fills the methods; B4/B5 removes this once everything is wired"
-)]
-
 mod coexistence;
 mod crud;
 mod detect;

@@ -1,11 +1,6 @@
 //! Collections service: CRUD, membership, launch defaults (including the profile
 //! defaults merge) and TOML export/import preview.
 
-#![expect(
-    dead_code,
-    reason = "B2 fills the methods; B4/B5 removes this once everything is wired"
-)]
-
 mod crud;
 mod defaults;
 mod transfer;

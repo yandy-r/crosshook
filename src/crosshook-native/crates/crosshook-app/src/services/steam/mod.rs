@@ -1,11 +1,6 @@
 //! Steam service: client install path, Proton discovery, auto-populate and game
 //! metadata / cover art.
 
-#![expect(
-    dead_code,
-    reason = "B2 fills the methods; B4/B5 removes this once everything is wired"
-)]
-
 mod client;
 mod metadata;
 mod proton;
