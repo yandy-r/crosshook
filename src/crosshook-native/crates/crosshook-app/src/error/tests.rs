@@ -203,3 +203,62 @@ fn metadata_variants_map_to_fixed_messages() {
     assert_eq!(io.kind(), AppErrorKind::Io);
     assert!(!io.message().contains("/home/"));
 }
+
+#[test]
+fn metadata_validation_helper_keeps_display_text_and_field() {
+    for (field, message) in [
+        (
+            "mod",
+            "a mod named \"X\" is already registered for this profile",
+        ),
+        ("mod", "mod not found"),
+        ("collection", "collection not found: abc"),
+        (
+            "collection",
+            "profile not found when adding to collection: demo",
+        ),
+        ("version", "profile not registered"),
+    ] {
+        let source = MetadataStoreError::Validation(message.to_string());
+        let expected = source.to_string();
+        let error = AppError::from_metadata_validation(field, source);
+        assert_eq!(error.kind(), AppErrorKind::Validation { field });
+        assert_eq!(error.message(), expected);
+        assert_eq!(
+            error.message(),
+            format!("metadata validation error: {message}")
+        );
+    }
+}
+
+#[test]
+fn metadata_validation_helper_sanitizes_home_paths() {
+    let home = std::env::var("HOME").unwrap_or_default();
+    if home.len() > 1 {
+        let error = AppError::from_metadata_validation(
+            "mod",
+            MetadataStoreError::Validation(format!("bad {home}/secret")),
+        );
+        assert!(!error.message().contains(&home));
+    }
+}
+
+#[test]
+fn metadata_validation_helper_delegates_other_variants() {
+    let error = AppError::from_metadata_validation(
+        "mod",
+        MetadataStoreError::Corrupt("/home/user/metadata.db".to_string()),
+    );
+    assert_eq!(error.kind(), AppErrorKind::Internal);
+    assert_eq!(error.message(), "metadata database is corrupt");
+
+    let unavailable = AppError::from_metadata_validation(
+        "collection",
+        MetadataStoreError::NewerSchema {
+            found: 99,
+            supported: 1,
+        },
+    );
+    assert_eq!(unavailable.kind(), AppErrorKind::Unavailable);
+    assert_eq!(unavailable.message(), "metadata database is unavailable");
+}

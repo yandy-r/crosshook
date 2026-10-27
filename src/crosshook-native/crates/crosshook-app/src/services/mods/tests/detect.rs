@@ -1,0 +1,1 @@
+//! `ModsService` tests: detect slice.

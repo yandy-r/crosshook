@@ -1,0 +1,1 @@
+//! `CollectionsService` tests: crud slice.

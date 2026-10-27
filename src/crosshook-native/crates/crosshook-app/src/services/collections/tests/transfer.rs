@@ -1,0 +1,1 @@
+//! `CollectionsService` tests: transfer slice.

@@ -123,14 +123,46 @@ async fn services_new_builds_bundle_from_stores() {
     let roots = explicit_roots(&config, &data);
     let settings = init_settings(&roots).unwrap();
     let (stores, _) = init_remaining(&roots, &settings, &AppSettingsData::default()).unwrap();
+    let jobs = crate::jobs::JobRegistry::default();
 
     let services = Services::new(
         &stores,
         crate::EventBus::default(),
         tokio::runtime::Handle::current(),
+        jobs.clone(),
     );
 
     // Bundle is built; clones are cheap and Arc-shared background holder.
     let cloned = services.clone();
     assert!(Arc::ptr_eq(&services.background, &cloned.background));
+
+    // The six storage-family services build over the shared stores; the
+    // storage service owns a clone of the app job registry, so the exclusive
+    // scan key held through `jobs` is a conflict for the service's registry.
+    let _ = (
+        &services.mods,
+        &services.collections,
+        &services.launcher_export,
+        &services.version,
+        &services.steam,
+    );
+    let spec = || {
+        crate::jobs::JobSpec::new(crate::services::storage::STORAGE_SCAN_JOB_KIND).with_key(
+            crate::jobs::JobKey::new(crate::services::storage::STORAGE_SCAN_JOB_KEY),
+        )
+    };
+    let held = jobs
+        .start(spec(), |ctx| async move {
+            ctx.cancelled().await;
+            crate::jobs::Outcome::Cancelled
+        })
+        .unwrap();
+    let conflict = services
+        .storage
+        .jobs()
+        .start(spec(), |_ctx| async { crate::jobs::Outcome::Succeeded })
+        .err()
+        .expect("the storage service must share the app job registry");
+    assert_eq!(conflict.kind(), crate::AppErrorKind::Conflict);
+    held.cancel();
 }

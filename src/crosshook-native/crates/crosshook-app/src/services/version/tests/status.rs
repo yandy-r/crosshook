@@ -1,0 +1,1 @@
+//! `VersionService` tests: status slice.

@@ -1,0 +1,1 @@
+//! `ModsService` tests: coexistence slice.

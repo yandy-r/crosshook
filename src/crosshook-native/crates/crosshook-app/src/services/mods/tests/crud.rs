@@ -1,0 +1,1 @@
+//! `ModsService` tests: crud slice.

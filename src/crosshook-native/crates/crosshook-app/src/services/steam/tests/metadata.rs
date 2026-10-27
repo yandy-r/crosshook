@@ -1,0 +1,1 @@
+//! `SteamService` tests: metadata slice.
