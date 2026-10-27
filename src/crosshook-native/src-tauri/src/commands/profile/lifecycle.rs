@@ -1,12 +1,9 @@
 use std::path::PathBuf;
 
 use crosshook_app::services::profiles::{ProfileCommit, ProfileSummary};
-use crosshook_app::ProfileWriter;
-use crosshook_core::metadata::MetadataStore;
+use crosshook_app::{CollectionsService, ProfileWriter};
 use crosshook_core::profile::{DuplicateProfileResult, GameProfile};
 use tauri::State;
-
-use super::shared::{apply_collection_defaults, resolve_collection_defaults};
 
 #[tauri::command]
 pub async fn profile_list(writer: State<'_, ProfileWriter>) -> Result<Vec<String>, String> {
@@ -18,23 +15,14 @@ pub async fn profile_load(
     name: String,
     collection_id: Option<String>,
     writer: State<'_, ProfileWriter>,
-    metadata_store: State<'_, MetadataStore>,
+    collections: State<'_, CollectionsService>,
 ) -> Result<GameProfile, String> {
     let profile = writer.load(name).await.map_err(|error| error.to_string())?;
 
-    // When a collection context is provided, merge the collection's defaults
-    // into the profile via `effective_profile_with`. The returned profile still
-    // reflects the machine-specific `local_override` layer that `ProfileStore::load`
-    // baked into layer 1, so collection defaults can never clobber portable paths.
-    // The defaults lookup is a SQLite read, so it runs on the blocking pool like
-    // the summaries resolver.
-    let metadata = metadata_store.inner().clone();
-    let mut profile = tauri::async_runtime::spawn_blocking(move || {
-        apply_collection_defaults(profile, &metadata, collection_id.as_deref())
-    })
-    .await
-    .map_err(|e| e.to_string())?
-    .map_err(|e| e.to_string())?;
+    let mut profile = collections
+        .apply_defaults(profile, collection_id.as_deref())
+        .await
+        .map_err(|error| error.message().to_string())?;
     profile.clear_extra();
     Ok(profile)
 }
@@ -43,14 +31,11 @@ pub async fn profile_load(
 pub async fn profile_list_summaries(
     collection_id: Option<String>,
     writer: State<'_, ProfileWriter>,
-    metadata_store: State<'_, MetadataStore>,
+    collections: State<'_, CollectionsService>,
 ) -> Result<Vec<ProfileSummary>, String> {
-    // Collection composition stays in the shell until M1-35 (D7).
-    let metadata = metadata_store.inner().clone();
+    let collections = collections.inner().clone();
     writer
-        .list_summaries(move || {
-            resolve_collection_defaults(&metadata, collection_id.as_deref()).map_err(Into::into)
-        })
+        .list_summaries(move || collections.resolve_defaults_sync(collection_id.as_deref()))
         .await
         .map_err(|error| error.to_string())
 }

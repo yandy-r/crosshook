@@ -1,58 +1,50 @@
-use std::path::PathBuf;
+//! Thin IPC adapters for Steam client discovery and Proton tooling.
+//! All logic lives in [`crosshook_app::services::steam`]; the resolver and
+//! Proton scan run on the blocking pool inside the service (D11).
 
-use crosshook_core::steam::{
-    attempt_auto_populate, discover_compat_tools, discover_steam_root_candidates, ProtonInstall,
-    SteamAutoPopulateRequest, SteamAutoPopulateResult,
-};
+use crosshook_app::services::SteamService;
+use crosshook_core::steam::{ProtonInstall, SteamAutoPopulateRequest, SteamAutoPopulateResult};
+use tauri::State;
 
 #[tauri::command]
-pub fn default_steam_client_install_path() -> String {
-    if let Ok(value) = std::env::var("STEAM_COMPAT_CLIENT_INSTALL_PATH") {
-        let trimmed = value.trim();
-        if !trimmed.is_empty() {
-            return trimmed.to_string();
-        }
-    }
-
-    let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else {
-        return String::new();
-    };
-
-    for candidate in [
-        home.join(".local/share/Steam"),
-        home.join(".steam/root"),
-        home.join(".var/app/com.valvesoftware.Steam/data/Steam"),
-    ] {
-        if candidate.join("steamapps").is_dir() {
-            return candidate.to_string_lossy().into_owned();
-        }
-    }
-
-    String::new()
+pub async fn default_steam_client_install_path(
+    service: State<'_, SteamService>,
+) -> Result<String, String> {
+    Ok(service.default_client_install_path().await)
 }
 
 #[tauri::command]
-pub fn list_proton_installs(
+pub async fn list_proton_installs(
     steam_client_install_path: Option<String>,
+    service: State<'_, SteamService>,
 ) -> Result<Vec<ProtonInstall>, String> {
-    let configured_path =
-        steam_client_install_path.unwrap_or_else(default_steam_client_install_path);
-    let mut diagnostics = Vec::new();
-    let steam_root_candidates = discover_steam_root_candidates(configured_path, &mut diagnostics);
-    let installs = discover_compat_tools(&steam_root_candidates, &mut diagnostics);
-
-    for entry in &diagnostics {
-        tracing::debug!(entry, "proton discovery diagnostic");
-    }
-
-    Ok(installs)
+    service
+        .list_proton_installs(steam_client_install_path)
+        .await
+        .map_err(|error| error.message().to_string())
 }
 
 #[tauri::command]
 pub async fn auto_populate_steam(
     request: SteamAutoPopulateRequest,
+    service: State<'_, SteamService>,
 ) -> Result<SteamAutoPopulateResult, String> {
-    tauri::async_runtime::spawn_blocking(move || attempt_auto_populate(&request))
+    service
+        .auto_populate(request)
         .await
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.message().to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn command_names_match_expected_ipc_contract() {
+        // Async commands cannot be cast to fn pointers; naming them pins the
+        // exported symbol (and thus the IPC command name).
+        let _ = default_steam_client_install_path;
+        let _ = list_proton_installs;
+        let _ = auto_populate_steam;
+    }
 }

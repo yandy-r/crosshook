@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use crosshook_app::services::profiles::ProfileCommit;
+use crosshook_app::services::SteamService;
 use crosshook_app::ProfileWriter;
 use crosshook_core::profile::migration::{
     scan_proton_migrations, ApplyMigrationRequest, BatchMigrationRequest, BatchMigrationResult,
@@ -11,7 +12,6 @@ use crosshook_core::steam::discover_steam_root_candidates;
 use tauri::State;
 
 use super::shared::sanitize_display_path;
-use super::steam::default_steam_client_install_path;
 
 /// Scans all profiles for stale Proton paths and returns migration suggestions.
 ///
@@ -22,17 +22,19 @@ use super::steam::default_steam_client_install_path;
 ///
 /// This command is read-only — it performs no writes and requires no `MetadataStore`.
 #[tauri::command]
-pub fn check_proton_migrations(
+pub async fn check_proton_migrations(
     steam_client_install_path: Option<String>,
     store: State<'_, ProfileStore>,
+    steam: State<'_, SteamService>,
 ) -> Result<MigrationScanResult, String> {
     // A-5: validate caller-supplied steam path; fall back to default if invalid.
-    let resolved_path = steam_client_install_path
-        .filter(|p| {
-            let candidate = PathBuf::from(p.trim());
-            !candidate.as_os_str().is_empty() && candidate.join("steamapps").is_dir()
-        })
-        .unwrap_or_else(default_steam_client_install_path);
+    let resolved_path = match steam_client_install_path.filter(|p| {
+        let candidate = PathBuf::from(p.trim());
+        !candidate.as_os_str().is_empty() && candidate.join("steamapps").is_dir()
+    }) {
+        Some(path) => path,
+        None => steam.default_client_install_path().await,
+    };
 
     let mut diagnostics = Vec::new();
     let steam_root_candidates = discover_steam_root_candidates(resolved_path, &mut diagnostics);

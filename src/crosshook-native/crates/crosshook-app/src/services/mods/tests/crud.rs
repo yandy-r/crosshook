@@ -10,6 +10,8 @@ const UNAVAILABLE: &str = "metadata_unavailable: the metadata database could not
 const MISSING_IDENTITY: &str =
     "profile has no metadata record yet — save the profile once, then retry";
 const MOD_NOT_FOUND: &str = "metadata validation error: mod not found";
+/// `remove` keeps the legacy bare text (no store-error prefix).
+const REMOVE_MOD_NOT_FOUND: &str = "mod not found";
 
 fn validation_mod() -> AppErrorKind {
     AppErrorKind::Validation { field: "mod" }
@@ -253,8 +255,8 @@ async fn remove_deletes_the_mod_and_a_stale_remove_is_mod_not_found() {
         .unwrap()
         .mods
         .is_empty());
-    assert_eq!(stale.kind(), validation_mod());
-    assert_eq!(stale.message(), MOD_NOT_FOUND);
+    assert_eq!(stale.kind(), AppErrorKind::NotFound);
+    assert_eq!(stale.message(), REMOVE_MOD_NOT_FOUND);
 }
 
 #[tokio::test]
@@ -306,7 +308,7 @@ async fn mod_ids_are_isolated_between_profiles() {
         .unwrap_err();
 
     assert_eq!(update.message(), MOD_NOT_FOUND);
-    assert_eq!(remove.message(), MOD_NOT_FOUND);
+    assert_eq!(remove.message(), REMOVE_MOD_NOT_FOUND);
     let alpha = harness.service.list("alpha".into()).await.unwrap().mods;
     assert_eq!(alpha, [alpha_mod]);
     assert!(harness

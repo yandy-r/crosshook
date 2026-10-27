@@ -136,9 +136,9 @@ impl ModsService {
             if removed {
                 Ok(())
             } else {
-                Err(store_error(MetadataStoreError::Validation(
-                    "mod not found".to_string(),
-                )))
+                // Legacy IPC text for a stale remove is the bare `mod not found`
+                // (no store-error prefix); `useProfileMods` shows it verbatim.
+                Err(AppError::new(AppErrorKind::NotFound, "mod not found"))
             }
         })
         .await
