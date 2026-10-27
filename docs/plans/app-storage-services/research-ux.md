@@ -5,7 +5,7 @@ storage 3, mods 6, collections 13, export 12, version 4, steam 3, game_metadata 
 
 ## 0. TL;DR - what must not change
 
-1. **Command names and arg keys (camelCase from Tauri; snake_case only _inside_ struct payloads).** The frontend calls `callCommand(name, args)` (`src/lib/ipc.ts:7`) which routes to `invoke` in Tauri or to `src/lib/mocks/*` in webdev. Renaming any command/arg breaks both.
+1. **Command names and arg keys (camelCase from Tauri; snake*case only \_inside* struct payloads).** The frontend calls `callCommand(name, args)` (`src/lib/ipc.ts:7`) which routes to `invoke` in Tauri or to `src/lib/mocks/*` in webdev. Renaming any command/arg breaks both.
 2. **Serialized return shapes** (serde field names, snake_case) - see table in section 2.
 3. **Error-string contract** (plain `String` rejections - frontend does `instanceof Error ? message : String(e)`; no structured error object is read anywhere):
    - `metadata_unavailable: ...` prefix (mods): `src/hooks/useProfileMods.ts:8` `METADATA_UNAVAILABLE_PREFIX`; `startsWith` checks at :86, :119, :136, etc. Triggers `unavailable` mode in HeroModsSection.
