@@ -15,8 +15,6 @@
 //! - **No owner retention**: closures capture [`StartupHandle`], [`EventBus`]
 //!   and store/service clones — never an `App` clone.
 
-use crosshook_core::umu_database;
-
 use crate::bootstrap::options::UmuRefresh;
 use crate::bootstrap::report::UmuRefreshSummary;
 use crate::bootstrap::state::{JobUpdate, StartupHandle};
@@ -47,7 +45,7 @@ pub(crate) fn schedule(
     let events = app.events().clone();
 
     schedule_scans(app, startup.clone(), stores, services, events.clone());
-    schedule_umu(app, startup.clone(), umu, events.clone());
+    schedule_umu(app, startup.clone(), services, umu, events.clone());
     schedule_background_portal(app, startup, services, events);
 }
 
@@ -83,7 +81,13 @@ fn schedule_scans(
     }
 }
 
-fn schedule_umu(app: &App, startup: StartupHandle, umu: UmuRefresh, events: EventBus) {
+fn schedule_umu(
+    app: &App,
+    startup: StartupHandle,
+    services: &Services,
+    umu: UmuRefresh,
+    events: EventBus,
+) {
     match umu {
         UmuRefresh::Skip { reason } => {
             // Skipped is terminal: store-then-publish so `wait_finished`
@@ -98,6 +102,7 @@ fn schedule_umu(app: &App, startup: StartupHandle, umu: UmuRefresh, events: Even
         UmuRefresh::Enabled => {
             let task_startup = startup.clone();
             let task_events = events.clone();
+            let umu_service = services.umu.clone();
             let result = app
                 .jobs()
                 .start(JobSpec::new("startup-umu-refresh"), move |ctx| {
@@ -109,7 +114,7 @@ fn schedule_umu(app: &App, startup: StartupHandle, umu: UmuRefresh, events: Even
                             return Outcome::Cancelled;
                         }
                         mark_running(&startup, StartupJobKind::UmuRefresh);
-                        let update = match umu_database::refresh_umu_database().await {
+                        let update = match umu_service.refresh().await {
                             Ok(status) => {
                                 tracing::info!(?status, "umu-database startup refresh complete");
                                 JobUpdate::umu_refresh_complete(UmuRefreshSummary {
@@ -120,9 +125,7 @@ fn schedule_umu(app: &App, startup: StartupHandle, umu: UmuRefresh, events: Even
                             }
                             Err(error) => {
                                 tracing::warn!(%error, "umu-database startup refresh failed");
-                                JobUpdate::umu_refresh_failed(crate::presenter::sanitize_message(
-                                    &error.to_string(),
-                                ))
+                                JobUpdate::umu_refresh_failed(error.message().to_string())
                             }
                         };
                         finish(&startup, &events, update);
