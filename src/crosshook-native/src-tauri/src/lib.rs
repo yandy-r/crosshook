@@ -60,6 +60,9 @@ pub fn run() {
         .manage(services.lutris.clone())
         .manage(services.discovery.clone())
         .manage(services.protondb.clone())
+        .manage(services.protonup.clone())
+        .manage(services.proton_migration.clone())
+        .manage(services.umu.clone())
         .manage(core.clone())
         .setup(move |app| {
             startup_bridge::spawn(app.handle().clone(), core.startup(), startup_events);
@@ -68,9 +71,6 @@ pub fn run() {
         .manage(commands::update::UpdateProcessState::new())
         .manage(commands::run_executable::RunExecutableProcessState::new())
         .manage(commands::prefix_deps::PrefixDepsInstallState::new())
-        .manage(std::sync::Arc::new(
-            commands::protonup::ProtonInstallRegistry::default(),
-        ))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
