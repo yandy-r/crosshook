@@ -246,19 +246,39 @@ async fn tool_reached_through_a_steam_root_alias_is_planned_and_removed() {
     assert!(root.exists());
 }
 
-#[cfg(unix)]
 #[tokio::test]
-async fn alias_with_a_missing_parent_is_not_found() {
+async fn missing_parent_inside_an_install_root_is_not_found() {
     let h = harness();
-    compat_root(&h);
-    let ghost = h
-        .root
-        .path()
-        .join("NoSuchAlias")
-        .join("compatibilitytools.d")
-        .join("GE-Proton-Ghost-Fixture");
+    let root = compat_root(&h);
+    let ghost = root.join("NoSuchDir").join("GE-Proton-Ghost-Fixture");
 
     assert_refused(&h, &text(&ghost), None, UNINSTALL_NOT_FOUND).await;
+}
+
+#[tokio::test]
+async fn out_of_root_paths_answer_the_same_whether_or_not_their_parent_exists() {
+    let h = harness();
+    compat_root(&h);
+    let (existing_parent, _sentinel) = outside_dir(&h, "outside-existing-parent");
+    let with_existing_parent = existing_parent.join("x");
+    let with_missing_parent = h.root.path().join("outside-missing-parent").join("x");
+
+    assert_refused(&h, &text(&with_existing_parent), None, UNINSTALL_OUTSIDE).await;
+    assert_refused(&h, &text(&with_missing_parent), None, UNINSTALL_OUTSIDE).await;
+}
+
+#[tokio::test]
+async fn install_root_spelled_with_a_trailing_dot_is_refused() {
+    let h = harness();
+    let root = compat_root(&h);
+    let tool = root.join("GE-Proton-Dot-Fixture");
+    fs::create_dir_all(&tool).unwrap();
+    let dotted = format!("{}/.", text(&root));
+
+    assert_refused(&h, &dotted, None, UNINSTALL_OUTSIDE).await;
+
+    assert!(root.exists());
+    assert!(tool.exists());
 }
 
 #[tokio::test]

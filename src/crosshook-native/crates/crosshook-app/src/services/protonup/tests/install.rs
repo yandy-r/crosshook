@@ -235,10 +235,7 @@ async fn legacy_install_of_a_version_being_installed_is_refused_without_installi
         .unwrap();
     assert!(!result.success);
     assert_eq!(result.installed_path, None);
-    assert_eq!(
-        result.error_kind,
-        Some(ProtonUpInstallErrorKind::AlreadyInstalled)
-    );
+    assert_eq!(result.error_kind, Some(ProtonUpInstallErrorKind::Unknown));
     assert_eq!(
         result.error_message.as_deref(),
         Some(MSG_INSTALL_IN_PROGRESS)

@@ -81,8 +81,9 @@ impl ProtonUpService {
         }) {
             Ok(handle) => handle,
             Err(error) if error.kind() == AppErrorKind::Conflict => {
+                // `AlreadyInstalled` means the files are on disk; nothing is yet.
                 return Ok(failure_result(
-                    ProtonUpInstallErrorKind::AlreadyInstalled,
+                    ProtonUpInstallErrorKind::Unknown,
                     MSG_INSTALL_IN_PROGRESS.to_string(),
                 ));
             }

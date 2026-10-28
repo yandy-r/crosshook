@@ -139,10 +139,15 @@ fn uninstall_blocking(
     {
         return Err(UNINSTALL_OUTSIDE);
     }
-    let tool = canonical_parent_join(tool)?;
-
     let steam = select_steam_root(trusted, caller_steam_path);
-    let canonical = contain_in_install_root(roots, steam.as_deref(), &tool)?;
+    let candidates: Vec<PathBuf> = roots
+        .install_roots(steam.as_deref())
+        .into_iter()
+        .filter(|candidate| candidate.reason.as_deref() != Some(INVALID_PATH_REASON))
+        .map(|candidate| candidate.path)
+        .collect();
+    let tool = canonical_parent_join(tool, &candidates)?;
+    let canonical = contain_in_install_root(&candidates, &tool)?;
 
     match action {
         Action::Plan => core_plan_uninstall(&canonical, steam.as_deref())
@@ -160,14 +165,24 @@ fn uninstall_blocking(
 /// A tool reached through an alias spelling of a Steam root then compares
 /// equal to the deduped install root, while a final-component symlink is
 /// still walked (and rejected if it escapes) by [`ensure_within_workspace`].
-/// A missing parent maps to the not-found text.
-fn canonical_parent_join(tool: &Path) -> Result<PathBuf, &'static str> {
+///
+/// A missing parent maps to the not-found text only when the spelled `tool`
+/// lexically sits under one of the usable install `candidates`; elsewhere it
+/// maps to the outside-roots text, exactly like an existing parent would, so
+/// the answer is no existence oracle for paths outside every root.
+fn canonical_parent_join(tool: &Path, candidates: &[PathBuf]) -> Result<PathBuf, &'static str> {
     let (Some(parent), Some(name)) = (tool.parent(), tool.file_name()) else {
         return Err(UNINSTALL_OUTSIDE);
     };
     match fs::canonicalize(parent) {
         Ok(parent) => Ok(parent.join(name)),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Err(UNINSTALL_NOT_FOUND),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            if candidates.iter().any(|root| tool.starts_with(root)) {
+                Err(UNINSTALL_NOT_FOUND)
+            } else {
+                Err(UNINSTALL_OUTSIDE)
+            }
+        }
         Err(error) => {
             tracing::debug!(%error, "uninstall target parent could not be resolved");
             Err(UNINSTALL_OUTSIDE)
@@ -193,21 +208,15 @@ pub(super) fn select_steam_root(trusted: &[PathBuf], caller: Option<&str>) -> Op
     trusted.first().cloned()
 }
 
-/// Canonical form of `tool` when some usable install root contains it.
+/// Canonical form of `tool` when some usable install root (`candidates`)
+/// contains it.
 ///
 /// A path inside a root that does not exist maps to the not-found text; any
 /// other miss maps to the outside-roots text.
-fn contain_in_install_root(
-    roots: &dyn ProtonRootSource,
-    steam: Option<&Path>,
-    tool: &Path,
-) -> Result<PathBuf, &'static str> {
+fn contain_in_install_root(candidates: &[PathBuf], tool: &Path) -> Result<PathBuf, &'static str> {
     let mut missing = false;
-    for candidate in roots.install_roots(steam) {
-        if candidate.reason.as_deref() == Some(INVALID_PATH_REASON) {
-            continue;
-        }
-        match ensure_within_workspace(&candidate.path, tool) {
+    for candidate in candidates {
+        match ensure_within_workspace(candidate, tool) {
             Ok(canonical) => return Ok(canonical),
             Err(WorkspacePathError::NotFound) => missing = true,
             Err(error) => {
