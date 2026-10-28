@@ -77,16 +77,13 @@ pub fn list_game_configs(root: &Path) -> Vec<PathBuf> {
             break 'scan;
         }
 
-        let Ok(file_type) = entry.file_type() else {
-            continue;
-        };
         let path = entry.path();
-        if file_type.is_file() && is_lutris_yaml(&path) {
+        if path.is_file() && is_lutris_yaml(&path) {
             push_contained_config(&root, &path, &mut configs);
             continue;
         }
 
-        if !file_type.is_dir() {
+        if !path.is_dir() {
             continue;
         }
 
@@ -116,11 +113,8 @@ pub fn list_game_configs(root: &Path) -> Vec<PathBuf> {
                 break 'scan;
             }
 
-            let Ok(sub_file_type) = sub_entry.file_type() else {
-                continue;
-            };
             let sub_path = sub_entry.path();
-            if sub_file_type.is_file() && is_lutris_yaml(&sub_path) {
+            if sub_path.is_file() && is_lutris_yaml(&sub_path) {
                 push_contained_config(&root, &sub_path, &mut configs);
             }
         }

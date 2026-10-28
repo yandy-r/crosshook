@@ -45,12 +45,21 @@ impl CommunityService {
                 )
             })?;
             require_regular_json(&canonical)?;
-            let workspaces = current_workspaces(&taps, &settings.load()?.community_taps)?;
-            let classification = contain_in_taps(&workspaces, &path);
-            tracing::debug!(
-                inside_tap_workspace = classification.is_ok(),
-                "classified community import preview"
-            );
+            // Classification is diagnostic only: the user-selected preview must
+            // remain available even when settings or a stored tap are invalid.
+            if let Ok(workspaces) = settings
+                .load()
+                .map_err(AppError::from)
+                .and_then(|settings| current_workspaces(&taps, &settings.community_taps))
+            {
+                let classification = contain_in_taps(&workspaces, &path);
+                tracing::debug!(
+                    inside_tap_workspace = classification.is_ok(),
+                    "classified community import preview"
+                );
+            } else {
+                tracing::debug!("community import preview classification unavailable");
+            }
             Ok(preview_community_profile_import(&canonical)?)
         })
         .await

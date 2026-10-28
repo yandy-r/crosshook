@@ -303,6 +303,39 @@ mod containment {
     }
 
     #[test]
+    fn list_game_configs_keeps_inward_symlinked_yaml_and_nested_dirs() {
+        let tmp = TempDir::new().expect("tempdir");
+        let root = tmp.path().join("library");
+        let games = root.join("games");
+        std::fs::create_dir_all(root.join("shared/balanced")).expect("shared dirs");
+        std::fs::create_dir_all(&games).expect("games dir");
+        std::fs::write(root.join("shared/real.yml"), "game: {}").expect("real.yml");
+        std::fs::write(root.join("shared/balanced/deep.yml"), "game: {}").expect("deep.yml");
+        // Inward links: both resolve inside the library root.
+        symlink(root.join("shared/real.yml"), games.join("alias.yml")).expect("symlink yaml");
+        symlink(root.join("shared/balanced"), games.join("balanced")).expect("symlink dir");
+        // Outward links stay excluded alongside them.
+        let outside = tmp.path().join("outside");
+        std::fs::create_dir_all(outside.join("nested")).expect("outside dirs");
+        std::fs::write(outside.join("evil.yml"), "game: {}").expect("evil.yml");
+        std::fs::write(outside.join("nested/deep.yml"), "game: {}").expect("outside deep.yml");
+        symlink(outside.join("evil.yml"), games.join("evil.yml")).expect("symlink evil yaml");
+        symlink(outside.join("nested"), games.join("outward")).expect("symlink outward dir");
+
+        let configs = list_game_configs(&root);
+        let canonical_root = std::fs::canonicalize(&root).expect("canonical root");
+        let mut expected = vec![
+            canonical_root.join("shared/real.yml"),
+            canonical_root.join("shared/balanced/deep.yml"),
+        ];
+        expected.sort();
+        assert_eq!(
+            configs, expected,
+            "inward symlinks resolve into the library; outward links stay excluded"
+        );
+    }
+
+    #[test]
     fn read_pga_games_rejects_outward_symlinked_db() {
         let tmp = TempDir::new().expect("tempdir");
         let root = tmp.path().join("library");

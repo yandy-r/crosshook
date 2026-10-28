@@ -146,18 +146,15 @@ impl CommunityTapStore {
                     // A SIGKILLed partial clone must not wedge later syncs: the
                     // workspace did not exist before this clone, so remove it
                     // (best effort) instead of leaving a broken cache behind.
-                    if let Err(source) = tokio::fs::remove_dir_all(local_path).await {
-                        if source.kind() != std::io::ErrorKind::NotFound {
-                            tracing::warn!(
-                                path = %local_path.display(),
-                                error = %source,
-                                "failed to remove partial community tap clone after cancellation"
-                            );
-                        }
-                    }
+                    remove_new_workspace(local_path, "after cancellation").await;
                     return Err(CommunityTapError::Cancelled);
                 }
-                Err(err) => return Err(err),
+                Err(err) => {
+                    // A failed pinned checkout leaves a default-branch clone that a
+                    // later failed update would index as a cache; clone afresh next sync.
+                    remove_new_workspace(local_path, "after failed first sync").await;
+                    return Err(err);
+                }
             }
         };
 
@@ -202,6 +199,19 @@ fn ensure_not_cancelled(runner: &dyn TapGitRunner) -> Result<(), CommunityTapErr
     }
 }
 
+/// Best-effort removal of a workspace created by the current first-sync clone.
+async fn remove_new_workspace(local_path: &Path, context: &str) {
+    if let Err(source) = tokio::fs::remove_dir_all(local_path).await {
+        if source.kind() != std::io::ErrorKind::NotFound {
+            tracing::warn!(
+                path = %local_path.display(),
+                error = %source,
+                "failed to remove partial community tap clone {context}"
+            );
+        }
+    }
+}
+
 async fn path_exists(path: &Path) -> bool {
     tokio::fs::try_exists(path).await.unwrap_or(false)
 }
@@ -213,10 +223,15 @@ async fn run_step(
     fallback_path: &Path,
 ) -> Result<GitOutput, CommunityTapError> {
     ensure_not_cancelled(runner)?;
-    let output = runner
-        .run(invocation.clone())
-        .await
-        .map_err(|error| run_failure(invocation, error, fallback_path))?;
+    let output = match runner.run(invocation.clone()).await {
+        Ok(output) => output,
+        Err(error) => {
+            // A supervision I/O error observed after cancellation must still
+            // report cancellation, not a failed sync.
+            ensure_not_cancelled(runner)?;
+            return Err(run_failure(invocation, error, fallback_path));
+        }
+    };
     if output.success {
         return Ok(output);
     }

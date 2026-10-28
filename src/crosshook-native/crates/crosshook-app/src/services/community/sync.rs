@@ -16,10 +16,6 @@ impl CommunityService {
     }
 
     fn start_sync_inner(&self) -> Result<(JobHandle, Arc<AtomicBool>), AppError> {
-        self.sync_results
-            .lock()
-            .map_err(|_| result_slot_error())?
-            .retain(|id, _| self.jobs.outcome(id).is_ok());
         let service = self.clone();
         let abandoned = Arc::new(AtomicBool::new(false));
         let job_abandoned = abandoned.clone();
@@ -74,16 +70,19 @@ impl CommunityService {
         Err(AppError::cancelled())
     }
 
-    /// Takes a finished successful job's result once; unknown ids return `NotFound`.
+    /// Takes a successful job's result once, even after its registry outcome is
+    /// evicted; unknown ids without a result return `NotFound`.
     pub fn sync_result(&self, id: &JobId) -> Result<Option<Vec<CommunityTapSyncResult>>, AppError> {
-        match self.jobs.outcome(id)? {
-            Some(Outcome::Succeeded) => Ok(self
-                .sync_results
-                .lock()
-                .map_err(|_| result_slot_error())?
-                .remove(id)),
-            Some(Outcome::Failed(_) | Outcome::Cancelled) | None => Ok(None),
+        if let Some(result) = self
+            .sync_results
+            .lock()
+            .map_err(|_| result_slot_error())?
+            .remove(id)
+        {
+            return Ok(Some(result));
         }
+        self.jobs.outcome(id)?;
+        Ok(None)
     }
 
     async fn run_sync(&self, ctx: &JobContext) -> Result<Vec<CommunityTapSyncResult>, AppError> {

@@ -255,17 +255,30 @@ strings.
   queue on an async lock instead of failing with `Conflict`. Tap git steps go
   through the core `TapGitRunner` seam; the production runner builds each
   child with the lifecycle host-command builder and `supervise_child`, so
-  cancelling the job (or app shutdown) kills the git process and yields
-  `Cancelled` with no index or metadata write. Cancellation is a backend
-  capability only: there is no generic job-cancel IPC and Classic has no
+  cancelling the job (or app shutdown) during a git step kills the git process
+  and yields `Cancelled` with no index or metadata write. Cancellation after an
+  index write yields `Cancelled` but leaves committed rows in place; completed
+  writes are not rolled back. Cancellation is a backend capability only: there
+  is no generic job-cancel IPC and Classic has no
   cancel button. Order after the git steps: index → offline-state upsert →
   `last_sync_at` read-back (warning-only on a disabled store); the first
   per-tap hard error still aborts the sync.
+  Successful results remain available through `sync_result` until taken, even
+  if the job registry evicts their outcomes; `start_sync` callers must take
+  their results. The `sync` convenience waiter takes or discards its result
+  automatically, including when dropped.
 - **Tap validation.** `add_tap` normalizes and validates URL, branch and
   pinned commit before persisting (invalid input is a `Validation` error and
   nothing is written), and dedupes on the normalized
   `(url, branch, pinned_commit)` triple. `remove_tap` is service-only (no
   Classic IPC command) and leaves clones and SQLite rows alone.
+  Invalid stored URLs or branches fail both `list_profiles` and `import_profile`
+  with the same validation error rather than silently ignoring subscriptions;
+  they remain removable through `remove_tap`. Invalid stored pins retain the
+  existing listing/import tolerance and are rejected at sync checkout time.
+  Subscriptions differing only by pin still share a workspace and the
+  `(tap_url, tap_branch)` index key; isolating them requires the tracked
+  workspace/key-collision follow-up and a database compatibility migration.
 - **Offline policy.** With `offline_mode` on, `sync` fails with `Unavailable`
   before any git run, and `search_external` serves fresh or stale cache only
   (`Unavailable` when nothing is cached). The catalog, the indexed lists and
@@ -275,8 +288,9 @@ strings.
   file inside some resolved subscribed-tap workspace, checked with
   `crosshook_core::fs_util::ensure_within_workspace`. `prepare_import` is a
   read-only preview of a file the user picked, so it keeps accepting any local
-  regular `.json` file but reads the canonical path and runs the same
-  classification (logged at debug level). The community indexer skips symlink
+  regular `.json` file and reads the canonical path. Tap classification is
+  diagnostic only and is unavailable, without blocking the preview, if settings
+  or a stored tap cannot be loaded. The community indexer skips symlink
   entries. Containment is check-then-read, not an `openat2` pinned handle, so
   a concurrent swap of the file is not excluded.
 - **Errors.** Mappers for `CommunityTapError`, `LutrisImportError` and

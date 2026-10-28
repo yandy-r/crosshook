@@ -216,3 +216,70 @@ async fn export_uses_the_selected_destination_without_a_tap_restriction() {
     assert_eq!(result.output_path, destination);
     assert!(result.output_path.is_file());
 }
+
+#[tokio::test]
+async fn prepare_import_ignores_invalid_settings_and_subscriptions() {
+    let harness = Harness::new();
+    let file = harness.root.path().join("selected.json");
+    write_manifest(&file, "Selected Game");
+    harness.set_taps(vec![super::helpers::tap("file:///invalid-tap")]);
+    assert_eq!(
+        harness
+            .service
+            .prepare_import(file.clone())
+            .await
+            .unwrap()
+            .profile_name,
+        "selected-game"
+    );
+
+    fs::write(harness.settings.settings_path(), "invalid = [").unwrap();
+    assert_eq!(
+        harness
+            .service
+            .prepare_import(file.clone())
+            .await
+            .unwrap()
+            .profile_name,
+        "selected-game"
+    );
+
+    fs::remove_file(harness.settings.settings_path()).unwrap();
+    fs::create_dir(harness.settings.settings_path()).unwrap();
+    assert_eq!(
+        harness
+            .service
+            .prepare_import(file)
+            .await
+            .unwrap()
+            .profile_name,
+        "selected-game"
+    );
+    assert!(harness.profiles.list().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn invalid_stored_url_or_branch_fails_closed_for_listing_and_import() {
+    let mut harness = Harness::new();
+    let workspace = harness.subscribe_workspace(URL);
+    let file = workspace.join("profile.json");
+    write_manifest(&file, "Valid Tap Game");
+    let mut invalid_branch = super::helpers::tap(URL);
+    invalid_branch.branch = Some("-flag".into());
+    for invalid in [super::helpers::tap("file:///invalid-tap"), invalid_branch] {
+        harness.set_taps(vec![super::helpers::tap(URL), invalid]);
+        let before = harness.settings_bytes();
+        let listing = harness.service.list_profiles().await.unwrap_err();
+        let importing = harness
+            .service
+            .import_profile(file.clone())
+            .await
+            .unwrap_err();
+        assert_eq!(listing.kind(), AppErrorKind::Validation { field: "tap" });
+        assert_eq!(importing.kind(), listing.kind());
+        assert_eq!(importing.message(), listing.message());
+        assert_eq!(harness.settings_bytes(), before);
+        assert!(harness.profiles.list().unwrap().is_empty());
+        assert_eq!(harness.next_event().await, None);
+    }
+}

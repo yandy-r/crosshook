@@ -201,3 +201,45 @@ async fn community_hard_error_aborts_before_any_metadata_finalize() {
         .is_empty());
     assert_eq!(harness.service.jobs().job_counts(), (0, 0));
 }
+
+#[tokio::test]
+async fn community_sync_result_survives_outcome_eviction_and_another_sync() {
+    let mut harness = Harness::new();
+    harness.service.jobs = crate::jobs::JobRegistry::new(crate::jobs::JobRegistryConfig {
+        retention: 0,
+        ..crate::jobs::JobRegistryConfig::default()
+    })
+    .unwrap();
+    let mut first = harness.service.start_sync().unwrap();
+    let first_id = first.id().clone();
+    assert!(matches!(
+        first.recv().await.unwrap().kind,
+        JobEventKind::Finished(Outcome::Succeeded)
+    ));
+    assert_eq!(
+        harness
+            .service
+            .jobs()
+            .outcome(&first_id)
+            .unwrap_err()
+            .kind(),
+        AppErrorKind::NotFound
+    );
+
+    // Starting a later job must not prune a result merely because the job
+    // registry has evicted its outcome.
+    assert_eq!(harness.service.sync().await.unwrap(), vec![]);
+    assert_eq!(
+        harness.service.sync_result(&first_id).unwrap(),
+        Some(vec![])
+    );
+    assert_eq!(
+        harness.service.sync_result(&first_id).unwrap_err().kind(),
+        AppErrorKind::NotFound
+    );
+    let unknown = crate::jobs::JobId::from_string("unknown");
+    assert_eq!(
+        harness.service.sync_result(&unknown).unwrap_err().kind(),
+        AppErrorKind::NotFound
+    );
+}

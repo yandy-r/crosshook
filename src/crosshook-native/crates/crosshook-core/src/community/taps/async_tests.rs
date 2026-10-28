@@ -20,6 +20,10 @@ enum Reply {
     Cancel,
     /// Runs `side_effect` (e.g. materialize a partial clone), then cancels.
     CancelWith(Box<dyn Fn() + Send + Sync>),
+    /// Cancels, but the runner surfaces a supervision I/O error (not `Cancelled`).
+    CancelThenIo,
+    /// Runs `side_effect` (e.g. materialize a clone), then succeeds.
+    OkWith(Box<dyn Fn() + Send + Sync>),
 }
 
 /// Records invocations; `script` maps an action to a reply (default: success).
@@ -77,6 +81,14 @@ impl TapGitRunner for FakeRunner {
                     side_effect();
                     self.cancelled.store(true, Ordering::SeqCst);
                     Err(GitRunError::Cancelled)
+                }
+                Some(Reply::CancelThenIo) => {
+                    self.cancelled.store(true, Ordering::SeqCst);
+                    Err(GitRunError::Failed(std::io::Error::other("supervise")))
+                }
+                Some(Reply::OkWith(side_effect)) => {
+                    side_effect();
+                    Ok(output(true, "", ""))
                 }
                 None if action == "resolve tap commit" => Ok(output(true, "abc1234\n", "")),
                 None => Ok(output(true, "", "")),
@@ -319,6 +331,104 @@ async fn cancelled_clone_removes_partial_workspace() {
     assert!(
         !local.exists(),
         "a cancelled first clone must remove its partial workspace"
+    );
+}
+
+#[tokio::test]
+async fn runner_io_error_after_cancellation_reports_cancelled_on_existing_clone() {
+    let temp = tempdir().unwrap();
+    let store = CommunityTapStore::with_base_path(temp.path().join("store"));
+    let sub = subscription(None);
+    let local = store.workspace_path(&sub);
+    std::fs::create_dir_all(&local).unwrap();
+    // Cancellation lands while the runner surfaces a supervision I/O error;
+    // it must not degrade to a cache fallback or a failed sync.
+    let runner = FakeRunner::new(vec![("fetch community tap", Reply::CancelThenIo)]);
+
+    let err = store
+        .sync_tap_with_runner(&sub, runner.clone())
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, CommunityTapError::Cancelled), "{err}");
+    assert_eq!(runner.actions(), ["fetch community tap"]);
+    assert!(
+        local.exists(),
+        "an existing cache must be kept on cancellation"
+    );
+}
+
+#[tokio::test]
+async fn runner_io_error_after_cancellation_reports_cancelled_on_first_clone() {
+    let temp = tempdir().unwrap();
+    let store = CommunityTapStore::with_base_path(temp.path().join("store"));
+    let sub = subscription(None);
+    let local = store.workspace_path(&sub);
+    let runner = FakeRunner::new(vec![("clone community tap", Reply::CancelThenIo)]);
+
+    let err = store
+        .sync_tap_with_runner(&sub, runner.clone())
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, CommunityTapError::Cancelled), "{err}");
+    assert_eq!(runner.actions(), ["clone community tap"]);
+    assert!(!local.exists());
+}
+
+#[tokio::test]
+async fn failed_pinned_checkout_removes_new_workspace_and_next_sync_reclones() {
+    let temp = tempdir().unwrap();
+    let store = CommunityTapStore::with_base_path(temp.path().join("store"));
+    let sub = subscription(Some(PIN));
+    let local = store.workspace_path(&sub);
+    let materialize = {
+        let local = local.clone();
+        move || std::fs::create_dir_all(local.join(".git")).unwrap()
+    };
+
+    // The clone succeeds and materializes the workspace, then the pinned checkout fails.
+    let runner = FakeRunner::new(vec![
+        (
+            "clone community tap",
+            Reply::OkWith(Box::new(materialize.clone())),
+        ),
+        ("checkout pinned commit", Reply::Fail("bad pin")),
+    ]);
+    let err = store
+        .sync_tap_with_runner(&sub, runner.clone())
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, CommunityTapError::Git { .. }), "{err}");
+    assert_eq!(
+        runner.actions(),
+        ["clone community tap", "checkout pinned commit"]
+    );
+    assert!(
+        !local.exists(),
+        "a failed first-sync checkout must not leave an unpinned workspace behind"
+    );
+
+    // The retry clones from scratch instead of taking the update/cache path.
+    let retry = FakeRunner::new(vec![(
+        "clone community tap",
+        Reply::OkWith(Box::new(materialize)),
+    )]);
+    let result = store
+        .sync_tap_with_runner(&sub, retry.clone())
+        .await
+        .unwrap();
+
+    assert_eq!(result.status, CommunityTapSyncStatus::Cloned);
+    assert!(!result.from_cache);
+    assert_eq!(
+        retry.actions(),
+        [
+            "clone community tap",
+            "checkout pinned commit",
+            "resolve tap commit"
+        ]
     );
 }
 

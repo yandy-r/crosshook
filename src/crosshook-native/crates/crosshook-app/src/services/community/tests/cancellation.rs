@@ -245,7 +245,7 @@ async fn community_dropped_waiter_does_not_leak_result_or_job() {
 }
 
 #[tokio::test]
-async fn community_start_prunes_result_slots_evicted_by_registry() {
+async fn community_start_keeps_result_slots_evicted_by_registry() {
     let mut harness = Harness::new();
     harness.service.jobs = crate::jobs::JobRegistry::new(crate::jobs::JobRegistryConfig {
         retention: 1,
@@ -259,11 +259,9 @@ async fn community_start_prunes_result_slots_evicted_by_registry() {
     assert_eq!(finished(second).await, Outcome::Succeeded);
     assert!(harness.service.jobs().outcome(&first_id).is_err());
     let third = harness.service.start_sync().unwrap();
-    assert!(!harness
-        .service
-        .sync_results
-        .lock()
-        .unwrap()
-        .contains_key(&first_id));
+    assert_eq!(
+        harness.service.sync_result(&first_id).unwrap(),
+        Some(vec![])
+    );
     assert_eq!(finished(third).await, Outcome::Succeeded);
 }
