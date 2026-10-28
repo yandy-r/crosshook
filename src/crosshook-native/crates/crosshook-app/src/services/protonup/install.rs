@@ -13,7 +13,8 @@ use tokio::sync::{broadcast, oneshot};
 
 use super::identity::verify_install_identity;
 use super::messages::{
-    identity_message, install_error_result, MSG_INSTALL_CANCELLED, MSG_INSTALL_FAILED, MSG_OFFLINE,
+    identity_message, install_error_result, MSG_INSTALL_CANCELLED, MSG_INSTALL_FAILED,
+    MSG_INSTALL_IN_PROGRESS,
 };
 use super::owners::OwnerLedger;
 use super::progress::forward_progress;
@@ -44,10 +45,10 @@ impl ProtonUpService {
         request: ProtonUpInstallRequest,
     ) -> Result<ProtonUpInstallResult, AppError> {
         let flags = self.flags().await;
-        if flags.offline_mode {
+        if let Some(text) = flags.network_block() {
             return Ok(failure_result(
                 ProtonUpInstallErrorKind::NetworkError,
-                MSG_OFFLINE.to_string(),
+                text.to_string(),
             ));
         }
         let catalog = self
@@ -60,12 +61,49 @@ impl ProtonUpService {
                 format!("version {} not found in catalog", request.version),
             ));
         };
-        match self.installer.install(&request, entry, None, None).await {
-            Ok(result) => Ok(result),
-            Err(error) => {
+        // The same job key as `start_install`, so the two entry points can
+        // never install one version (and share its temp archive) at once.
+        let entry = entry.clone();
+        let installer = Arc::clone(&self.installer);
+        let (result_tx, result_rx) = oneshot::channel();
+        let spec = JobSpec::new(PROTONUP_INSTALL_JOB_KIND).with_key(install_key(&entry));
+        let job_request = request;
+        let handle = match self.jobs.start(spec, move |_ctx| async move {
+            let result = installer.install(&job_request, &entry, None, None).await;
+            let outcome = match &result {
+                Ok(done) if done.success => Outcome::Succeeded,
+                Ok(_) | Err(_) => {
+                    Outcome::Failed(AppError::new(AppErrorKind::Io, MSG_INSTALL_FAILED))
+                }
+            };
+            let _ = result_tx.send(result);
+            outcome
+        }) {
+            Ok(handle) => handle,
+            Err(error) if error.kind() == AppErrorKind::Conflict => {
+                return Ok(failure_result(
+                    ProtonUpInstallErrorKind::AlreadyInstalled,
+                    MSG_INSTALL_IN_PROGRESS.to_string(),
+                ));
+            }
+            Err(error) => return Err(error),
+        };
+        let id = handle.id().clone();
+        let mut events = handle.into_events();
+        while events.recv().await.is_some() {}
+        if let Err(error) = self.jobs.reap(&id) {
+            tracing::debug!(%error, "legacy install job was already reaped");
+        }
+        match result_rx.await {
+            Ok(Ok(result)) => Ok(result),
+            Ok(Err(error)) => {
                 tracing::warn!(%error, "proton install failed");
                 Ok(install_error_result(&error))
             }
+            Err(_) => Ok(failure_result(
+                ProtonUpInstallErrorKind::Unknown,
+                MSG_INSTALL_FAILED.to_string(),
+            )),
         }
     }
 
@@ -88,8 +126,8 @@ impl ProtonUpService {
         version: ProtonUpAvailableVersion,
     ) -> Result<ProtonInstallStart, AppError> {
         let flags = self.flags().await;
-        if flags.offline_mode {
-            return Err(AppError::new(AppErrorKind::Unavailable, MSG_OFFLINE));
+        if let Some(text) = flags.network_block() {
+            return Err(AppError::new(AppErrorKind::Unavailable, text));
         }
         let catalog = self
             .catalog
@@ -99,11 +137,7 @@ impl ProtonUpService {
             .map_err(|error| AppError::validation("version", identity_message(error, &request)))?
             .clone();
 
-        let key = JobKey::new(format!(
-            "{PROTONUP_INSTALL_JOB_KIND}:{}:{}",
-            entry.provider, entry.version
-        ));
-        let spec = JobSpec::new(PROTONUP_INSTALL_JOB_KIND).with_key(key);
+        let spec = JobSpec::new(PROTONUP_INSTALL_JOB_KIND).with_key(install_key(&entry));
         let (started_tx, started_rx) = oneshot::channel();
         let owners = self.owners.clone();
         let installer = Arc::clone(&self.installer);
@@ -226,6 +260,14 @@ async fn run_install(
         End::Cancelled => Outcome::Cancelled,
         End::Failed => Outcome::Failed(AppError::new(AppErrorKind::Io, MSG_INSTALL_FAILED)),
     }
+}
+
+/// `protonup-install:<provider>:<version>`, shared by both install entry points.
+fn install_key(entry: &ProtonUpAvailableVersion) -> JobKey {
+    JobKey::new(format!(
+        "{PROTONUP_INSTALL_JOB_KIND}:{}:{}",
+        entry.provider, entry.version
+    ))
 }
 
 fn failure_result(kind: ProtonUpInstallErrorKind, message: String) -> ProtonUpInstallResult {

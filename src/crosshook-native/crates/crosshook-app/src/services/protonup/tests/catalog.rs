@@ -95,3 +95,22 @@ async fn providers_are_described_from_the_registry() {
     let providers = harness.service.list_providers();
     assert!(providers.iter().any(|p| p.id == "ge-proton"));
 }
+
+#[tokio::test]
+async fn unreadable_settings_never_force_a_refresh() {
+    let harness = Harness::new(Mode::Succeed);
+    let path = harness.settings.settings_path();
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(path, b"offline_mode = [not valid toml").unwrap();
+
+    harness
+        .service
+        .list_available_versions(None, true)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        last_args(&harness),
+        Some(("ge-proton".to_string(), false, false))
+    );
+}

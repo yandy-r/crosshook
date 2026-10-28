@@ -13,8 +13,8 @@ use crosshook_core::protonup::install::InstallError;
 use crosshook_core::protonup::install_root::{InstallRootCandidate, InstallRootKind};
 use crosshook_core::protonup::progress::{Phase, ProgressEmitter};
 use crosshook_core::protonup::{
-    ProtonUpAvailableVersion, ProtonUpCacheMeta, ProtonUpCatalogResponse, ProtonUpInstallRequest,
-    ProtonUpInstallResult,
+    ProtonUpAvailableVersion, ProtonUpCacheMeta, ProtonUpCatalogResponse, ProtonUpInstallErrorKind,
+    ProtonUpInstallRequest, ProtonUpInstallResult,
 };
 use crosshook_core::settings::SettingsStore;
 use tempfile::TempDir;
@@ -77,6 +77,10 @@ pub(super) enum Mode {
     Succeed,
     /// Returns `Err(Unknown("<tmp path>"))` without emitting a `Failed` phase.
     FailNoTerminal,
+    /// Returns `Err(Cancelled)` without emitting a terminal phase.
+    CancelNoTerminal,
+    /// Returns `Ok(success: false)` without emitting a terminal phase.
+    UnsuccessfulNoTerminal,
     /// Emits `Failed` with a tmp-path message, then returns `Err`.
     FailWithPathMessage,
     /// Emits `Resolving`, then waits. Notify → emits `Done` and succeeds;
@@ -141,6 +145,19 @@ impl ProtonInstaller for FakeInstaller {
                 Mode::FailNoTerminal => Err(InstallError::Unknown(
                     self.tmp.to_string_lossy().into_owned(),
                 )),
+                Mode::CancelNoTerminal => {
+                    emit(&emitter, Phase::Resolving, None);
+                    Err(InstallError::Cancelled)
+                }
+                Mode::UnsuccessfulNoTerminal => {
+                    emit(&emitter, Phase::Resolving, None);
+                    Ok(ProtonUpInstallResult {
+                        success: false,
+                        installed_path: None,
+                        error_kind: Some(ProtonUpInstallErrorKind::Unknown),
+                        error_message: Some(self.tmp.to_string_lossy().into_owned()),
+                    })
+                }
                 Mode::FailWithPathMessage => {
                     let message = format!("failed at {}", self.tmp.display());
                     emit(&emitter, Phase::Failed, Some(message.clone()));
@@ -170,7 +187,10 @@ impl ProtonInstaller for FakeInstaller {
     }
 }
 
-/// Root source fake with fixed trusted Steam roots and install candidates.
+/// Root source fake with fixed trusted Steam roots. Like the core source it
+/// derives `<steam_root>/compatibilitytools.d` from the Steam root it is
+/// given, then lists its fixed candidates (a fixed candidate wins over a
+/// derived one with the same path).
 pub(super) struct FakeRoots {
     steam: Vec<PathBuf>,
     installs: Vec<InstallRootCandidate>,
@@ -187,8 +207,16 @@ impl ProtonRootSource for FakeRoots {
         Box::pin(async move { self.steam.clone() })
     }
 
-    fn install_roots(&self, _steam_root: Option<&Path>) -> Vec<InstallRootCandidate> {
-        self.installs.clone()
+    fn install_roots(&self, steam_root: Option<&Path>) -> Vec<InstallRootCandidate> {
+        let mut candidates = Vec::new();
+        if let Some(steam_root) = steam_root {
+            let derived = steam_root.join("compatibilitytools.d");
+            if self.installs.iter().all(|fixed| fixed.path != derived) {
+                candidates.push(native_root(derived));
+            }
+        }
+        candidates.extend(self.installs.iter().cloned());
+        candidates
     }
 }
 
@@ -238,10 +266,7 @@ impl Harness {
         fs::create_dir_all(steam_root.join("steamapps")).unwrap();
         let roots = match roots {
             Some(build) => build(root.path()),
-            None => FakeRoots::new(
-                vec![steam_root.clone()],
-                vec![native_root(steam_root.join("compatibilitytools.d"))],
-            ),
+            None => FakeRoots::new(vec![steam_root.clone()], Vec::new()),
         };
         let service = ProtonUpService::with_seams(
             settings.clone(),

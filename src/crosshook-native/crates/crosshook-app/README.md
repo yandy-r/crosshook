@@ -318,27 +318,31 @@ the `protonup:install:progress` event payload are unchanged.
   with key `protonup-install:<provider>:<version>`; a concurrent duplicate
   returns `Conflict`. Its `JobId` is the `op_id`. The progress relay continues
   after broadcast lag and supplies a terminal failure when the installer
-  fails without emitting one. Legacy `install_version` waits directly and
-  is not cancellable.
+  fails without emitting one. Legacy `install_version` runs as a job under the
+  same key (a concurrent duplicate returns `success:false` with
+  `this Proton version is already being installed`) and is not cancellable.
 - **Cancel ownership.** A shared runtime-only owner ledger records the
   install before `start_install` returns and removes it when the job ends.
   The adapter derives `InstallOwner` from the injected webview label, never a
   JavaScript argument. This separates windows, **not contexts in one window**.
-  Unknown, foreign, completed and unrelated job ids receive the same
-  `NotFound` text (`install operation was not found`) without reaching the job
-  registry's cancel path; IPC maps that result to `false`, and own active
-  cancellation to `true`.
+  Unknown, foreign, completed, already-cancelled and unrelated job ids receive
+  the same `NotFound` text (`install operation was not found`) without reaching
+  the job registry's cancel path; IPC maps that result to `false`, and own
+  active cancellation to `true`.
 - **Uninstall authority.** `ProtonRootSource` supplies backend-discovered Steam
   roots and derived install candidates; its production implementation starts
   from `SteamService::default_client_install_path()` and core Steam discovery,
   while tests inject roots without changing `HOME`. A caller's Steam path is
   honoured only when it canonically matches a backend-discovered root;
   otherwise it is ignored. Root listing is not deletion authority. Plan and
-  execute reject raw `..`, check `ensure_within_workspace` against valid install
+  execute reject relative paths and raw `..`, resolve the tool's parent so an
+  alias spelling of a Steam root still matches, check `ensure_within_workspace`
+  against valid install
   candidates, then use core's canonical direct-child and system-path checks.
   Execute re-plans before removal rather than trusting a previous client plan;
   these checks do not make deletion race-free.
-- **Offline policy.** With `offline_mode` on, `start_install` returns
+- **Offline policy.** With `offline_mode` on (or when settings cannot be read,
+  which fails closed with its own fixed text), `start_install` returns
   `Unavailable` with `offline mode is enabled` before catalog or job work;
   legacy `install_version` returns `success:false`, `NetworkError` and the same
   text. Catalog reads suppress `force_refresh` and retain cache/stale markers;

@@ -23,6 +23,16 @@ fn install_owner(label: &str) -> InstallOwner {
     InstallOwner::new(label)
 }
 
+/// Maps the service's cancel result to the frozen IPC `bool`: own active
+/// install → `true`; unknown, foreign or already-cancelled/completed → `false`.
+fn cancel_result_to_bool(result: Result<(), AppError>) -> Result<bool, String> {
+    match result {
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == AppErrorKind::NotFound => Ok(false),
+        Err(error) => Err(map_app_error(error)),
+    }
+}
+
 /// List available Proton versions from the selected provider catalog.
 #[tauri::command]
 pub async fn protonup_list_available_versions(
@@ -112,11 +122,7 @@ pub fn protonup_cancel_install(
     webview: tauri::Webview,
     service: State<'_, ProtonUpService>,
 ) -> Result<bool, String> {
-    match service.cancel_install(&install_owner(webview.label()), &op_id) {
-        Ok(()) => Ok(true),
-        Err(error) if error.kind() == AppErrorKind::NotFound => Ok(false),
-        Err(error) => Err(map_app_error(error)),
-    }
+    cancel_result_to_bool(service.cancel_install(&install_owner(webview.label()), &op_id))
 }
 
 /// Uninstall a Proton tool, returning a structured refusal or failure if needed.
@@ -171,6 +177,21 @@ mod tests {
         assert_eq!(
             map_app_error(error),
             "install metadata did not match server-resolved catalog entry"
+        );
+    }
+
+    #[test]
+    fn cancel_result_maps_ok_not_found_and_other_errors() {
+        assert_eq!(cancel_result_to_bool(Ok(())), Ok(true));
+        assert_eq!(
+            cancel_result_to_bool(Err(AppError::from(
+                crosshook_core::fs_util::WorkspacePathError::NotFound
+            ))),
+            Ok(false)
+        );
+        assert_eq!(
+            cancel_result_to_bool(Err(AppError::validation("version", "bad input"))),
+            Err("bad input".to_string())
         );
     }
 

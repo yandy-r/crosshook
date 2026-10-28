@@ -1,5 +1,6 @@
 //! Read-only Proton migration scan.
 
+use std::future::Future;
 use std::path::PathBuf;
 
 use crosshook_core::profile::migration::{scan_proton_migrations, MigrationScanResult};
@@ -25,6 +26,24 @@ impl ProtonMigrationService {
         &self,
         steam_client_install_path: Option<String>,
     ) -> Result<MigrationScanResult, AppError> {
+        self.check_with(
+            steam_client_install_path,
+            self.steam.default_client_install_path(),
+            display_path_tilde,
+        )
+        .await
+    }
+
+    /// [`Self::check`] with the fallback Steam path and the path display
+    /// function injected, so tests neither scan the host's Steam install nor
+    /// depend on `$HOME`. `fallback` is only polled when the supplied path is
+    /// rejected by the A-5 filter.
+    pub(super) async fn check_with(
+        &self,
+        steam_client_install_path: Option<String>,
+        fallback: impl Future<Output = String>,
+        display: impl Fn(&str) -> String + Send + 'static,
+    ) -> Result<MigrationScanResult, AppError> {
         // A-5: validate the caller-supplied steam path; fall back to the default if invalid.
         let supplied_path = run_blocking(move || {
             Ok(steam_client_install_path.filter(|p| {
@@ -35,7 +54,7 @@ impl ProtonMigrationService {
         .await?;
         let resolved_path = match supplied_path {
             Some(path) => path,
-            None => self.steam.default_client_install_path().await,
+            None => fallback.await,
         };
 
         let profiles = self.profiles.clone();
@@ -48,14 +67,14 @@ impl ProtonMigrationService {
 
             // A-4: sanitize all IPC-bound path strings before returning.
             for suggestion in &mut result.suggestions {
-                suggestion.old_path = display_path_tilde(&suggestion.old_path);
-                suggestion.new_path = display_path_tilde(&suggestion.new_path);
+                suggestion.old_path = display(&suggestion.old_path);
+                suggestion.new_path = display(&suggestion.new_path);
             }
             for unmatched in &mut result.unmatched {
-                unmatched.stale_path = display_path_tilde(&unmatched.stale_path);
+                unmatched.stale_path = display(&unmatched.stale_path);
             }
             for install_info in &mut result.installed_proton_versions {
-                install_info.path = display_path_tilde(&install_info.path);
+                install_info.path = display(&install_info.path);
             }
 
             Ok(result)

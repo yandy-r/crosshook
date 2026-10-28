@@ -201,7 +201,64 @@ async fn relative_path_is_not_resolved_against_the_process_directory() {
     let h = harness();
     compat_root(&h);
 
-    assert_refused(&h, "compatibilitytools.d", None, UNINSTALL_NOT_FOUND).await;
+    assert_refused(&h, "compatibilitytools.d", None, UNINSTALL_OUTSIDE).await;
+}
+
+#[tokio::test]
+async fn relative_name_of_an_existing_tool_is_refused_and_not_deleted() {
+    let h = harness();
+    compat_root(&h);
+    // `src` exists relative to the test process directory (the crate root).
+    let existing = Path::new("src");
+    assert!(existing.is_dir(), "fixture assumption: ./src exists");
+
+    assert_refused(&h, "src", None, UNINSTALL_OUTSIDE).await;
+    assert_refused(&h, "./src", None, UNINSTALL_OUTSIDE).await;
+
+    assert!(existing.is_dir(), "relative target must not be deleted");
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn tool_reached_through_a_steam_root_alias_is_planned_and_removed() {
+    let h = harness();
+    let root = compat_root(&h);
+    let tool = root.join("GE-Proton-Alias-Fixture");
+    fs::create_dir_all(&tool).unwrap();
+    fs::write(tool.join("proton"), b"x").unwrap();
+    let alias = h.root.path().join("SteamAlias");
+    std::os::unix::fs::symlink(h.steam_root(), &alias).unwrap();
+    let via_alias = alias
+        .join("compatibilitytools.d")
+        .join("GE-Proton-Alias-Fixture");
+
+    let plan = h
+        .service
+        .plan_uninstall(text(&via_alias), None)
+        .await
+        .unwrap();
+    assert!(plan.success, "{plan:?}");
+    assert!(tool.exists());
+
+    let response = h.service.uninstall(text(&via_alias), None).await.unwrap();
+    assert!(response.success, "{response:?}");
+    assert!(!tool.exists());
+    assert!(root.exists());
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn alias_with_a_missing_parent_is_not_found() {
+    let h = harness();
+    compat_root(&h);
+    let ghost = h
+        .root
+        .path()
+        .join("NoSuchAlias")
+        .join("compatibilitytools.d")
+        .join("GE-Proton-Ghost-Fixture");
+
+    assert_refused(&h, &text(&ghost), None, UNINSTALL_NOT_FOUND).await;
 }
 
 #[tokio::test]

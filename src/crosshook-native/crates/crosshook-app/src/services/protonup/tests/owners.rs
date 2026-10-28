@@ -68,3 +68,24 @@ fn guard_removes_its_entry_when_the_holder_panics() {
     assert!(result.is_err());
     assert_eq!(ledger.len(), 0);
 }
+
+#[test]
+fn claim_consumes_the_entry_and_the_guard_tolerates_it() {
+    let ledger = OwnerLedger::default();
+    let guard = ledger.register(id("job-1"), owner("main"));
+    assert_eq!(ledger.claim(&owner("main"), "job-1").unwrap(), id("job-1"));
+    assert_eq!(ledger.len(), 0);
+    let repeat = ledger.claim(&owner("main"), "job-1").unwrap_err();
+    assert_eq!(repeat.message(), MSG_OP_NOT_FOUND);
+    drop(guard);
+    assert_eq!(ledger.len(), 0);
+}
+
+#[test]
+fn claim_by_a_foreign_owner_keeps_the_entry() {
+    let ledger = OwnerLedger::default();
+    let _guard = ledger.register(id("job-1"), owner("main"));
+    assert!(ledger.claim(&owner("other"), "job-1").is_err());
+    assert_eq!(ledger.len(), 1);
+    assert!(ledger.authorize(&owner("main"), "job-1").is_ok());
+}

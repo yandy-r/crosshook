@@ -6,4 +6,5 @@ mod messages;
 mod owners;
 mod progress;
 mod security;
+mod steam_root;
 mod uninstall;

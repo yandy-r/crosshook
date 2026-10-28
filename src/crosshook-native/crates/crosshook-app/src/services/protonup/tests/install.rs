@@ -5,7 +5,10 @@ use crosshook_core::protonup::progress::{Phase, ProtonInstallProgress};
 use crosshook_core::protonup::ProtonUpInstallErrorKind;
 use tokio::sync::Notify;
 
-use super::super::messages::{MSG_INSTALL_FAILED, MSG_OFFLINE};
+use super::super::messages::{
+    MSG_INSTALL_CANCELLED, MSG_INSTALL_FAILED, MSG_INSTALL_IN_PROGRESS, MSG_OFFLINE,
+    MSG_SETTINGS_UNREADABLE,
+};
 use super::super::progress::next_progress;
 use super::super::ProtonInstallStart;
 use super::helpers::{finished, ge_catalog, owner, request, Harness, Mode};
@@ -176,4 +179,160 @@ async fn catalog_is_read_without_forcing_a_refresh() {
     let args = harness.catalog.last_args.lock().unwrap().clone();
     assert_eq!(args, Some(("ge-proton".to_string(), false, false)));
     finished(&harness.jobs).await;
+}
+
+fn terminal_count(progress: &[ProtonInstallProgress]) -> usize {
+    progress
+        .iter()
+        .filter(|p| matches!(p.phase, Phase::Done | Phase::Failed | Phase::Cancelled))
+        .count()
+}
+
+#[tokio::test]
+async fn cancelled_error_without_a_terminal_phase_emits_one_synthetic_cancelled() {
+    let harness = Harness::new(Mode::CancelNoTerminal);
+    let mut started = start(&harness).await;
+    let progress = drain(&mut started).await;
+    assert_eq!(terminal_count(&progress), 1);
+    let last = progress.last().expect("a terminal phase was synthesized");
+    assert!(matches!(last.phase, Phase::Cancelled));
+    assert_eq!(last.message.as_deref(), Some(MSG_INSTALL_CANCELLED));
+    finished(&harness.jobs).await;
+    assert_eq!(harness.service.owner_count(), 0);
+}
+
+#[tokio::test]
+async fn unsuccessful_result_without_a_terminal_phase_emits_one_synthetic_failed() {
+    let harness = Harness::new(Mode::UnsuccessfulNoTerminal);
+    let mut started = start(&harness).await;
+    let progress = drain(&mut started).await;
+    assert_eq!(terminal_count(&progress), 1);
+    let last = progress.last().expect("a terminal phase was synthesized");
+    assert!(matches!(last.phase, Phase::Failed));
+    assert_eq!(last.message.as_deref(), Some(MSG_INSTALL_FAILED));
+    finished(&harness.jobs).await;
+}
+
+#[tokio::test]
+async fn failure_without_a_terminal_phase_emits_exactly_one_terminal_event() {
+    let harness = Harness::new(Mode::FailNoTerminal);
+    let mut started = start(&harness).await;
+    let progress = drain(&mut started).await;
+    assert_eq!(terminal_count(&progress), 1);
+    finished(&harness.jobs).await;
+}
+
+#[tokio::test]
+async fn legacy_install_of_a_version_being_installed_is_refused_without_installing() {
+    let gate = Arc::new(Notify::new());
+    let harness = Harness::new(Mode::Gated(Arc::clone(&gate)));
+    let mut first = start(&harness).await;
+
+    let result = harness
+        .service
+        .install_version(request("GE-Proton9-21"))
+        .await
+        .unwrap();
+    assert!(!result.success);
+    assert_eq!(result.installed_path, None);
+    assert_eq!(
+        result.error_kind,
+        Some(ProtonUpInstallErrorKind::AlreadyInstalled)
+    );
+    assert_eq!(
+        result.error_message.as_deref(),
+        Some(MSG_INSTALL_IN_PROGRESS)
+    );
+    assert_eq!(harness.installer.calls.load(Ordering::SeqCst), 1);
+
+    gate.notify_one();
+    drain(&mut first).await;
+    finished(&harness.jobs).await;
+}
+
+#[tokio::test]
+async fn async_install_conflicts_with_a_running_legacy_install() {
+    let gate = Arc::new(Notify::new());
+    let harness = Harness::new(Mode::Gated(Arc::clone(&gate)));
+    let legacy = {
+        let service = harness.service.clone();
+        tokio::spawn(async move { service.install_version(request("GE-Proton9-21")).await })
+    };
+    // The legacy install holds the job key once it is registered.
+    while harness.jobs.job_counts().0 == 0 {
+        tokio::task::yield_now().await;
+    }
+
+    let error = match harness
+        .service
+        .start_install(owner("main"), request("GE-Proton9-21"), catalog_entry())
+        .await
+    {
+        Ok(_) => panic!("async install overlapped a legacy install"),
+        Err(error) => error,
+    };
+    assert_eq!(error.kind(), AppErrorKind::Conflict);
+
+    gate.notify_one();
+    let result = legacy.await.unwrap().unwrap();
+    assert!(result.success, "{result:?}");
+    finished(&harness.jobs).await;
+}
+
+#[tokio::test]
+async fn legacy_install_success_is_returned_and_the_job_is_reaped() {
+    let harness = Harness::new(Mode::Succeed);
+    let result = harness
+        .service
+        .install_version(request("GE-Proton9-21"))
+        .await
+        .unwrap();
+    assert!(result.success, "{result:?}");
+    assert_eq!(harness.jobs.job_counts(), (0, 0));
+}
+
+fn corrupt_settings(harness: &Harness) {
+    let path = harness.settings.settings_path();
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(path, b"offline_mode = [not valid toml").unwrap();
+}
+
+#[tokio::test]
+async fn unreadable_settings_fail_closed_for_async_install() {
+    let harness = Harness::new(Mode::Succeed);
+    corrupt_settings(&harness);
+    let error = match harness
+        .service
+        .start_install(owner("main"), request("GE-Proton9-21"), catalog_entry())
+        .await
+    {
+        Ok(_) => panic!("install started with unreadable settings"),
+        Err(error) => error,
+    };
+    assert_eq!(error.kind(), AppErrorKind::Unavailable);
+    assert_eq!(error.message(), MSG_SETTINGS_UNREADABLE);
+    assert_eq!(harness.catalog.calls.load(Ordering::SeqCst), 0);
+    harness.assert_rejected();
+}
+
+#[tokio::test]
+async fn unreadable_settings_fail_closed_for_legacy_install() {
+    let harness = Harness::new(Mode::Succeed);
+    corrupt_settings(&harness);
+    let result = harness
+        .service
+        .install_version(request("GE-Proton9-21"))
+        .await
+        .unwrap();
+    assert!(!result.success);
+    assert_eq!(
+        result.error_kind,
+        Some(ProtonUpInstallErrorKind::NetworkError)
+    );
+    assert_eq!(
+        result.error_message.as_deref(),
+        Some(MSG_SETTINGS_UNREADABLE)
+    );
+    assert_eq!(harness.catalog.calls.load(Ordering::SeqCst), 0);
+    harness.assert_rejected();
 }

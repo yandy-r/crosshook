@@ -33,15 +33,34 @@ impl OwnerLedger {
         }
     }
 
-    /// The job id for `op_id` when `owner` started it.
+    /// The job id for `op_id` when `owner` started it, leaving the entry in
+    /// place (see [`claim`](Self::claim) for the consuming variant).
     ///
     /// # Errors
     /// `NotFound` with [`MSG_OP_NOT_FOUND`] for unknown and foreign ids alike,
     /// so the answer is no existence oracle.
+    #[cfg(test)]
     pub(super) fn authorize(&self, owner: &InstallOwner, op_id: &str) -> Result<JobId, AppError> {
         let id = JobId::from_string(op_id);
         match lock(&self.0).get(&id) {
             Some(recorded) if recorded == owner => Ok(id),
+            _ => Err(AppError::new(AppErrorKind::NotFound, MSG_OP_NOT_FOUND)),
+        }
+    }
+
+    /// Like [`authorize`](Self::authorize), but also removes the entry, so a
+    /// repeated cancel of the same op is `NotFound`.
+    ///
+    /// # Errors
+    /// `NotFound` with [`MSG_OP_NOT_FOUND`], as for `authorize`.
+    pub(super) fn claim(&self, owner: &InstallOwner, op_id: &str) -> Result<JobId, AppError> {
+        let id = JobId::from_string(op_id);
+        let mut entries = lock(&self.0);
+        match entries.get(&id) {
+            Some(recorded) if recorded == owner => {
+                entries.remove(&id);
+                Ok(id)
+            }
             _ => Err(AppError::new(AppErrorKind::NotFound, MSG_OP_NOT_FOUND)),
         }
     }
@@ -60,6 +79,7 @@ pub(super) struct OwnerGuard {
 
 impl Drop for OwnerGuard {
     fn drop(&mut self) {
+        // The entry may already be gone (a cancel claims it first).
         lock(&self.entries).remove(&self.id);
     }
 }

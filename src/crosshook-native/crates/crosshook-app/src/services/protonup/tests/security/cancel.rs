@@ -138,3 +138,26 @@ async fn a_completed_install_id_is_not_found() {
     assert_eq!(error.kind(), AppErrorKind::NotFound);
     assert_eq!(error.message(), MSG_OP_NOT_FOUND);
 }
+
+#[tokio::test]
+async fn a_second_cancel_by_the_owner_is_not_found() {
+    let (harness, _gate) = gated();
+    let started = start(&harness, "main").await;
+    let id = JobId::from_string(started.op_id.clone());
+    let mut events = harness.jobs.subscribe(&id).unwrap();
+
+    harness
+        .service
+        .cancel_install(&owner("main"), &started.op_id)
+        .unwrap();
+    let error = harness
+        .service
+        .cancel_install(&owner("main"), &started.op_id)
+        .unwrap_err();
+    assert_eq!(error.kind(), AppErrorKind::NotFound);
+    assert_eq!(error.message(), MSG_OP_NOT_FOUND);
+
+    assert_eq!(outcome_of(&mut events).await, Outcome::Cancelled);
+    finished(&harness.jobs).await;
+    assert_eq!(harness.service.owner_count(), 0);
+}

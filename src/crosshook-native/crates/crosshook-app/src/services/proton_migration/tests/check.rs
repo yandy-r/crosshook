@@ -4,20 +4,18 @@
 use std::fs;
 use std::path::Path;
 
-use crosshook_core::profile::migration::ProtonPathField;
-use tempfile::TempDir;
+use crosshook_core::profile::migration::{MigrationScanResult, ProtonPathField};
 
 use super::{proton_file, Harness};
-use crate::presenter::display_path_tilde;
 
-/// Tempdir placed under `$HOME` when that is a writable directory (so the
-/// A-4 tilde form is observable), else under the system temp dir. `HOME` is
-/// only read, never changed.
-fn steam_tempdir() -> TempDir {
-    std::env::var("HOME")
-        .ok()
-        .and_then(|home| tempfile::tempdir_in(home).ok())
-        .unwrap_or_else(|| tempfile::tempdir().unwrap())
+/// Deterministic stand-in for the home presenter: rewrites a `home` prefix to
+/// `~` without reading or touching the process environment.
+fn tilde_under(home: &Path) -> impl Fn(&str) -> String + Send + 'static {
+    let home = home.to_string_lossy().into_owned();
+    move |path| match path.strip_prefix(&home) {
+        Some(rest) => format!("~{rest}"),
+        None => path.to_string(),
+    }
 }
 
 /// `<root>/steamapps` plus an installed `<root>/compatibilitytools.d/<name>/proton`.
@@ -28,71 +26,104 @@ fn steam_root_with_tool(root: &Path, tool: &str) -> String {
         .into_owned()
 }
 
+fn path_string(path: &Path) -> String {
+    path.to_string_lossy().into_owned()
+}
+
+fn has_tool(result: &MigrationScanResult, name: &str) -> bool {
+    result
+        .installed_proton_versions
+        .iter()
+        .any(|install| install.name == name)
+}
+
+/// Runs `check_with` using `fallback` as the injected default Steam root.
+async fn check(
+    harness: &Harness,
+    supplied: Option<String>,
+    fallback: &Path,
+    home: &Path,
+) -> MigrationScanResult {
+    let fallback = path_string(fallback);
+    harness
+        .service
+        .check_with(supplied, async move { fallback }, tilde_under(home))
+        .await
+        .unwrap()
+}
+
 #[tokio::test]
 async fn supplied_steam_root_with_steamapps_is_scanned() {
     let harness = Harness::new();
-    let steam = steam_tempdir();
-    let tool = steam_root_with_tool(steam.path(), "GE-Proton9-21");
+    let steam = tempfile::tempdir().unwrap();
+    let fallback = tempfile::tempdir().unwrap();
+    let tool = steam_root_with_tool(steam.path(), "Supplied-Proton1-1");
+    steam_root_with_tool(fallback.path(), "Fallback-Proton1-1");
 
-    let result = harness
-        .service
-        .check(Some(steam.path().to_string_lossy().into_owned()))
-        .await
-        .unwrap();
+    let result = check(
+        &harness,
+        Some(path_string(steam.path())),
+        fallback.path(),
+        steam.path(),
+    )
+    .await;
 
-    assert!(result.installed_proton_versions.iter().any(
-        |install| install.name == "GE-Proton9-21" && install.path == display_path_tilde(&tool)
-    ));
+    assert!(result.installed_proton_versions.iter().any(|install| {
+        install.name == "Supplied-Proton1-1" && install.path == tilde_under(steam.path())(&tool)
+    }));
+    assert!(!has_tool(&result, "Fallback-Proton1-1"));
     assert_eq!(result.profiles_scanned, 0);
 }
 
 #[tokio::test]
-async fn supplied_path_without_steamapps_is_not_honored() {
+async fn supplied_path_without_steamapps_falls_back_to_default() {
     let harness = Harness::new();
     let bogus = tempfile::tempdir().unwrap();
+    let fallback = tempfile::tempdir().unwrap();
     // Has a tool directory but no `steamapps`: the A-5 filter must reject it.
     proton_file(
         &bogus.path().join("compatibilitytools.d"),
-        "Marker-Proton1-1",
+        "Bogus-Proton1-1",
     );
+    steam_root_with_tool(fallback.path(), "Fallback-Proton1-1");
 
     for supplied in [
-        Some(bogus.path().to_string_lossy().into_owned()),
+        Some(path_string(bogus.path())),
         Some("   ".to_string()),
         Some(String::new()),
         None,
     ] {
-        let result = harness.service.check(supplied).await.unwrap();
+        let result = check(&harness, supplied, fallback.path(), fallback.path()).await;
         assert!(
-            result
-                .installed_proton_versions
-                .iter()
-                .all(|install| install.name != "Marker-Proton1-1"),
-            "fallback path must be used, not the supplied one"
+            has_tool(&result, "Fallback-Proton1-1"),
+            "the injected fallback must be used"
         );
+        assert!(!has_tool(&result, "Bogus-Proton1-1"));
     }
 }
 
 #[tokio::test]
 async fn supplied_path_is_trimmed_before_the_steamapps_check() {
     let harness = Harness::new();
-    let steam = steam_tempdir();
-    steam_root_with_tool(steam.path(), "GE-Proton9-21");
+    let steam = tempfile::tempdir().unwrap();
+    let fallback = tempfile::tempdir().unwrap();
+    steam_root_with_tool(steam.path(), "Supplied-Proton1-1");
+    steam_root_with_tool(fallback.path(), "Fallback-Proton1-1");
 
-    // The A-5 check trims; discovery trims too, so the root is still found.
+    // Without trimming, `" <root> /steamapps"` is not a directory and the
+    // fallback would be used instead of the supplied root.
     let padded = format!(" {} ", steam.path().display());
-    let result = harness.service.check(Some(padded)).await.unwrap();
+    let result = check(&harness, Some(padded), fallback.path(), steam.path()).await;
 
-    assert!(result
-        .installed_proton_versions
-        .iter()
-        .any(|install| install.name == "GE-Proton9-21"));
+    assert!(has_tool(&result, "Supplied-Proton1-1"));
+    assert!(!has_tool(&result, "Fallback-Proton1-1"));
 }
 
 #[tokio::test]
 async fn stale_profiles_get_suggestions_and_unmatched_with_sanitized_paths() {
     let harness = Harness::new();
-    let steam = steam_tempdir();
+    let steam = tempfile::tempdir().unwrap();
+    let fallback = tempfile::tempdir().unwrap();
     let tool = steam_root_with_tool(steam.path(), "GE-Proton9-21");
     let stale = steam
         .path()
@@ -103,11 +134,14 @@ async fn stale_profiles_get_suggestions_and_unmatched_with_sanitized_paths() {
     harness.seed_proton_run("Alpha", &stale.to_string_lossy());
     harness.seed_proton_run("Beta", &lost.to_string_lossy());
 
-    let result = harness
-        .service
-        .check(Some(steam.path().to_string_lossy().into_owned()))
-        .await
-        .unwrap();
+    // The injected home is the steam tempdir, so every path is under it.
+    let result = check(
+        &harness,
+        Some(path_string(steam.path())),
+        fallback.path(),
+        steam.path(),
+    )
+    .await;
 
     assert_eq!(result.profiles_scanned, 2);
     assert_eq!(result.affected_count, 2);
@@ -116,45 +150,47 @@ async fn stale_profiles_get_suggestions_and_unmatched_with_sanitized_paths() {
     assert_eq!(suggestion.profile_name, "Alpha");
     assert_eq!(suggestion.field, ProtonPathField::RuntimeProtonPath);
     assert_eq!(suggestion.new_proton_name, "GE-Proton9-21");
+    assert_eq!(suggestion.old_path, "~/old/GE-Proton9-20/proton");
     assert_eq!(
-        suggestion.old_path,
-        display_path_tilde(&stale.to_string_lossy())
+        suggestion.new_path,
+        "~/compatibilitytools.d/GE-Proton9-21/proton"
     );
-    assert_eq!(suggestion.new_path, display_path_tilde(&tool));
     assert_eq!(result.unmatched.len(), 1);
     assert_eq!(result.unmatched[0].profile_name, "Beta");
-    assert_eq!(
-        result.unmatched[0].stale_path,
-        display_path_tilde(&lost.to_string_lossy())
-    );
+    assert_eq!(result.unmatched[0].stale_path, "~/old/Zzz-Tool1/proton");
 
-    if let Ok(home) = std::env::var("HOME") {
-        if steam.path().starts_with(&home) {
-            // The real home prefix never leaves the service.
-            assert!(suggestion.old_path.starts_with("~/"));
-            assert!(suggestion.new_path.starts_with("~/"));
-            assert!(result.unmatched[0].stale_path.starts_with("~/"));
-            assert!(result
-                .installed_proton_versions
-                .iter()
-                .filter(|install| install.name == "GE-Proton9-21")
-                .all(|install| install.path.starts_with("~/")));
-        }
-    }
+    let installed: Vec<_> = result
+        .installed_proton_versions
+        .iter()
+        .filter(|install| install.name == "GE-Proton9-21")
+        .collect();
+    assert_eq!(installed.len(), 1);
+    assert_eq!(
+        installed[0].path,
+        "~/compatibilitytools.d/GE-Proton9-21/proton"
+    );
+    // The home prefix never leaves the service.
+    let home = path_string(steam.path());
+    assert!(!tool.is_empty() && tool.starts_with(&home));
+    assert!(!suggestion.new_path.contains(&home));
+    assert!(!suggestion.old_path.contains(&home));
 }
 
 #[tokio::test]
 async fn existing_proton_path_is_not_flagged() {
     let harness = Harness::new();
-    let steam = steam_tempdir();
+    let steam = tempfile::tempdir().unwrap();
+    let fallback = tempfile::tempdir().unwrap();
     let tool = steam_root_with_tool(steam.path(), "GE-Proton9-21");
     harness.seed_proton_run("Alpha", &tool);
 
-    let result = harness
-        .service
-        .check(Some(steam.path().to_string_lossy().into_owned()))
-        .await
-        .unwrap();
+    let result = check(
+        &harness,
+        Some(path_string(steam.path())),
+        fallback.path(),
+        steam.path(),
+    )
+    .await;
 
     assert_eq!(result.profiles_scanned, 1);
     assert_eq!(result.affected_count, 0);

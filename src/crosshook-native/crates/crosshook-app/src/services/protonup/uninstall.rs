@@ -132,15 +132,17 @@ fn uninstall_blocking(
 ) -> Result<Vec<String>, &'static str> {
     let tool = Path::new(tool_path);
     if tool_path.trim().is_empty()
+        || !tool.is_absolute()
         || tool
             .components()
             .any(|component| matches!(component, Component::ParentDir))
     {
         return Err(UNINSTALL_OUTSIDE);
     }
+    let tool = canonical_parent_join(tool)?;
 
     let steam = select_steam_root(trusted, caller_steam_path);
-    let canonical = contain_in_install_root(roots, steam.as_deref(), tool)?;
+    let canonical = contain_in_install_root(roots, steam.as_deref(), &tool)?;
 
     match action {
         Action::Plan => core_plan_uninstall(&canonical, steam.as_deref())
@@ -152,10 +154,31 @@ fn uninstall_blocking(
     }
 }
 
+/// `tool` with its parent directory canonicalized and the final component
+/// kept as spelled.
+///
+/// A tool reached through an alias spelling of a Steam root then compares
+/// equal to the deduped install root, while a final-component symlink is
+/// still walked (and rejected if it escapes) by [`ensure_within_workspace`].
+/// A missing parent maps to the not-found text.
+fn canonical_parent_join(tool: &Path) -> Result<PathBuf, &'static str> {
+    let (Some(parent), Some(name)) = (tool.parent(), tool.file_name()) else {
+        return Err(UNINSTALL_OUTSIDE);
+    };
+    match fs::canonicalize(parent) {
+        Ok(parent) => Ok(parent.join(name)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Err(UNINSTALL_NOT_FOUND),
+        Err(error) => {
+            tracing::debug!(%error, "uninstall target parent could not be resolved");
+            Err(UNINSTALL_OUTSIDE)
+        }
+    }
+}
+
 /// The Steam root to derive install roots from: the caller's path only when
 /// it canonically equals a trusted root (the trusted spelling is returned),
 /// otherwise the first trusted root.
-fn select_steam_root(trusted: &[PathBuf], caller: Option<&str>) -> Option<PathBuf> {
+pub(super) fn select_steam_root(trusted: &[PathBuf], caller: Option<&str>) -> Option<PathBuf> {
     if let Some(raw) = caller.map(str::trim).filter(|raw| !raw.is_empty()) {
         if let Ok(canonical) = fs::canonicalize(raw) {
             let matched = trusted
