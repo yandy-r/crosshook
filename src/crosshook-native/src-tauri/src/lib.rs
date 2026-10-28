@@ -56,6 +56,10 @@ pub fn run() {
         .manage(services.launcher_export.clone())
         .manage(services.version.clone())
         .manage(services.steam.clone())
+        .manage(services.community.clone())
+        .manage(services.lutris.clone())
+        .manage(services.discovery.clone())
+        .manage(services.protondb.clone())
         .manage(core.clone())
         .setup(move |app| {
             startup_bridge::spawn(app.handle().clone(), core.startup(), startup_events);

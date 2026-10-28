@@ -28,6 +28,7 @@ pub use services::launch::{
     InjectionLogData, LaunchEvent, LaunchEvents, LaunchSession, LaunchStartError,
 };
 pub use services::{
-    CollectionsService, LaunchService, LauncherExportService, ModsService, ProfileWriter,
-    SteamService, StorageService, UiSettingsService, VersionService,
+    CollectionsService, CommunityService, DiscoveryService, LaunchService, LauncherExportService,
+    LutrisService, ModsService, ProfileWriter, ProtonDbService, SteamService, StorageService,
+    UiSettingsService, VersionService,
 };

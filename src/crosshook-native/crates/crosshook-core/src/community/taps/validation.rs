@@ -3,8 +3,11 @@ use super::types::{CommunityTapError, CommunityTapSubscription};
 /// Validates that a pinned commit string is a safe git SHA (hex-only, 7–64 characters).
 ///
 /// This prevents flag-injection (e.g. `--force`, `-q`) and shell-injection strings
-/// from being passed to `git checkout` as a positional argument.
-pub(crate) fn is_valid_git_sha(commit: &str) -> bool {
+/// from being passed to `git checkout` as a positional argument. The pin is
+/// checked at checkout time (see `git.rs`) and for newly added taps by the app
+/// service; a stored tap with a bad pin must not break listing, import or the
+/// catalog for every other tap.
+pub fn is_valid_git_sha(commit: &str) -> bool {
     (7..=64).contains(&commit.len()) && commit.chars().all(|c| c.is_ascii_hexdigit())
 }
 
@@ -73,14 +76,16 @@ pub(crate) fn normalize_subscription(
         validate_branch_name(branch_name)?;
     }
 
+    let pinned_commit = subscription
+        .pinned_commit
+        .as_ref()
+        .map(|commit| commit.trim().to_string())
+        .filter(|commit| !commit.is_empty());
+
     Ok(CommunityTapSubscription {
         extra: toml::Table::new(),
         url: url.to_string(),
         branch,
-        pinned_commit: subscription
-            .pinned_commit
-            .as_ref()
-            .map(|commit| commit.trim().to_string())
-            .filter(|commit| !commit.is_empty()),
+        pinned_commit,
     })
 }

@@ -262,3 +262,83 @@ fn metadata_validation_helper_delegates_other_variants() {
     assert_eq!(unavailable.kind(), AppErrorKind::Unavailable);
     assert_eq!(unavailable.message(), "metadata database is unavailable");
 }
+
+#[test]
+fn workspace_path_errors_hide_paths_and_classify() {
+    use crosshook_core::fs_util::WorkspacePathError as E;
+    for error in [E::InvalidRoot, E::Traversal, E::OutsideWorkspace] {
+        let mapped = AppError::from(error);
+        assert_eq!(mapped.kind(), AppErrorKind::Validation { field: "path" });
+        assert_eq!(mapped.message(), "path is not inside the allowed workspace");
+    }
+    assert_eq!(AppError::from(E::NotFound).kind(), AppErrorKind::NotFound);
+    let io = AppError::from(E::Io {
+        operation: "canonicalize /mnt/secret",
+        source: IoError::from(ErrorKind::PermissionDenied),
+    });
+    assert_eq!(io.kind(), AppErrorKind::Io);
+    assert_eq!(io.message(), "failed to resolve path");
+}
+
+#[test]
+fn community_tap_errors_are_sanitized() {
+    use crosshook_core::community::CommunityTapError as E;
+    let validation = AppError::from(E::InvalidBranch("--evil".to_string()));
+    assert_eq!(validation.kind(), AppErrorKind::Validation { field: "tap" });
+    assert!(validation.message().contains("--evil"));
+
+    let git = AppError::from(E::Git {
+        action: "fetch community tap",
+        command: "git -C /mnt/secret/tap fetch".to_string(),
+        stderr: "fatal: https://token@host/repo".to_string(),
+    });
+    let io = AppError::from(E::Io {
+        action: "clone community tap",
+        path: PathBuf::from("/mnt/secret/tap"),
+        source: IoError::from(ErrorKind::PermissionDenied),
+    });
+    for error in [git, io] {
+        assert_eq!(error.kind(), AppErrorKind::Io);
+        assert_eq!(error.message(), "failed to sync community tap");
+    }
+    assert_eq!(AppError::from(E::Cancelled).kind(), AppErrorKind::Cancelled);
+}
+
+#[test]
+fn lutris_import_errors_hide_paths() {
+    use crosshook_core::profile::LutrisImportError as E;
+    let cases = [
+        (
+            E::Io {
+                action: "read".to_string(),
+                path: PathBuf::from("/mnt/secret/lutris"),
+                message: "denied".to_string(),
+            },
+            AppErrorKind::Io,
+        ),
+        (
+            E::Yaml {
+                path: PathBuf::from("/mnt/secret/game.yml"),
+                message: "bad".to_string(),
+            },
+            AppErrorKind::Validation { field: "lutris" },
+        ),
+        (
+            E::Pga {
+                message: "/mnt/secret/pga.db".to_string(),
+            },
+            AppErrorKind::Io,
+        ),
+        (
+            E::ProfileStore {
+                message: "/mnt/secret/profile.toml".to_string(),
+            },
+            AppErrorKind::Io,
+        ),
+    ];
+    for (error, kind) in cases {
+        let mapped = AppError::from(error);
+        assert_eq!(mapped.kind(), kind);
+        assert!(!mapped.message().contains("/mnt/secret"), "{mapped:?}");
+    }
+}

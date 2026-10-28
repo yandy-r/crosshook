@@ -1,34 +1,47 @@
+//! Thin IPC adapters over the Lutris import service.
+
 use std::path::PathBuf;
 
-use crosshook_app::services::profiles::ProfileCommit;
-use crosshook_app::ProfileWriter;
-use crosshook_core::profile::lutris_import::preview_lutris_import;
-use crosshook_core::profile::{
-    LutrisImportEntry, LutrisImportPreview, LutrisImportResult, ProfileStore,
-};
+use crosshook_app::services::LutrisService;
+use crosshook_app::AppError;
+use crosshook_core::profile::{LutrisImportEntry, LutrisImportPreview, LutrisImportResult};
 use tauri::State;
 
-fn map_error(error: impl ToString) -> String {
-    error.to_string()
+fn map_app_error(error: AppError) -> String {
+    error.message().to_string()
 }
 
 #[tauri::command]
-pub fn lutris_prepare_import(
+pub async fn lutris_prepare_import(
     directory: Option<String>,
-    profile_store: State<'_, ProfileStore>,
+    service: State<'_, LutrisService>,
 ) -> Result<LutrisImportPreview, String> {
-    let root = directory.map(PathBuf::from);
-    preview_lutris_import(root, Some(&profile_store)).map_err(map_error)
+    service
+        .prepare_import(directory.map(PathBuf::from))
+        .await
+        .map_err(map_app_error)
 }
 
 #[tauri::command]
 pub async fn lutris_import_profiles(
     entries: Vec<LutrisImportEntry>,
-    writer: State<'_, ProfileWriter>,
+    service: State<'_, LutrisService>,
 ) -> Result<LutrisImportResult, String> {
-    writer
-        .import_lutris(entries)
+    service
+        .import_profiles(entries)
         .await
-        .map(ProfileCommit::into_output)
-        .map_err(map_error)
+        .map_err(map_app_error)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn command_names_match_expected_ipc_contract() {
+        // Async commands cannot be cast to fn pointers; naming them pins the
+        // exported symbol (and thus the IPC command name).
+        let _ = lutris_prepare_import;
+        let _ = lutris_import_profiles;
+    }
 }

@@ -10,5 +10,7 @@ pub use catalog::{
     build_catalog_page, CatalogEntry, CatalogFacets, CatalogPage, CatalogQuery, CatalogRowInput,
     CatalogSource, CatalogSourceInput, FacetValue,
 };
-pub use client::search_external_trainers;
+pub use client::{
+    search_external_trainers, search_external_trainers_with_mode, ExternalSearchMode,
+};
 pub use models::*;

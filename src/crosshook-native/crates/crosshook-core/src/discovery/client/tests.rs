@@ -231,3 +231,129 @@ fn truncation_keeps_items_under_limit() {
         payload.len()
     );
 }
+
+#[tokio::test]
+async fn cache_only_preserves_fresh_stale_and_empty_cache_without_http() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let mut source = fling();
+    source.base_url = format!("http://{}/", listener.local_addr().unwrap());
+    let query = ExternalTrainerSearchQuery {
+        game_name: "Elden Ring".into(),
+        steam_app_id: None,
+        force_refresh: Some(true),
+    };
+    for stale in [false, true] {
+        for empty in [false, true] {
+            let store = test_store();
+            let items = if empty {
+                vec![]
+            } else {
+                vec![super::RssItem {
+                    title: "Elden Ring Trainer".into(),
+                    link: "https://example.com/elden".into(),
+                    pub_date: None,
+                }]
+            };
+            let expires =
+                (Utc::now() + ChronoDuration::hours(if stale { -2 } else { 1 })).to_rfc3339();
+            store
+                .put_cache_entry(
+                    &source.base_url,
+                    &cache_key_for_source_query(&source.source_id, &query.game_name),
+                    &serde_json::to_string(&items).unwrap(),
+                    Some(&expires),
+                )
+                .unwrap();
+
+            let result = super::search_external_trainers_with_mode(
+                &store,
+                std::slice::from_ref(&source),
+                &query,
+                super::ExternalSearchMode::CacheOnly,
+            )
+            .await;
+
+            assert!(
+                result.cached,
+                "force refresh must not bypass cache-only policy"
+            );
+            assert_eq!(result.is_stale, stale);
+            assert_eq!(result.results.is_empty(), empty);
+            assert!(!result.offline);
+        }
+    }
+    assert_eq!(
+        listener.accept().unwrap_err().kind(),
+        std::io::ErrorKind::WouldBlock
+    );
+}
+
+#[tokio::test]
+async fn cache_only_missing_disabled_or_invalid_cache_never_fetches() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let mut source = fling();
+    source.base_url = format!("http://{}/", listener.local_addr().unwrap());
+    let query = ExternalTrainerSearchQuery {
+        game_name: "Elden Ring".into(),
+        steam_app_id: None,
+        force_refresh: Some(true),
+    };
+    let invalid = test_store();
+    invalid
+        .put_cache_entry(
+            &source.base_url,
+            &cache_key_for_source_query(&source.source_id, &query.game_name),
+            "not JSON",
+            None,
+        )
+        .unwrap();
+    for store in [test_store(), MetadataStore::disabled(), invalid] {
+        let result = super::search_external_trainers_with_mode(
+            &store,
+            std::slice::from_ref(&source),
+            &query,
+            super::ExternalSearchMode::CacheOnly,
+        )
+        .await;
+        assert!(result.offline);
+        assert!(!result.cached);
+        assert!(result.results.is_empty());
+    }
+    assert_eq!(
+        listener.accept().unwrap_err().kind(),
+        std::io::ErrorKind::WouldBlock
+    );
+}
+
+#[tokio::test]
+async fn cache_only_empty_query_and_disabled_sources_remain_empty_success() {
+    let store = MetadataStore::disabled();
+    let mut source = fling();
+    let mut query = ExternalTrainerSearchQuery {
+        game_name: "  ".into(),
+        steam_app_id: None,
+        force_refresh: Some(true),
+    };
+    let empty = super::search_external_trainers_with_mode(
+        &store,
+        std::slice::from_ref(&source),
+        &query,
+        super::ExternalSearchMode::CacheOnly,
+    )
+    .await;
+    assert!(!empty.offline);
+    assert!(empty.results.is_empty());
+    query.game_name = "Elden Ring".into();
+    source.enabled = false;
+    let disabled = super::search_external_trainers_with_mode(
+        &store,
+        &[source],
+        &query,
+        super::ExternalSearchMode::CacheOnly,
+    )
+    .await;
+    assert!(!disabled.offline);
+    assert!(disabled.results.is_empty());
+}

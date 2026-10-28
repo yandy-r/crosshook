@@ -1,9 +1,8 @@
 use std::collections::BTreeMap;
+use std::ffi::OsString;
 use std::path::Path;
-use std::process::Command;
 
-use crate::platform::{self, host_std_command_with_env};
-
+use super::runner::{GitInvocation, GitOutput, GitRunError};
 use super::types::{CommunityTapError, CommunityTapWorkspace};
 use super::validation::is_valid_git_sha;
 
@@ -21,92 +20,71 @@ pub(super) fn git_security_env_pairs() -> [(&'static str, &'static str); 5] {
     ]
 }
 
-pub(crate) fn git_command() -> Command {
-    let mut env = BTreeMap::new();
-    for (key, value) in git_security_env_pairs() {
-        env.insert(key.to_string(), value.to_string());
-    }
-    if platform::is_flatpak() {
-        host_std_command_with_env("git", &env, &BTreeMap::new())
-    } else {
-        let mut command = Command::new("git");
-        command.envs(&env);
-        command
+fn invocation(action: &'static str, args: &[&str], directory: Option<&Path>) -> GitInvocation {
+    let env: BTreeMap<String, String> = git_security_env_pairs()
+        .into_iter()
+        .map(|(key, value)| (key.to_string(), value.to_string()))
+        .collect();
+    GitInvocation {
+        action,
+        args: args.iter().map(OsString::from).collect(),
+        env,
+        directory: directory.map(Path::to_path_buf),
     }
 }
 
-pub(crate) fn clone_tap(workspace: &CommunityTapWorkspace) -> Result<(), CommunityTapError> {
-    let mut command = git_command();
-    command
-        .arg("clone")
-        .arg("--branch")
-        .arg(workspace.branch())
-        .arg("--single-branch")
-        .arg(&workspace.subscription.url)
-        .arg(&workspace.local_path);
-
-    let output = command.output().map_err(|source| CommunityTapError::Io {
-        action: "clone community tap",
-        path: workspace.local_path.clone(),
-        source,
-    })?;
-
-    if !output.status.success() {
-        return Err(CommunityTapError::Git {
-            action: "clone community tap",
-            command: format!(
-                "git clone --branch {} --single-branch {} {}",
-                workspace.branch(),
-                workspace.subscription.url,
-                workspace.local_path.display()
-            ),
-            stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
-        });
-    }
-
-    Ok(())
+/// `git clone --branch B --single-branch -- URL PATH`
+pub(super) fn clone_invocation(ws: &CommunityTapWorkspace) -> GitInvocation {
+    let mut inv = invocation(
+        "clone community tap",
+        &["clone", "--branch", ws.branch(), "--single-branch", "--"],
+        None,
+    );
+    inv.args.push(OsString::from(&ws.subscription.url));
+    inv.args.push(ws.local_path.as_os_str().to_owned());
+    inv
 }
 
-pub(crate) fn fetch_and_reset(workspace: &CommunityTapWorkspace) -> Result<(), CommunityTapError> {
-    run_git(
-        workspace,
+/// `git fetch --prune origin -- B` in the workspace.
+pub(super) fn fetch_invocation(ws: &CommunityTapWorkspace) -> GitInvocation {
+    invocation(
         "fetch community tap",
-        &["fetch", "--prune", "origin", "--", workspace.branch()],
-    )?;
-    run_git(
-        workspace,
+        &["fetch", "--prune", "origin", "--", ws.branch()],
+        Some(&ws.local_path),
+    )
+}
+
+/// `git reset --hard FETCH_HEAD` in the workspace.
+pub(super) fn reset_invocation(ws: &CommunityTapWorkspace) -> GitInvocation {
+    invocation(
         "reset community tap",
         &["reset", "--hard", "FETCH_HEAD"],
-    )?;
-    run_git(workspace, "clean community tap", &["clean", "-fdx"])?;
-    Ok(())
+        Some(&ws.local_path),
+    )
 }
 
-pub(crate) fn fetch_and_checkout_pinned(
-    workspace: &CommunityTapWorkspace,
-) -> Result<(), CommunityTapError> {
-    run_git(
-        workspace,
-        "fetch community tap",
-        &["fetch", "--prune", "origin", "--", workspace.branch()],
-    )?;
-    checkout_pinned_commit(workspace)?;
-    run_git(workspace, "clean community tap", &["clean", "-fdx"])?;
-    Ok(())
+/// `git clean -fdx` in the workspace.
+pub(super) fn clean_invocation(ws: &CommunityTapWorkspace) -> GitInvocation {
+    invocation(
+        "clean community tap",
+        &["clean", "-fdx"],
+        Some(&ws.local_path),
+    )
 }
 
-pub(crate) fn checkout_pinned_commit(
-    workspace: &CommunityTapWorkspace,
-) -> Result<(), CommunityTapError> {
-    let pinned_commit = workspace
-        .subscription
-        .pinned_commit
-        .as_deref()
-        .ok_or_else(|| CommunityTapError::Git {
-            action: "checkout pinned commit",
-            command: "git checkout --detach <commit>".to_string(),
-            stderr: "missing pinned commit".to_string(),
-        })?;
+/// `git checkout --detach <pinned>` in the workspace; the pin is validated first.
+pub(super) fn checkout_invocation(
+    ws: &CommunityTapWorkspace,
+) -> Result<GitInvocation, CommunityTapError> {
+    let pinned_commit =
+        ws.subscription
+            .pinned_commit
+            .as_deref()
+            .ok_or_else(|| CommunityTapError::Git {
+                action: "checkout pinned commit",
+                command: "git checkout --detach <commit>".to_string(),
+                stderr: "missing pinned commit".to_string(),
+            })?;
 
     if !is_valid_git_sha(pinned_commit) {
         return Err(CommunityTapError::InvalidPinnedCommit(
@@ -114,64 +92,74 @@ pub(crate) fn checkout_pinned_commit(
         ));
     }
 
-    run_git(
-        workspace,
+    Ok(invocation(
         "checkout pinned commit",
         &["checkout", "--detach", pinned_commit],
-    )?;
-    Ok(())
+        Some(&ws.local_path),
+    ))
 }
 
-pub(crate) fn rev_parse_head(path: &Path) -> Result<String, CommunityTapError> {
-    let output = git_command()
-        .arg("-C")
-        .arg(path)
-        .args(["rev-parse", "HEAD"])
-        .output()
-        .map_err(|source| CommunityTapError::Io {
-            action: "resolve tap commit",
-            path: path.to_path_buf(),
-            source,
-        })?;
-
-    if !output.status.success() {
-        return Err(CommunityTapError::Git {
-            action: "resolve tap commit",
-            command: format!("git -C {} rev-parse HEAD", path.display()),
-            stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
-        });
-    }
-
-    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+/// `git rev-parse HEAD` in `path`.
+pub(super) fn rev_parse_invocation(path: &Path) -> GitInvocation {
+    invocation("resolve tap commit", &["rev-parse", "HEAD"], Some(path))
 }
 
-pub(crate) fn run_git(
-    workspace: &CommunityTapWorkspace,
-    action: &'static str,
-    args: &[&str],
-) -> Result<(), CommunityTapError> {
-    let output = git_command()
-        .arg("-C")
-        .arg(&workspace.local_path)
-        .args(args)
-        .output()
-        .map_err(|source| CommunityTapError::Io {
-            action,
-            path: workspace.local_path.clone(),
-            source,
-        })?;
+/// Steps that refresh an existing clone: fetch, then reset or pinned checkout, then clean.
+pub(super) fn update_invocations(
+    ws: &CommunityTapWorkspace,
+) -> Result<Vec<GitInvocation>, CommunityTapError> {
+    let middle = if ws.subscription.pinned_commit.is_some() {
+        checkout_invocation(ws)?
+    } else {
+        reset_invocation(ws)
+    };
+    Ok(vec![fetch_invocation(ws), middle, clean_invocation(ws)])
+}
 
-    if !output.status.success() {
-        return Err(CommunityTapError::Git {
-            action,
-            command: format!(
-                "git -C {} {}",
-                workspace.local_path.display(),
-                args.join(" ")
-            ),
-            stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
-        });
+/// Steps that populate a fresh workspace: clone, then pinned checkout when pinned.
+pub(super) fn clone_invocations(
+    ws: &CommunityTapWorkspace,
+) -> Result<Vec<GitInvocation>, CommunityTapError> {
+    let mut steps = vec![clone_invocation(ws)];
+    if ws.subscription.pinned_commit.is_some() {
+        steps.push(checkout_invocation(ws)?);
     }
+    Ok(steps)
+}
 
-    Ok(())
+/// Builds the `CommunityTapError::Git` for a finished-but-unsuccessful process.
+pub(super) fn git_failure(invocation: &GitInvocation, output: &GitOutput) -> CommunityTapError {
+    let mut command = String::from("git");
+    if let Some(directory) = &invocation.directory {
+        command.push_str(" -C ");
+        command.push_str(&directory.display().to_string());
+    }
+    for arg in &invocation.args {
+        command.push(' ');
+        command.push_str(&arg.to_string_lossy());
+    }
+    CommunityTapError::Git {
+        action: invocation.action,
+        command,
+        stderr: output.stderr.trim().to_string(),
+    }
+}
+
+/// Maps a runner failure to the matching tap error; `path` is the step's workspace path.
+pub(super) fn run_failure(
+    invocation: &GitInvocation,
+    error: GitRunError,
+    fallback_path: &Path,
+) -> CommunityTapError {
+    match error {
+        GitRunError::Cancelled => CommunityTapError::Cancelled,
+        GitRunError::Failed(source) => CommunityTapError::Io {
+            action: invocation.action,
+            path: invocation
+                .directory
+                .clone()
+                .unwrap_or_else(|| fallback_path.to_path_buf()),
+            source,
+        },
+    }
 }

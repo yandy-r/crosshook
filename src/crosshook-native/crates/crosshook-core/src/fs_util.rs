@@ -1,5 +1,7 @@
 //! Filesystem utility helpers shared across crate modules.
 
+use std::ffi::OsString;
+use std::fmt;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Component, Path, PathBuf};
@@ -203,257 +205,199 @@ pub(crate) fn dir_is_empty(path: &Path) -> io::Result<bool> {
     Ok(it.next().is_none())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs;
-    use tempfile::tempdir;
+/// Why [`ensure_within_workspace`] refused a candidate path.
+///
+/// [`std::fmt::Display`] never embeds a raw filesystem path, so the error can
+/// cross an IPC boundary without leaking local layout details.
+#[derive(Debug)]
+pub enum WorkspacePathError {
+    /// The root is missing or is not an existing directory.
+    InvalidRoot,
+    /// The candidate contained a `..` component, even one that resolves back inside.
+    Traversal,
+    /// The candidate does not component-prefix the root, or resolves outside it.
+    OutsideWorkspace,
+    /// The candidate (or a dangling symlink along it) does not exist; the helper
+    /// resolves existing paths only.
+    NotFound,
+    /// Permission, ELOOP, ENOTDIR or another I/O failure while resolving.
+    Io {
+        /// Short lowercase verb phrase naming the failing operation.
+        operation: &'static str,
+        /// Underlying I/O error.
+        source: std::io::Error,
+    },
+}
 
-    #[test]
-    fn copies_empty_dir() {
-        let t = tempdir().unwrap();
-        let src = t.path().join("src");
-        let dst = t.path().join("dst");
-        fs::create_dir_all(&src).unwrap();
-
-        copy_dir_recursive(&src, &dst).unwrap();
-
-        assert!(dst.exists(), "dst directory should exist");
-        let mut entries = fs::read_dir(&dst).unwrap();
-        assert!(entries.next().is_none(), "dst should be empty");
-    }
-
-    #[test]
-    fn copies_nested_files() {
-        let t = tempdir().unwrap();
-        let src = t.path().join("src");
-        let dst = t.path().join("dst");
-
-        fs::create_dir_all(src.join("a/b")).unwrap();
-        fs::write(src.join("a/b/c.txt"), "héllo wörld — unicode content").unwrap();
-
-        copy_dir_recursive(&src, &dst).unwrap();
-
-        let content = fs::read_to_string(dst.join("a/b/c.txt")).unwrap();
-        assert_eq!(content, "héllo wörld — unicode content");
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn preserves_symlinks() {
-        use std::os::unix::fs::symlink;
-
-        let t = tempdir().unwrap();
-        let src = t.path().join("src");
-        let dst = t.path().join("dst");
-        fs::create_dir_all(&src).unwrap();
-        fs::write(src.join("target.txt"), b"data").unwrap();
-        symlink("target.txt", src.join("link.txt")).unwrap();
-
-        copy_dir_recursive(&src, &dst).unwrap();
-
-        assert!(
-            dst.join("link.txt").is_symlink(),
-            "dst entry should remain a symlink"
-        );
-        let link_target = fs::read_link(dst.join("link.txt")).unwrap();
-        assert_eq!(
-            link_target,
-            std::path::PathBuf::from("target.txt"),
-            "symlink target must not be dereferenced"
-        );
-    }
-
-    #[test]
-    fn handles_unicode_names() {
-        let t = tempdir().unwrap();
-        let src = t.path().join("src");
-        let dst = t.path().join("dst");
-        fs::create_dir_all(&src).unwrap();
-        fs::write(src.join("résumé.txt"), b"cv data").unwrap();
-
-        copy_dir_recursive(&src, &dst).unwrap();
-
-        assert!(
-            dst.join("résumé.txt").exists(),
-            "unicode filename must be copied verbatim"
-        );
-        assert_eq!(fs::read(dst.join("résumé.txt")).unwrap(), b"cv data");
-    }
-
-    #[test]
-    fn dir_is_empty_true_for_empty_dir() {
-        let t = tempdir().unwrap();
-        let dir = t.path().join("empty");
-        fs::create_dir_all(&dir).unwrap();
-
-        assert!(dir_is_empty(&dir).unwrap());
-    }
-
-    #[test]
-    fn dir_is_empty_false_when_populated() {
-        let t = tempdir().unwrap();
-        let dir = t.path().join("nonempty");
-        fs::create_dir_all(&dir).unwrap();
-        fs::write(dir.join("file.txt"), b"x").unwrap();
-
-        assert!(!dir_is_empty(&dir).unwrap());
-    }
-
-    #[test]
-    fn dir_is_empty_propagates_notfound() {
-        let t = tempdir().unwrap();
-        let nonexistent = t.path().join("does_not_exist");
-
-        let result = dir_is_empty(&nonexistent);
-        assert!(result.is_err(), "expected an error for nonexistent path");
-        assert_eq!(
-            result.unwrap_err().kind(),
-            io::ErrorKind::NotFound,
-            "expected NotFound error kind"
-        );
-    }
-
-    fn temp_files_in(dir: &Path) -> Vec<String> {
-        fs::read_dir(dir)
-            .unwrap()
-            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
-            .filter(|n| n.contains(".tmp-"))
-            .collect()
-    }
-
-    #[test]
-    fn write_atomic_creates_new_file_0644() {
-        let t = tempdir().unwrap();
-        let path = t.path().join("settings.toml");
-
-        write_atomic(&path, b"hello").unwrap();
-
-        assert_eq!(fs::read(&path).unwrap(), b"hello");
-        assert!(temp_files_in(t.path()).is_empty(), "temp file leaked");
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
-            assert_eq!(mode, 0o644);
+impl fmt::Display for WorkspacePathError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidRoot => f.write_str("workspace root is not an available directory"),
+            Self::Traversal => f.write_str("path may not contain parent-directory references"),
+            Self::OutsideWorkspace => f.write_str("path is not inside the workspace"),
+            Self::NotFound => f.write_str("path was not found"),
+            Self::Io { operation, source } => {
+                write!(f, "failed to {operation}: {}", source.kind())
+            }
         }
-    }
-
-    #[test]
-    fn write_atomic_preserves_existing_permissions() {
-        let t = tempdir().unwrap();
-        let path = t.path().join("data.toml");
-        fs::write(&path, b"old").unwrap();
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
-        }
-
-        write_atomic(&path, b"new").unwrap();
-
-        assert_eq!(fs::read(&path).unwrap(), b"new");
-        assert!(temp_files_in(t.path()).is_empty(), "temp file leaked");
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
-            assert_eq!(mode, 0o600);
-        }
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn write_atomic_follows_symlink_to_target() {
-        use std::os::unix::fs::symlink;
-
-        let t = tempdir().unwrap();
-        let real = t.path().join("real.toml");
-        fs::write(&real, b"old").unwrap();
-        let link = t.path().join("link.toml");
-        symlink("real.toml", &link).unwrap();
-
-        write_atomic(&link, b"via-link").unwrap();
-
-        assert!(link.is_symlink(), "symlink must be preserved, not replaced");
-        assert_eq!(fs::read_link(&link).unwrap(), PathBuf::from("real.toml"));
-        assert_eq!(fs::read(&real).unwrap(), b"via-link");
-        assert!(temp_files_in(t.path()).is_empty(), "temp file leaked");
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn write_atomic_rejects_dangling_symlink_without_replacement() {
-        use std::os::unix::fs::symlink;
-
-        let t = tempdir().unwrap();
-        let link = t.path().join("dangling.toml");
-        symlink("nowhere.toml", &link).unwrap();
-
-        let err = write_atomic(&link, b"x").unwrap_err();
-        assert_eq!(err.kind(), io::ErrorKind::NotFound);
-        assert!(link.is_symlink(), "dangling symlink must stay a symlink");
-        assert_eq!(fs::read_link(&link).unwrap(), PathBuf::from("nowhere.toml"));
-        assert!(!t.path().join("nowhere.toml").exists());
-        assert!(
-            temp_files_in(t.path()).is_empty(),
-            "no temp file should remain after failure"
-        );
-        assert!(
-            err.to_string().contains("symlink"),
-            "error should mention the symlink: {err}"
-        );
-    }
-
-    #[test]
-    fn write_atomic_failure_before_rename_keeps_original_and_cleans_temp() {
-        let t = tempdir().unwrap();
-        let path = t.path().join("profile.toml");
-        fs::write(&path, b"original").unwrap();
-
-        let err = write_atomic_inner(&path, b"clobbered", || {
-            assert_eq!(temp_files_in(t.path()).len(), 1, "temp should be staged");
-            Err(io::Error::new(io::ErrorKind::PermissionDenied, "injected"))
-        })
-        .unwrap_err();
-
-        assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
-        assert_eq!(
-            fs::read(&path).unwrap(),
-            b"original",
-            "original content must survive a pre-rename failure"
-        );
-        assert!(
-            temp_files_in(t.path()).is_empty(),
-            "temp file must be removed after a pre-rename failure"
-        );
-    }
-
-    #[test]
-    fn write_atomic_handles_max_length_multibyte_name() {
-        let t = tempdir().unwrap();
-        // 85 * 3 bytes = 255 bytes: valid name, but too long with temp affixes.
-        let path = t.path().join("€".repeat(85));
-
-        write_atomic(&path, b"long").unwrap();
-
-        assert_eq!(fs::read(&path).unwrap(), b"long");
-        assert!(temp_files_in(t.path()).is_empty());
-        assert_eq!(truncate_on_char_boundary("aé", 2), "a");
-    }
-
-    #[test]
-    fn write_atomic_replaces_content_and_double_write_is_byte_identical() {
-        let t = tempdir().unwrap();
-        let path = t.path().join("p.toml");
-
-        write_atomic(&path, b"v1").unwrap();
-        let first = fs::read(&path).unwrap();
-        write_atomic(&path, b"v1").unwrap();
-        let second = fs::read(&path).unwrap();
-        assert_eq!(first, second);
-        write_atomic(&path, b"v2").unwrap();
-        assert_eq!(fs::read(&path).unwrap(), b"v2");
-        assert!(temp_files_in(t.path()).is_empty());
     }
 }
+
+impl std::error::Error for WorkspacePathError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Io { source, .. } => Some(source),
+            _ => None,
+        }
+    }
+}
+
+/// Resolves `candidate` against `root` and returns the canonical, contained path.
+///
+/// Semantics, in order:
+///
+/// 1. `root` is canonicalized once and must be an existing directory
+///    ([`WorkspacePathError::InvalidRoot`] otherwise). A trusted root symlink
+///    resolves to its real location.
+/// 2. Any `..` component in the **original** candidate is rejected as
+///    [`WorkspacePathError::Traversal`], even when the path would resolve back
+///    inside; an empty candidate is [`WorkspacePathError::OutsideWorkspace`].
+///    No case folding, Unicode normalization or `~` expansion is performed.
+/// 3. A relative candidate resolves from the canonical root, never from the
+///    process working directory; an absolute candidate must component-prefix
+///    the supplied or the canonical root spelling.
+/// 4. Each remaining component is walked from the canonical root with
+///    `symlink_metadata`; symlinks resolve and must stay inside the root at
+///    that prefix (an intermediate link escaping the root fails there, even if
+///    a later link would come back). Intermediate components must be
+///    directories; missing components and dangling links are
+///    [`WorkspacePathError::NotFound`].
+/// 5. The final target is canonicalized again and must component-wise prefix
+///    the canonical root.
+///
+/// A candidate equal to the root returns the canonical root itself; callers
+/// must still require a regular file before reading. This is a point-in-time
+/// check, not a race-free open (YAN-835 D11).
+pub fn ensure_within_workspace(
+    root: &Path,
+    candidate: &Path,
+) -> Result<PathBuf, WorkspacePathError> {
+    const RESOLVE: &str = "resolve workspace path";
+
+    // (1) canonicalize the root once; it must be an existing directory.
+    let canonical_root = fs::canonicalize(root).map_err(|source| match source.kind() {
+        io::ErrorKind::NotFound => WorkspacePathError::InvalidRoot,
+        _ => WorkspacePathError::Io {
+            operation: RESOLVE,
+            source,
+        },
+    })?;
+    if !fs::symlink_metadata(&canonical_root)
+        .map_err(|source| WorkspacePathError::Io {
+            operation: RESOLVE,
+            source,
+        })?
+        .is_dir()
+    {
+        return Err(WorkspacePathError::InvalidRoot);
+    }
+
+    // (2) reject raw parent references in the original candidate, always.
+    if candidate
+        .components()
+        .any(|component| matches!(component, Component::ParentDir))
+    {
+        return Err(WorkspacePathError::Traversal);
+    }
+    if candidate.as_os_str().is_empty() {
+        return Err(WorkspacePathError::OutsideWorkspace);
+    }
+
+    // (3) resolve the candidate relative to the canonical root.
+    let suffix: Vec<OsString> = if candidate.is_absolute() {
+        let stripped = candidate
+            .strip_prefix(root)
+            .or_else(|_| candidate.strip_prefix(&canonical_root))
+            .map_err(|_| WorkspacePathError::OutsideWorkspace)?;
+        normal_components(stripped)
+    } else {
+        normal_components(candidate)
+    };
+
+    // (4) walk each component, resolving links as they are encountered.
+    let mut current = canonical_root.clone();
+    for (index, component) in suffix.iter().enumerate() {
+        let next = current.join(component);
+        let metadata = fs::symlink_metadata(&next).map_err(|source| match source.kind() {
+            io::ErrorKind::NotFound => WorkspacePathError::NotFound,
+            _ => WorkspacePathError::Io {
+                operation: RESOLVE,
+                source,
+            },
+        })?;
+        let file_type = metadata.file_type();
+        current = if file_type.is_symlink() {
+            fs::canonicalize(&next).map_err(|source| match source.kind() {
+                io::ErrorKind::NotFound => WorkspacePathError::NotFound,
+                _ => WorkspacePathError::Io {
+                    operation: RESOLVE,
+                    source,
+                },
+            })?
+        } else {
+            next
+        };
+        if !current.starts_with(&canonical_root) {
+            return Err(WorkspacePathError::OutsideWorkspace);
+        }
+        let resolved_is_dir = if file_type.is_symlink() {
+            fs::symlink_metadata(&current)
+                .map_err(|source| WorkspacePathError::Io {
+                    operation: RESOLVE,
+                    source,
+                })?
+                .is_dir()
+        } else {
+            file_type.is_dir()
+        };
+        if index + 1 < suffix.len() && !resolved_is_dir {
+            return Err(WorkspacePathError::Io {
+                operation: RESOLVE,
+                source: io::Error::new(
+                    io::ErrorKind::NotADirectory,
+                    "workspace path component is not a directory",
+                ),
+            });
+        }
+    }
+
+    // (5) mandatory final canonical containment check.
+    let canonical = fs::canonicalize(&current).map_err(|source| match source.kind() {
+        io::ErrorKind::NotFound => WorkspacePathError::NotFound,
+        _ => WorkspacePathError::Io {
+            operation: RESOLVE,
+            source,
+        },
+    })?;
+    if !canonical.starts_with(&canonical_root) {
+        return Err(WorkspacePathError::OutsideWorkspace);
+    }
+    Ok(canonical)
+}
+
+/// Collects only the normal components of `path`, dropping `.`, root and
+/// prefix markers. Parent components have already been rejected by the caller.
+fn normal_components(path: &Path) -> Vec<OsString> {
+    path.components()
+        .filter_map(|component| match component {
+            Component::Normal(value) => Some(value.to_os_string()),
+            _ => None,
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod workspace_tests;
+
+#[cfg(test)]
+mod tests;

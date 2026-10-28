@@ -1,16 +1,23 @@
 use std::fs;
 use std::path::Path;
 use std::process::Command;
+use std::sync::Arc;
 use tempfile::tempdir;
 
 use crate::community::{CommunityProfileManifest, CommunityProfileMetadata, CompatibilityRating};
 use crate::profile::GameProfile;
 
+use super::runner::TapGitRunner;
 use super::store::CommunityTapStore;
+use super::test_runner::RealGitRunner;
 use super::types::{
     CommunityTapError, CommunityTapSubscription, CommunityTapSyncStatus, CommunityTapWorkspace,
 };
 use super::validation::{is_valid_git_sha, validate_branch_name, validate_tap_url};
+
+fn runner() -> Arc<dyn TapGitRunner> {
+    Arc::new(RealGitRunner)
+}
 
 fn init_repo(path: &Path) {
     let output = Command::new("git")
@@ -92,8 +99,8 @@ fn rev_parse_head(path: &Path) -> String {
     String::from_utf8_lossy(&output.stdout).trim().to_string()
 }
 
-#[test]
-fn syncs_and_indexes_local_tap_repo() {
+#[tokio::test]
+async fn syncs_and_indexes_local_tap_repo() {
     let temp_dir = tempdir().unwrap();
     let source_repo = temp_dir.path().join("source");
     let store_root = temp_dir.path().join("store");
@@ -135,7 +142,10 @@ fn syncs_and_indexes_local_tap_repo() {
         subscription,
     };
 
-    let result = store.sync_workspace(&workspace).unwrap();
+    let result = store
+        .sync_workspace_with_runner(&workspace, runner())
+        .await
+        .unwrap();
     assert_eq!(result.status, CommunityTapSyncStatus::Cloned);
     assert_eq!(result.index.entries.len(), 1);
     assert_eq!(
@@ -143,22 +153,29 @@ fn syncs_and_indexes_local_tap_repo() {
         "Elden Ring"
     );
 
-    let second = store.sync_workspace(&workspace).unwrap();
+    let second = store
+        .sync_workspace_with_runner(&workspace, runner())
+        .await
+        .unwrap();
     assert_eq!(second.status, CommunityTapSyncStatus::Updated);
     assert_eq!(second.index.entries.len(), 1);
 }
 
-#[test]
-fn rejects_blank_tap_urls() {
+#[tokio::test]
+async fn rejects_blank_tap_urls() {
     use std::path::PathBuf;
     let store = CommunityTapStore::with_base_path(PathBuf::from("/tmp/crosshook-taps-test"));
     let error = store
-        .sync_tap(&CommunityTapSubscription {
-            extra: toml::Table::new(),
-            url: "   ".to_string(),
-            branch: None,
-            pinned_commit: None,
-        })
+        .sync_tap_with_runner(
+            &CommunityTapSubscription {
+                extra: toml::Table::new(),
+                url: "   ".to_string(),
+                branch: None,
+                pinned_commit: None,
+            },
+            runner(),
+        )
+        .await
         .unwrap_err();
 
     assert!(matches!(error, CommunityTapError::EmptyTapUrl));
@@ -208,8 +225,8 @@ fn is_valid_git_sha_accepts_valid_hashes() {
     assert!(is_valid_git_sha(&"a".repeat(64))); // 64-char SHA256
 }
 
-#[test]
-fn rejects_injection_attempt_as_pinned_commit() {
+#[tokio::test]
+async fn rejects_injection_attempt_as_pinned_commit() {
     let temp_dir = tempdir().unwrap();
     let source_repo = temp_dir.path().join("source");
     let store_root = temp_dir.path().join("store");
@@ -251,15 +268,18 @@ fn rejects_injection_attempt_as_pinned_commit() {
         subscription,
     };
 
-    let err = store.sync_workspace(&workspace).unwrap_err();
+    let err = store
+        .sync_workspace_with_runner(&workspace, runner())
+        .await
+        .unwrap_err();
     assert!(
         matches!(err, CommunityTapError::InvalidPinnedCommit(_)),
         "expected InvalidPinnedCommit, got: {err}"
     );
 }
 
-#[test]
-fn pinned_tap_stays_on_selected_commit() {
+#[tokio::test]
+async fn pinned_tap_stays_on_selected_commit() {
     let temp_dir = tempdir().unwrap();
     let source_repo = temp_dir.path().join("source");
     let store_root = temp_dir.path().join("store");
@@ -302,7 +322,10 @@ fn pinned_tap_stays_on_selected_commit() {
         subscription,
     };
 
-    let first_sync = store.sync_workspace(&workspace).unwrap();
+    let first_sync = store
+        .sync_workspace_with_runner(&workspace, runner())
+        .await
+        .unwrap();
     assert_eq!(first_sync.head_commit, pinned_commit);
 
     let manifest_v2 = CommunityProfileManifest::new(
@@ -327,7 +350,10 @@ fn pinned_tap_stays_on_selected_commit() {
         "update profile",
     );
 
-    let second_sync = store.sync_workspace(&workspace).unwrap();
+    let second_sync = store
+        .sync_workspace_with_runner(&workspace, runner())
+        .await
+        .unwrap();
     assert_eq!(second_sync.status, CommunityTapSyncStatus::Updated);
     assert_eq!(second_sync.head_commit, pinned_commit);
     assert_eq!(second_sync.index.entries.len(), 1);

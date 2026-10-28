@@ -1,269 +1,88 @@
-use crosshook_app::services::profiles::ProfileCommit;
-use crosshook_app::ProfileWriter;
+//! Thin IPC adapters over the community service.
+//!
+//! Tap, import, export and supervised sync logic lives in
+//! `crosshook_app::services::community`; each command only extracts the
+//! managed service, awaits the call and maps the sanitized `AppError`
+//! message to the IPC error string.
+
+use std::path::PathBuf;
+
+use crosshook_app::services::CommunityService;
+use crosshook_app::AppError;
 use crosshook_core::community::{
-    CommunityProfileIndex, CommunityTapStore, CommunityTapSubscription, CommunityTapSyncResult,
+    CommunityProfileIndex, CommunityTapSubscription, CommunityTapSyncResult,
 };
-use crosshook_core::metadata::MetadataStore;
+use crosshook_core::metadata::CommunityProfileRow;
 use crosshook_core::profile::{
-    export_community_profile, preview_community_profile_import, CommunityExportResult,
-    CommunityImportPreview, CommunityImportResult, ProfileStore,
+    CommunityExportResult, CommunityImportPreview, CommunityImportResult,
 };
-use crosshook_core::settings::{AppSettingsData, SettingsStore};
 use tauri::State;
 
-fn map_error(error: impl ToString) -> String {
-    error.to_string()
-}
-
-fn dedupe_taps(taps: Vec<CommunityTapSubscription>) -> Vec<CommunityTapSubscription> {
-    let mut unique = Vec::new();
-
-    for tap in taps {
-        let already_present = unique.iter().any(|existing: &CommunityTapSubscription| {
-            existing.url == tap.url
-                && existing.branch == tap.branch
-                && existing.pinned_commit == tap.pinned_commit
-        });
-
-        if !already_present {
-            unique.push(tap);
-        }
-    }
-
-    unique
-}
-
-fn load_settings(store: &SettingsStore) -> Result<AppSettingsData, String> {
-    store.load().map_err(map_error)
-}
-
-fn load_community_taps(
-    settings_store: &SettingsStore,
-) -> Result<Vec<CommunityTapSubscription>, String> {
-    Ok(load_settings(settings_store)?.community_taps)
-}
-
-fn save_community_taps(
-    settings_store: &SettingsStore,
-    mut settings: AppSettingsData,
-    taps: Vec<CommunityTapSubscription>,
-) -> Result<Vec<CommunityTapSubscription>, String> {
-    settings_store
-        .update(|current| {
-            settings.community_taps = dedupe_taps(taps);
-            settings.preserve_extra_from(current);
-            current.community_taps = settings.community_taps;
-            let mut result = current.community_taps.clone();
-            for tap in &mut result {
-                tap.extra.clear();
-            }
-            Ok::<_, String>(result)
-        })
-        .map_err(map_error)?
-}
-
-fn current_workspaces(
-    tap_store: &CommunityTapStore,
-    taps: &[CommunityTapSubscription],
-) -> Result<Vec<crosshook_core::community::CommunityTapWorkspace>, String> {
-    taps.iter()
-        .map(|tap| tap_store.resolve_workspace(tap).map_err(map_error))
-        .collect()
+fn map_app_error(error: AppError) -> String {
+    error.message().to_string()
 }
 
 #[tauri::command]
-pub fn community_add_tap(
+pub async fn community_add_tap(
     tap: CommunityTapSubscription,
-    settings_store: State<'_, SettingsStore>,
+    service: State<'_, CommunityService>,
 ) -> Result<Vec<CommunityTapSubscription>, String> {
-    let settings = load_settings(&settings_store)?;
-    let mut taps = settings.community_taps.clone();
-    taps.push(tap);
-    save_community_taps(&settings_store, settings, taps)
+    service.add_tap(tap).await.map_err(map_app_error)
 }
 
 #[tauri::command]
-pub fn community_list_profiles(
-    settings_store: State<'_, SettingsStore>,
-    tap_store: State<'_, CommunityTapStore>,
+pub async fn community_list_profiles(
+    service: State<'_, CommunityService>,
 ) -> Result<CommunityProfileIndex, String> {
-    let taps = load_community_taps(&settings_store)?;
-    let workspaces = current_workspaces(&tap_store, &taps)?;
-    tap_store.index_workspaces(&workspaces).map_err(map_error)
+    service.list_profiles().await.map_err(map_app_error)
 }
 
 #[tauri::command]
-pub fn community_export_profile(
+pub async fn community_export_profile(
     profile_name: String,
     output_path: String,
-    profile_store: State<'_, ProfileStore>,
+    service: State<'_, CommunityService>,
 ) -> Result<CommunityExportResult, String> {
-    let out = std::path::Path::new(&output_path);
-    export_community_profile(&profile_store.base_path, profile_name.trim(), out).map_err(map_error)
+    service
+        .export_profile(profile_name, output_path)
+        .await
+        .map_err(map_app_error)
 }
 
 #[tauri::command]
 pub async fn community_import_profile(
     path: String,
-    settings_store: State<'_, SettingsStore>,
-    tap_store: State<'_, CommunityTapStore>,
-    writer: State<'_, ProfileWriter>,
+    service: State<'_, CommunityService>,
 ) -> Result<CommunityImportResult, String> {
-    let import_path = std::path::PathBuf::from(path);
-    let settings = settings_store.inner().clone();
-    let taps = tap_store.inner().clone();
-    let checked_path = import_path.clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        validate_import_path_in_workspace(&checked_path, &settings, &taps)
-    })
-    .await
-    .map_err(map_error)??;
-
-    writer
-        .import_community(import_path)
+    service
+        .import_profile(PathBuf::from(path))
         .await
-        .map(ProfileCommit::into_output)
-        .map_err(map_error)
+        .map_err(map_app_error)
 }
 
 #[tauri::command]
-pub fn community_prepare_import(
+pub async fn community_prepare_import(
     path: String,
-    settings_store: State<'_, SettingsStore>,
-    tap_store: State<'_, CommunityTapStore>,
+    service: State<'_, CommunityService>,
 ) -> Result<CommunityImportPreview, String> {
-    let import_path = std::path::Path::new(&path);
-    validate_import_path_for_prepare(import_path, &settings_store, &tap_store)?;
-    preview_community_profile_import(import_path).map_err(map_error)
-}
-
-fn validate_import_path_for_prepare(
-    path: &std::path::Path,
-    settings_store: &SettingsStore,
-    tap_store: &CommunityTapStore,
-) -> Result<(), String> {
-    let canonical = path.canonicalize().map_err(|error| {
-        format!(
-            "cannot resolve community profile path '{}': {error}",
-            path.display()
-        )
-    })?;
-
-    if !canonical.is_file() {
-        return Err(format!(
-            "community profile path '{}' is not a file",
-            path.display()
-        ));
-    }
-
-    let is_json = canonical
-        .extension()
-        .and_then(|extension| extension.to_str())
-        .map(|extension| extension.eq_ignore_ascii_case("json"))
-        .unwrap_or(false);
-    if !is_json {
-        return Err(format!(
-            "community profile path '{}' must point to a .json file",
-            path.display()
-        ));
-    }
-
-    // Local filesystem imports selected from the file-picker are valid.
-    // When the path belongs to a known tap workspace, this also passes.
-    let taps = load_community_taps(settings_store)?;
-    let workspaces = current_workspaces(tap_store, &taps)?;
-    let _is_workspace_path = workspaces.iter().any(|workspace| {
-        workspace
-            .local_path
-            .canonicalize()
-            .map(|root| canonical.starts_with(&root))
-            .unwrap_or(false)
-    });
-
-    Ok(())
-}
-
-fn validate_import_path_in_workspace(
-    path: &std::path::Path,
-    settings_store: &SettingsStore,
-    tap_store: &CommunityTapStore,
-) -> Result<(), String> {
-    let taps = load_community_taps(settings_store)?;
-    let workspaces = current_workspaces(tap_store, &taps)?;
-
-    let canonical = path.canonicalize().map_err(|error| {
-        format!(
-            "cannot resolve community profile path '{}': {error}",
-            path.display()
-        )
-    })?;
-
-    let in_workspace = workspaces.iter().any(|workspace| {
-        workspace
-            .local_path
-            .canonicalize()
-            .map(|root| canonical.starts_with(&root))
-            .unwrap_or(false)
-    });
-
-    if !in_workspace {
-        return Err(format!(
-            "community profile path '{}' is not inside a known tap workspace",
-            path.display()
-        ));
-    }
-
-    Ok(())
+    service
+        .prepare_import(PathBuf::from(path))
+        .await
+        .map_err(map_app_error)
 }
 
 #[tauri::command]
-pub fn community_sync(
-    settings_store: State<'_, SettingsStore>,
-    tap_store: State<'_, CommunityTapStore>,
-    metadata_store: State<'_, MetadataStore>,
+pub async fn community_sync(
+    service: State<'_, CommunityService>,
 ) -> Result<Vec<CommunityTapSyncResult>, String> {
-    let taps = load_community_taps(&settings_store)?;
-    let mut results = tap_store.sync_many(&taps).map_err(map_error)?;
-
-    for result in &results {
-        if let Err(e) = metadata_store.index_community_tap_result(result) {
-            tracing::warn!(%e, tap_url = %result.workspace.subscription.url,
-                "community tap index sync failed");
-        }
-        if let Err(e) = metadata_store.upsert_community_tap_offline_from_sync_result(result) {
-            tracing::warn!(%e, tap_url = %result.workspace.subscription.url,
-                "community tap offline state upsert failed");
-        }
-    }
-
-    for result in &mut results {
-        let tap_url = result.workspace.subscription.url.as_str();
-        let tap_branch = result
-            .workspace
-            .subscription
-            .branch
-            .as_deref()
-            .unwrap_or("");
-        if let Ok(Some(tap_id)) = metadata_store.lookup_community_tap_id(tap_url, tap_branch) {
-            if let Ok(Some(row)) = metadata_store.lookup_community_tap_offline_state_row(&tap_id) {
-                result.last_sync_at = row.last_sync_at.clone();
-            }
-        }
-    }
-
-    for result in &mut results {
-        result.workspace.subscription.extra.clear();
-    }
-    Ok(results)
+    service.sync().await.map_err(map_app_error)
 }
 
 #[tauri::command]
-pub fn community_list_indexed_profiles(
-    metadata_store: State<'_, MetadataStore>,
-) -> Result<Vec<crosshook_core::metadata::CommunityProfileRow>, String> {
-    metadata_store
-        .list_community_tap_profiles(None)
-        .map_err(map_error)
+pub async fn community_list_indexed_profiles(
+    service: State<'_, CommunityService>,
+) -> Result<Vec<CommunityProfileRow>, String> {
+    service.list_indexed_profiles().await.map_err(map_app_error)
 }
 
 #[cfg(test)]
@@ -272,68 +91,20 @@ mod tests {
 
     #[test]
     fn command_names_match_expected_ipc_contract() {
-        let _ = community_add_tap
-            as fn(
-                CommunityTapSubscription,
-                State<'_, SettingsStore>,
-            ) -> Result<Vec<CommunityTapSubscription>, String>;
-        let _ = community_list_profiles
-            as fn(
-                State<'_, SettingsStore>,
-                State<'_, CommunityTapStore>,
-            ) -> Result<CommunityProfileIndex, String>;
-        let _ = community_export_profile
-            as fn(String, String, State<'_, ProfileStore>) -> Result<CommunityExportResult, String>;
-        // Async command: pin the name (an `async fn` has no nameable `fn` pointer type).
+        // Async commands cannot be cast to fn pointers; naming them pins the
+        // exported symbol (and thus the IPC command name).
+        let _ = community_add_tap;
+        let _ = community_list_profiles;
+        let _ = community_export_profile;
         let _ = community_import_profile;
-        let _ = community_prepare_import
-            as fn(
-                String,
-                State<'_, SettingsStore>,
-                State<'_, CommunityTapStore>,
-            ) -> Result<CommunityImportPreview, String>;
-        let _ = community_sync
-            as fn(
-                State<'_, SettingsStore>,
-                State<'_, CommunityTapStore>,
-                State<'_, MetadataStore>,
-            ) -> Result<Vec<CommunityTapSyncResult>, String>;
-        let _ = community_list_indexed_profiles
-            as fn(
-                State<'_, MetadataStore>,
-            )
-                -> Result<Vec<crosshook_core::metadata::CommunityProfileRow>, String>;
+        let _ = community_prepare_import;
+        let _ = community_sync;
+        let _ = community_list_indexed_profiles;
     }
 
     #[test]
-    fn dedupes_taps_by_url_and_branch() {
-        let taps = dedupe_taps(vec![
-            CommunityTapSubscription {
-                extra: toml::Table::new(),
-                url: "https://example.invalid/community.git".to_string(),
-                branch: Some("main".to_string()),
-                pinned_commit: None,
-            },
-            CommunityTapSubscription {
-                extra: toml::Table::new(),
-                url: "https://example.invalid/community.git".to_string(),
-                branch: Some("main".to_string()),
-                pinned_commit: None,
-            },
-            CommunityTapSubscription {
-                extra: toml::Table::new(),
-                url: "https://example.invalid/community.git".to_string(),
-                branch: Some("beta".to_string()),
-                pinned_commit: None,
-            },
-            CommunityTapSubscription {
-                extra: toml::Table::new(),
-                url: "https://example.invalid/community.git".to_string(),
-                branch: Some("main".to_string()),
-                pinned_commit: Some("abc123".to_string()),
-            },
-        ]);
-
-        assert_eq!(taps.len(), 3);
+    fn app_error_maps_to_its_plain_message() {
+        let error = AppError::validation("path", "community profile path is invalid");
+        assert_eq!(map_app_error(error), "community profile path is invalid");
     }
 }

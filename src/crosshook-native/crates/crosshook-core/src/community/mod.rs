@@ -7,6 +7,7 @@ pub use crate::profile::{
 };
 pub use index::{CommunityProfileIndex, CommunityProfileIndexEntry, CommunityProfileIndexError};
 pub use taps::{
-    CommunityTapError, CommunityTapStore, CommunityTapSubscription, CommunityTapSyncResult,
-    CommunityTapSyncStatus, CommunityTapWorkspace,
+    is_valid_git_sha, CommunityTapError, CommunityTapStore, CommunityTapSubscription,
+    CommunityTapSyncResult, CommunityTapSyncStatus, CommunityTapWorkspace, GitInvocation,
+    GitOutput, GitRunError, TapGitRunner,
 };
