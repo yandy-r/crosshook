@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use crosshook_app::services::launch::LaunchService;
+use crosshook_app::services::HostToolsService;
 use crosshook_core::launch::{
     LaunchPlatformCapabilities, LaunchPreview, LaunchRequest, LaunchValidationIssue,
 };
@@ -54,14 +55,19 @@ pub fn build_steam_launch_options_command(
 }
 
 #[tauri::command]
-pub fn check_gamescope_session() -> bool {
-    crosshook_core::launch::is_inside_gamescope_session()
+pub async fn check_gamescope_session(service: State<'_, HostToolsService>) -> Result<bool, String> {
+    Ok(service.gamescope_session())
 }
 
 /// Returns Flatpak sandbox and host capability flags for launch UI (not persisted).
 #[tauri::command]
-pub fn launch_platform_status() -> LaunchPlatformCapabilities {
-    crosshook_core::launch::launch_platform_capabilities()
+pub async fn launch_platform_status(
+    service: State<'_, HostToolsService>,
+) -> Result<LaunchPlatformCapabilities, String> {
+    service
+        .platform_status()
+        .await
+        .map_err(|error| error.message().to_string())
 }
 
 #[tauri::command]

@@ -155,3 +155,28 @@ async fn lagging_profile_subscriber_gets_resync_then_tail() {
     assert_eq!(receiver.recv().await, Some(resync(1)));
     assert_eq!(receiver.recv().await, Some(changed("Beta")));
 }
+
+#[tokio::test]
+async fn named_scan_events_round_trip_and_carry_counts_only() {
+    let bus = EventBus::default();
+    let mut receiver = bus.subscribe();
+    let events = [
+        AppEvent::HealthScanCompleted {
+            total: 6,
+            healthy: 3,
+            stale: 2,
+            broken: 1,
+        },
+        AppEvent::OfflineReadinessScanCompleted { total_profiles: 6 },
+        AppEvent::VersionScanCompleted {
+            scanned: 4,
+            mismatches: 1,
+        },
+    ];
+    for event in &events {
+        bus.publish(event.clone());
+    }
+    for event in events {
+        assert_eq!(receiver.recv().await, Some(event));
+    }
+}
