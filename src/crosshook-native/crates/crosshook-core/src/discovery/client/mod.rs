@@ -16,7 +16,9 @@ mod search;
 #[cfg(test)]
 mod tests;
 
-pub use search::search_external_trainers;
+pub use search::{
+    search_external_trainers, search_external_trainers_with_mode, ExternalSearchMode,
+};
 
 pub(super) const CACHE_TTL_HOURS: i64 = 1;
 pub(super) const REQUEST_TIMEOUT_SECS: u64 = 10;

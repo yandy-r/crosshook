@@ -11,6 +11,15 @@ use super::fetch::{build_fetch_url, fetch_and_cache_search};
 use super::response::{build_response_from_cache, build_response_from_items, offline_response};
 use super::MAX_SOURCE_CONCURRENCY;
 
+/// Controls whether external discovery may contact source servers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExternalSearchMode {
+    /// Use fresh cache, live fetch, then stale fallback.
+    Online,
+    /// Use fresh or stale cache without making a network request.
+    CacheOnly,
+}
+
 /// Searches all enabled external sources for trainers matching the query.
 ///
 /// Each source runs the 3-stage cache-first flow in parallel, up to a bounded
@@ -20,6 +29,17 @@ pub async fn search_external_trainers(
     metadata_store: &MetadataStore,
     sources: &[ExternalTrainerSourceSubscription],
     query: &ExternalTrainerSearchQuery,
+) -> ExternalTrainerSearchResponse {
+    search_external_trainers_with_mode(metadata_store, sources, query, ExternalSearchMode::Online)
+        .await
+}
+
+/// Searches sources with an explicit network policy, preserving cached empty results.
+pub async fn search_external_trainers_with_mode(
+    metadata_store: &MetadataStore,
+    sources: &[ExternalTrainerSourceSubscription],
+    query: &ExternalTrainerSearchQuery,
+    mode: ExternalSearchMode,
 ) -> ExternalTrainerSearchResponse {
     let game_name = query.game_name.trim();
     if game_name.is_empty() {
@@ -95,8 +115,17 @@ pub async fn search_external_trainers(
 
         let metadata_store = metadata_store.clone();
         let game_name = game_name_owned.clone();
-        join_set.spawn(async move {
-            fetch_source(&metadata_store, &source, &game_name, force_refresh).await
+        let runtime = tokio::runtime::Handle::current();
+        // Cache access inside each source future is synchronous SQLite work.
+        // Keep it off runtime workers as well as off the service caller.
+        join_set.spawn_blocking(move || {
+            runtime.block_on(fetch_source(
+                &metadata_store,
+                &source,
+                &game_name,
+                force_refresh,
+                mode,
+            ))
         });
         in_flight += 1;
     }
@@ -151,16 +180,26 @@ async fn fetch_source(
     source: &ExternalTrainerSourceSubscription,
     game_name: &str,
     force_refresh: bool,
+    mode: ExternalSearchMode,
 ) -> ExternalTrainerSearchResponse {
     let key = cache_key_for_source_query(&source.source_id, game_name);
 
     // Stage 1: Check for valid (non-expired) per-query cache.
-    if !force_refresh {
+    if !force_refresh || mode == ExternalSearchMode::CacheOnly {
         if let Some(cached) = load_cached_rss_row(metadata_store, &key, false) {
             if let Some(response) = build_response_from_cache(&cached, source, game_name, false) {
                 return response;
             }
         }
+    }
+
+    if mode == ExternalSearchMode::CacheOnly {
+        if let Some(stale) = load_cached_rss_row(metadata_store, &key, true) {
+            if let Some(response) = build_response_from_cache(&stale, source, game_name, true) {
+                return response;
+            }
+        }
+        return offline_response(source);
     }
 
     // Stage 2: Build URL and fetch live.

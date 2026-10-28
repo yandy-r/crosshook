@@ -24,10 +24,11 @@ use super::{BootstrapError, StoreKind};
 use crate::events::EventBus;
 use crate::jobs::JobRegistry;
 use crate::services::{
-    BackgroundGrantHolder, CollectionsService, DiagnosticsService, HealthService, HostToolsService,
-    LaunchService, LauncherExportService, ModsService, OfflineService, OnboardingService,
-    ProfileWriter, RecentFilesService, SettingsService, SteamService, StorageService,
-    UiSettingsService, VersionService,
+    BackgroundGrantHolder, CollectionsService, CommunityService, DiagnosticsService,
+    DiscoveryService, HealthService, HostToolsService, LaunchService, LauncherExportService,
+    LutrisService, ModsService, OfflineService, OnboardingService, ProfileWriter, ProtonDbService,
+    RecentFilesService, SettingsService, SteamService, StorageService, UiSettingsService,
+    VersionService,
 };
 
 /// The persistent stores the application owns. Clones are cheap; clones of
@@ -83,6 +84,14 @@ pub struct Services {
     pub version: VersionService,
     /// Steam client path, Proton installs, auto-populate and game metadata/art.
     pub steam: SteamService,
+    /// Community tap subscriptions, authorized imports and supervised sync.
+    pub community: CommunityService,
+    /// Lutris library preview and import.
+    pub lutris: LutrisService,
+    /// Trainer discovery catalog, external search and source management.
+    pub discovery: DiscoveryService,
+    /// ProtonDB lookup, suggestions and dismissals.
+    pub protondb: ProtonDbService,
 }
 
 impl Services {
@@ -92,12 +101,18 @@ impl Services {
     /// shutdown) that supervises storage scan, health batch and readiness jobs.
     pub fn new(stores: &Stores, events: EventBus, runtime: Handle, jobs: JobRegistry) -> Self {
         let background = Arc::new(BackgroundGrantHolder::new());
+        let writer = ProfileWriter::new(
+            stores.profiles.clone(),
+            stores.metadata.clone(),
+            stores.settings.clone(),
+            events.clone(),
+        );
         Self {
             settings: SettingsService::new(
                 stores.settings.clone(),
                 stores.profiles.base_path.clone(),
             ),
-            ui_settings: UiSettingsService::new(stores.settings.clone(), events.clone(), runtime),
+            ui_settings: UiSettingsService::new(stores.settings.clone(), events, runtime),
             recent_files: RecentFilesService::new(
                 stores.settings.clone(),
                 stores.recent_files.clone(),
@@ -119,12 +134,22 @@ impl Services {
             ),
             host_tools: HostToolsService::new(jobs.clone()),
             offline: OfflineService::new(stores.profiles.clone(), stores.metadata.clone()),
-            profiles: ProfileWriter::new(
+            profiles: writer.clone(),
+            community: CommunityService::new(
+                stores.settings.clone(),
+                stores.community_taps.clone(),
                 stores.profiles.clone(),
                 stores.metadata.clone(),
-                stores.settings.clone(),
-                events,
+                writer.clone(),
+                jobs.clone(),
             ),
+            lutris: LutrisService::new(stores.profiles.clone(), writer),
+            discovery: DiscoveryService::new(
+                stores.settings.clone(),
+                stores.metadata.clone(),
+                stores.community_taps.clone(),
+            ),
+            protondb: ProtonDbService::new(stores.metadata.clone(), stores.profiles.clone()),
             launch: LaunchService::new(
                 stores.profiles.clone(),
                 stores.settings.clone(),

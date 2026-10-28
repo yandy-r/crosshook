@@ -213,11 +213,7 @@ mod tests {
         let _ = reexport_launcher_by_slug;
         let _ = preview_launcher_script;
         let _ = preview_launcher_desktop;
-        let _ = crate::commands::lutris::lutris_prepare_import
-            as fn(
-                Option<String>,
-                State<'_, crosshook_core::profile::ProfileStore>,
-            ) -> Result<crosshook_core::profile::LutrisImportPreview, String>;
+        let _ = crate::commands::lutris::lutris_prepare_import;
         let _ = crate::commands::lutris::lutris_import_profiles;
     }
 

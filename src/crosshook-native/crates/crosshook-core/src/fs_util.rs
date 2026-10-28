@@ -1,5 +1,7 @@
 //! Filesystem utility helpers shared across crate modules.
 
+use std::ffi::OsString;
+use std::fmt;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Component, Path, PathBuf};
@@ -202,6 +204,200 @@ pub(crate) fn dir_is_empty(path: &Path) -> io::Result<bool> {
     let mut it = fs::read_dir(path)?;
     Ok(it.next().is_none())
 }
+
+/// Why [`ensure_within_workspace`] refused a candidate path.
+///
+/// [`std::fmt::Display`] never embeds a raw filesystem path, so the error can
+/// cross an IPC boundary without leaking local layout details.
+#[derive(Debug)]
+pub enum WorkspacePathError {
+    /// The root is missing or is not an existing directory.
+    InvalidRoot,
+    /// The candidate contained a `..` component, even one that resolves back inside.
+    Traversal,
+    /// The candidate does not component-prefix the root, or resolves outside it.
+    OutsideWorkspace,
+    /// The candidate (or a dangling symlink along it) does not exist; the helper
+    /// resolves existing paths only.
+    NotFound,
+    /// Permission, ELOOP, ENOTDIR or another I/O failure while resolving.
+    Io {
+        /// Short lowercase verb phrase naming the failing operation.
+        operation: &'static str,
+        /// Underlying I/O error.
+        source: std::io::Error,
+    },
+}
+
+impl fmt::Display for WorkspacePathError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidRoot => f.write_str("workspace root is not an available directory"),
+            Self::Traversal => f.write_str("path may not contain parent-directory references"),
+            Self::OutsideWorkspace => f.write_str("path is not inside the workspace"),
+            Self::NotFound => f.write_str("path was not found"),
+            Self::Io { operation, source } => {
+                write!(f, "failed to {operation}: {}", source.kind())
+            }
+        }
+    }
+}
+
+impl std::error::Error for WorkspacePathError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Io { source, .. } => Some(source),
+            _ => None,
+        }
+    }
+}
+
+/// Resolves `candidate` against `root` and returns the canonical, contained path.
+///
+/// Semantics, in order:
+///
+/// 1. `root` is canonicalized once and must be an existing directory
+///    ([`WorkspacePathError::InvalidRoot`] otherwise). A trusted root symlink
+///    resolves to its real location.
+/// 2. Any `..` component in the **original** candidate is rejected as
+///    [`WorkspacePathError::Traversal`], even when the path would resolve back
+///    inside; an empty candidate is [`WorkspacePathError::OutsideWorkspace`].
+///    No case folding, Unicode normalization or `~` expansion is performed.
+/// 3. A relative candidate resolves from the canonical root, never from the
+///    process working directory; an absolute candidate must component-prefix
+///    the supplied or the canonical root spelling.
+/// 4. Each remaining component is walked from the canonical root with
+///    `symlink_metadata`; symlinks resolve and must stay inside the root at
+///    that prefix (an intermediate link escaping the root fails there, even if
+///    a later link would come back). Intermediate components must be
+///    directories; missing components and dangling links are
+///    [`WorkspacePathError::NotFound`].
+/// 5. The final target is canonicalized again and must component-wise prefix
+///    the canonical root.
+///
+/// A candidate equal to the root returns the canonical root itself; callers
+/// must still require a regular file before reading. This is a point-in-time
+/// check, not a race-free open (YAN-835 D11).
+pub fn ensure_within_workspace(
+    root: &Path,
+    candidate: &Path,
+) -> Result<PathBuf, WorkspacePathError> {
+    const RESOLVE: &str = "resolve workspace path";
+
+    // (1) canonicalize the root once; it must be an existing directory.
+    let canonical_root = fs::canonicalize(root).map_err(|source| match source.kind() {
+        io::ErrorKind::NotFound => WorkspacePathError::InvalidRoot,
+        _ => WorkspacePathError::Io {
+            operation: RESOLVE,
+            source,
+        },
+    })?;
+    if !fs::symlink_metadata(&canonical_root)
+        .map_err(|source| WorkspacePathError::Io {
+            operation: RESOLVE,
+            source,
+        })?
+        .is_dir()
+    {
+        return Err(WorkspacePathError::InvalidRoot);
+    }
+
+    // (2) reject raw parent references in the original candidate, always.
+    if candidate
+        .components()
+        .any(|component| matches!(component, Component::ParentDir))
+    {
+        return Err(WorkspacePathError::Traversal);
+    }
+    if candidate.as_os_str().is_empty() {
+        return Err(WorkspacePathError::OutsideWorkspace);
+    }
+
+    // (3) resolve the candidate relative to the canonical root.
+    let suffix: Vec<OsString> = if candidate.is_absolute() {
+        let stripped = candidate
+            .strip_prefix(root)
+            .or_else(|_| candidate.strip_prefix(&canonical_root))
+            .map_err(|_| WorkspacePathError::OutsideWorkspace)?;
+        normal_components(stripped)
+    } else {
+        normal_components(candidate)
+    };
+
+    // (4) walk each component, resolving links as they are encountered.
+    let mut current = canonical_root.clone();
+    for (index, component) in suffix.iter().enumerate() {
+        let next = current.join(component);
+        let metadata = fs::symlink_metadata(&next).map_err(|source| match source.kind() {
+            io::ErrorKind::NotFound => WorkspacePathError::NotFound,
+            _ => WorkspacePathError::Io {
+                operation: RESOLVE,
+                source,
+            },
+        })?;
+        let file_type = metadata.file_type();
+        current = if file_type.is_symlink() {
+            fs::canonicalize(&next).map_err(|source| match source.kind() {
+                io::ErrorKind::NotFound => WorkspacePathError::NotFound,
+                _ => WorkspacePathError::Io {
+                    operation: RESOLVE,
+                    source,
+                },
+            })?
+        } else {
+            next
+        };
+        if !current.starts_with(&canonical_root) {
+            return Err(WorkspacePathError::OutsideWorkspace);
+        }
+        let resolved_is_dir = if file_type.is_symlink() {
+            fs::symlink_metadata(&current)
+                .map_err(|source| WorkspacePathError::Io {
+                    operation: RESOLVE,
+                    source,
+                })?
+                .is_dir()
+        } else {
+            file_type.is_dir()
+        };
+        if index + 1 < suffix.len() && !resolved_is_dir {
+            return Err(WorkspacePathError::Io {
+                operation: RESOLVE,
+                source: io::Error::new(
+                    io::ErrorKind::NotADirectory,
+                    "workspace path component is not a directory",
+                ),
+            });
+        }
+    }
+
+    // (5) mandatory final canonical containment check.
+    let canonical = fs::canonicalize(&current).map_err(|source| match source.kind() {
+        io::ErrorKind::NotFound => WorkspacePathError::NotFound,
+        _ => WorkspacePathError::Io {
+            operation: RESOLVE,
+            source,
+        },
+    })?;
+    if !canonical.starts_with(&canonical_root) {
+        return Err(WorkspacePathError::OutsideWorkspace);
+    }
+    Ok(canonical)
+}
+
+/// Collects only the normal components of `path`, dropping `.`, root and
+/// prefix markers. Parent components have already been rejected by the caller.
+fn normal_components(path: &Path) -> Vec<OsString> {
+    path.components()
+        .filter_map(|component| match component {
+            Component::Normal(value) => Some(value.to_os_string()),
+            _ => None,
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod workspace_tests;
 
 #[cfg(test)]
 mod tests {

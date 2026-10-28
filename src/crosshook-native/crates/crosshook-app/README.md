@@ -113,6 +113,10 @@ feature checks in CI and `scripts/lint.sh` reject `bootstrap-trace` in shipped b
 | `LauncherExportService` | `LauncherExportService::new(profiles, settings, metadata)`; `export`, `validate`, `check_exists`, `check_for_profile`, `delete`, `delete_by_slug`, `rename`, `list`, `find_orphaned`, `reexport_by_slug`, `preview_script`, `preview_desktop`                                                                                                                                                                                                                                                                                    | the 12 launcher export commands                                                                                                                                                                                                            |
 | `VersionService`        | `VersionService::new(profiles, metadata)`; `check_status(name)`, `snapshot(name)`, `set_trainer_version` (`Unavailable` on a degraded store), `acknowledge_change`                                                                                                                                                                                                                                                                                                                                                               | `check_version_status`, `get_version_snapshot`, `set_trainer_version`, `acknowledge_version_change`                                                                                                                                        |
 | `SteamService`          | `SteamService::new(metadata, settings)`; `default_client_install_path()`, `list_proton_installs()`, `auto_populate()`, `fetch_game_metadata`, `fetch_cover_art`, `import_custom_cover_art`, `import_custom_art`                                                                                                                                                                                                                                                                                                                  | `default_steam_client_install_path`, `list_proton_installs`, `auto_populate_steam`, `fetch_game_metadata`, `fetch_game_cover_art`, `import_custom_cover_art`, `import_custom_art`                                                          |
+| `CommunityService`      | `CommunityService::new(settings, taps, profiles, metadata, writer, jobs)`; `add_tap`/`remove_tap` (normalized, deduped), `list_profiles`, `list_indexed_profiles`, `export_profile`, `prepare_import` (read-only preview), `import_profile` (contained in a subscribed tap workspace), `start_sync() -> JobHandle`, `sync()` (awaitable: start → wait `Finished` → take the result), `sync_result(&JobId)`                                                                                                                       | `community_add_tap`, `community_list_profiles`, `community_list_indexed_profiles`, `community_export_profile`, `community_prepare_import`, `community_import_profile`, `community_sync`                                                    |
+| `LutrisService`         | `LutrisService::new(profiles, writer)`; `prepare_import(directory)` (read-only), `import_profiles(entries)` (through the shared `ProfileWriter`)                                                                                                                                                                                                                                                                                                                                                                                 | `lutris_prepare_import`, `lutris_import_profiles`                                                                                                                                                                                          |
+| `DiscoveryService`      | `DiscoveryService::new(settings, metadata, taps)`; `catalog(query)`, `search_external(query)`, `check_version_compatibility(..)`, `list_external_sources`, `add_external_source`, `remove_external_source`                                                                                                                                                                                                                                                                                                                       | `discovery_catalog`, `discovery_search_external`, `discovery_check_version_compatibility`, `discovery_list_external_sources`, `discovery_add_external_source`, `discovery_remove_external_source`                                          |
+| `ProtonDbService`       | `ProtonDbService::new(metadata, profiles)`; `lookup(app_id, force_refresh)`, `suggestions(app_id, profile_name, force_refresh)`, `dismiss_suggestion(..)`. Accepting a suggestion stays on `ProfileWriter`                                                                                                                                                                                                                                                                                                                       | `protondb_lookup`, `protondb_get_suggestions`, `protondb_dismiss_suggestion`                                                                                                                                                               |
 
 Attachment names must be a single relative file name (no `/`, `\`, `..`, NUL,
 or empty); invalid names fail with `Validation { field: "attachments" }` before
@@ -238,6 +242,51 @@ Wire payloads are pinned by the frozen Phase-0 fixtures in
 added `session_id`); the CLI's stdout/stderr/exit codes are pinned by
 `crosshook-cli/tests/fixtures/launch/`.
 
+### Community, Lutris, discovery and ProtonDB
+
+`Services::new` builds **one** `ProfileWriter` and clones it into `profiles`,
+`community` and `lutris`, so community and Lutris imports share the write lock
+with every other profile mutation. The 19 Tauri commands keep their names,
+argument keys and Serde shapes; `src-tauri` only delegates and maps errors to
+strings.
+
+- **Sync is a supervised job.** `CommunityService::sync` runs as a
+  `community-sync` job without an exclusive `JobKey`: concurrent requests
+  queue on an async lock instead of failing with `Conflict`. Tap git steps go
+  through the core `TapGitRunner` seam; the production runner builds each
+  child with the lifecycle host-command builder and `supervise_child`, so
+  cancelling the job (or app shutdown) kills the git process and yields
+  `Cancelled` with no index or metadata write. Cancellation is a backend
+  capability only: there is no generic job-cancel IPC and Classic has no
+  cancel button. Order after the git steps: index → offline-state upsert →
+  `last_sync_at` read-back (warning-only on a disabled store); the first
+  per-tap hard error still aborts the sync.
+- **Tap validation.** `add_tap` normalizes and validates URL, branch and
+  pinned commit before persisting (invalid input is a `Validation` error and
+  nothing is written), and dedupes on the normalized
+  `(url, branch, pinned_commit)` triple. `remove_tap` is service-only (no
+  Classic IPC command) and leaves clones and SQLite rows alone.
+- **Offline policy.** With `offline_mode` on, `sync` fails with `Unavailable`
+  before any git run, and `search_external` serves fresh or stale cache only
+  (`Unavailable` when nothing is cached). The catalog, the indexed lists and
+  ProtonDB lookup/suggestions are not gated and keep their `degraded`,
+  `from_cache`, `is_stale` markers.
+- **Containment.** `import_profile` (mutating) requires a regular `.json`
+  file inside some resolved subscribed-tap workspace, checked with
+  `crosshook_core::fs_util::ensure_within_workspace`. `prepare_import` is a
+  read-only preview of a file the user picked, so it keeps accepting any local
+  regular `.json` file but reads the canonical path and runs the same
+  classification (logged at debug level). The community indexer skips symlink
+  entries. Containment is check-then-read, not an `openat2` pinned handle, so
+  a concurrent swap of the file is not excluded.
+- **Errors.** Mappers for `CommunityTapError`, `LutrisImportError` and
+  `WorkspacePathError` return sanitized messages (no paths, git stderr or
+  SQL); user-entered validation text is kept verbatim.
+- **Unchanged.** External search keeps its 1 h cache TTL, ProtonDB its 6 h TTL
+  and stale fallback, dismissals their 30-day retention. Private-host and
+  redirect policy, strict numeric ProtonDB app ids and revalidating external
+  sources at fetch time remain tracked follow-ups.
+
 ## Jobs
 
 `App::jobs()` returns the app's `JobRegistry` (also constructible standalone
@@ -302,6 +351,11 @@ never share or truncate one log.
   `LaunchService` writes existing `launch_operations` rows (start and
   finish, with the diagnostic JSON), version snapshots and known-good tags,
   fail-open on a degraded store.
+- **Community and discovery:** subscribed taps and external sources live in
+  `settings.toml` (written with `SettingsStore::update`, unknown keys kept);
+  tap clones live in the tap workspaces; the index, offline state, external
+  search cache and ProtonDB cache use existing SQLite tables (no schema
+  change). Sync results are runtime-only and are taken once by job id.
 - **Profile TOML:** `<profiles>/<name>.toml` through `ProfileStore`, format
   unchanged and byte-identical to the pre-service commands.
 - **User-requested export:** the diagnostics `.tar.gz`, written to the chosen
@@ -312,7 +366,8 @@ never share or truncate one log.
   its step log and job results (served by `get_startup_report`, never
   persisted).
 
-Offline behavior is unaffected. Save failures surface as `AppErrorKind::Io`.
+Offline mode gates only community `sync` and external trainer search (see
+_Community, Lutris, discovery and ProtonDB_). Save failures surface as `AppErrorKind::Io`.
 A missing portal resolves to `Unavailable`/`NotApplicable` and launches
 continue. Users view and edit settings and recent files through the settings
 UI; the diagnostics archive is a regular file the user chose to create.

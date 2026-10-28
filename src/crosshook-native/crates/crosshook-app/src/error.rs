@@ -223,6 +223,58 @@ impl From<crosshook_core::export::DiagnosticBundleError> for AppError {
     }
 }
 
+impl From<crosshook_core::fs_util::WorkspacePathError> for AppError {
+    fn from(error: crosshook_core::fs_util::WorkspacePathError) -> Self {
+        use crosshook_core::fs_util::WorkspacePathError as E;
+        // Fixed strings only: the candidate path is caller input.
+        match error {
+            E::InvalidRoot | E::Traversal | E::OutsideWorkspace => Self::new(
+                AppErrorKind::Validation { field: "path" },
+                "path is not inside the allowed workspace",
+            ),
+            E::NotFound => Self::new(AppErrorKind::NotFound, "path was not found"),
+            E::Io { .. } => Self::new(AppErrorKind::Io, "failed to resolve path"),
+        }
+    }
+}
+
+impl From<crosshook_core::community::CommunityTapError> for AppError {
+    fn from(error: crosshook_core::community::CommunityTapError) -> Self {
+        use crosshook_core::community::CommunityTapError as E;
+        match error {
+            // User-entered tap fields only; no host paths.
+            E::EmptyTapUrl
+            | E::InvalidTapUrl(_)
+            | E::InvalidBranch(_)
+            | E::InvalidPinnedCommit(_) => {
+                Self::new(AppErrorKind::Validation { field: "tap" }, error.to_string())
+            }
+            // Fixed strings: Io/Git carry workspace paths, argv and stderr.
+            E::Io { .. } | E::Git { .. } => {
+                Self::new(AppErrorKind::Io, "failed to sync community tap")
+            }
+            E::Index(_) => Self::new(AppErrorKind::Io, "failed to index community taps"),
+            E::Cancelled => Self::new(AppErrorKind::Cancelled, "community tap sync was cancelled"),
+        }
+    }
+}
+
+impl From<crosshook_core::profile::LutrisImportError> for AppError {
+    fn from(error: crosshook_core::profile::LutrisImportError) -> Self {
+        use crosshook_core::profile::LutrisImportError as E;
+        // Fixed strings only: variants embed Lutris library paths.
+        match error {
+            E::Io { .. } => Self::new(AppErrorKind::Io, "failed to read Lutris library"),
+            E::Yaml { .. } => Self::new(
+                AppErrorKind::Validation { field: "lutris" },
+                "failed to parse Lutris config",
+            ),
+            E::Pga { .. } => Self::new(AppErrorKind::Io, "failed to read Lutris pga.db"),
+            E::ProfileStore { .. } => Self::new(AppErrorKind::Io, "failed to access profiles"),
+        }
+    }
+}
+
 impl From<crosshook_core::metadata::MetadataStoreError> for AppError {
     fn from(error: crosshook_core::metadata::MetadataStoreError) -> Self {
         use crosshook_core::metadata::MetadataStoreError as E;

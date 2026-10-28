@@ -1,10 +1,11 @@
-use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use super::git::{
-    checkout_pinned_commit, clone_tap, fetch_and_checkout_pinned, fetch_and_reset, rev_parse_head,
+    clone_invocations, git_failure, rev_parse_invocation, run_failure, update_invocations,
 };
 use super::index;
+use super::runner::{GitInvocation, GitOutput, TapGitRunner};
 use super::types::{
     CommunityTapError, CommunityTapSubscription, CommunityTapSyncResult, CommunityTapSyncStatus,
     CommunityTapWorkspace,
@@ -54,27 +55,6 @@ impl CommunityTapStore {
         })
     }
 
-    pub fn sync_tap(
-        &self,
-        subscription: &CommunityTapSubscription,
-    ) -> Result<CommunityTapSyncResult, CommunityTapError> {
-        let workspace = self.resolve_workspace(subscription)?;
-        self.sync_workspace(&workspace)
-    }
-
-    pub fn sync_many(
-        &self,
-        subscriptions: &[CommunityTapSubscription],
-    ) -> Result<Vec<CommunityTapSyncResult>, CommunityTapError> {
-        let mut results = Vec::with_capacity(subscriptions.len());
-
-        for subscription in subscriptions {
-            results.push(self.sync_tap(subscription)?);
-        }
-
-        Ok(results)
-    }
-
     /// Returns true when the tap's resolved workspace directory already exists on disk.
     pub fn is_tap_available_offline(&self, subscription: &CommunityTapSubscription) -> bool {
         match self.resolve_workspace(subscription) {
@@ -90,27 +70,67 @@ impl CommunityTapStore {
         Ok(index::index_taps(workspaces)?)
     }
 
-    pub(crate) fn sync_workspace(
+    /// `normalize_subscription`; extras are cleared. The pinned commit is **not**
+    /// validated here: a stored tap with a bad pin must not break listing, import
+    /// or the catalog. New taps are pin-validated by the caller, and checkout
+    /// re-validates in `git.rs`.
+    pub fn normalize_and_validate(
+        subscription: &CommunityTapSubscription,
+    ) -> Result<CommunityTapSubscription, CommunityTapError> {
+        normalize_subscription(subscription)
+    }
+
+    /// Syncs taps sequentially through `runner`; the first hard error aborts.
+    pub async fn sync_many_with_runner(
+        &self,
+        subscriptions: &[CommunityTapSubscription],
+        runner: Arc<dyn TapGitRunner>,
+    ) -> Result<Vec<CommunityTapSyncResult>, CommunityTapError> {
+        let mut results = Vec::with_capacity(subscriptions.len());
+
+        for subscription in subscriptions {
+            results.push(
+                self.sync_tap_with_runner(subscription, Arc::clone(&runner))
+                    .await?,
+            );
+        }
+
+        Ok(results)
+    }
+
+    pub async fn sync_tap_with_runner(
+        &self,
+        subscription: &CommunityTapSubscription,
+        runner: Arc<dyn TapGitRunner>,
+    ) -> Result<CommunityTapSyncResult, CommunityTapError> {
+        let workspace = self.resolve_workspace(subscription)?;
+        self.sync_workspace_with_runner(&workspace, runner).await
+    }
+
+    pub(crate) async fn sync_workspace_with_runner(
         &self,
         workspace: &CommunityTapWorkspace,
+        runner: Arc<dyn TapGitRunner>,
     ) -> Result<CommunityTapSyncResult, CommunityTapError> {
-        fs::create_dir_all(&self.base_path).map_err(|source| CommunityTapError::Io {
-            action: "create community taps directory",
-            path: self.base_path.clone(),
-            source,
-        })?;
+        ensure_not_cancelled(runner.as_ref())?;
+        tokio::fs::create_dir_all(&self.base_path)
+            .await
+            .map_err(|source| CommunityTapError::Io {
+                action: "create community taps directory",
+                path: self.base_path.clone(),
+                source,
+            })?;
 
+        let local_path = &workspace.local_path;
+        let exists = path_exists(local_path).await;
         let mut from_cache = false;
-        let status = if workspace.local_path.exists() {
-            let fetch_result = if workspace.subscription.pinned_commit.is_some() {
-                fetch_and_checkout_pinned(workspace)
-            } else {
-                fetch_and_reset(workspace)
-            };
-            match fetch_result {
+        let status = if exists {
+            let steps = update_invocations(workspace)?;
+            match run_steps(runner.as_ref(), &steps, local_path).await {
                 Ok(()) => CommunityTapSyncStatus::Updated,
+                Err(CommunityTapError::Cancelled) => return Err(CommunityTapError::Cancelled),
                 Err(err) => {
-                    if workspace.local_path.exists() {
+                    if path_exists(local_path).await {
                         from_cache = true;
                         CommunityTapSyncStatus::CachedFallback
                     } else {
@@ -119,15 +139,45 @@ impl CommunityTapStore {
                 }
             }
         } else {
-            clone_tap(workspace)?;
-            if workspace.subscription.pinned_commit.is_some() {
-                checkout_pinned_commit(workspace)?;
+            let steps = clone_invocations(workspace)?;
+            match run_steps(runner.as_ref(), &steps, local_path).await {
+                Ok(()) => CommunityTapSyncStatus::Cloned,
+                Err(CommunityTapError::Cancelled) => {
+                    // A SIGKILLed partial clone must not wedge later syncs: the
+                    // workspace did not exist before this clone, so remove it
+                    // (best effort) instead of leaving a broken cache behind.
+                    if let Err(source) = tokio::fs::remove_dir_all(local_path).await {
+                        if source.kind() != std::io::ErrorKind::NotFound {
+                            tracing::warn!(
+                                path = %local_path.display(),
+                                error = %source,
+                                "failed to remove partial community tap clone after cancellation"
+                            );
+                        }
+                    }
+                    return Err(CommunityTapError::Cancelled);
+                }
+                Err(err) => return Err(err),
             }
-            CommunityTapSyncStatus::Cloned
         };
 
-        let head_commit = rev_parse_head(&workspace.local_path)?;
-        let index = index::index_tap(workspace)?;
+        let rev_parse = rev_parse_invocation(local_path);
+        let output = run_step(runner.as_ref(), &rev_parse, local_path).await?;
+        let head_commit = output.stdout.trim().to_string();
+
+        ensure_not_cancelled(runner.as_ref())?;
+        let index_workspace = workspace.clone();
+        let index_runner = Arc::clone(&runner);
+        let index = tokio::task::spawn_blocking(move || {
+            ensure_not_cancelled(index_runner.as_ref())?;
+            index::index_tap(&index_workspace).map_err(CommunityTapError::from)
+        })
+        .await
+        .map_err(|_| CommunityTapError::Io {
+            action: "index community tap",
+            path: local_path.clone(),
+            source: std::io::Error::other("index task failed"),
+        })??;
 
         Ok(CommunityTapSyncResult {
             workspace: workspace.clone(),
@@ -142,4 +192,46 @@ impl CommunityTapStore {
     pub(crate) fn workspace_path(&self, subscription: &CommunityTapSubscription) -> PathBuf {
         self.base_path.join(subscription.directory_name())
     }
+}
+
+fn ensure_not_cancelled(runner: &dyn TapGitRunner) -> Result<(), CommunityTapError> {
+    if runner.is_cancelled() {
+        Err(CommunityTapError::Cancelled)
+    } else {
+        Ok(())
+    }
+}
+
+async fn path_exists(path: &Path) -> bool {
+    tokio::fs::try_exists(path).await.unwrap_or(false)
+}
+
+/// Runs one step; non-success output becomes `CommunityTapError::Git`.
+async fn run_step(
+    runner: &dyn TapGitRunner,
+    invocation: &GitInvocation,
+    fallback_path: &Path,
+) -> Result<GitOutput, CommunityTapError> {
+    ensure_not_cancelled(runner)?;
+    let output = runner
+        .run(invocation.clone())
+        .await
+        .map_err(|error| run_failure(invocation, error, fallback_path))?;
+    if output.success {
+        return Ok(output);
+    }
+    // A killed child reports failure; cancellation must never look like a git error.
+    ensure_not_cancelled(runner)?;
+    Err(git_failure(invocation, &output))
+}
+
+async fn run_steps(
+    runner: &dyn TapGitRunner,
+    steps: &[GitInvocation],
+    fallback_path: &Path,
+) -> Result<(), CommunityTapError> {
+    for step in steps {
+        run_step(runner, step, fallback_path).await?;
+    }
+    Ok(())
 }

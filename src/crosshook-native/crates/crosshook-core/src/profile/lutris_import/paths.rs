@@ -2,6 +2,7 @@ use rusqlite::{Connection, OpenFlags};
 use std::path::{Path, PathBuf};
 
 use super::LutrisImportError;
+use crate::fs_util::ensure_within_workspace;
 
 const MAX_LUTRIS_LIBRARY_ENTRIES: usize = 10_000;
 
@@ -29,12 +30,37 @@ pub fn discover_lutris_root() -> Option<PathBuf> {
     .find(|candidate| candidate.is_dir())
 }
 
+/// Canonicalizes the library root once so joins and containment agree on the
+/// same spelling even when the caller passes a relative or symlinked root.
+/// On failure the supplied root is kept, preserving the missing-root behaviour.
+fn canonical_root(root: &Path) -> PathBuf {
+    std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf())
+}
+
 /// Lists per-game Lutris YAML configs under `games/` (flat and balanced layouts).
 pub fn list_game_configs(root: &Path) -> Vec<PathBuf> {
+    let root = canonical_root(root);
     let games_dir = root.join("games");
-    if !games_dir.is_dir() {
-        return Vec::new();
-    }
+    // Contain `games/` before reading: an outward symlink must never grant the
+    // scanner a directory outside the trusted library root.
+    let games_dir = match ensure_within_workspace(&root, &games_dir) {
+        Ok(resolved) if resolved.is_dir() => resolved,
+        Ok(_) => {
+            tracing::warn!(
+                root = %root.display(),
+                "Lutris games/ is not a directory; no configs scanned"
+            );
+            return Vec::new();
+        }
+        Err(error) => {
+            tracing::warn!(
+                root = %root.display(),
+                error = %error,
+                "Lutris games/ failed workspace containment; no configs scanned"
+            );
+            return Vec::new();
+        }
+    };
 
     let Ok(entries) = std::fs::read_dir(&games_dir) else {
         return Vec::new();
@@ -51,17 +77,33 @@ pub fn list_game_configs(root: &Path) -> Vec<PathBuf> {
             break 'scan;
         }
 
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
         let path = entry.path();
-        if path.is_file() && is_lutris_yaml(&path) {
-            configs.push(path);
+        if file_type.is_file() && is_lutris_yaml(&path) {
+            push_contained_config(&root, &path, &mut configs);
             continue;
         }
 
-        if !path.is_dir() {
+        if !file_type.is_dir() {
             continue;
         }
 
-        let Ok(sub_entries) = std::fs::read_dir(&path) else {
+        // Balanced layout: one nested level. Contain the nested directory
+        // before scanning it.
+        let nested_dir = match ensure_within_workspace(&root, &path) {
+            Ok(resolved) => resolved,
+            Err(error) => {
+                tracing::warn!(
+                    root = %root.display(),
+                    error = %error,
+                    "Lutris nested games directory failed workspace containment; skipping"
+                );
+                continue;
+            }
+        };
+        let Ok(sub_entries) = std::fs::read_dir(&nested_dir) else {
             continue;
         };
         for sub_entry in sub_entries.flatten() {
@@ -74,9 +116,12 @@ pub fn list_game_configs(root: &Path) -> Vec<PathBuf> {
                 break 'scan;
             }
 
+            let Ok(sub_file_type) = sub_entry.file_type() else {
+                continue;
+            };
             let sub_path = sub_entry.path();
-            if sub_path.is_file() && is_lutris_yaml(&sub_path) {
-                configs.push(sub_path);
+            if sub_file_type.is_file() && is_lutris_yaml(&sub_path) {
+                push_contained_config(&root, &sub_path, &mut configs);
             }
         }
     }
@@ -85,9 +130,30 @@ pub fn list_game_configs(root: &Path) -> Vec<PathBuf> {
     configs
 }
 
+/// Validates `candidate` against the library root and appends the resolved
+/// path; failures are skipped with a diagnostic instead of aborting the scan.
+fn push_contained_config(root: &Path, candidate: &Path, configs: &mut Vec<PathBuf>) {
+    match ensure_within_workspace(root, candidate) {
+        Ok(resolved) => configs.push(resolved),
+        Err(error) => {
+            tracing::warn!(
+                root = %root.display(),
+                error = %error,
+                "Lutris game config failed workspace containment; skipping"
+            );
+        }
+    }
+}
+
 /// Reads Lutris game metadata from `<root>/pga.db` without modifying the database.
 pub fn read_pga_games(root: &Path) -> Result<Vec<PgaGame>, LutrisImportError> {
+    let root = canonical_root(root);
     let db_path = root.join("pga.db");
+    // Contain pga.db before opening it read-only: an outward symlink must never
+    // point the importer at a database outside the trusted library root.
+    let db_path = ensure_within_workspace(&root, &db_path).map_err(|_| LutrisImportError::Pga {
+        message: "Lutris database path could not be resolved inside the library root".into(),
+    })?;
     let conn = Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(
         |error| LutrisImportError::Pga {
             message: format!("failed to open '{}': {error}", db_path.display()),

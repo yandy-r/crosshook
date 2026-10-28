@@ -13,15 +13,19 @@ use crate::{AppError, AppErrorKind};
 pub mod background;
 pub mod catalog;
 pub mod collections;
+pub mod community;
 pub mod diagnostics;
+pub mod discovery;
 pub mod health;
 pub mod host_tools;
 pub mod launch;
 pub mod launcher_export;
+pub mod lutris;
 pub mod mods;
 pub mod offline;
 pub mod onboarding;
 pub mod profiles;
+pub mod protondb;
 pub mod recent_files;
 pub mod settings;
 pub mod startup_scans;
@@ -36,17 +40,21 @@ pub use background::{
 };
 pub use catalog::{CatalogService, CommandArgumentCatalogSnapshot, OptimizationCatalogSnapshot};
 pub use collections::CollectionsService;
+pub use community::CommunityService;
 pub use diagnostics::{
     DiagnosticAttachment, DiagnosticsExport, DiagnosticsRequest, DiagnosticsService,
 };
+pub use discovery::DiscoveryService;
 pub use health::HealthService;
 pub use host_tools::{CoreHostProbe, HostProbe, HostToolsService};
 pub use launch::LaunchService;
 pub use launcher_export::{LauncherExportService, LauncherRenameRequest};
+pub use lutris::LutrisService;
 pub use mods::{ModsService, ProfileModsResponse};
 pub use offline::OfflineService;
 pub use onboarding::OnboardingService;
 pub use profiles::ProfileWriter;
+pub use protondb::ProtonDbService;
 pub use recent_files::{RecentFileKind, RecentFilesService};
 pub use settings::{
     merge_save_request, SettingsSaveRequest, SettingsService, SettingsSnapshot, UiSettingsService,

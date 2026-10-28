@@ -95,6 +95,7 @@ pub enum CommunityTapError {
         stderr: String,
     },
     Index(CommunityProfileIndexError),
+    Cancelled,
 }
 
 impl fmt::Display for CommunityTapError {
@@ -121,6 +122,7 @@ impl fmt::Display for CommunityTapError {
                 stderr,
             } => write!(f, "failed to {action} with `{command}`: {stderr}"),
             Self::Index(error) => write!(f, "{error}"),
+            Self::Cancelled => write!(f, "community tap sync was cancelled"),
         }
     }
 }

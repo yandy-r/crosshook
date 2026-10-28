@@ -156,5 +156,28 @@ async fn services_new_builds_bundle_from_stores() {
         .err()
         .expect("the storage service must share the app job registry");
     assert_eq!(conflict.kind(), crate::AppErrorKind::Conflict);
-    held.cancel();
+    let held_id = held.id().clone();
+    let mut held_events = held.into_events();
+    jobs.cancel(&held_id).unwrap();
+    while let Some(event) = held_events.recv().await {
+        if matches!(event.kind, crate::jobs::JobEventKind::Finished(_)) {
+            break;
+        }
+    }
+    jobs.reap(&held_id).unwrap();
+
+    // The community service starts sync jobs on the same app registry.
+    let observed = services
+        .community
+        .jobs()
+        .start(
+            crate::jobs::JobSpec::new(crate::services::community::COMMUNITY_SYNC_JOB_KIND),
+            |ctx| async move {
+                ctx.cancelled().await;
+                crate::jobs::Outcome::Cancelled
+            },
+        )
+        .unwrap();
+    assert_eq!(jobs.job_counts(), (1, 0));
+    observed.cancel();
 }

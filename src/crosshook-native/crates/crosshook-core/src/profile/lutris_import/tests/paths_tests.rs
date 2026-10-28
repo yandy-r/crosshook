@@ -163,3 +163,172 @@ fn read_pga_games_errors_when_db_missing() {
         crate::profile::LutrisImportError::Pga { .. }
     ));
 }
+
+mod relative_root {
+    //! The root may reach the service relative to the process working directory;
+    //! joins and containment must agree on the canonical spelling. Tests cannot
+    //! change the process CWD safely in parallel, so the fixture lives inside
+    //! the current CWD and is addressed through a relative path.
+    use super::*;
+    use std::path::{Path, PathBuf};
+
+    static NEXT_ID: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+    struct CwdFixture {
+        root: PathBuf,
+    }
+
+    impl CwdFixture {
+        fn new() -> Self {
+            let cwd = std::env::current_dir().expect("current dir");
+            let root = cwd.join(format!(
+                "lutris-relative-root-test-{}-{}",
+                std::process::id(),
+                NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+            ));
+            std::fs::create_dir_all(&root).expect("create fixture root");
+            Self { root }
+        }
+
+        /// `self.root` relative to the CWD (a `./name`-style path).
+        fn relative_root(&self) -> PathBuf {
+            let cwd = std::env::current_dir().expect("current dir");
+            Path::new(".").join(
+                self.root
+                    .strip_prefix(&cwd)
+                    .expect("fixture lives under CWD"),
+            )
+        }
+    }
+
+    impl Drop for CwdFixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.root);
+        }
+    }
+
+    #[test]
+    fn list_game_configs_accepts_relative_root() {
+        let fixture = CwdFixture::new();
+        let games = fixture.root.join("games");
+        std::fs::create_dir_all(&games).expect("games dir");
+        std::fs::write(games.join("alpha.yml"), "game: {}").expect("alpha.yml");
+
+        let configs = list_game_configs(&fixture.relative_root());
+        assert_eq!(
+            configs,
+            vec![std::fs::canonicalize(games.join("alpha.yml")).expect("canonical alpha.yml")],
+            "a root relative to the CWD must still scan its games/ directory"
+        );
+    }
+
+    #[test]
+    fn read_pga_games_accepts_relative_root() {
+        let fixture = CwdFixture::new();
+        write_pga_db(
+            &fixture.root,
+            &[("Rel Game", "rel-game", "wine", "/games/rel", "rel-game")],
+        );
+
+        let games = read_pga_games(&fixture.relative_root()).expect("read pga games");
+        assert_eq!(
+            games,
+            vec![PgaGame {
+                name: "Rel Game".to_string(),
+                slug: "rel-game".to_string(),
+                runner: "wine".to_string(),
+                directory: Some("/games/rel".to_string()),
+                configpath: Some("rel-game".to_string()),
+            }]
+        );
+    }
+}
+
+#[cfg(unix)]
+mod containment {
+    use super::*;
+    use std::os::unix::fs::symlink;
+
+    const CONTAINMENT_MESSAGE: &str =
+        "Lutris database path could not be resolved inside the library root";
+
+    #[test]
+    fn list_game_configs_skips_outward_symlinked_yaml() {
+        let tmp = TempDir::new().expect("tempdir");
+        let root = tmp.path().join("library");
+        let games = root.join("games");
+        std::fs::create_dir_all(&games).expect("games dir");
+        std::fs::write(games.join("real.yml"), "game: {}").expect("real.yml");
+        // A YAML payload living outside the root, linked into games/.
+        let outside = tmp.path().join("outside");
+        std::fs::create_dir_all(&outside).expect("outside dir");
+        std::fs::write(outside.join("evil.yml"), "game: {}").expect("evil.yml");
+        symlink(outside.join("evil.yml"), games.join("evil.yml")).expect("symlink yaml");
+
+        let configs = list_game_configs(&root);
+        assert_eq!(
+            configs,
+            vec![std::fs::canonicalize(games.join("real.yml")).expect("canonical real.yml")],
+            "only the contained config may be returned"
+        );
+    }
+
+    #[test]
+    fn list_game_configs_skips_outward_symlinked_games_and_nested_dirs() {
+        let tmp = TempDir::new().expect("tempdir");
+        let root = tmp.path().join("library");
+        std::fs::create_dir_all(&root).expect("root dir");
+        let outside = tmp.path().join("outside");
+        std::fs::create_dir_all(outside.join("nested")).expect("outside dirs");
+        std::fs::write(outside.join("evil.yml"), "game: {}").expect("evil.yml");
+        std::fs::write(outside.join("nested/deep.yml"), "game: {}").expect("deep.yml");
+        // games/ itself is a link out, and later a nested dir links out.
+        symlink(&outside, root.join("games")).expect("symlink games");
+        assert!(
+            list_game_configs(&root).is_empty(),
+            "outward games/ link must yield no configs"
+        );
+
+        std::fs::remove_file(root.join("games")).expect("unlink games");
+        std::fs::create_dir_all(root.join("games")).expect("real games dir");
+        std::fs::write(root.join("games/ok.yml"), "game: {}").expect("ok.yml");
+        symlink(outside.join("nested"), root.join("games/nested")).expect("symlink nested");
+
+        let configs = list_game_configs(&root);
+        assert_eq!(
+            configs,
+            vec![std::fs::canonicalize(root.join("games/ok.yml")).expect("canonical ok.yml")],
+            "outward nested link must be skipped while valid config remains"
+        );
+    }
+
+    #[test]
+    fn read_pga_games_rejects_outward_symlinked_db() {
+        let tmp = TempDir::new().expect("tempdir");
+        let root = tmp.path().join("library");
+        std::fs::create_dir_all(&root).expect("root dir");
+        let outside = tmp.path().join("outside");
+        std::fs::create_dir_all(&outside).expect("outside dir");
+        write_pga_db(&outside, &[("Evil", "evil", "wine", "/games/evil", "evil")]);
+        symlink(outside.join("pga.db"), root.join("pga.db")).expect("symlink pga.db");
+
+        let error = read_pga_games(&root).expect_err("outward pga.db link");
+        assert!(matches!(
+            &error,
+            crate::profile::LutrisImportError::Pga { message } if message == CONTAINMENT_MESSAGE
+        ));
+    }
+
+    #[test]
+    fn read_pga_games_reports_containment_message_when_db_missing() {
+        let tmp = TempDir::new().expect("tempdir");
+        let root = tmp.path().join("library");
+        std::fs::create_dir_all(&root).expect("root dir");
+
+        let error = read_pga_games(&root).expect_err("missing pga.db");
+        assert!(matches!(
+            &error,
+            crate::profile::LutrisImportError::Pga { message } if message == CONTAINMENT_MESSAGE
+        ));
+    }
+}
