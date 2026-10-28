@@ -29,6 +29,6 @@ pub use services::launch::{
 };
 pub use services::{
     CollectionsService, CommunityService, DiscoveryService, LaunchService, LauncherExportService,
-    LutrisService, ModsService, ProfileWriter, ProtonDbService, SteamService, StorageService,
-    UiSettingsService, VersionService,
+    LutrisService, ModsService, ProfileWriter, ProtonDbService, ProtonMigrationService,
+    ProtonUpService, SteamService, StorageService, UiSettingsService, UmuService, VersionService,
 };

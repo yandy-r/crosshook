@@ -166,6 +166,37 @@ async fn services_new_builds_bundle_from_stores() {
     }
     jobs.reap(&held_id).unwrap();
 
+    // The protonup service shares the app registry: an install key held
+    // through `jobs` conflicts for the service's registry.
+    let proton_spec = || {
+        crate::jobs::JobSpec::new(crate::services::protonup::PROTONUP_INSTALL_JOB_KIND)
+            .with_key(crate::jobs::JobKey::new("protonup-install:x:y"))
+    };
+    let proton_held = jobs
+        .start(proton_spec(), |ctx| async move {
+            ctx.cancelled().await;
+            crate::jobs::Outcome::Cancelled
+        })
+        .unwrap();
+    let proton_conflict = services
+        .protonup
+        .jobs()
+        .start(proton_spec(), |_ctx| async {
+            crate::jobs::Outcome::Succeeded
+        })
+        .err()
+        .expect("the protonup service must share the app job registry");
+    assert_eq!(proton_conflict.kind(), crate::AppErrorKind::Conflict);
+    let proton_held_id = proton_held.id().clone();
+    let mut proton_events = proton_held.into_events();
+    jobs.cancel(&proton_held_id).unwrap();
+    while let Some(event) = proton_events.recv().await {
+        if matches!(event.kind, crate::jobs::JobEventKind::Finished(_)) {
+            break;
+        }
+    }
+    jobs.reap(&proton_held_id).unwrap();
+
     // The community service starts sync jobs on the same app registry.
     let observed = services
         .community

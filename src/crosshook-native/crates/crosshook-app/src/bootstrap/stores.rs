@@ -27,8 +27,8 @@ use crate::services::{
     BackgroundGrantHolder, CollectionsService, CommunityService, DiagnosticsService,
     DiscoveryService, HealthService, HostToolsService, LaunchService, LauncherExportService,
     LutrisService, ModsService, OfflineService, OnboardingService, ProfileWriter, ProtonDbService,
-    RecentFilesService, SettingsService, SteamService, StorageService, UiSettingsService,
-    VersionService,
+    ProtonMigrationService, ProtonUpService, RecentFilesService, SettingsService, SteamService,
+    StorageService, UiSettingsService, UmuService, VersionService,
 };
 
 /// The persistent stores the application owns. Clones are cheap; clones of
@@ -92,6 +92,12 @@ pub struct Services {
     pub discovery: DiscoveryService,
     /// ProtonDB lookup, suggestions and dismissals.
     pub protondb: ProtonDbService,
+    /// Proton install catalog, supervised installs, uninstall and root discovery.
+    pub protonup: ProtonUpService,
+    /// Proton version migration scan and profile apply.
+    pub proton_migration: ProtonMigrationService,
+    /// umu database refresh, coverage lookup and game-id cache clearing.
+    pub umu: UmuService,
 }
 
 impl Services {
@@ -101,6 +107,7 @@ impl Services {
     /// shutdown) that supervises storage scan, health batch and readiness jobs.
     pub fn new(stores: &Stores, events: EventBus, runtime: Handle, jobs: JobRegistry) -> Self {
         let background = Arc::new(BackgroundGrantHolder::new());
+        let steam = SteamService::new(stores.metadata.clone(), stores.settings.clone());
         let writer = ProfileWriter::new(
             stores.profiles.clone(),
             stores.metadata.clone(),
@@ -135,6 +142,18 @@ impl Services {
             host_tools: HostToolsService::new(jobs.clone()),
             offline: OfflineService::new(stores.profiles.clone(), stores.metadata.clone()),
             profiles: writer.clone(),
+            protonup: ProtonUpService::new(
+                stores.metadata.clone(),
+                stores.settings.clone(),
+                steam.clone(),
+                jobs.clone(),
+            ),
+            proton_migration: ProtonMigrationService::new(
+                stores.profiles.clone(),
+                writer.clone(),
+                steam.clone(),
+            ),
+            umu: UmuService::new(stores.metadata.clone()),
             community: CommunityService::new(
                 stores.settings.clone(),
                 stores.community_taps.clone(),
@@ -165,7 +184,7 @@ impl Services {
                 stores.metadata.clone(),
             ),
             version: VersionService::new(stores.profiles.clone(), stores.metadata.clone()),
-            steam: SteamService::new(stores.metadata.clone(), stores.settings.clone()),
+            steam,
             background,
         }
     }

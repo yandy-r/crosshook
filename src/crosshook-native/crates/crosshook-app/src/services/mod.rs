@@ -7,6 +7,9 @@
 //! [`settings::UiSettingsService`]) may expose them as plain synchronous
 //! methods — only the throttled persistence behind them stays async.
 
+use std::future::Future;
+use std::pin::Pin;
+
 use crate::jobs::{JobContext, JobRegistry, JobSpec, Outcome};
 use crate::{AppError, AppErrorKind};
 
@@ -25,12 +28,15 @@ pub mod mods;
 pub mod offline;
 pub mod onboarding;
 pub mod profiles;
+pub mod proton_migration;
 pub mod protondb;
+pub mod protonup;
 pub mod recent_files;
 pub mod settings;
 pub mod startup_scans;
 pub mod steam;
 pub mod storage;
+pub mod umu;
 pub mod version;
 
 pub use background::{
@@ -54,7 +60,9 @@ pub use mods::{ModsService, ProfileModsResponse};
 pub use offline::OfflineService;
 pub use onboarding::OnboardingService;
 pub use profiles::ProfileWriter;
+pub use proton_migration::ProtonMigrationService;
 pub use protondb::ProtonDbService;
+pub use protonup::ProtonUpService;
 pub use recent_files::{RecentFileKind, RecentFilesService};
 pub use settings::{
     merge_save_request, SettingsSaveRequest, SettingsService, SettingsSnapshot, UiSettingsService,
@@ -62,7 +70,12 @@ pub use settings::{
 pub use startup_scans::StartupScansService;
 pub use steam::SteamService;
 pub use storage::{PrefixStorageHistoryResponse, StorageService};
+pub use umu::UmuService;
 pub use version::{VersionCheckResult, VersionService, VersionSnapshotInfo};
+
+/// Boxed `Send` future returned by the object-safe async seams of the
+/// services (for example the protonup catalog/installer and the umu refresher).
+pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 /// Runs blocking `work` on Tokio's blocking pool; a panic or cancellation maps
 /// to a sanitized [`AppError`] through its `From<JoinError>` impl.

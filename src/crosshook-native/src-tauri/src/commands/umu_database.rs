@@ -1,36 +1,52 @@
-use crosshook_core::metadata::MetadataStore;
+//! Thin IPC adapters over the umu database service.
+
+use crosshook_app::services::UmuService;
+use crosshook_app::AppError;
 use crosshook_core::umu_database;
 use tauri::State;
 
-#[tauri::command]
-pub async fn refresh_umu_database() -> Result<umu_database::UmuDatabaseRefreshStatus, String> {
-    umu_database::refresh_umu_database()
-        .await
-        .map_err(|e| e.to_string())
-}
-
-/// Lightweight per-title coverage lookup used by the profile Runner selector
-/// to surface an advisory warning as soon as a user opts into umu.
-///
-/// Runs synchronously against the cached CSV index — no network. Returns
-/// `Unknown` when the app id is blank, omitted, or no CSV source is reachable.
-#[tauri::command]
-pub fn check_umu_coverage(app_id: Option<String>) -> umu_database::CsvCoverage {
-    let Some(id) = app_id else {
-        return umu_database::CsvCoverage::Unknown;
-    };
-    let trimmed = id.trim();
-    if trimmed.is_empty() {
-        return umu_database::CsvCoverage::Unknown;
-    }
-    umu_database::check_coverage(trimmed, Some("steam"))
+fn map_app_error(error: AppError) -> String {
+    error.message().to_string()
 }
 
 #[tauri::command]
-pub fn clear_umu_gameid_lookup_cache(
-    metadata_store: State<'_, MetadataStore>,
+pub async fn refresh_umu_database(
+    service: State<'_, UmuService>,
+) -> Result<umu_database::UmuDatabaseRefreshStatus, String> {
+    service.refresh().await.map_err(map_app_error)
+}
+
+/// Lightweight cached coverage lookup used by the profile Runner selector.
+/// Blank or omitted app ids return Unknown without a network request.
+#[tauri::command]
+pub async fn check_umu_coverage(
+    app_id: Option<String>,
+    service: State<'_, UmuService>,
+) -> Result<umu_database::CsvCoverage, String> {
+    service.coverage(app_id).await.map_err(map_app_error)
+}
+
+#[tauri::command]
+pub async fn clear_umu_gameid_lookup_cache(
+    service: State<'_, UmuService>,
 ) -> Result<usize, String> {
-    metadata_store
-        .clear_umu_gameid_cache()
-        .map_err(|error| error.to_string())
+    service.clear_gameid_cache().await.map_err(map_app_error)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn command_names_match_expected_ipc_contract() {
+        let _ = refresh_umu_database;
+        let _ = check_umu_coverage;
+        let _ = clear_umu_gameid_lookup_cache;
+    }
+
+    #[test]
+    fn app_error_maps_to_its_plain_message() {
+        let error = AppError::validation("app_id", "app id is invalid");
+        assert_eq!(map_app_error(error), "app id is invalid");
+    }
 }

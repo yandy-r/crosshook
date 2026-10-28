@@ -18,8 +18,12 @@ use std::panic::AssertUnwindSafe;
 use std::path::Path;
 use std::pin::Pin;
 
-use crosshook_app::{EventBus, ProfileWriter};
+use crosshook_app::services::SteamService;
+use crosshook_app::{EventBus, ProfileWriter, ProtonMigrationService};
 use crosshook_core::metadata::MetadataStore;
+use crosshook_core::profile::migration::{
+    ApplyMigrationRequest, BatchMigrationRequest, MigrationOutcome, ProtonPathField,
+};
 use crosshook_core::profile::ProfileStore;
 use crosshook_core::settings::SettingsStore;
 use tempfile::TempDir;
@@ -29,6 +33,8 @@ const SAVE: &[u8] = include_bytes!("fixtures/profile_writer/save.toml");
 const RENAME: &[u8] = include_bytes!("fixtures/profile_writer/rename.toml");
 const DUPLICATE: &[u8] = include_bytes!("fixtures/profile_writer/duplicate.toml");
 const ROLLBACK: &[u8] = include_bytes!("fixtures/profile_writer/rollback.toml");
+const MIGRATE: &[u8] = include_bytes!("fixtures/profile_writer/migrate.toml");
+const BATCH_MIGRATE: &[u8] = include_bytes!("fixtures/profile_writer/batch_migrate.toml");
 
 struct Scenario {
     _root: TempDir,
@@ -83,6 +89,35 @@ fn assert_golden(path: &Path, expected: &[u8]) {
     );
 }
 
+/// Like [`assert_golden`], but first replaces the random `$HOME` prefix in the
+/// actual bytes with the literal `$HOME`, which is what the fixture stores.
+/// Only the actual side is normalized; the fixture is never rewritten.
+fn assert_golden_normalized(path: &Path, expected: &[u8]) {
+    let actual = fs::read(path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    let home = std::env::var("HOME").expect("HOME is set by main");
+    let actual = String::from_utf8(actual)
+        .expect("profile TOML is UTF-8")
+        .replace(&home, "$HOME");
+    assert!(
+        actual.as_bytes() == expected,
+        "{} differs from the frozen golden fixture\n--- expected ---\n{}\n--- actual ---\n{}",
+        path.display(),
+        String::from_utf8_lossy(expected),
+        actual,
+    );
+}
+
+/// Creates `<HOME>/<dir>/proton` (the harness points `HOME` at a tempdir) and
+/// returns its path.
+fn home_proton_file(dir: &str) -> String {
+    let home = std::env::var("HOME").expect("HOME is set by main");
+    let proton_dir = Path::new(&home).join(dir);
+    fs::create_dir_all(&proton_dir).expect("proton dir");
+    let path = proton_dir.join("proton");
+    fs::write(&path, b"#!/bin/sh\n").expect("proton file");
+    path.to_string_lossy().into_owned()
+}
+
 async fn save_matches_pre_refactor_bytes() {
     let scenario = Scenario::seeded();
     scenario.save_alpha_named("Alpha Updated").await;
@@ -129,10 +164,197 @@ async fn rollback_matches_pre_refactor_bytes() {
     scenario.assert_profile_bytes("Alpha", ROLLBACK);
 }
 
+async fn migrate_matches_pre_refactor_bytes() {
+    let scenario = Scenario::seeded();
+    let replacement = home_proton_file("golden-migrate/GE-Proton9-21");
+
+    let commit = scenario
+        .writer
+        .apply_proton_migration(ApplyMigrationRequest {
+            profile_name: "Alpha".to_string(),
+            field: ProtonPathField::RuntimeProtonPath,
+            new_path: replacement,
+        })
+        .await
+        .expect("apply Alpha migration");
+    let result = commit.into_output();
+
+    assert_eq!(result.profile_name, "Alpha");
+    assert_eq!(result.field, ProtonPathField::RuntimeProtonPath);
+    assert_eq!(result.outcome, MigrationOutcome::Applied);
+    assert_eq!(result.error, None);
+    let path = scenario.profiles.base_path.join("Alpha.toml");
+    assert_golden_normalized(&path, MIGRATE);
+}
+
+async fn batch_migrate_matches_pre_refactor_bytes() {
+    let scenario = Scenario::seeded();
+    let replacement = home_proton_file("golden-batch/GE-Proton9-21");
+    let beta_existing = home_proton_file("golden-batch/beta-current");
+    let seed = std::str::from_utf8(SEED).expect("seed is UTF-8");
+    let beta_seed = seed
+        .replace(
+            "\"/proton/GE-Proton9-20/proton\"",
+            &format!("{beta_existing:?}"),
+        )
+        .replace("name = \"Alpha\"", "name = \"Beta\"");
+    assert_ne!(beta_seed, seed, "Beta seed must differ from Alpha");
+    let beta_path = scenario.profiles.base_path.join("Beta.toml");
+    fs::write(&beta_path, &beta_seed).expect("seed Beta");
+
+    let item = |profile: &str, field| ApplyMigrationRequest {
+        profile_name: profile.to_string(),
+        field,
+        new_path: replacement.clone(),
+    };
+    let commit = scenario
+        .writer
+        .apply_batch_migration(BatchMigrationRequest {
+            migrations: vec![
+                item("Alpha", ProtonPathField::RuntimeProtonPath),
+                item("Beta", ProtonPathField::RuntimeProtonPath),
+                item("Alpha", ProtonPathField::SteamProtonPath),
+            ],
+        })
+        .await
+        .expect("apply batch migration");
+    let result = commit.into_output();
+
+    let outcomes: Vec<_> = result.results.iter().map(|r| r.outcome).collect();
+    assert_eq!(
+        outcomes,
+        [
+            MigrationOutcome::Applied,
+            MigrationOutcome::AlreadyValid,
+            MigrationOutcome::Applied
+        ]
+    );
+    assert_eq!(result.applied_count, 2);
+    assert_eq!(result.skipped_count, 1);
+    assert_eq!(result.failed_count, 0);
+    assert!(result.results.iter().all(|r| r.error.is_none()));
+    let path = scenario.profiles.base_path.join("Alpha.toml");
+    assert_golden_normalized(&path, BATCH_MIGRATE);
+    // `AlreadyValid` writes nothing: Beta stays byte-identical to its seed.
+    assert_eq!(
+        fs::read(&beta_path).expect("read Beta"),
+        beta_seed.as_bytes()
+    );
+}
+
+/// Seeds `Alpha` like [`Scenario::seeded`] but drives the migration through
+/// [`ProtonMigrationService`] (YAN-822 D10) sharing the same writer.
+struct ServiceScenario {
+    scenario: Scenario,
+    service: ProtonMigrationService,
+}
+
+impl ServiceScenario {
+    fn seeded() -> Self {
+        let root = tempfile::tempdir().expect("scenario tempdir");
+        let profiles = ProfileStore::with_base_path(root.path().join("profiles"));
+        let settings = SettingsStore::with_base_path(root.path().join("config"));
+        let metadata = MetadataStore::open_in_memory().expect("in-memory metadata");
+        fs::create_dir_all(&profiles.base_path).expect("profiles dir");
+        fs::write(profiles.base_path.join("Alpha.toml"), SEED).expect("seed profile");
+        let writer = ProfileWriter::new(
+            profiles.clone(),
+            metadata.clone(),
+            settings.clone(),
+            EventBus::default(),
+        );
+        let steam = SteamService::new(metadata, settings);
+        let service = ProtonMigrationService::new(profiles.clone(), writer.clone(), steam);
+        Self {
+            scenario: Scenario {
+                _root: root,
+                profiles,
+                writer,
+            },
+            service,
+        }
+    }
+}
+
+async fn migrate_service_matches_pre_refactor_bytes() {
+    let scenario = ServiceScenario::seeded();
+    let replacement = home_proton_file("golden-migrate/GE-Proton9-21");
+
+    let result = scenario
+        .service
+        .apply(ApplyMigrationRequest {
+            profile_name: "Alpha".to_string(),
+            field: ProtonPathField::RuntimeProtonPath,
+            new_path: replacement,
+        })
+        .await
+        .expect("service apply Alpha migration");
+
+    assert_eq!(result.profile_name, "Alpha");
+    assert_eq!(result.field, ProtonPathField::RuntimeProtonPath);
+    assert_eq!(result.outcome, MigrationOutcome::Applied);
+    assert_eq!(result.error, None);
+    let path = scenario.scenario.profiles.base_path.join("Alpha.toml");
+    assert_golden_normalized(&path, MIGRATE);
+}
+
+async fn batch_migrate_service_matches_pre_refactor_bytes() {
+    let scenario = ServiceScenario::seeded();
+    let replacement = home_proton_file("golden-batch/GE-Proton9-21");
+    let beta_existing = home_proton_file("golden-batch/beta-current");
+    let seed = std::str::from_utf8(SEED).expect("seed is UTF-8");
+    let beta_seed = seed
+        .replace(
+            "\"/proton/GE-Proton9-20/proton\"",
+            &format!("{beta_existing:?}"),
+        )
+        .replace("name = \"Alpha\"", "name = \"Beta\"");
+    assert_ne!(beta_seed, seed, "Beta seed must differ from Alpha");
+    let beta_path = scenario.scenario.profiles.base_path.join("Beta.toml");
+    fs::write(&beta_path, &beta_seed).expect("seed Beta");
+
+    let item = |profile: &str, field| ApplyMigrationRequest {
+        profile_name: profile.to_string(),
+        field,
+        new_path: replacement.clone(),
+    };
+    let result = scenario
+        .service
+        .apply_batch(BatchMigrationRequest {
+            migrations: vec![
+                item("Alpha", ProtonPathField::RuntimeProtonPath),
+                item("Beta", ProtonPathField::RuntimeProtonPath),
+                item("Alpha", ProtonPathField::SteamProtonPath),
+            ],
+        })
+        .await
+        .expect("service apply batch migration");
+
+    let outcomes: Vec<_> = result.results.iter().map(|r| r.outcome).collect();
+    assert_eq!(
+        outcomes,
+        [
+            MigrationOutcome::Applied,
+            MigrationOutcome::AlreadyValid,
+            MigrationOutcome::Applied
+        ]
+    );
+    assert_eq!(result.applied_count, 2);
+    assert_eq!(result.skipped_count, 1);
+    assert_eq!(result.failed_count, 0);
+    assert!(result.results.iter().all(|r| r.error.is_none()));
+    let path = scenario.scenario.profiles.base_path.join("Alpha.toml");
+    assert_golden_normalized(&path, BATCH_MIGRATE);
+    assert_eq!(
+        fs::read(&beta_path).expect("read Beta"),
+        beta_seed.as_bytes()
+    );
+}
+
 type GoldenFuture = Pin<Box<dyn Future<Output = ()>>>;
 
 /// Every golden scenario, by libtest-style name.
-const TESTS: [(&str, fn() -> GoldenFuture); 4] = [
+const TESTS: [(&str, fn() -> GoldenFuture); 8] = [
     ("save_matches_pre_refactor_bytes", || {
         Box::pin(save_matches_pre_refactor_bytes())
     }),
@@ -144,6 +366,18 @@ const TESTS: [(&str, fn() -> GoldenFuture); 4] = [
     }),
     ("rollback_matches_pre_refactor_bytes", || {
         Box::pin(rollback_matches_pre_refactor_bytes())
+    }),
+    ("migrate_matches_pre_refactor_bytes", || {
+        Box::pin(migrate_matches_pre_refactor_bytes())
+    }),
+    ("batch_migrate_matches_pre_refactor_bytes", || {
+        Box::pin(batch_migrate_matches_pre_refactor_bytes())
+    }),
+    ("migrate_service_matches_pre_refactor_bytes", || {
+        Box::pin(migrate_service_matches_pre_refactor_bytes())
+    }),
+    ("batch_migrate_service_matches_pre_refactor_bytes", || {
+        Box::pin(batch_migrate_service_matches_pre_refactor_bytes())
     }),
 ];
 
