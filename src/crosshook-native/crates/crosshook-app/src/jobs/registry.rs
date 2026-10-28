@@ -268,6 +268,14 @@ impl JobRegistry {
         state.finished_order.retain(|finished| finished != id);
         Ok(outcome)
     }
+
+    /// `(running, finished-unreaped)` job counts, for tests asserting that a
+    /// helper reaps its jobs.
+    #[cfg(test)]
+    pub(crate) fn job_counts(&self) -> (usize, usize) {
+        let state = self.shared.lock();
+        (state.running.len(), state.finished.len())
+    }
 }
 
 fn validate(config: JobRegistryConfig) -> Result<(), AppError> {

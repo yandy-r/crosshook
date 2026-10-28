@@ -8,7 +8,8 @@ mod snapshots;
 mod steam;
 mod types;
 
-use super::run_blocking;
+use super::{run_blocking, run_job};
+use crate::jobs::{JobRegistry, JobSpec};
 use crate::{AppError, AppErrorKind};
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::ProfileStore;
@@ -19,25 +20,38 @@ pub use types::{
 };
 
 const FAILURE_TREND_WINDOW_DAYS: u32 = 30;
+const HEALTH_BATCH_JOB_KIND: &str = "health-batch";
 
 /// Async application service over profile validation and metadata enrichment.
 #[derive(Clone)]
 pub struct HealthService {
     profiles: ProfileStore,
     metadata: MetadataStore,
+    jobs: JobRegistry,
 }
 
 impl HealthService {
-    /// Builds the service from shared persistent stores.
-    pub fn new(profiles: ProfileStore, metadata: MetadataStore) -> Self {
-        Self { profiles, metadata }
+    /// Builds the service from shared persistent stores and the app job
+    /// registry that supervises batch validation.
+    pub fn new(profiles: ProfileStore, metadata: MetadataStore, jobs: JobRegistry) -> Self {
+        Self {
+            profiles,
+            metadata,
+            jobs,
+        }
     }
 
-    /// Validates and enriches every profile on the blocking I/O pool.
+    /// Validates and enriches every profile as a supervised `health-batch`
+    /// job on the blocking I/O pool (cancelled on app shutdown). Not
+    /// exclusive: the startup scan and UI refreshes may overlap.
     pub async fn batch_summary(&self) -> Result<EnrichedHealthSummary, AppError> {
         let profiles = self.profiles.clone();
         let metadata = self.metadata.clone();
-        run_blocking(move || Ok(batch::build_enriched_health_summary(&profiles, &metadata))).await
+        let spec = JobSpec::new(HEALTH_BATCH_JOB_KIND);
+        run_job(&self.jobs, spec, move || {
+            Ok(batch::build_enriched_health_summary(&profiles, &metadata))
+        })
+        .await
     }
 
     /// Returns enriched health for one named profile.

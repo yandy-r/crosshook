@@ -1,6 +1,6 @@
-//! Startup scan jobs: health → offline-readiness notice → version scan, run
-//! sequentially in one job, plus the independent umu refresh and background
-//! portal requests.
+//! Startup job scheduling: the health → offline-readiness notice → version
+//! scan sequence (run by [`StartupScansService`]) in one job, plus the
+//! independent umu refresh and background portal requests.
 //!
 //! Contract rules honored here:
 //!
@@ -15,18 +15,20 @@
 //! - **No owner retention**: closures capture [`StartupHandle`], [`EventBus`]
 //!   and store/service clones — never an `App` clone.
 
-use crosshook_core::profile::ProfileStore;
 use crosshook_core::umu_database;
 
 use crate::bootstrap::options::UmuRefresh;
-use crate::bootstrap::report::{OfflineReadinessScanSummary, UmuRefreshSummary};
+use crate::bootstrap::report::UmuRefreshSummary;
 use crate::bootstrap::state::{JobUpdate, StartupHandle};
 use crate::bootstrap::stores::{Services, Stores};
 use crate::bootstrap::StartupJobKind;
-use crate::events::{AppEvent, EventBus};
+use crate::events::EventBus;
 use crate::jobs::{JobSpec, Outcome};
+use crate::services::startup_scans::{
+    finish, finish_skipped_cancelled, finish_start_failed, mark_running,
+};
+use crate::services::StartupScansService;
 use crate::App;
-use crate::AppError;
 
 /// Schedules the three startup jobs on the app runtime.
 ///
@@ -49,33 +51,6 @@ pub(crate) fn schedule(
     schedule_background_portal(app, startup, services, events);
 }
 
-/// Marks a job running. Only terminal states are bridged to the shell.
-fn mark_running(startup: &StartupHandle, job: StartupJobKind) {
-    startup.set_job_state(JobUpdate::running(job));
-}
-
-/// Stores the terminal state, then publishes the completion event.
-fn finish(startup: &StartupHandle, events: &EventBus, update: JobUpdate) {
-    let job = startup.set_job_state(update);
-    events.publish(AppEvent::StartupJobFinished { job });
-}
-
-/// Terminal `skipped` marker for a job cancelled before it ran, so
-/// `wait_finished` always resolves instead of hanging on `pending`.
-fn finish_skipped_cancelled(startup: &StartupHandle, events: &EventBus, job: StartupJobKind) {
-    finish(startup, events, JobUpdate::cancelled(job));
-}
-
-/// A job that could not even be spawned lands `failed`, never `pending`.
-fn finish_start_failed(
-    startup: &StartupHandle,
-    events: &EventBus,
-    job: StartupJobKind,
-    message: String,
-) {
-    finish(startup, events, JobUpdate::start_failed(job, message));
-}
-
 fn schedule_scans(
     app: &App,
     startup: StartupHandle,
@@ -83,80 +58,17 @@ fn schedule_scans(
     services: &Services,
     events: EventBus,
 ) {
-    let health = services.health.clone();
-    let profiles = stores.profiles.clone();
-    let metadata = stores.metadata.clone();
+    let scans = StartupScansService::new(
+        services.health.clone(),
+        stores.profiles.clone(),
+        stores.metadata.clone(),
+        events.clone(),
+    );
     // Cloned for the post-`start` error path: the closure takes its own.
     let task_startup = startup.clone();
-    let task_events = events.clone();
     let result = app.jobs().start(JobSpec::new("startup-scans"), move |ctx| {
         let startup = task_startup;
-        let events = task_events;
-        async move {
-            // Step 1: enriched health batch (async; blocking I/O runs on the
-            // service's blocking pool).
-            if ctx.is_cancelled() {
-                finish_skipped_cancelled(&startup, &events, StartupJobKind::HealthBatch);
-                finish_skipped_cancelled(&startup, &events, StartupJobKind::OfflineReadiness);
-                finish_skipped_cancelled(&startup, &events, StartupJobKind::VersionScan);
-                return Outcome::Cancelled;
-            }
-            mark_running(&startup, StartupJobKind::HealthBatch);
-            let health_result = health.batch_summary().await;
-            let health_total = health_result
-                .as_ref()
-                .map(|summary| summary.total_count)
-                .unwrap_or(0);
-            let update = match health_result {
-                Ok(summary) => JobUpdate::health_complete(summary),
-                Err(error) => JobUpdate::health_failed(error.to_string()),
-            };
-            finish(&startup, &events, update);
-
-            // Step 2: offline-readiness notice. Reports the number of
-            // profiles the scan covers: the health batch total when it ran,
-            // otherwise a fresh profile-list count.
-            if ctx.is_cancelled() {
-                finish_skipped_cancelled(&startup, &events, StartupJobKind::OfflineReadiness);
-                finish_skipped_cancelled(&startup, &events, StartupJobKind::VersionScan);
-                return Outcome::Cancelled;
-            }
-            mark_running(&startup, StartupJobKind::OfflineReadiness);
-            let profiles_for_scan = profiles.clone();
-            let update = match tokio::task::spawn_blocking(move || {
-                offline_readiness_notice(&profiles_for_scan, health_total)
-            })
-            .await
-            {
-                Ok(summary) => JobUpdate::offline_readiness_complete(summary),
-                Err(join) => {
-                    tracing::warn!(%join, "offline readiness scan task failed");
-                    JobUpdate::offline_readiness_failed(AppError::from(join).to_string())
-                }
-            };
-            finish(&startup, &events, update);
-
-            // Step 3: version correlation scan.
-            if ctx.is_cancelled() {
-                finish_skipped_cancelled(&startup, &events, StartupJobKind::VersionScan);
-                return Outcome::Cancelled;
-            }
-            mark_running(&startup, StartupJobKind::VersionScan);
-            let update = match tokio::task::spawn_blocking(move || {
-                super::version_scan::run(&profiles, &metadata)
-            })
-            .await
-            {
-                Ok(summary) => JobUpdate::version_scan_complete(summary),
-                Err(join) => {
-                    tracing::warn!(%join, "version scan task failed");
-                    JobUpdate::version_scan_failed(AppError::from(join).to_string())
-                }
-            };
-            finish(&startup, &events, update);
-
-            Outcome::Succeeded
-        }
+        async move { scans.run(&ctx, &startup).await }
     });
     if let Err(error) = result {
         tracing::warn!(%error, "startup-scans job could not be scheduled");
@@ -169,27 +81,6 @@ fn schedule_scans(
             finish_start_failed(&startup, &events, job, message.clone());
         }
     }
-}
-
-/// Builds the offline-readiness notice payload. Prefers the health batch's
-/// total (already computed this run); falls back to listing profiles when
-/// health failed.
-fn offline_readiness_notice(
-    profiles: &ProfileStore,
-    health_total: usize,
-) -> OfflineReadinessScanSummary {
-    let total_profiles = if health_total > 0 {
-        health_total
-    } else {
-        profiles
-            .list()
-            .map(|names| names.len())
-            .unwrap_or_else(|error| {
-                tracing::warn!(%error, "offline readiness scan: failed to list profiles");
-                0
-            })
-    };
-    OfflineReadinessScanSummary { total_profiles }
 }
 
 fn schedule_umu(app: &App, startup: StartupHandle, umu: UmuRefresh, events: EventBus) {

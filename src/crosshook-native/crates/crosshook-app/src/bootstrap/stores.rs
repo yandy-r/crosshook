@@ -24,9 +24,10 @@ use super::{BootstrapError, StoreKind};
 use crate::events::EventBus;
 use crate::jobs::JobRegistry;
 use crate::services::{
-    BackgroundGrantHolder, CollectionsService, DiagnosticsService, HealthService, LaunchService,
-    LauncherExportService, ModsService, ProfileWriter, RecentFilesService, SettingsService,
-    SteamService, StorageService, UiSettingsService, VersionService,
+    BackgroundGrantHolder, CollectionsService, DiagnosticsService, HealthService, HostToolsService,
+    LaunchService, LauncherExportService, ModsService, OfflineService, OnboardingService,
+    ProfileWriter, RecentFilesService, SettingsService, SteamService, StorageService,
+    UiSettingsService, VersionService,
 };
 
 /// The persistent stores the application owns. Clones are cheap; clones of
@@ -58,6 +59,12 @@ pub struct Services {
     pub diagnostics: DiagnosticsService,
     /// Profile health summaries and cached snapshots.
     pub health: HealthService,
+    /// Readiness checks, cached host snapshot, capabilities and nag dismissals.
+    pub onboarding: OnboardingService,
+    /// Host-tool details and platform queries.
+    pub host_tools: HostToolsService,
+    /// Offline readiness, trainer hash verification and trainer type catalog.
+    pub offline: OfflineService,
     /// Profile mutation, revision and rollback pipeline.
     pub profiles: ProfileWriter,
     /// Background-protection portal grant holder.
@@ -82,7 +89,7 @@ impl Services {
     /// Builds the service bundle over `stores`; `events` is the app bus that
     /// services publish change notifications on, `runtime` spawns the `[ui]`
     /// settings writer, and `jobs` is the app job registry (cancelled on app
-    /// shutdown) that supervises storage scan jobs.
+    /// shutdown) that supervises storage scan, health batch and readiness jobs.
     pub fn new(stores: &Stores, events: EventBus, runtime: Handle, jobs: JobRegistry) -> Self {
         let background = Arc::new(BackgroundGrantHolder::new());
         Self {
@@ -100,7 +107,18 @@ impl Services {
                 stores.settings.clone(),
                 stores.metadata.clone(),
             ),
-            health: HealthService::new(stores.profiles.clone(), stores.metadata.clone()),
+            health: HealthService::new(
+                stores.profiles.clone(),
+                stores.metadata.clone(),
+                jobs.clone(),
+            ),
+            onboarding: OnboardingService::new(
+                stores.settings.clone(),
+                stores.metadata.clone(),
+                jobs.clone(),
+            ),
+            host_tools: HostToolsService::new(jobs.clone()),
+            offline: OfflineService::new(stores.profiles.clone(), stores.metadata.clone()),
             profiles: ProfileWriter::new(
                 stores.profiles.clone(),
                 stores.metadata.clone(),

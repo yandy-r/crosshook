@@ -82,6 +82,33 @@ pub enum AppEvent {
         /// Sanitized [`AppError`](crate::AppError) text, safe to show.
         message: String,
     },
+    /// The startup health batch finished successfully; the full result is in
+    /// the startup snapshot. Counts only. Published right after the matching
+    /// [`AppEvent::StartupJobFinished`].
+    HealthScanCompleted {
+        /// Profiles validated.
+        total: usize,
+        /// Profiles whose status is healthy.
+        healthy: usize,
+        /// Profiles whose status is stale.
+        stale: usize,
+        /// Profiles whose status is broken.
+        broken: usize,
+    },
+    /// The startup offline-readiness notice finished successfully. Published
+    /// right after the matching [`AppEvent::StartupJobFinished`].
+    OfflineReadinessScanCompleted {
+        /// Number of profiles the readiness scan covered.
+        total_profiles: usize,
+    },
+    /// The startup version-correlation scan finished successfully. Published
+    /// right after the matching [`AppEvent::StartupJobFinished`].
+    VersionScanCompleted {
+        /// Profiles whose manifest and trainer hash were compared.
+        scanned: u32,
+        /// Profiles whose game or trainer version changed since the snapshot.
+        mismatches: u32,
+    },
 }
 
 /// Bounded broadcast bus. Slow subscribers lose the oldest events and are told

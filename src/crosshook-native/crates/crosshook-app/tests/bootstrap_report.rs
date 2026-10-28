@@ -279,9 +279,13 @@ async fn jobs_finish_with_events_and_late_snapshot_keeps_results() {
     // at the moment the event is observed, the snapshot already shows the
     // terminal state for that job. The umu skip finished inline during
     // `App::bootstrap` (before any subscriber could exist), so exactly the
-    // four scheduled jobs publish here.
+    // four scheduled jobs publish `StartupJobFinished` here. The three scan
+    // steps additionally publish their named event right after their own
+    // `StartupJobFinished`, in health → offline → version order.
     let mut seen: Vec<StartupJobKind> = Vec::new();
-    for _ in 0..4 {
+    let mut named: Vec<AppEvent> = Vec::new();
+    let mut order: Vec<&'static str> = Vec::new();
+    while seen.len() < 4 || named.len() < 3 {
         let event = receiver
             .recv()
             .await
@@ -302,12 +306,119 @@ async fn jobs_finish_with_events_and_late_snapshot_keeps_results() {
                     snapshot_has_terminal_state(&snapshot, job),
                     "state-then-publish violated for {job:?}: snapshot still shows a non-terminal state"
                 );
+                order.push(match job {
+                    StartupJobKind::HealthBatch => "finished:health",
+                    StartupJobKind::OfflineReadiness => "finished:offline",
+                    StartupJobKind::VersionScan => "finished:version",
+                    _ => "finished:other",
+                });
+            }
+            AppEvent::HealthScanCompleted { .. } => {
+                order.push("named:health");
+                named.push(event);
+            }
+            AppEvent::OfflineReadinessScanCompleted { .. } => {
+                order.push("named:offline");
+                named.push(event);
+            }
+            AppEvent::VersionScanCompleted { .. } => {
+                order.push("named:version");
+                named.push(event);
             }
             AppEvent::Resync { .. } => panic!("no lag expected on this bus"),
             _ => {}
         }
     }
     assert_eq!(seen.len(), 4);
+    let health = match &late.jobs.health {
+        JobState::Complete { data } => data.clone(),
+        other => panic!("health should be complete, got {other:?}"),
+    };
+    assert_eq!(
+        named,
+        vec![
+            AppEvent::HealthScanCompleted {
+                total: health.total_count,
+                healthy: health.healthy_count,
+                stale: health.stale_count,
+                broken: health.broken_count,
+            },
+            AppEvent::OfflineReadinessScanCompleted { total_profiles: 1 },
+            AppEvent::VersionScanCompleted {
+                scanned: 0,
+                mismatches: 0
+            },
+        ]
+    );
+    assert_eq!(health.total_count, 1);
+    // Each named event directly follows its own step's completion event.
+    let scan_order: Vec<&str> = order
+        .iter()
+        .copied()
+        .filter(|label| {
+            label.contains("health") || label.contains("offline") || label.contains("version")
+        })
+        .collect();
+    assert_eq!(
+        scan_order,
+        [
+            "finished:health",
+            "named:health",
+            "finished:offline",
+            "named:offline",
+            "finished:version",
+            "named:version",
+        ]
+    );
+}
+
+/// With the metadata store degraded the scans still run: every scan job
+/// completes, and the named events still carry the profile counts.
+#[tokio::test]
+async fn scans_complete_with_named_events_when_metadata_is_disabled() {
+    let dir = tempdir().unwrap();
+    save_profile(dir.path(), "game");
+    fs::create_dir_all(dir.path().join("data").join("metadata.db")).unwrap();
+
+    let (app, report) = App::bootstrap(fake_flatpak_pre_runtime(), test_options(dir.path()))
+        .expect("bootstrap must not fail");
+    assert!(matches!(
+        report.degraded.metadata,
+        MetadataStatus::Disabled { .. }
+    ));
+    let mut receiver = app.subscribe();
+    let startup = app.startup();
+    for kind in [
+        StartupJobKind::HealthBatch,
+        StartupJobKind::OfflineReadiness,
+        StartupJobKind::VersionScan,
+    ] {
+        assert_eq!(
+            startup.wait_finished(kind).await,
+            JobSnapshotKind::Complete,
+            "{kind:?} should complete without metadata"
+        );
+    }
+    let mut named = Vec::new();
+    while named.len() < 3 {
+        let event = receiver.recv().await.expect("bus open");
+        if matches!(
+            event,
+            AppEvent::HealthScanCompleted { .. }
+                | AppEvent::OfflineReadinessScanCompleted { .. }
+                | AppEvent::VersionScanCompleted { .. }
+        ) {
+            named.push(event);
+        }
+    }
+    assert!(matches!(
+        named[0],
+        AppEvent::HealthScanCompleted { total: 1, .. }
+    ));
+    assert_eq!(
+        named[1],
+        AppEvent::OfflineReadinessScanCompleted { total_profiles: 1 }
+    );
 }
 
 /// Whether the live snapshot already shows a terminal state for `job`.

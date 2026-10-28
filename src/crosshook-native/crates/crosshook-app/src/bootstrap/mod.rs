@@ -48,11 +48,11 @@ mod pre_runtime;
 mod reconcile;
 mod report;
 mod scans;
-mod state;
+pub(crate) mod state;
 mod steps;
 mod stores;
 mod ui_import;
-mod version_scan;
+pub(crate) mod version_scan;
 
 pub use app_bootstrap::BootstrappedApp;
 pub use env_policy::{EnvPolicy, PreRuntimeEnv};

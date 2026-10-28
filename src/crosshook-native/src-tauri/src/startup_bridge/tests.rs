@@ -205,3 +205,37 @@ fn ui_settings_persist_failed_uses_classic_event_name() {
         "ui-settings-persist-failed"
     );
 }
+
+#[test]
+fn named_scan_completion_events_are_not_bridged() {
+    for event in [
+        AppEvent::HealthScanCompleted {
+            total: 3,
+            healthy: 1,
+            stale: 1,
+            broken: 1,
+        },
+        AppEvent::OfflineReadinessScanCompleted { total_profiles: 3 },
+        AppEvent::VersionScanCompleted {
+            scanned: 3,
+            mismatches: 1,
+        },
+    ] {
+        assert!(!is_bridged(&event), "{event:?} would double-emit");
+    }
+    for event in [
+        AppEvent::StartupJobFinished {
+            job: StartupJobKind::HealthBatch,
+        },
+        AppEvent::Resync { missed: 1 },
+        AppEvent::ProfilesChanged {
+            reason: ProfileChangeReason::Saved,
+            names: vec![],
+        },
+        AppEvent::UiSettingsPersistFailed {
+            message: "x".into(),
+        },
+    ] {
+        assert!(is_bridged(&event), "{event:?} must stay bridged");
+    }
+}
