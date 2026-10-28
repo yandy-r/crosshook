@@ -97,6 +97,8 @@ Driver semantics (a faithful port of `sync_workspace`): `tokio::fs::create_dir_a
 
 `normalize_and_validate` is a public associated function so app can reuse core normalization without exposing the private `validation` module. Move pin validation into `normalize_subscription` as well, so `resolve_workspace` rejects invalid persisted pins before git. Driver takes an owned `Arc<dyn TapGitRunner>` (not a borrowed trait object) so a clone can enter the `'static` blocking index closure: check `runner.is_cancelled()` inside that closure before `index_tap`, not only before spawning it. Map a join failure to a fixed `CommunityTapError::Io` source (never its panic payload).
 
+> **Final shape diverges (pre-PR review):** pin validation was reverted out of `normalize_subscription`. Otherwise one stored bad pin breaks listing, import and the catalog for every tap. The app's `add_tap` validates the incoming pin with the re-exported `crosshook_core::community::is_valid_git_sha`, and checkout-time validation in `git.rs` stays.
+
 ## 4. App: errors — `app/error.rs` (task 3.1; one owner)
 
 Added after `From<MetadataStoreError>` (:226); `AppError::new` (:36) still sanitizes.
