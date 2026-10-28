@@ -86,11 +86,13 @@ impl OnboardingService {
         Ok(())
     }
 }
-
+/// Tilde-redacts `checks[].path` and `tool_checks[].resolved_path` for display.
+/// Runs after the raw snapshot is persisted, so cached data stays unredacted.
 fn sanitize_readiness_paths(result: &mut ReadinessCheckResult) {
     for issue in &mut result.checks {
         issue.path = display_path_tilde(&issue.path);
     }
+    result.tool_checks = sanitize_tool_checks(std::mem::take(&mut result.tool_checks));
 }
 
 fn sanitize_capabilities(capabilities: Vec<Capability>) -> Vec<Capability> {

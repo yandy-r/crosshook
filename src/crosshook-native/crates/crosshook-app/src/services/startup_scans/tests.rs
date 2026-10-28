@@ -292,8 +292,9 @@ async fn cancelled_health_batch_skips_remaining_steps_instead_of_failing() {
     }
 }
 
-/// Scheduling failure is reported through state-then-publish for all three
-/// steps (the contract `bootstrap::scans::schedule_scans` relies on).
+/// A step that fails to schedule lands `failed` in the snapshot before its
+/// `StartupJobFinished` is published. `bootstrap::scans::schedule_scans`
+/// applies this helper to each of the three steps; this test covers one.
 #[tokio::test]
 async fn start_failed_lands_failed_before_publishing() {
     let fixture = fixture(&[], MetadataStore::disabled());

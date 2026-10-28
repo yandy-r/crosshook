@@ -38,6 +38,10 @@ async fn generalized_readiness_persists_raw_snapshot_before_dismissals_and_sanit
     assert!(result.steam_deck_caveats.is_none());
     assert!(result.checks[0].remediation.is_empty());
     assert_eq!(result.checks[0].path, "~/.local/bin/umu-run");
+    assert_eq!(
+        result.tool_checks[0].resolved_path.as_deref(),
+        Some("~/.local/bin/umu-run")
+    );
     assert_eq!(probe.generalized_calls.load(Ordering::SeqCst), 1);
 }
 
