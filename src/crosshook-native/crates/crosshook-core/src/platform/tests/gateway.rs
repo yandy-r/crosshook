@@ -321,3 +321,28 @@ fn host_std_command_with_env_sets_current_dir_when_not_flatpak() {
         Some("/tmp/workdir".to_string())
     );
 }
+
+#[test]
+fn lifecycle_inner_reexport_places_watch_bus_before_clear_env_and_directory() {
+    let envs = BTreeMap::from([("WINEPREFIX".to_string(), "/games/pfx".to_string())]);
+    let cmd = crate::platform::host_command_with_env_and_directory_lifecycle_inner(
+	"/opt/proton/proton",
+	&envs,
+	Some("/run/host/mnt/games"),
+	true,
+	&BTreeMap::new(),
+    );
+
+    assert_eq!(cmd.as_std().get_program(), "flatpak-spawn");
+    assert_eq!(
+	command_args(&cmd),
+	vec![
+	    "--host".to_string(),
+	    "--watch-bus".to_string(),
+	    "--clear-env".to_string(),
+	    "--directory=/mnt/games".to_string(),
+	    "--env=WINEPREFIX=/games/pfx".to_string(),
+	    "/opt/proton/proton".to_string(),
+	]
+    );
+}

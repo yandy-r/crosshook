@@ -5,10 +5,10 @@ use tokio::process::Command;
 use tokio::runtime::Handle;
 
 use crate::launch::request::{path_exists_visible_or_host, path_is_executable_visible_or_host};
+use crate::launch::runtime_helpers::proton_command::build_direct_proton_command_lifecycle_with;
 use crate::launch::runtime_helpers::{
-    apply_working_directory, attach_log_stdio,
-    build_direct_proton_command_with_wrappers_in_directory, host_environment_map,
-    merge_runtime_proton_into_map, resolve_effective_working_directory,
+    apply_working_directory, attach_log_stdio, host_environment_map, merge_runtime_proton_into_map,
+    resolve_effective_working_directory,
 };
 use crate::platform::{
     normalize_flatpak_host_path, normalized_path_exists_on_host, normalized_path_is_dir,
@@ -20,6 +20,16 @@ use super::discovery::discover_game_executable_candidates;
 use super::models::{
     InstallGameError, InstallGameRequest, InstallGameResult, InstallGameValidationError,
 };
+
+/// An installer command ready to spawn, plus the provisioned prefix it targets.
+///
+/// The command is lifecycle-bound (`--watch-bus` under Flatpak) and has no
+/// stdio attached; the caller owns stdio, process group, spawn and supervision.
+#[derive(Debug)]
+pub struct PreparedInstall {
+    pub command: Command,
+    pub prefix_path: PathBuf,
+}
 
 const DEFAULT_PREFIX_ROOT_SEGMENT: &str = "crosshook/prefixes";
 
@@ -50,17 +60,71 @@ pub fn install_default_prefix_path(profile_name: &str) -> Result<PathBuf, Instal
     resolve_default_prefix_path(profile_name)
 }
 
-pub fn install_game(
-    request: &InstallGameRequest,
-    log_path: &Path,
-) -> Result<InstallGameResult, InstallGameError> {
+/// Validates the request, provisions the prefix and builds the installer
+/// command (`<proton> run <installer>`) without attaching stdio.
+pub fn prepare_install(request: &InstallGameRequest) -> Result<PreparedInstall, InstallGameError> {
     validate_install_request(request)?;
 
     let prefix_path = PathBuf::from(normalize_flatpak_host_path(&request.prefix_path));
     provision_prefix(&prefix_path)?;
+    let command = build_install_command(request, &prefix_path, crate::platform::is_flatpak());
+    Ok(PreparedInstall {
+        command,
+        prefix_path,
+    })
+}
+
+/// Builds the reviewable result after the installer exited successfully:
+/// discovers executables in the prefix and prepares the generated profile.
+pub fn finish_install(
+    request: &InstallGameRequest,
+    prefix_path: &Path,
+    log_path: &Path,
+) -> InstallGameResult {
+    let discovered_game_executable_candidates = discover_game_executable_candidates(
+        prefix_path,
+        request.resolved_profile_name(),
+        request.resolved_display_name(),
+        normalize_flatpak_host_path(&request.installer_path).trim(),
+    );
+    let confirmed_game_executable_path =
+        resolve_confirmed_game_executable_path(request, &discovered_game_executable_candidates);
+    let profile = build_reviewable_profile(
+        request,
+        prefix_path,
+        confirmed_game_executable_path.as_deref(),
+    );
+
+    InstallGameResult {
+        succeeded: true,
+        message: "Installer completed. Review the generated profile.".to_string(),
+        helper_log_path: log_path.to_string_lossy().into_owned(),
+        profile_name: request.resolved_profile_name().to_string(),
+        needs_executable_confirmation: true,
+        discovered_game_executable_candidates: discovered_game_executable_candidates
+            .iter()
+            .map(|path| path.to_string_lossy().into_owned())
+            .collect(),
+        profile,
+    }
+}
+
+pub fn install_game(
+    request: &InstallGameRequest,
+    log_path: &Path,
+) -> Result<InstallGameResult, InstallGameError> {
+    let PreparedInstall {
+        mut command,
+        prefix_path,
+    } = prepare_install(request)?;
     let runtime_handle = Handle::try_current().map_err(|_| InstallGameError::RuntimeUnavailable)?;
 
-    let mut command = build_install_command(request, &prefix_path, log_path)?;
+    attach_log_stdio(&mut command, log_path).map_err(|error| {
+        InstallGameError::LogAttachmentFailed {
+            path: log_path.to_path_buf(),
+            message: error.to_string(),
+        }
+    })?;
     let mut child = command
         .spawn()
         .map_err(|error| InstallGameError::InstallerSpawnFailed {
@@ -79,68 +143,35 @@ pub fn install_game(
         });
     }
 
-    let discovered_game_executable_candidates = discover_game_executable_candidates(
-        &prefix_path,
-        request.resolved_profile_name(),
-        request.resolved_display_name(),
-        normalize_flatpak_host_path(&request.installer_path).trim(),
-    );
-    let confirmed_game_executable_path =
-        resolve_confirmed_game_executable_path(request, &discovered_game_executable_candidates);
-    let profile = build_reviewable_profile(
-        request,
-        &prefix_path,
-        confirmed_game_executable_path.as_deref(),
-    );
-
-    Ok(InstallGameResult {
-        succeeded: true,
-        message: "Installer completed. Review the generated profile.".to_string(),
-        helper_log_path: log_path.to_string_lossy().into_owned(),
-        profile_name: request.resolved_profile_name().to_string(),
-        needs_executable_confirmation: true,
-        discovered_game_executable_candidates: discovered_game_executable_candidates
-            .iter()
-            .map(|path| path.to_string_lossy().into_owned())
-            .collect(),
-        profile,
-    })
+    Ok(finish_install(request, &prefix_path, log_path))
 }
 
 fn build_install_command(
     request: &InstallGameRequest,
     prefix_path: &Path,
-    log_path: &Path,
-) -> Result<Command, InstallGameError> {
+    flatpak: bool,
+) -> Command {
     let normalized_installer_path = normalize_flatpak_host_path(&request.installer_path);
     let mut env = host_environment_map();
     let prefix_path_string = prefix_path.to_string_lossy().into_owned();
     merge_runtime_proton_into_map(&mut env, &prefix_path_string, "");
     let effective_working_directory =
         resolve_effective_working_directory("", Path::new(normalized_installer_path.trim()));
-    let mut command = build_direct_proton_command_with_wrappers_in_directory(
+    let mut command = build_direct_proton_command_lifecycle_with(
         request.proton_path.trim(),
-        &[],
         &env,
         effective_working_directory.as_deref(),
-        &std::collections::BTreeMap::new(),
-        false,
+        flatpak,
     );
     command.arg(normalized_installer_path.trim());
-    if !crate::platform::is_flatpak() {
+    if !flatpak {
         apply_working_directory(
             &mut command,
             "",
             Path::new(normalized_installer_path.trim()),
         );
     }
-    attach_log_stdio(&mut command, log_path).map_err(|error| {
-        InstallGameError::LogAttachmentFailed {
-            path: log_path.to_path_buf(),
-            message: error.to_string(),
-        }
-    })?;
-    Ok(command)
+    command
 }
 
 fn provision_prefix(prefix_path: &Path) -> Result<(), InstallGameError> {
@@ -393,213 +424,5 @@ fn is_windows_executable(path: &Path) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs;
-    use std::path::{Path, PathBuf};
-    use tempfile::tempdir;
-
-    fn write_executable_script(path: &Path, body: &str) {
-        fs::write(path, body).expect("write executable script");
-
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-
-            let mut permissions = fs::metadata(path).expect("script metadata").permissions();
-            permissions.set_mode(permissions.mode() | 0o111);
-            fs::set_permissions(path, permissions).expect("set executable permissions");
-        }
-    }
-
-    fn valid_request(temp_dir: &Path) -> InstallGameRequest {
-        let installer_path = temp_dir.join("setup.exe");
-        let trainer_path = temp_dir.join("trainer.exe");
-        let proton_path = temp_dir.join("proton");
-        let prefix_path = temp_dir.join("prefix");
-
-        fs::write(&installer_path, b"installer").expect("installer file");
-        fs::write(&trainer_path, b"trainer").expect("trainer file");
-        write_executable_script(
-            &proton_path,
-            "#!/bin/sh\nprefix_path=\"$WINEPREFIX\"\nmkdir -p \"$prefix_path/drive_c/Games/Example Game\"\ncat <<'EOF' > \"$prefix_path/drive_c/Games/Example Game/ExampleGame.exe\"\ngame\nEOF\nexit 0\n",
-        );
-
-        InstallGameRequest {
-            profile_name: "example-game".to_string(),
-            display_name: "Example Game".to_string(),
-            installer_path: installer_path.to_string_lossy().into_owned(),
-            trainer_path: trainer_path.to_string_lossy().into_owned(),
-            proton_path: proton_path.to_string_lossy().into_owned(),
-            prefix_path: prefix_path.to_string_lossy().into_owned(),
-            installed_game_executable_path: String::new(),
-            launcher_icon_path: String::new(),
-            custom_cover_art_path: String::new(),
-            runner_method: String::new(),
-            steam_app_id: String::new(),
-            custom_portrait_art_path: String::new(),
-            custom_background_art_path: String::new(),
-            working_directory: String::new(),
-        }
-    }
-
-    #[test]
-    fn resolve_default_prefix_path_uses_data_local_root_and_slugifies_name() {
-        let temp_dir = tempdir().expect("temp dir");
-        let profile_name = "God of War Ragnarok";
-
-        let prefix_root = resolve_default_prefix_path_from_data_local_dir(temp_dir.path());
-        let prefix_path = prefix_root.join(slugify_profile_name(profile_name));
-
-        assert_eq!(
-            prefix_path,
-            temp_dir
-                .path()
-                .join(DEFAULT_PREFIX_ROOT_SEGMENT)
-                .join("god-of-war-ragnarok")
-        );
-    }
-
-    #[test]
-    fn validate_install_request_returns_specific_field_errors() {
-        let temp_dir = tempdir().expect("temp dir");
-        let base_request = valid_request(temp_dir.path());
-
-        assert!(validate_install_request(&base_request).is_ok());
-
-        let mut request = base_request.clone();
-        request.profile_name = String::new();
-        assert!(matches!(
-            validate_install_request(&request),
-            Err(InstallGameValidationError::ProfileNameRequired)
-        ));
-
-        let mut request = base_request.clone();
-        request.installer_path = temp_dir
-            .path()
-            .join("setup.txt")
-            .to_string_lossy()
-            .into_owned();
-        fs::write(&request.installer_path, b"installer").expect("installer txt");
-        assert!(matches!(
-            validate_install_request(&request),
-            Err(InstallGameValidationError::InstallerPathNotWindowsExecutable)
-        ));
-
-        let mut request = base_request.clone();
-        request.proton_path = temp_dir
-            .path()
-            .join("proton-dir")
-            .to_string_lossy()
-            .into_owned();
-        fs::create_dir_all(&request.proton_path).expect("proton dir");
-        assert!(matches!(
-            validate_install_request(&request),
-            Err(InstallGameValidationError::ProtonPathNotExecutable)
-        ));
-
-        let mut request = base_request.clone();
-        request.installed_game_executable_path = temp_dir
-            .path()
-            .join("candidate")
-            .to_string_lossy()
-            .into_owned();
-        fs::create_dir_all(&request.installed_game_executable_path).expect("candidate dir");
-        assert!(matches!(
-            validate_install_request(&request),
-            Err(InstallGameValidationError::InstalledGameExecutablePathNotFile)
-        ));
-
-        let mut request = base_request;
-        request.custom_cover_art_path = temp_dir.path().to_string_lossy().into_owned();
-        assert!(matches!(
-            validate_install_request(&request),
-            Err(InstallGameValidationError::CustomCoverArtPathNotFile)
-        ));
-    }
-
-    #[test]
-    fn validate_install_request_accepts_flatpak_host_mounted_paths() {
-        let temp_dir = tempdir().expect("temp dir");
-        let mut request = valid_request(temp_dir.path());
-        request.installer_path = format!("/run/host{}", request.installer_path);
-        request.trainer_path = format!("/run/host{}", request.trainer_path);
-        request.proton_path = format!("/run/host{}", request.proton_path);
-        request.prefix_path = format!("/run/host{}", request.prefix_path);
-
-        assert!(validate_install_request(&request).is_ok());
-    }
-
-    #[test]
-    fn install_game_creates_prefix_and_prefers_discovered_executable() {
-        let temp_dir = tempdir().expect("temp dir");
-        let request = valid_request(temp_dir.path());
-        let prefix_path = PathBuf::from(&request.prefix_path);
-        let log_path = temp_dir.path().join("install.log");
-
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("test runtime");
-        let result = runtime
-            .block_on(async move {
-                tokio::task::spawn_blocking(move || install_game(&request, &log_path))
-                    .await
-                    .expect("join install task")
-            })
-            .expect("install game");
-
-        assert!(prefix_path.is_dir());
-        assert!(result.succeeded);
-        assert_eq!(result.profile_name, "example-game");
-        assert!(result.needs_executable_confirmation);
-        let expected_game_path = prefix_path
-            .join("drive_c/Games/Example Game/ExampleGame.exe")
-            .to_string_lossy()
-            .into_owned();
-        assert_eq!(
-            result
-                .discovered_game_executable_candidates
-                .first()
-                .map(std::string::String::as_str),
-            Some(expected_game_path.as_str())
-        );
-        assert_eq!(result.profile.game.executable_path, expected_game_path);
-        assert_eq!(
-            result.profile.runtime.working_directory,
-            prefix_path
-                .join("drive_c/Games/Example Game")
-                .to_string_lossy()
-                .into_owned()
-        );
-        assert_eq!(result.profile.launch.method, "proton_run");
-        assert_eq!(result.profile.game.name, "Example Game");
-        assert_eq!(
-            result.profile.trainer.path,
-            temp_dir
-                .path()
-                .join("trainer.exe")
-                .to_string_lossy()
-                .into_owned()
-        );
-    }
-
-    #[test]
-    fn resolve_prefix_root_with_host_override_returns_override_path() {
-        let override_path = PathBuf::from("/h/.local/share/crosshook/prefixes");
-        let result =
-            resolve_prefix_root_with(Some(override_path.clone())).expect("resolve with override");
-        assert_eq!(result, override_path);
-    }
-
-    #[test]
-    fn resolve_prefix_root_without_override_falls_through_to_base_dirs() {
-        let result = resolve_prefix_root_with(None).expect("resolve without override");
-        assert!(
-            result.ends_with(DEFAULT_PREFIX_ROOT_SEGMENT),
-            "expected path ending with '{}', got '{}'",
-            DEFAULT_PREFIX_ROOT_SEGMENT,
-            result.display()
-        );
-    }
-}
+#[path = "tests.rs"]
+mod tests;

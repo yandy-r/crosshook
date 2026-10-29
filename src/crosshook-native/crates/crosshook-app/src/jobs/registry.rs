@@ -269,6 +269,12 @@ impl JobRegistry {
         Ok(outcome)
     }
 
+    /// Whether `key` is held by a running job. Released before that job's
+    /// `Finished` event is published.
+    pub fn is_key_held(&self, key: &JobKey) -> bool {
+        self.shared.lock().keys.contains(key)
+    }
+
     /// `(running, finished-unreaped)` job counts, for tests asserting that a
     /// helper reaps its jobs.
     #[cfg(test)]

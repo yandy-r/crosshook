@@ -1,14 +1,25 @@
-use super::adhoc_prefix::resolve_default_adhoc_prefix_path_from_data_local_dir;
+use super::command_builder::build_run_executable_command_with;
 use super::{
-    build_run_executable_command, is_throwaway_prefix_path, resolve_default_adhoc_prefix_path,
-    run_executable, validate_run_executable_request,
+    is_throwaway_prefix_path, is_throwaway_prefix_path_in, prepare_run_executable,
+    resolve_adhoc_prefix_path, resolve_default_adhoc_prefix_path, run_executable,
+    validate_run_executable_request,
 };
 use crate::run_executable::{
     RunExecutableError, RunExecutableRequest, RunExecutableValidationError,
 };
+use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tempfile::tempdir;
+use tokio::process::Command;
+
+fn argv(command: &Command) -> Vec<String> {
+    let std_command = command.as_std();
+    std::iter::once(std_command.get_program())
+        .chain(std_command.get_args())
+        .map(|value: &OsStr| value.to_string_lossy().into_owned())
+        .collect()
+}
 
 fn write_executable_script(path: &Path, body: &str) {
     fs::write(path, body).expect("write executable script");
@@ -221,69 +232,93 @@ fn validate_run_executable_request_rejects_file_as_prefix_path() {
 }
 
 #[test]
-fn build_run_executable_command_uses_msiexec_for_msi() {
+fn build_run_executable_command_msi_argv_is_unchanged() {
     let temp_dir = tempdir().expect("temp dir");
     let mut request = valid_request(temp_dir.path());
     let msi_path = temp_dir.path().join("installer.msi");
     fs::write(&msi_path, b"msi").expect("msi file");
     request.executable_path = msi_path.to_string_lossy().into_owned();
+    let prefix_path = PathBuf::from(&request.prefix_path);
 
-    let prefix_path = PathBuf::from(request.prefix_path.clone());
-    let log_path = temp_dir.path().join("test-msi.log");
-    std::fs::File::create(&log_path).unwrap();
+    let command = build_run_executable_command_with(&request, &prefix_path, false);
 
-    let command = build_run_executable_command(&request, &prefix_path, &log_path).unwrap();
-    let debug_output = format!("{command:?}");
-
-    assert!(
-        debug_output.contains("msiexec"),
-        "Command should invoke msiexec for .msi inputs, got: {debug_output}"
+    assert_eq!(
+        argv(&command),
+        vec![
+            request.proton_path.clone(),
+            "run".to_string(),
+            "msiexec".to_string(),
+            "/i".to_string(),
+            request.executable_path.clone(),
+            "/qb".to_string(),
+        ]
     );
-    assert!(
-        debug_output.contains("/i"),
-        "Command should pass /i to msiexec, got: {debug_output}"
-    );
-    assert!(
-        debug_output.contains(&msi_path.display().to_string()),
-        "Command should reference the msi path, got: {debug_output}"
-    );
-}
-
-#[test]
-fn build_run_executable_command_uses_direct_arg_for_exe() {
-    let temp_dir = tempdir().expect("temp dir");
-    let request = valid_request(temp_dir.path());
-    let prefix_path = PathBuf::from(request.prefix_path.clone());
-    let log_path = temp_dir.path().join("test-exe.log");
-    std::fs::File::create(&log_path).unwrap();
-
-    let command = build_run_executable_command(&request, &prefix_path, &log_path).unwrap();
-    let debug_output = format!("{command:?}");
-
-    assert!(
-        !debug_output.contains("msiexec"),
-        "Command must not invoke msiexec for .exe inputs, got: {debug_output}"
-    );
-    assert!(
-        debug_output.contains(&request.executable_path),
-        "Command should reference the executable path, got: {debug_output}"
+    assert_eq!(
+        command.as_std().get_current_dir(),
+        Some(temp_dir.path()),
+        "native run should start in the installer's directory"
     );
 }
 
 #[test]
-fn build_run_executable_command_references_proton_path() {
+fn build_run_executable_command_exe_argv_is_proton_run_exe() {
     let temp_dir = tempdir().expect("temp dir");
     let request = valid_request(temp_dir.path());
-    let prefix_path = PathBuf::from(request.prefix_path.clone());
-    let log_path = temp_dir.path().join("test-proton.log");
-    std::fs::File::create(&log_path).unwrap();
+    let prefix_path = PathBuf::from(&request.prefix_path);
 
-    let command = build_run_executable_command(&request, &prefix_path, &log_path).unwrap();
-    let debug_output = format!("{command:?}");
+    let command = build_run_executable_command_with(&request, &prefix_path, false);
 
+    assert_eq!(
+        argv(&command),
+        vec![
+            request.proton_path.clone(),
+            "run".to_string(),
+            request.executable_path.clone(),
+        ]
+    );
+    let wineprefix = command
+        .as_std()
+        .get_envs()
+        .find(|(key, _)| *key == "WINEPREFIX")
+        .and_then(|(_, value)| value)
+        .map(|value| value.to_string_lossy().into_owned());
+    assert_eq!(wineprefix.as_deref(), Some(request.prefix_path.as_str()));
+}
+
+#[test]
+fn build_run_executable_command_flatpak_argv_is_lifecycle_bound() {
+    let temp_dir = tempdir().expect("temp dir");
+    let mut request = valid_request(temp_dir.path());
+    let msi_path = temp_dir.path().join("installer.msi");
+    fs::write(&msi_path, b"msi").expect("msi file");
+    request.executable_path = msi_path.to_string_lossy().into_owned();
+    let prefix_path = PathBuf::from(&request.prefix_path);
+
+    let command = build_run_executable_command_with(&request, &prefix_path, true);
+    let args = argv(&command);
+
+    assert_eq!(
+        &args[..4],
+        ["flatpak-spawn", "--host", "--watch-bus", "--clear-env"]
+    );
     assert!(
-        debug_output.contains(&request.proton_path),
-        "Command should reference the proton path, got: {debug_output}"
+        args.contains(&format!("--directory={}", temp_dir.path().display())),
+        "flatpak argv should carry the working directory, got: {args:?}"
+    );
+    assert!(
+        args.contains(&format!("--env=WINEPREFIX={}", request.prefix_path)),
+        "flatpak argv should forward WINEPREFIX, got: {args:?}"
+    );
+    assert_eq!(
+        &args[args.len() - 6..],
+        [
+            request.proton_path.as_str(),
+            "run",
+            "msiexec",
+            "/i",
+            request.executable_path.as_str(),
+            "/qb",
+        ]
     );
 }
 
@@ -296,50 +331,89 @@ fn build_run_executable_command_normalizes_flatpak_host_mounted_paths() {
     request.executable_path = format!("/run/host{}", request.executable_path);
     request.proton_path = format!("/run/host{}", request.proton_path);
     let prefix_path = PathBuf::from(&request.prefix_path);
-    let log_path = temp_dir.path().join("test-flatpak.log");
-    std::fs::File::create(&log_path).unwrap();
 
-    let command = build_run_executable_command(&request, &prefix_path, &log_path).unwrap();
-    let debug_output = format!("{command:?}");
+    let command = build_run_executable_command_with(&request, &prefix_path, false);
 
-    assert!(
-        debug_output.contains(&normalized_executable_path),
-        "Command should reference the normalized executable path, got: {debug_output}"
-    );
-    assert!(
-        debug_output.contains(&normalized_proton_path),
-        "Command should reference the normalized proton path, got: {debug_output}"
-    );
-    assert!(
-        !debug_output.contains("/run/host"),
-        "Command should not retain the Flatpak host prefix, got: {debug_output}"
+    assert_eq!(
+        argv(&command),
+        vec![
+            normalized_proton_path,
+            "run".to_string(),
+            normalized_executable_path,
+        ]
     );
 }
 
 #[test]
-fn resolve_default_adhoc_prefix_path_slugifies_executable_stem() {
+fn prepare_run_executable_resolves_unique_throwaway_prefixes() {
     let temp_dir = tempdir().expect("temp dir");
-    let resolved = resolve_default_adhoc_prefix_path_from_data_local_dir(
-        temp_dir.path(),
-        Path::new("/x/Setup Wizard.exe"),
-    );
+    let mut request = valid_request(temp_dir.path());
+    request.prefix_path = String::new();
+    let adhoc_root = temp_dir.path().join("prefixes").join("_run-adhoc");
 
-    let expected = temp_dir
-        .path()
-        .join("crosshook/prefixes/_run-adhoc/setup-wizard");
-    assert_eq!(resolved, expected);
+    let first = prepare_run_executable(&request, &adhoc_root, "aaaaaaaaaaaa").expect("first");
+    let second = prepare_run_executable(&request, &adhoc_root, "bbbbbbbbbbbb").expect("second");
+
+    assert!(first.is_throwaway && second.is_throwaway);
+    assert_eq!(first.prefix_path, adhoc_root.join("installer-aaaaaaaaaaaa"));
+    assert_eq!(
+        second.prefix_path,
+        adhoc_root.join("installer-bbbbbbbbbbbb")
+    );
+    assert!(first.prefix_path.is_dir() && second.prefix_path.is_dir());
+    assert!(is_throwaway_prefix_path_in(&first.prefix_path, &adhoc_root));
+    assert!(is_throwaway_prefix_path_in(
+        &second.prefix_path,
+        &adhoc_root
+    ));
+    assert!(
+        format!("{:?}", first.command).contains(first.prefix_path.to_string_lossy().as_ref()),
+        "command should target the resolved prefix"
+    );
 }
 
 #[test]
-fn resolve_default_adhoc_prefix_path_falls_back_when_stem_is_unprintable() {
+fn prepare_run_executable_keeps_explicit_prefix_and_is_not_throwaway() {
     let temp_dir = tempdir().expect("temp dir");
-    let resolved = resolve_default_adhoc_prefix_path_from_data_local_dir(
-        temp_dir.path(),
-        Path::new("/x/---.exe"),
+    let request = valid_request(temp_dir.path());
+    let adhoc_root = temp_dir.path().join("_run-adhoc");
+
+    let prepared = prepare_run_executable(&request, &adhoc_root, "aaaaaaaaaaaa").expect("prepare");
+
+    assert!(!prepared.is_throwaway);
+    assert_eq!(prepared.prefix_path, PathBuf::from(&request.prefix_path));
+    assert!(
+        !adhoc_root.exists(),
+        "explicit prefix must not touch the adhoc root"
+    );
+}
+
+#[test]
+fn prepare_run_executable_rejects_invalid_request_without_provisioning() {
+    let temp_dir = tempdir().expect("temp dir");
+    let adhoc_root = temp_dir.path().join("_run-adhoc");
+
+    let result = prepare_run_executable(
+        &RunExecutableRequest::default(),
+        &adhoc_root,
+        "aaaaaaaaaaaa",
     );
 
-    let expected = temp_dir.path().join("crosshook/prefixes/_run-adhoc/adhoc");
-    assert_eq!(resolved, expected);
+    assert!(matches!(
+        result,
+        Err(RunExecutableError::Validation(
+            RunExecutableValidationError::ExecutablePathRequired
+        ))
+    ));
+    assert!(!adhoc_root.exists());
+}
+
+#[test]
+fn resolve_adhoc_prefix_path_slugifies_executable_stem() {
+    let root = PathBuf::from("/data/_run-adhoc");
+    let resolved = resolve_adhoc_prefix_path(&root, Path::new("/x/Setup Wizard.exe"), "abc123");
+
+    assert_eq!(resolved, root.join("setup-wizard-abc123"));
 }
 
 #[test]

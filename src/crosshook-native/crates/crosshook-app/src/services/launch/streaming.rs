@@ -1,31 +1,26 @@
 //! Child stdio tee into the launch log and the log-follow driver (Task 2.3).
 //!
 //! One streaming path serves both spawn modes. When the child's stdout or
-//! stderr is piped, a lossy byte tee drains both pipes into the log file
-//! (one writer task, bounded channel, [`PARTIAL_CAP`]-bounded reads) so a
-//! pipe is never left undrained — even on invalid UTF-8, where the old
-//! line-based reader used to stop (D7). Whether or not a tee is needed,
-//! [`follow`] tails the log file and delivers coalesced [`LogBatch`]es to the
-//! sink, replacing the 500 ms whole-file re-read (D3). Neither path ever
-//! kills the child: it exits on its own, or not at all.
+//! stderr is piped, the shared lossy byte tee
+//! ([`spawn_pipe_tee`], `services/process/tee.rs`) drains both pipes into the
+//! log file (one writer task, bounded channel,
+//! [`PARTIAL_CAP`](crate::log_tail::PARTIAL_CAP)-bounded reads) so a pipe is
+//! never left undrained — even on invalid UTF-8, where the old line-based
+//! reader used to stop (D7). Whether or not a tee is needed, [`follow`] tails
+//! the log file and delivers coalesced [`LogBatch`]es to the sink, replacing
+//! the 500 ms whole-file re-read (D3). Neither path ever kills the child: it
+//! exits on its own, or not at all.
 
 use std::io;
 use std::path::Path;
 use std::process::ExitStatus;
 
-use tokio::fs::OpenOptions;
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
 use tokio::process::Child;
-use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use super::types::EventPublisher;
-use crate::log_tail::{follow, LogBatch, TailConfig, PARTIAL_CAP};
-
-/// Pipe-reader buffer budget and channel capacity, shared by both readers.
-const PIPE_BUF_CAPACITY: usize = 8 * 1024;
-/// Bounded chunks in flight between the pipe readers and the single writer.
-const PIPE_CHANNEL_CAPACITY: usize = 256;
+use crate::log_tail::{follow, LogBatch, TailConfig};
+use crate::services::process::tee::spawn_pipe_tee;
 
 /// Streams `child`'s output into `log_path` and to `sink`, then returns the
 /// exit status.
@@ -33,7 +28,7 @@ const PIPE_CHANNEL_CAPACITY: usize = 256;
 /// If `child.stdout` or `child.stderr` is piped, one reader per pipe drains
 /// raw bytes (decoding is deferred and lossy) and a single writer appends the
 /// chunks to `log_path` in arrival order, so both streams interleave as one
-/// log. Reads are bounded to [`PARTIAL_CAP`] and forwarded byte-exact, so
+/// log. Reads are bounded to [`PARTIAL_CAP`](crate::log_tail::PARTIAL_CAP) and forwarded byte-exact, so
 /// even a newline-free stream flows in capped pieces; a write failure stops
 /// file writes but never the draining, so the child can never stall on a
 /// full pipe. In every mode [`follow`] runs concurrently, delivering
@@ -110,118 +105,6 @@ pub(super) async fn stream_session(
         Err(error) => {
             tracing::warn!(%error, "launch log streaming failed; exit status unknown");
             None
-        }
-    }
-}
-
-/// The running pipe tee: join handles of the per-pipe readers plus the single
-/// log writer. `finish` waits for every reader to hit EOF, then drains and
-/// flushes the writer.
-struct PipeTee {
-    readers: Vec<tokio::task::JoinHandle<()>>,
-    writer: tokio::task::JoinHandle<()>,
-}
-
-impl PipeTee {
-    /// Waits out the tee: readers to EOF, writer drained and flushed. Failures
-    /// are logged; the tee must never make a launch fail.
-    async fn finish(self) {
-        for reader in self.readers {
-            if let Err(error) = reader.await {
-                tracing::warn!(%error, "launch log pipe reader task failed");
-            }
-        }
-        if let Err(error) = self.writer.await {
-            tracing::warn!(%error, "launch log writer task failed");
-        }
-    }
-}
-
-/// Spawns one reader per piped stream plus the single append-mode writer, and
-/// returns the running tee.
-async fn spawn_pipe_tee(child: &mut Child, log_path: &Path) -> PipeTee {
-    let (tx, rx) = mpsc::channel::<Vec<u8>>(PIPE_CHANNEL_CAPACITY);
-    let mut readers = Vec::new();
-    if let Some(stdout) = child.stdout.take() {
-        readers.push(tokio::spawn(pipe_reader(stdout, tx.clone())));
-    }
-    if let Some(stderr) = child.stderr.take() {
-        readers.push(tokio::spawn(pipe_reader(stderr, tx.clone())));
-    }
-    drop(tx);
-    let writer = tokio::spawn(log_writer(log_path.to_path_buf(), rx));
-    PipeTee { readers, writer }
-}
-
-/// Drains one pipe into `tx` until EOF.
-///
-/// Each read is bounded to [`PARTIAL_CAP`] bytes via `take`, so a
-/// newline-free stream is forwarded as capped raw pieces instead of being
-/// buffered whole in memory. Pieces are written through byte-exact — no
-/// separator is inserted — and decoding plus partial-line capping are
-/// deferred to the writer and the tail, both of which are lossy, so invalid
-/// UTF-8 never stops the drain (D7). The child is never killed; if the
-/// channel closes, draining continues to EOF without sending.
-async fn pipe_reader<R>(pipe: R, tx: mpsc::Sender<Vec<u8>>)
-where
-    R: tokio::io::AsyncRead + Unpin + Send + 'static,
-{
-    let mut pipe = tokio::io::BufReader::with_capacity(PIPE_BUF_CAPACITY, pipe);
-    let mut chunk: Vec<u8> = Vec::with_capacity(PIPE_BUF_CAPACITY);
-    let mut dead = false;
-    loop {
-        chunk.clear();
-        match (&mut pipe)
-            .take(PARTIAL_CAP as u64)
-            .read_until(b'\n', &mut chunk)
-            .await
-        {
-            Ok(0) => return,
-            Ok(_) => {
-                if dead || chunk.is_empty() {
-                    continue;
-                }
-                if tx.send(std::mem::take(&mut chunk)).await.is_err() {
-                    // Writer gone: keep draining to EOF so the child never
-                    // blocks on a full pipe, just stop sending.
-                    dead = true;
-                }
-            }
-            Err(error) => {
-                // The pipe is unreadable from here on; the tee for this
-                // stream ends, so say so instead of silently losing output.
-                tracing::warn!(%error, "launch log pipe read failed; this stream is no longer teed");
-                return;
-            }
-        }
-    }
-}
-
-/// Appends every received chunk to the log file, in arrival order, until all
-/// senders are gone (readers at EOF); then flushes. Open, write or flush
-/// failures are logged and absorbed: after a write failure the channel is
-/// still drained to the end so the readers are never blocked.
-async fn log_writer(path: std::path::PathBuf, mut rx: mpsc::Receiver<Vec<u8>>) {
-    let mut file = match OpenOptions::new().append(true).open(&path).await {
-        Ok(file) => Some(file),
-        Err(error) => {
-            tracing::warn!(%error, path = %path.display(), "failed to open pipe-backed launch log");
-            None
-        }
-    };
-    while let Some(chunk) = rx.recv().await {
-        if let Some(open) = file.as_mut() {
-            if let Err(error) = open.write_all(&chunk).await {
-                tracing::warn!(%error, path = %path.display(), "failed to append to pipe-backed launch log");
-                file = None;
-            }
-        }
-        // After a write failure the channel is still drained to the end so
-        // the readers — and therefore the child's pipes — never block.
-    }
-    if let Some(mut file) = file {
-        if let Err(error) = file.flush().await {
-            tracing::warn!(%error, path = %path.display(), "failed to flush pipe-backed launch log");
         }
     }
 }

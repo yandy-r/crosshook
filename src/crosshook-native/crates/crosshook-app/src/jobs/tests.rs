@@ -125,6 +125,28 @@ async fn active_key_conflicts_and_is_reusable_after_finished() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn key_is_held_while_running_and_released_after_finished() {
+    let registry = JobRegistry::default();
+    let key = JobKey::new("prefix:/prefixes/held");
+    let other = JobKey::new("prefix:/prefixes/free");
+    assert!(!registry.is_key_held(&key));
+
+    let (release, released) = oneshot::channel::<()>();
+    let mut handle = registry
+        .start(JobSpec::new("held").with_key(key.clone()), |_ctx| async {
+            let _ = released.await;
+            Outcome::Succeeded
+        })
+        .unwrap();
+    assert!(registry.is_key_held(&key));
+    assert!(!registry.is_key_held(&other));
+
+    release.send(()).unwrap();
+    assert_eq!(finished(&mut handle).await, Outcome::Succeeded);
+    assert!(!registry.is_key_held(&key));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn lagging_receiver_gets_dropped_count_then_tail_and_finished() {
     let registry = registry_with(4, 8);
     let (go, wait_go) = oneshot::channel::<()>();

@@ -299,3 +299,33 @@ fn try_remove_dir(prefix_path: &Path) -> bool {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn assert_matches_fixture(value: &RunCommandError, fixture: &str) {
+        let actual = serde_json::to_value(value).expect("serialize RunCommandError");
+        let expected: serde_json::Value =
+            serde_json::from_str(fixture).expect("parse RunCommandError fixture");
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn fixture_run_command_error_validation_wire_shape() {
+        assert_matches_fixture(
+            &RunCommandError::from(RunExecutableValidationError::ExecutablePathMissing),
+            include_str!("fixtures/process/run_command_error_validation.json"),
+        );
+    }
+
+    #[test]
+    fn fixture_run_command_error_runtime_wire_shape() {
+        assert_matches_fixture(
+            &RunCommandError::Runtime {
+                message: "boom".to_string(),
+            },
+            include_str!("fixtures/process/run_command_error_runtime.json"),
+        );
+    }
+}

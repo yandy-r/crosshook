@@ -785,4 +785,50 @@ mod tests {
             "repair_prefix_windows_version"
         );
     }
+
+    fn assert_matches_fixture<T: Serialize>(value: &T, fixture: &str) {
+        let actual = serde_json::to_value(value).expect("serialize payload");
+        let expected: serde_json::Value =
+            serde_json::from_str(fixture).expect("parse payload fixture");
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn fixture_prefix_dep_log_wire_shape() {
+        assert_matches_fixture(
+            &DepLogPayload {
+                profile_name: "p".to_string(),
+                prefix_path: "/raw/prefix".to_string(),
+                line: "l".to_string(),
+            },
+            include_str!("fixtures/process/prefix_dep_log.json"),
+        );
+    }
+
+    #[test]
+    fn fixture_prefix_dep_complete_wire_shape() {
+        let outcome = PrefixDependencyInstallOutcome {
+            install_succeeded: true,
+            install_exit_code: Some(0),
+            install_error: None,
+            restore_state: PrefixVersionRestoreState::Failed,
+            restore_error: Some("e".to_string()),
+        };
+        assert_matches_fixture(
+            &completion_payload("p", "/raw/prefix", outcome),
+            include_str!("fixtures/process/prefix_dep_complete.json"),
+        );
+    }
+
+    #[test]
+    fn fixture_prefix_version_repair_status_wire_shape() {
+        assert_matches_fixture(
+            &PrefixVersionRepairStatus {
+                required: true,
+                state: Some(PrefixVersionRestoreState::Pending),
+                last_error: None,
+            },
+            include_str!("fixtures/process/prefix_version_repair_status.json"),
+        );
+    }
 }

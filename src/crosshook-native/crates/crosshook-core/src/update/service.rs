@@ -2,10 +2,10 @@ use std::path::Path;
 
 use tokio::process::Command;
 
+use crate::launch::runtime_helpers::proton_command::build_direct_proton_command_lifecycle_with;
 use crate::launch::runtime_helpers::{
-    apply_working_directory, attach_log_stdio,
-    build_direct_proton_command_with_wrappers_in_directory, host_environment_map,
-    merge_runtime_proton_into_map, resolve_effective_working_directory,
+    apply_working_directory, attach_log_stdio, host_environment_map, merge_runtime_proton_into_map,
+    resolve_effective_working_directory,
 };
 use crate::platform::{
     normalize_flatpak_host_path, normalized_path_is_dir, normalized_path_is_executable_file,
@@ -26,10 +26,18 @@ pub fn validate_update_request(
     Ok(())
 }
 
-pub fn build_update_command(
-    request: &UpdateGameRequest,
-    log_path: &Path,
-) -> Result<Command, UpdateGameError> {
+/// Builds the lifecycle-bound updater command (`<proton> run <updater>`).
+///
+/// No stdio is attached; the caller owns stdio, process group, spawn and
+/// supervision.
+pub fn build_update_command(request: &UpdateGameRequest) -> Result<Command, UpdateGameError> {
+    Ok(build_update_command_with(
+        request,
+        crate::platform::is_flatpak(),
+    ))
+}
+
+fn build_update_command_with(request: &UpdateGameRequest, flatpak: bool) -> Command {
     let normalized_updater_path = normalize_flatpak_host_path(&request.updater_path);
     let mut env = host_environment_map();
     merge_runtime_proton_into_map(
@@ -39,25 +47,17 @@ pub fn build_update_command(
     );
     let effective_working_directory =
         resolve_effective_working_directory("", Path::new(normalized_updater_path.trim()));
-    let mut command = build_direct_proton_command_with_wrappers_in_directory(
+    let mut command = build_direct_proton_command_lifecycle_with(
         request.proton_path.trim(),
-        &[],
         &env,
         effective_working_directory.as_deref(),
-        &std::collections::BTreeMap::new(),
-        false,
+        flatpak,
     );
     command.arg(normalized_updater_path.trim());
-    if !crate::platform::is_flatpak() {
+    if !flatpak {
         apply_working_directory(&mut command, "", Path::new(normalized_updater_path.trim()));
     }
-    attach_log_stdio(&mut command, log_path).map_err(|error| {
-        UpdateGameError::LogAttachmentFailed {
-            path: log_path.to_path_buf(),
-            message: error.to_string(),
-        }
-    })?;
-    Ok(command)
+    command
 }
 
 pub fn update_game(
@@ -66,7 +66,13 @@ pub fn update_game(
 ) -> Result<(UpdateGameResult, tokio::process::Child), UpdateGameError> {
     validate_update_request(request)?;
 
-    let mut command = build_update_command(request, log_path)?;
+    let mut command = build_update_command(request)?;
+    attach_log_stdio(&mut command, log_path).map_err(|error| {
+        UpdateGameError::LogAttachmentFailed {
+            path: log_path.to_path_buf(),
+            message: error.to_string(),
+        }
+    })?;
     let child = command
         .spawn()
         .map_err(|error| UpdateGameError::UpdaterSpawnFailed {
@@ -335,10 +341,7 @@ mod tests {
     fn build_update_command_constructs_command_with_correct_proton_path() {
         let temp_dir = tempdir().expect("temp dir");
         let request = valid_request(temp_dir.path());
-        let log_path = temp_dir.path().join("test.log");
-        std::fs::File::create(&log_path).unwrap();
-
-        let command = build_update_command(&request, &log_path).unwrap();
+        let command = build_update_command(&request).unwrap();
         let debug_output = format!("{command:?}");
 
         // The command should reference the proton binary
@@ -356,10 +359,7 @@ mod tests {
         let normalized_updater_path = request.updater_path.clone();
         request.proton_path = format!("/run/host{}", request.proton_path);
         request.updater_path = format!("/run/host{}", request.updater_path);
-        let log_path = temp_dir.path().join("test-flatpak.log");
-        std::fs::File::create(&log_path).unwrap();
-
-        let command = build_update_command(&request, &log_path).unwrap();
+        let command = build_update_command(&request).unwrap();
         let debug_output = format!("{command:?}");
 
         assert!(
@@ -374,6 +374,76 @@ mod tests {
             !debug_output.contains("/run/host"),
             "Command should not retain the Flatpak host prefix, got: {debug_output}"
         );
+    }
+
+    fn command_argv(command: &Command) -> Vec<String> {
+        let std_command = command.as_std();
+        std::iter::once(std_command.get_program())
+            .chain(std_command.get_args())
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect()
+    }
+
+    #[test]
+    fn build_update_command_flatpak_argv_is_lifecycle_bound_proton_run() {
+        let temp_dir = tempdir().expect("temp dir");
+        let request = valid_request(temp_dir.path());
+
+        let command = build_update_command_with(&request, true);
+        let argv = command_argv(&command);
+
+        assert_eq!(
+            &argv[..4],
+            ["flatpak-spawn", "--host", "--watch-bus", "--clear-env"]
+        );
+        let expected_directory = format!("--directory={}", temp_dir.path().display());
+        assert!(
+            argv.contains(&expected_directory),
+            "expected {expected_directory} in {argv:?}"
+        );
+        let expected_prefix_env = format!(
+            "--env=WINEPREFIX={}",
+            crate::launch::runtime_helpers::resolve_wine_prefix_path(Path::new(
+                &request.prefix_path
+            ))
+            .display()
+        );
+        assert!(
+            argv.contains(&expected_prefix_env),
+            "expected {expected_prefix_env} in {argv:?}"
+        );
+        assert_eq!(
+            &argv[argv.len() - 3..],
+            [
+                request.proton_path.as_str(),
+                "run",
+                request.updater_path.as_str()
+            ]
+        );
+        assert!(command.as_std().get_current_dir().is_none());
+    }
+
+    #[test]
+    fn build_update_command_native_runs_proton_in_updater_directory() {
+        let temp_dir = tempdir().expect("temp dir");
+        let request = valid_request(temp_dir.path());
+
+        let command = build_update_command_with(&request, false);
+
+        assert_eq!(
+            command_argv(&command),
+            [
+                request.proton_path.as_str(),
+                "run",
+                request.updater_path.as_str()
+            ]
+        );
+        assert_eq!(command.as_std().get_current_dir(), Some(temp_dir.path()));
+        let has_prefix_env = command
+            .as_std()
+            .get_envs()
+            .any(|(key, value)| key == std::ffi::OsStr::new("WINEPREFIX") && value.is_some());
+        assert!(has_prefix_env, "native command must carry WINEPREFIX");
     }
 
     #[test]

@@ -31,6 +31,15 @@ impl MetadataStore {
         })
     }
 
+    /// Read-only listing of every prefix version restore journal row, ordered by prefix path.
+    pub fn list_prefix_version_restores(
+        &self,
+    ) -> Result<Vec<PrefixVersionRestoreJournalRow>, MetadataStoreError> {
+        self.with_sqlite_conn("list prefix version restores", |conn| {
+            prefix_version_restore_store::list_restores(conn)
+        })
+    }
+
     pub fn mark_prefix_version_restore_failed(
         &self,
         prefix_path: &str,

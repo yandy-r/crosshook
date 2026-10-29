@@ -1,41 +1,51 @@
 //! Tests for child supervision and the moved process helpers.
 
-use std::io;
+use std::io::Write;
+use std::os::unix::fs::PermissionsExt;
 use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
 use std::process::Stdio;
 use std::time::{Duration, Instant};
+use std::{fs, io};
 
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::{Child, Command};
+use tokio::process::{Child, ChildStdout, Command};
 use tokio_util::sync::CancellationToken;
 
+use super::sweep::environ_entry_contains_prefix_path;
 use super::{
-    create_log_path, create_log_path_in, environ_entry_contains_prefix_path, slugify_target,
-    supervise_child, ChildExit, LOG_DIR,
+    create_log_file_in, create_log_path, create_log_path_in, processes_using_prefix,
+    slugify_target, supervise_child, supervise_child_with_kill, ChildExit, LOG_DIR,
 };
 
 const GRACE: Duration = Duration::from_millis(200);
+/// A grace no kill-path test may wait out.
+const LONG_GRACE: Duration = Duration::from_secs(60);
+/// Upper bound for every await that must not hang.
+const TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Spawns `sh -c script` in its own process group and waits until the script
-/// prints its first line, so signal dispositions are installed before cancel.
-async fn spawn_ready(script: &str) -> Child {
-    let mut child = Command::new("sh")
-        .arg("-c")
-        .arg(script)
+/// Spawns `command` (which must print `ready` first) in its own process group
+/// and returns it with its stdout reader positioned after the `ready` line.
+async fn spawn_ready_command(mut command: Command) -> (Child, BufReader<ChildStdout>) {
+    let mut child = command
         .stdout(Stdio::piped())
         .process_group(0)
         .kill_on_drop(true)
         .spawn()
-        .expect("spawn sh");
-    let stdout = child.stdout.take().expect("piped stdout");
+        .expect("spawn ready command");
+    let mut stdout = BufReader::new(child.stdout.take().expect("piped stdout"));
     let mut line = String::new();
-    BufReader::new(stdout)
-        .read_line(&mut line)
-        .await
-        .expect("read ready line");
+    stdout.read_line(&mut line).await.expect("read ready line");
     assert_eq!(line.trim(), "ready");
-    child
+    (child, stdout)
+}
+
+/// Spawns `sh -c script` in its own process group and waits until the script
+/// prints its first line, so signal dispositions are installed before cancel.
+async fn spawn_ready(script: &str) -> Child {
+    let mut command = Command::new("sh");
+    command.arg("-c").arg(script);
+    spawn_ready_command(command).await.0
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -281,4 +291,108 @@ fn create_log_path_in_never_truncates_an_existing_same_millisecond_file() {
         "the first session's log is never truncated"
     );
     assert!(second.is_file());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn kill_sigkills_group_without_waiting_for_grace() {
+    // Ignores SIGTERM: only SIGKILL can end it.
+    let child = spawn_ready("trap '' TERM; echo ready; sleep 30").await;
+    let cancel = CancellationToken::new();
+    let kill = CancellationToken::new();
+    kill.cancel();
+    let exit = tokio::time::timeout(
+        TIMEOUT,
+        supervise_child_with_kill(child, &cancel, &kill, LONG_GRACE),
+    )
+    .await
+    .expect("kill must not wait out the grace")
+    .unwrap();
+    assert!(matches!(exit, ChildExit::Killed(_)), "{exit:?}");
+    assert_eq!(exit.status().signal(), Some(libc_sigkill()));
+    assert!(exit.was_cancelled());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn kill_during_term_grace_sigkills_immediately() {
+    // The handler survives SIGTERM and reports it, so the test knows the
+    // supervisor is inside the TERM grace before firing `kill`. The builtin
+    // `read` (stdin held open by the child handle) lets the shell run the
+    // trap at once; a foreground external command would defer it.
+    let mut command = Command::new("sh");
+    command
+        .arg("-c")
+        .arg("trap 'echo term' TERM; echo ready; while :; do read line; done")
+        .stdin(Stdio::piped());
+    let (child, mut stdout) = spawn_ready_command(command).await;
+    let cancel = CancellationToken::new();
+    let kill = CancellationToken::new();
+    let supervision = {
+        let (cancel, kill) = (cancel.clone(), kill.clone());
+        tokio::spawn(
+            async move { supervise_child_with_kill(child, &cancel, &kill, LONG_GRACE).await },
+        )
+    };
+    cancel.cancel();
+    let mut line = String::new();
+    tokio::time::timeout(TIMEOUT, stdout.read_line(&mut line))
+        .await
+        .expect("SIGTERM reaches the group")
+        .expect("read term line");
+    assert_eq!(line.trim(), "term");
+    assert!(!supervision.is_finished(), "grace must still be running");
+
+    kill.cancel();
+    let exit = tokio::time::timeout(TIMEOUT, supervision)
+        .await
+        .expect("kill must cut the grace short")
+        .expect("supervision task")
+        .unwrap();
+    assert!(matches!(exit, ChildExit::Killed(_)), "{exit:?}");
+    assert_eq!(exit.status().signal(), Some(libc_sigkill()));
+}
+
+#[test]
+fn create_log_file_in_is_owner_only_and_writes_through_the_handle() {
+    let dir = tempfile::tempdir().unwrap();
+    let (path, mut file) =
+        create_log_file_in(dir.path().to_path_buf(), "run", "tool").expect("log file");
+
+    assert_eq!(path.parent(), Some(dir.path()));
+    let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o600, "log file mode is {mode:o}");
+
+    // Child stdio is attached to clones of the returned handle.
+    let mut clone = file.try_clone().expect("clone handle");
+    file.write_all(b"first\n").unwrap();
+    clone.write_all(b"second\n").unwrap();
+    drop((file, clone));
+    assert_eq!(fs::read_to_string(&path).unwrap(), "first\nsecond\n");
+}
+
+/// Spawns `env X=<value> sh` blocked on `read`, so its environ is stable.
+async fn spawn_with_env_x(value: &Path) -> Child {
+    let mut command = Command::new("env");
+    command
+        .arg(format!("X={}", value.display()))
+        .arg("sh")
+        .arg("-c")
+        .arg("echo ready; read line")
+        .stdin(Stdio::piped());
+    spawn_ready_command(command).await.0
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn processes_using_prefix_matches_only_at_a_path_boundary() {
+    let dir = tempfile::tempdir().unwrap();
+    let prefix = dir.path().join("p");
+    let user = spawn_with_env_x(&prefix).await;
+    let sibling = spawn_with_env_x(&dir.path().join("p-other")).await;
+    let user_pid = user.id().expect("user pid");
+    let sibling_pid = sibling.id().expect("sibling pid");
+
+    let pids = processes_using_prefix(&prefix);
+
+    assert!(pids.contains(&user_pid), "{user_pid} not in {pids:?}");
+    assert!(!pids.contains(&sibling_pid), "{sibling_pid} in {pids:?}");
+    assert!(processes_using_prefix(Path::new("")).is_empty());
 }
