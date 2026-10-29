@@ -27,6 +27,7 @@ import { registerProfile, resetProfileMockState } from './handlers/profile';
 import { registerProton } from './handlers/proton';
 import { registerProtonDb, resetProtonDbMockState } from './handlers/protondb';
 import { registerProtonUp, resetProtonUpMockState } from './handlers/protonup';
+import { registerRunExecutable, resetRunExecutableMockState } from './handlers/run_executable';
 import { registerStartup } from './handlers/startup';
 import { registerSystem, resetSystemMockState } from './handlers/system';
 import type { Handler } from './handlers/types';
@@ -59,6 +60,7 @@ export function registerMocks(): Map<string, Handler> {
   registerLauncher(map);
   registerLibrary(map);
   registerSystem(map);
+  registerRunExecutable(map);
   registerCollections(map);
   registerMods(map);
   registerUmuDatabase(map);
@@ -84,6 +86,7 @@ export function resetMockEnvironment(): void {
   resetProfileMockState();
   resetProtonDbMockState();
   resetProtonUpMockState();
+  resetRunExecutableMockState();
   resetSystemMockState();
   resetUpdateMockState();
   resetWrappedHandlerState();

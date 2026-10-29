@@ -10,6 +10,8 @@ export interface UpdateGameResult {
   succeeded: boolean;
   message: string;
   helper_log_path: string;
+  /** Job id of the updater run. */
+  run_id: string;
 }
 
 export type UpdateGameValidationError =

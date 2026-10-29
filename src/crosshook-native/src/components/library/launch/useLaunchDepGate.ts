@@ -117,6 +117,8 @@ export function useLaunchDepGate({
       required: true,
       state: 'failed',
       last_error: `Unable to verify prefix repair status: ${normalizeError(error)}`,
+      in_progress: false,
+      last_recovery: null,
     };
   }, []);
 
@@ -166,6 +168,8 @@ export function useLaunchDepGate({
             required: true,
             state: 'failed',
             last_error: event.payload.restore_error,
+            in_progress: false,
+            last_recovery: null,
           });
           return;
         }
@@ -361,6 +365,8 @@ export function useLaunchDepGate({
         required: true,
         state: 'failed',
         last_error: normalizeError(error),
+        in_progress: false,
+        last_recovery: null,
       });
     } finally {
       if (isOperationCurrent(operation)) setDepGateRepairing(false);

@@ -7,6 +7,8 @@ const NO_REPAIR_REQUIRED: PrefixVersionRepairStatus = {
   required: false,
   state: null,
   last_error: null,
+  in_progress: false,
+  last_recovery: null,
 };
 
 export interface UsePrefixDepsResult {

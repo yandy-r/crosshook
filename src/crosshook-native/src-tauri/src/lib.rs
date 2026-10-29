@@ -5,7 +5,9 @@ mod startup_bridge;
 
 pub use crosshook_app::services::{BackgroundGrantHolder, BackgroundProtectionState};
 
-use crosshook_app::bootstrap::{pre_runtime, BootstrapOptions, PreRuntimeOptions, UmuRefresh};
+use crosshook_app::bootstrap::{
+    pre_runtime, BootstrapOptions, PreRuntimeOptions, PrefixJournalRecovery, UmuRefresh,
+};
 use crosshook_app::App;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -16,14 +18,22 @@ pub fn run() {
             Ok(pre) => pre,
             Err(error) => fatal::show_and_exit(context, error),
         };
+    let bench = commands::bench::bench_enabled();
     let options = BootstrapOptions::new()
         .with_runtime_handle(tauri::async_runtime::handle().inner().clone())
-        .with_umu_refresh(if commands::bench::bench_enabled() {
+        .with_umu_refresh(if bench {
             UmuRefresh::Skip {
                 reason: "CROSSHOOK_BENCH=1",
             }
         } else {
             UmuRefresh::Enabled
+        })
+        .with_prefix_journal_recovery(if bench {
+            PrefixJournalRecovery::Skip {
+                reason: "CROSSHOOK_BENCH=1",
+            }
+        } else {
+            PrefixJournalRecovery::Enabled
         });
     let (core, _) = match App::bootstrap(pre, options) {
         Ok(result) => result,
@@ -63,14 +73,15 @@ pub fn run() {
         .manage(services.protonup.clone())
         .manage(services.proton_migration.clone())
         .manage(services.umu.clone())
+        .manage(services.install.clone())
+        .manage(services.update.clone())
+        .manage(services.run_executable.clone())
+        .manage(services.prefix_deps.clone())
         .manage(core.clone())
         .setup(move |app| {
             startup_bridge::spawn(app.handle().clone(), core.startup(), startup_events);
             Ok(())
         })
-        .manage(commands::update::UpdateProcessState::new())
-        .manage(commands::run_executable::RunExecutableProcessState::new())
-        .manage(commands::prefix_deps::PrefixDepsInstallState::new())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())

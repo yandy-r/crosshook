@@ -48,16 +48,13 @@ impl<C: Send + 'static> ProcessRun<C> {
     /// job is reaped before `Finished` is returned.
     pub async fn next(&mut self) -> Option<RunEvent<C>> {
         let events = self.events.as_mut()?;
-        loop {
-            match events.recv().await {
-                Some(event) => match event.kind {
-                    JobEventKind::Log(batch) => return Some(RunEvent::Log(batch)),
-                    JobEventKind::Progress(_) => {}
-                    JobEventKind::Finished(_) => break,
-                },
-                // The registry always publishes `Finished` before closing;
-                // treat an early close the same way.
-                None => break,
+        // The registry always publishes `Finished` before closing; an early
+        // close (`None`) is treated the same way.
+        while let Some(event) = events.recv().await {
+            match event.kind {
+                JobEventKind::Log(batch) => return Some(RunEvent::Log(batch)),
+                JobEventKind::Progress(_) => {}
+                JobEventKind::Finished(_) => break,
             }
         }
         self.events = None;

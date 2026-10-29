@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { subscribeEvent } from '@/lib/events';
 import { usePrefixDeps } from '../hooks/usePrefixDeps';
-import type { DepState, PrefixDepCompletePayload, PrefixDependencyStatus } from '../types/prefix-deps';
+import type {
+  DepState,
+  PrefixDepCompletePayload,
+  PrefixDependencyStatus,
+  PrefixVersionRepairStatus,
+} from '../types/prefix-deps';
 
 interface PrefixDepsPanelProps {
   profileName: string;
@@ -55,6 +60,18 @@ function DependencyStatusBadge({ dep }: { dep: PrefixDependencyStatus }) {
   );
 }
 
+/** Non-blocking note shown after CrossHook automatically restored the prefix. */
+function RecoveryRestoredNote({ repairStatus }: { repairStatus: PrefixVersionRepairStatus }) {
+  if (repairStatus.required || repairStatus.last_recovery?.outcome !== 'restored') {
+    return null;
+  }
+  return (
+    <p className="crosshook-help-text" role="status">
+      CrossHook restored this prefix&apos;s Windows compatibility version after an interrupted dependency install.
+    </p>
+  );
+}
+
 export function PrefixDepsPanel({ profileName, prefixPath, requiredPackages }: PrefixDepsPanelProps) {
   const {
     deps,
@@ -92,6 +109,9 @@ export function PrefixDepsPanel({ profileName, prefixPath, requiredPackages }: P
     .map((d) => d.package_name);
   const dependencyActionsBlocked =
     repairStatus.required || repairing || !repairStatusKnown || repairStatusError !== null;
+  // A held prefix job (install, repair or recovery) keeps a pending row by design;
+  // it is not a repair request until the job finishes.
+  const repairBannerVisible = repairStatus.required && !repairStatus.in_progress;
 
   // Listen for install events
   useEffect(() => {
@@ -167,6 +187,7 @@ export function PrefixDepsPanel({ profileName, prefixPath, requiredPackages }: P
         <p className="crosshook-help-text" role="status">
           No prefix dependencies are declared for this profile.
         </p>
+        <RecoveryRestoredNote repairStatus={repairStatus} />
         {error ? (
           <p className="crosshook-danger" role="alert" aria-live="assertive">
             {error}
@@ -178,7 +199,8 @@ export function PrefixDepsPanel({ profileName, prefixPath, requiredPackages }: P
 
   return (
     <section aria-label="Prefix dependencies" className="crosshook-prefix-deps">
-      {repairStatus.required ? (
+      <RecoveryRestoredNote repairStatus={repairStatus} />
+      {repairBannerVisible ? (
         <div className="crosshook-error-banner" role="alert" aria-live="assertive">
           <strong>Prefix repair required</strong>
           <p>

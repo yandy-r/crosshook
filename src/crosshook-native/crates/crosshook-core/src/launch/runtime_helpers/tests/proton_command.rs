@@ -302,31 +302,34 @@ fn flatpak_gamescope_pid_capture_command_creates_parent_directory_on_host() {
 
 fn command_args(command: &tokio::process::Command) -> Vec<String> {
     command
-	.as_std()
-	.get_args()
-	.map(|arg| arg.to_string_lossy().into_owned())
-	.collect()
+        .as_std()
+        .get_args()
+        .map(|arg| arg.to_string_lossy().into_owned())
+        .collect()
 }
 
 fn command_envs(command: &tokio::process::Command) -> BTreeMap<String, String> {
     command
-	.as_std()
-	.get_envs()
-	.filter_map(|(key, value)| {
-	    value.map(|value| {
-		(
-		    key.to_string_lossy().into_owned(),
-		    value.to_string_lossy().into_owned(),
-		)
-	    })
-	})
-	.collect()
+        .as_std()
+        .get_envs()
+        .filter_map(|(key, value)| {
+            value.map(|value| {
+                (
+                    key.to_string_lossy().into_owned(),
+                    value.to_string_lossy().into_owned(),
+                )
+            })
+        })
+        .collect()
 }
 
 fn lifecycle_env() -> BTreeMap<String, String> {
     BTreeMap::from([
-	("STEAM_COMPAT_DATA_PATH".to_string(), "/games/compat".to_string()),
-	("WINEPREFIX".to_string(), "/games/compat/pfx".to_string()),
+        (
+            "STEAM_COMPAT_DATA_PATH".to_string(),
+            "/games/compat".to_string(),
+        ),
+        ("WINEPREFIX".to_string(), "/games/compat/pfx".to_string()),
     ])
 }
 
@@ -334,24 +337,24 @@ fn lifecycle_env() -> BTreeMap<String, String> {
 fn lifecycle_proton_command_flatpak_watches_bus_and_ends_with_proton_run() {
     let env = lifecycle_env();
     let command = build_direct_proton_command_lifecycle_with(
-	" /run/host/usr/share/steam/compatibilitytools.d/proton/proton ",
-	&env,
-	None,
-	true,
+        " /run/host/usr/share/steam/compatibilitytools.d/proton/proton ",
+        &env,
+        None,
+        true,
     );
 
     assert_eq!(command.as_std().get_program(), "flatpak-spawn");
     assert_eq!(
-	command_args(&command),
-	vec![
-	    "--host".to_string(),
-	    "--watch-bus".to_string(),
-	    "--clear-env".to_string(),
-	    "--env=STEAM_COMPAT_DATA_PATH=/games/compat".to_string(),
-	    "--env=WINEPREFIX=/games/compat/pfx".to_string(),
-	    "/usr/share/steam/compatibilitytools.d/proton/proton".to_string(),
-	    "run".to_string(),
-	]
+        command_args(&command),
+        vec![
+            "--host".to_string(),
+            "--watch-bus".to_string(),
+            "--clear-env".to_string(),
+            "--env=STEAM_COMPAT_DATA_PATH=/games/compat".to_string(),
+            "--env=WINEPREFIX=/games/compat/pfx".to_string(),
+            "/usr/share/steam/compatibilitytools.d/proton/proton".to_string(),
+            "run".to_string(),
+        ]
     );
     assert!(command_envs(&command).is_empty());
 }
@@ -360,25 +363,25 @@ fn lifecycle_proton_command_flatpak_watches_bus_and_ends_with_proton_run() {
 fn lifecycle_proton_command_flatpak_passes_directory_before_env() {
     let env = lifecycle_env();
     let command = build_direct_proton_command_lifecycle_with(
-	"/opt/proton/proton",
-	&env,
-	Some("/run/host/mnt/games/Installer Dir"),
-	true,
+        "/opt/proton/proton",
+        &env,
+        Some("/run/host/mnt/games/Installer Dir"),
+        true,
     );
 
     let args = command_args(&command);
     assert_eq!(
-	&args[..4],
-	&[
-	    "--host".to_string(),
-	    "--watch-bus".to_string(),
-	    "--clear-env".to_string(),
-	    "--directory=/mnt/games/Installer Dir".to_string(),
-	]
+        &args[..4],
+        &[
+            "--host".to_string(),
+            "--watch-bus".to_string(),
+            "--clear-env".to_string(),
+            "--directory=/mnt/games/Installer Dir".to_string(),
+        ]
     );
     assert_eq!(
-	&args[args.len() - 2..],
-	&["/opt/proton/proton".to_string(), "run".to_string()]
+        &args[args.len() - 2..],
+        &["/opt/proton/proton".to_string(), "run".to_string()]
     );
 }
 
@@ -386,7 +389,7 @@ fn lifecycle_proton_command_flatpak_passes_directory_before_env() {
 fn lifecycle_proton_command_native_runs_proton_with_env_applied() {
     let env = lifecycle_env();
     let command =
-	build_direct_proton_command_lifecycle_with("/opt/proton/proton", &env, None, false);
+        build_direct_proton_command_lifecycle_with("/opt/proton/proton", &env, None, false);
 
     assert_eq!(command.as_std().get_program(), "/opt/proton/proton");
     assert_eq!(command_args(&command), vec!["run".to_string()]);
@@ -398,25 +401,25 @@ fn lifecycle_proton_command_native_runs_proton_with_env_applied() {
 fn lifecycle_proton_command_native_sets_working_directory() {
     let env = lifecycle_env();
     let command = build_direct_proton_command_lifecycle_with(
-	"/opt/proton/proton",
-	&env,
-	Some(" /tmp/installer "),
-	false,
+        "/opt/proton/proton",
+        &env,
+        Some(" /tmp/installer "),
+        false,
     );
 
     assert_eq!(command_args(&command), vec!["run".to_string()]);
     assert_eq!(
-	command.as_std().get_current_dir(),
-	Some(Path::new("/tmp/installer"))
+        command.as_std().get_current_dir(),
+        Some(Path::new("/tmp/installer"))
     );
 }
 
 #[test]
 fn lifecycle_proton_command_public_builder_ends_with_proton_run() {
     let command = crate::launch::runtime_helpers::build_direct_proton_command_lifecycle(
-	"/opt/proton/proton",
-	&BTreeMap::new(),
-	None,
+        "/opt/proton/proton",
+        &BTreeMap::new(),
+        None,
     );
 
     let args = command_args(&command);

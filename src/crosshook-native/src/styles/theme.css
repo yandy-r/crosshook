@@ -1921,6 +1921,32 @@ textarea {
   padding-inline: 10px;
 }
 
+.crosshook-process-log {
+  margin-top: 12px;
+  border: 1px solid var(--crosshook-color-border-strong);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.crosshook-process-log__header {
+  padding: 6px 10px;
+  background: var(--crosshook-color-bg-elevated);
+  border-bottom: 1px solid var(--crosshook-color-border-strong);
+}
+
+.crosshook-process-log__output {
+  padding: 8px 10px;
+  margin: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: var(--crosshook-color-surface-strong);
+}
+
 .crosshook-install-shell__status-badge {
   margin-left: auto;
   display: inline-flex;

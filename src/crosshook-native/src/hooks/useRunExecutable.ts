@@ -4,12 +4,18 @@ import { callCommand } from '@/lib/ipc';
 
 import {
   isRunCommandError,
+  isRunExecutableCompletePayload,
+  isRunExecutableLogPayload,
   type RunCommandError,
+  type RunExecutableCompletePayload,
   type RunExecutableRequest,
   type RunExecutableResult,
   type RunExecutableStage,
   type RunExecutableValidationState,
 } from '../types/run-executable';
+
+/** Maximum number of output lines kept for the live log region. */
+export const RUN_LOG_LINE_CAP = 500;
 
 export interface UseRunExecutableResult {
   request: RunExecutableRequest;
@@ -23,6 +29,8 @@ export interface UseRunExecutableResult {
   actionLabel: string;
   canStart: boolean;
   isRunning: boolean;
+  /** Live output lines of the current run, oldest first, capped at {@link RUN_LOG_LINE_CAP}. */
+  logLines: string[];
   startRun: () => Promise<void>;
   cancelRun: () => Promise<void>;
   stopRun: () => Promise<void>;
@@ -46,14 +54,6 @@ function createEmptyValidationState(): RunExecutableValidationState {
   };
 }
 
-/**
- * Sentinel value distinct from `number | null` so the listener-coordinator
- * holder can tell "completion event has not arrived yet" apart from
- * "completion event arrived with a `null` exit code".
- */
-const NO_EXIT_RECEIVED = Symbol('NO_EXIT_RECEIVED');
-type ExitHolderValue = number | null | typeof NO_EXIT_RECEIVED;
-
 function normalizeUnknownError(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
@@ -70,17 +70,71 @@ function normalizeUnknownError(error: unknown): string {
   return 'An unexpected error occurred.';
 }
 
+/**
+ * Which run's events the hook accepts. `starting` covers the window between
+ * calling `run_executable` and learning its `run_id`: the backend runs at most
+ * one executable at a time, so any event seen then belongs to this run.
+ */
+type RunTracking = { kind: 'idle' } | { kind: 'starting' } | { kind: 'active'; runId: string };
+
+function acceptsRun(tracking: RunTracking, runId: string): boolean {
+  return tracking.kind === 'starting' || (tracking.kind === 'active' && tracking.runId === runId);
+}
+
+function appendCapped(lines: string[], line: string): string[] {
+  const next = [...lines, line];
+  return next.length > RUN_LOG_LINE_CAP ? next.slice(next.length - RUN_LOG_LINE_CAP) : next;
+}
+
+function completionError(payload: RunExecutableCompletePayload): string | null {
+  if (payload.code === 0) {
+    return null;
+  }
+  if (payload.code !== null) {
+    return `Run process exited with code ${payload.code}.`;
+  }
+  if (payload.signal !== null) {
+    return `Run process was terminated by signal ${payload.signal}.`;
+  }
+  return 'Run process ended without an exit status.';
+}
+
 export function useRunExecutable(): UseRunExecutableResult {
   const [request, setRequest] = useState<RunExecutableRequest>(createEmptyRequest);
   const [validation, setValidation] = useState<RunExecutableValidationState>(createEmptyValidationState);
   const [stage, setStage] = useState<RunExecutableStage>('idle');
   const [result, setResult] = useState<RunExecutableResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const unlistenRef = useRef<(() => void) | null>(null);
+  const [logLines, setLogLines] = useState<string[]>([]);
+  const trackingRef = useRef<RunTracking>({ kind: 'idle' });
 
-  const cleanupListener = useCallback(() => {
-    unlistenRef.current?.();
-    unlistenRef.current = null;
+  // One listener pair for the hook's lifetime, filtered by the tracked run.
+  // `run-executable-complete` may arrive before `run_executable` resolves for
+  // a short-lived process; the terminal stage it sets is kept by the
+  // functional update in `startRun`.
+  useEffect(() => {
+    const unlistenLog = subscribeEvent<unknown>('run-executable-log', (event) => {
+      const payload = event.payload;
+      if (!isRunExecutableLogPayload(payload) || !acceptsRun(trackingRef.current, payload.run_id)) {
+        return;
+      }
+      setLogLines((lines) => appendCapped(lines, payload.line));
+    });
+
+    const unlistenComplete = subscribeEvent<unknown>('run-executable-complete', (event) => {
+      const payload = event.payload;
+      if (!isRunExecutableCompletePayload(payload) || !acceptsRun(trackingRef.current, payload.run_id)) {
+        return;
+      }
+      const failure = completionError(payload);
+      setStage(failure === null ? 'complete' : 'failed');
+      setError(failure);
+    });
+
+    return () => {
+      void unlistenLog.then((unlisten) => unlisten());
+      void unlistenComplete.then((unlisten) => unlisten());
+    };
   }, []);
 
   const applyCommandError = useCallback((commandError: RunCommandError) => {
@@ -139,7 +193,8 @@ export function useRunExecutable(): UseRunExecutableResult {
   }, []);
 
   const startRun = useCallback(async () => {
-    cleanupListener();
+    trackingRef.current = { kind: 'idle' };
+    setLogLines([]);
     setValidation(createEmptyValidationState());
     setError(null);
     setResult(null);
@@ -160,53 +215,15 @@ export function useRunExecutable(): UseRunExecutableResult {
       return;
     }
 
-    // Holders coordinate the listener and the invoke resolution. The
-    // backend may emit `run-executable-complete` BEFORE `invoke` resolves
-    // for very short-lived processes; without this dance the listener
-    // would transition to a terminal stage while `result` is still null,
-    // dropping the log path / resolved prefix path from the UI.
-    const exitHolder: { value: ExitHolderValue } = { value: NO_EXIT_RECEIVED };
-    let invokeResolved = false;
-
-    const finalizeFromExitCode = (exitCode: number | null) => {
-      if (exitCode === 0) {
-        setStage('complete');
-      } else if (exitCode === null) {
-        setStage('failed');
-        setError('Run process was terminated by a signal.');
-      } else {
-        setStage('failed');
-        setError(`Run process exited with code ${exitCode}.`);
-      }
-    };
-
+    trackingRef.current = { kind: 'starting' };
     try {
-      // Subscribe to the completion event BEFORE invoking the command
-      // to avoid a race where the process exits before the listener exists.
-      const unlisten = await subscribeEvent<number | null>('run-executable-complete', (event) => {
-        const exitCode = event.payload;
-        exitHolder.value = exitCode;
-        unlistenRef.current = null;
-        unlisten();
-
-        // Defer the terminal-stage transition until invoke has set
-        // `result`. Otherwise the UI shows "Complete" with no log path.
-        if (invokeResolved) {
-          finalizeFromExitCode(exitCode);
-        }
-      });
-      unlistenRef.current = unlisten;
-
       const runResult = await callCommand<RunExecutableResult>('run_executable', { request });
+      trackingRef.current = { kind: 'active', runId: runResult.run_id };
       setResult(runResult);
-      invokeResolved = true;
-
-      if (exitHolder.value !== NO_EXIT_RECEIVED) {
-        finalizeFromExitCode(exitHolder.value);
-      } else {
-        setStage('running');
-      }
+      // Keep a terminal stage set by a completion event that beat the invoke response.
+      setStage((current) => (current === 'preparing' ? 'running' : current));
     } catch (invokeError) {
+      trackingRef.current = { kind: 'idle' };
       setStage('failed');
       if (isRunCommandError(invokeError)) {
         if (invokeError.kind === 'validation') {
@@ -221,25 +238,21 @@ export function useRunExecutable(): UseRunExecutableResult {
       } else {
         setError(normalizeUnknownError(invokeError));
       }
-      cleanupListener();
     }
-  }, [applyCommandError, request, cleanupListener]);
+  }, [applyCommandError, request]);
 
   const reset = useCallback(() => {
     if (stage === 'running' || stage === 'preparing') {
       void cancelRun();
     }
-    cleanupListener();
+    trackingRef.current = { kind: 'idle' };
     setRequest(createEmptyRequest());
     setValidation(createEmptyValidationState());
     setStage('idle');
     setResult(null);
     setError(null);
-  }, [stage, cancelRun, cleanupListener]);
-
-  useEffect(() => {
-    return () => cleanupListener();
-  }, [cleanupListener]);
+    setLogLines([]);
+  }, [stage, cancelRun]);
 
   const statusText = (() => {
     switch (stage) {
@@ -260,11 +273,11 @@ export function useRunExecutable(): UseRunExecutableResult {
   const hintText = (() => {
     switch (stage) {
       case 'running':
-        return 'Check the runtime console for live output.';
+        return 'Live output is shown below.';
       case 'complete':
         return 'The executable finished. Review the log for details.';
       case 'failed':
-        return 'Check the runtime console log for details.';
+        return 'Review the output below and the run log for details.';
       default:
         return '';
     }
@@ -299,6 +312,7 @@ export function useRunExecutable(): UseRunExecutableResult {
     actionLabel,
     canStart,
     isRunning,
+    logLines,
     startRun,
     cancelRun,
     stopRun,

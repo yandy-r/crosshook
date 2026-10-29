@@ -13,6 +13,7 @@ import type { CommandArgumentCatalogPayload, CommandArgumentEntry } from '../../
 import type { HashVerifyResult, OfflineReadinessReport, TrainerTypeEntry } from '../../../types/offline';
 import type {
   BinaryDetectionResult,
+  PrefixDepCompletePayload,
   PrefixDependencyStatus,
   PrefixVersionRepairStatus,
 } from '../../../types/prefix-deps';
@@ -22,10 +23,10 @@ import type {
   PrefixStorageHistoryResponse,
   PrefixStorageScanResult,
 } from '../../../types/prefix-storage';
-import type { RunExecutableResult } from '../../../types/run-executable';
 import type { OptimizationCatalogPayload, OptimizationEntry } from '../../../utils/optimization-catalog';
 import { getActiveFixture } from '../../fixture';
 import { getActiveToggles } from '../../toggles';
+import { emitMockEvent } from '../eventBus';
 import { forcedError, neverResolving } from './profile-utils';
 import type { Handler } from './types';
 
@@ -316,7 +317,20 @@ const MOCK_PREFIX_VERSION_REPAIR_STATUS: PrefixVersionRepairStatus = {
   required: false,
   state: null,
   last_error: null,
+  in_progress: false,
+  last_recovery: null,
 };
+
+const PREFIX_DEP_LINE_INTERVAL_MS = 300;
+const pendingPrefixDepTimers = new Set<number>();
+
+function schedulePrefixDepTimeout(callback: () => void, delayMs: number): void {
+  const id = window.setTimeout(() => {
+    pendingPrefixDepTimers.delete(id);
+    callback();
+  }, delayMs);
+  pendingPrefixDepTimers.add(id);
+}
 
 // --- optimization catalog ---
 
@@ -575,30 +589,6 @@ export function registerSystem(map: Map<string, Handler>): void {
     return structuredClone(externalSources);
   });
 
-  // --- run_executable ---
-
-  map.set('validate_run_executable_request', async (_args): Promise<void> => {
-    console.warn('[dev-mock] validate_run_executable_request: suppressed in browser mode');
-  });
-
-  map.set('run_executable', async (_args): Promise<RunExecutableResult> => {
-    console.warn('[dev-mock] run_executable: suppressed in browser mode — no process spawned');
-    return {
-      succeeded: true,
-      message: '[dev-mock] run_executable: browser stub — no process spawned',
-      helper_log_path: '/mock/logs/run-executable.log',
-      resolved_prefix_path: '/home/devuser/.local/share/crosshook/_run-adhoc/mock-slug',
-    };
-  });
-
-  map.set('cancel_run_executable', async (): Promise<void> => {
-    console.warn('[dev-mock] cancel_run_executable: suppressed in browser mode');
-  });
-
-  map.set('stop_run_executable', async (): Promise<void> => {
-    console.warn('[dev-mock] stop_run_executable: suppressed in browser mode');
-  });
-
   // --- prefix_storage ---
 
   map.set('scan_prefix_storage', async (): Promise<PrefixStorageScanResult> => {
@@ -640,8 +630,40 @@ export function registerSystem(map: Map<string, Handler>): void {
     }));
   });
 
-  map.set('install_prefix_dependency', async (_args): Promise<void> => {
-    console.warn('[dev-mock] install_prefix_dependency: suppressed in browser mode — no install performed');
+  map.set('install_prefix_dependency', async (args): Promise<void> => {
+    const { profileName, prefixPath, packages } = args as {
+      profileName: string;
+      prefixPath: string;
+      packages: string[];
+    };
+    const lines = (packages ?? []).flatMap((pkg) => [
+      `[dev-mock] Executing winetricks ${pkg}`,
+      `[dev-mock] ${pkg} installed`,
+    ]);
+    lines.forEach((line, index) => {
+      schedulePrefixDepTimeout(
+        () => {
+          emitMockEvent('prefix-dep-log', { profile_name: profileName, prefix_path: prefixPath, line });
+        },
+        PREFIX_DEP_LINE_INTERVAL_MS * (index + 1)
+      );
+    });
+    schedulePrefixDepTimeout(
+      () => {
+        const payload: PrefixDepCompletePayload = {
+          profile_name: profileName,
+          prefix_path: prefixPath,
+          succeeded: true,
+          exit_code: 0,
+          install_succeeded: true,
+          install_exit_code: 0,
+          restore_state: 'not_required',
+          restore_error: null,
+        };
+        emitMockEvent('prefix-dep-complete', payload);
+      },
+      PREFIX_DEP_LINE_INTERVAL_MS * (lines.length + 1)
+    );
   });
 
   map.set('get_dependency_status', async (_args): Promise<PrefixDependencyStatus[]> => {
@@ -750,4 +772,8 @@ export function registerSystem(map: Map<string, Handler>): void {
 
 export function resetSystemMockState(): void {
   externalSources = structuredClone(DEFAULT_EXTERNAL_SOURCES);
+  for (const timerId of pendingPrefixDepTimers) {
+    window.clearTimeout(timerId);
+  }
+  pendingPrefixDepTimers.clear();
 }

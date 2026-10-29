@@ -22,11 +22,24 @@ export interface PrefixDependencyStatus {
 /** Persisted recovery state for a prefix Windows-version restoration. */
 export type PrefixVersionRestoreState = 'pending' | 'failed';
 
+/** Outcome of an automatic (startup or pre-install) prefix recovery. */
+export type PrefixRecoveryOutcome = 'restored' | 'failed';
+
+/** Last automatic recovery of a prefix in this session. */
+export interface PrefixLastRecovery {
+  outcome: PrefixRecoveryOutcome;
+  /** Sanitized failure detail; null when restored. */
+  message: string | null;
+}
+
 /** Current repair requirement for a prefix (from IPC). */
 export interface PrefixVersionRepairStatus {
   required: boolean;
   state: PrefixVersionRestoreState | null;
   last_error: string | null;
+  /** A job currently holds this prefix, so a pending row is expected. */
+  in_progress: boolean;
+  last_recovery: PrefixLastRecovery | null;
 }
 
 /** Outcome of the restoration phase that follows dependency installation. */

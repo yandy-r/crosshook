@@ -225,15 +225,10 @@ export function useUpdateGame(): UseUpdateGameResult {
       return;
     }
 
-    // Track whether the completion event arrived before invoke resolved,
-    // so we don't overwrite a terminal stage with 'running_updater'.
-    let completedBeforeInvoke = false;
-
     try {
       // Subscribe to the completion event BEFORE invoking the command
       // to avoid a race where the process exits before the listener exists.
       const unlisten = await subscribeEvent<number | null>('update-complete', (event) => {
-        completedBeforeInvoke = true;
         const exitCode = event.payload;
 
         if (exitCode === 0) {
@@ -254,10 +249,8 @@ export function useUpdateGame(): UseUpdateGameResult {
       const updateResult = await callCommand<UpdateGameResult>('update_game', { request });
       setResult(updateResult);
 
-      // Only transition to 'running_updater' if the process hasn't already exited.
-      if (!completedBeforeInvoke) {
-        setStage('running_updater');
-      }
+      // The process may already have exited; keep a terminal stage.
+      setStage((current) => (current === 'preparing' ? 'running_updater' : current));
     } catch (invokeError) {
       const message = normalizeErrorMessage(invokeError);
       setStage('failed');

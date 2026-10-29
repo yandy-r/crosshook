@@ -138,10 +138,10 @@ pub fn build_direct_proton_command_lifecycle(
     working_directory: Option<&str>,
 ) -> Command {
     build_direct_proton_command_lifecycle_with(
-	proton_path,
-	env,
-	working_directory,
-	platform::is_flatpak(),
+        proton_path,
+        env,
+        working_directory,
+        platform::is_flatpak(),
     )
 }
 
@@ -153,11 +153,11 @@ pub(crate) fn build_direct_proton_command_lifecycle_with(
 ) -> Command {
     let trimmed_proton = normalize_host_command_entry(proton_path);
     let mut command = host_command_with_env_and_directory_lifecycle_inner(
-	trimmed_proton.as_str(),
-	env,
-	working_directory,
-	flatpak,
-	&BTreeMap::new(),
+        trimmed_proton.as_str(),
+        env,
+        working_directory,
+        flatpak,
+        &BTreeMap::new(),
     );
     command.arg("run");
     command

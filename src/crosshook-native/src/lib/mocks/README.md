@@ -23,7 +23,7 @@ lib/mocks/
 │   ├── profile.ts    — profile_* lifecycle + mutations + config history
 │   ├── launch.ts     — launch_*, preview/validate, gamescope session probe
 │   ├── install.ts    — install_game and install-* event sequence
-│   ├── update.ts     — update_game, cancel_update, update-complete event
+│   ├── update.ts     — update_game, cancel_update, update-log + update-complete events
 │   ├── health.ts     — batch_validate_profiles, version status, snapshot cache
 │   ├── onboarding.ts — readiness check, trainer guidance
 │   ├── proton.ts     — Proton install discovery and migrations
@@ -32,12 +32,15 @@ lib/mocks/
 │   ├── community.ts  — community profile index, taps, sync, import/export
 │   ├── launcher.ts   — desktop launcher export, delete, rename, preview
 │   ├── library.ts    — cover art fetch, Steam metadata auto-populate
-│   └── system.ts     — discovery, run-executable, prefix storage/deps,
-│                       diagnostics, optimization catalog, offline readiness
+│   ├── run_executable.ts — run_executable, cancel/stop, run-executable-log +
+│   │                       run-executable-complete events (keyed by run_id)
+│   └── system.ts     — discovery, prefix storage/deps (prefix-dep-log +
+│                       prefix-dep-complete events), diagnostics,
+│                       optimization catalog, offline readiness
 └── README.md         — this file
 ```
 
-**Total commands registered**: ~113 across 14 handler files, covering ~95% of
+**Total commands registered**: ~113 across 15 handler files, covering ~95% of
 the Rust `#[tauri::command]` surface. The uncovered commands (`collection_*`)
 have no frontend callers yet, so they are intentionally not mocked.
 
