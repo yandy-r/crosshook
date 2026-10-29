@@ -1,31 +1,63 @@
 use std::fs;
 use std::path::Path;
+use std::process::ExitStatus;
 use std::time::Duration;
 
 use tempfile::tempdir;
 
 use super::{make_fake_binary, make_install_restore_binary, write_registry_fixture};
-use crate::prefix_deps::runner::{install_packages, prepare_install_packages};
-use crate::prefix_deps::{PrefixDepsError, PrefixDepsTool, PrefixVersionRestoreState};
+use crate::prefix_deps::runner::restore::{
+    restore_prefix_windows_version_with_timeout, RESTORE_TIMEOUT_SECS,
+};
+use crate::prefix_deps::runner::{prepare_install_packages, PreparedPrefixDependencyInstall};
+use crate::prefix_deps::{
+    PrefixDepsError, PrefixDepsTool, PrefixVersionRestoreOutcome, PrefixVersionRestoreState,
+};
 
-#[tokio::test]
-async fn install_packages_rejects_invalid_verbs() {
+/// Spawns the prepared install command, waits for it, then restores the
+/// captured Windows version (if any) with `restore_timeout`, mirroring the app
+/// service: restoration runs even when the install exits unsuccessfully.
+pub(super) async fn run_install_then_restore(
+    prepared: PreparedPrefixDependencyInstall,
+    restore_timeout: Duration,
+) -> (ExitStatus, PrefixVersionRestoreOutcome) {
+    let (mut command, restore_plan) = prepared.into_parts();
+    let status = command
+        .spawn()
+        .expect("spawn install")
+        .wait()
+        .await
+        .expect("wait install");
+    let restore = match restore_plan.as_ref() {
+        Some(plan) => restore_prefix_windows_version_with_timeout(plan, restore_timeout).await,
+        None => PrefixVersionRestoreOutcome {
+            state: PrefixVersionRestoreState::NotRequired,
+            error: None,
+        },
+    };
+    (status, restore)
+}
+
+fn production_restore_timeout() -> Duration {
+    Duration::from_secs(RESTORE_TIMEOUT_SECS)
+}
+
+#[test]
+fn prepare_install_rejects_invalid_verbs() {
     let tmp = tempdir().unwrap();
     let binary = make_fake_binary(tmp.path(), "winetricks", "#!/bin/sh\n");
     let pfx = tmp.path().join("pfx");
     fs::create_dir_all(&pfx).unwrap();
 
-    let result = install_packages(
+    let result = prepare_install_packages(
         &binary,
         tmp.path().to_str().unwrap(),
         &["-q".to_string()],
         PrefixDepsTool::Winetricks,
         None,
-    )
-    .await;
+    );
 
-    assert!(result.is_err());
-    let err = result.unwrap_err();
+    let err = result.expect_err("flag-like verb must be rejected");
     assert!(
         matches!(err, PrefixDepsError::ValidationError(_)),
         "expected ValidationError, got: {err:?}"
@@ -33,7 +65,7 @@ async fn install_packages_rejects_invalid_verbs() {
 }
 
 #[test]
-fn install_packages_uses_winetricks_compatible_arguments() {
+fn prepare_install_uses_winetricks_compatible_arguments() {
     let tmp = tempdir().unwrap();
     let binary = make_fake_binary(tmp.path(), "winetricks", "#!/bin/sh\nexit 0\n");
     let pfx = tmp.path().join("pfx");
@@ -84,12 +116,11 @@ async fn prepared_install_exposes_restore_plan_before_spawn() {
     assert_eq!(plan.prefix_path, pfx.to_string_lossy());
     assert!(!captured_calls.exists(), "preparation must not spawn");
 
-    let child = prepared.spawn().unwrap();
-    let outcome = child.wait_and_restore().await;
-    assert!(outcome.install_succeeded);
-    assert_eq!(outcome.install_exit_code, Some(0));
-    assert_eq!(outcome.restore_state, PrefixVersionRestoreState::Succeeded);
-    assert_eq!(outcome.restore_error, None);
+    let (status, restore) = run_install_then_restore(prepared, production_restore_timeout()).await;
+    assert!(status.success());
+    assert_eq!(status.code(), Some(0));
+    assert_eq!(restore.state, PrefixVersionRestoreState::Succeeded);
+    assert_eq!(restore.error, None);
 
     assert_eq!(
         fs::read_to_string(captured_calls).unwrap(),
@@ -116,10 +147,10 @@ async fn failed_dependency_install_still_restores_prefix_windows_version() {
         None,
     )
     .unwrap();
-    let outcome = prepared.spawn().unwrap().wait_and_restore().await;
-    assert!(!outcome.install_succeeded);
-    assert_eq!(outcome.install_exit_code, Some(42));
-    assert_eq!(outcome.restore_state, PrefixVersionRestoreState::Succeeded);
+    let (status, restore) = run_install_then_restore(prepared, production_restore_timeout()).await;
+    assert!(!status.success());
+    assert_eq!(status.code(), Some(42));
+    assert_eq!(restore.state, PrefixVersionRestoreState::Succeeded);
 
     assert_eq!(
         fs::read_to_string(captured_calls).unwrap(),
@@ -129,7 +160,7 @@ async fn failed_dependency_install_still_restores_prefix_windows_version() {
 
 #[cfg(target_os = "linux")]
 #[tokio::test]
-async fn dropping_install_handle_kills_lifecycle_bound_process() {
+async fn dropping_install_child_kills_lifecycle_bound_process() {
     let tmp = tempdir().unwrap();
     let pid_file = tmp.path().join("pid.txt");
     let binary = make_fake_binary(
@@ -143,7 +174,7 @@ async fn dropping_install_handle_kills_lifecycle_bound_process() {
     let pfx = tmp.path().join("pfx");
     fs::create_dir_all(&pfx).unwrap();
 
-    let install = prepare_install_packages(
+    let (mut command, _) = prepare_install_packages(
         &binary,
         tmp.path().to_str().unwrap(),
         &["win10".to_string()],
@@ -151,8 +182,8 @@ async fn dropping_install_handle_kills_lifecycle_bound_process() {
         None,
     )
     .unwrap()
-    .spawn()
-    .unwrap();
+    .into_parts();
+    let child = command.spawn().unwrap();
 
     let pid = tokio::time::timeout(Duration::from_secs(1), async {
         loop {
@@ -165,7 +196,7 @@ async fn dropping_install_handle_kills_lifecycle_bound_process() {
     .await
     .expect("fake dependency process did not write its pid");
 
-    drop(install);
+    drop(child);
 
     tokio::time::timeout(Duration::from_secs(1), async {
         while Path::new(&format!("/proc/{pid}")).exists() {
@@ -173,7 +204,7 @@ async fn dropping_install_handle_kills_lifecycle_bound_process() {
         }
     })
     .await
-    .expect("dependency process survived handle drop");
+    .expect("dependency process survived child drop");
 }
 
 #[tokio::test]
@@ -200,33 +231,28 @@ async fn explicit_windows_version_verb_has_no_restore_plan() {
     )
     .unwrap();
     assert!(prepared.restore_plan().is_none());
-    let outcome = prepared.spawn().unwrap().wait_and_restore().await;
-    assert!(outcome.install_succeeded);
-    assert_eq!(
-        outcome.restore_state,
-        PrefixVersionRestoreState::NotRequired
-    );
+    let (status, restore) = run_install_then_restore(prepared, production_restore_timeout()).await;
+    assert!(status.success());
+    assert_eq!(restore.state, PrefixVersionRestoreState::NotRequired);
 
     assert_eq!(fs::read_to_string(captured_calls).unwrap(), "-q win7\n");
 }
 
-#[tokio::test]
-async fn install_rejects_uninitialized_prefix() {
+#[test]
+fn prepare_install_rejects_uninitialized_prefix() {
     let tmp = tempdir().unwrap();
     let binary = make_fake_binary(tmp.path(), "winetricks", "#!/bin/sh\n");
     // Do NOT create pfx/ directory -- use a nonexistent path entirely.
 
-    let result = install_packages(
+    let result = prepare_install_packages(
         &binary,
         "/nonexistent/path/that/does/not/exist",
         &["vcrun2019".to_string()],
         PrefixDepsTool::Winetricks,
         None,
-    )
-    .await;
+    );
 
-    assert!(result.is_err());
-    let err = result.unwrap_err();
+    let err = result.expect_err("uninitialized prefix must be rejected");
     assert!(
         matches!(err, PrefixDepsError::PrefixNotInitialized { .. }),
         "expected PrefixNotInitialized, got: {err:?}"

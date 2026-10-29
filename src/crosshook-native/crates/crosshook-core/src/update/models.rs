@@ -1,6 +1,5 @@
 use std::error::Error;
 use std::fmt;
-use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
@@ -32,8 +31,6 @@ pub struct UpdateGameResult {
 #[serde(rename_all = "snake_case")]
 pub enum UpdateGameError {
     Validation(UpdateGameValidationError),
-    RuntimeUnavailable,
-    LogAttachmentFailed { path: PathBuf, message: String },
     UpdaterSpawnFailed { message: String },
     UpdaterWaitFailed { message: String },
     UpdaterExitedWithFailure { status: Option<i32> },
@@ -87,15 +84,6 @@ impl UpdateGameError {
     pub fn message(&self) -> String {
         match self {
             Self::Validation(error) => error.message(),
-            Self::RuntimeUnavailable => {
-                "Update execution requires a Tokio runtime, but none was available.".to_string()
-            }
-            Self::LogAttachmentFailed { path, message } => {
-                format!(
-                    "Failed to attach updater logs to '{}': {message}",
-                    path.display()
-                )
-            }
             Self::UpdaterSpawnFailed { message } => {
                 format!("Failed to launch the updater through Proton: {message}")
             }

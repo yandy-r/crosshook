@@ -57,7 +57,7 @@ fn valid_request(temp_dir: &Path) -> InstallGameRequest {
     }
 }
 
-/// Today's `install_game` expectations for the fake installer in `valid_request`.
+/// The expected result for the fake installer in `valid_request`.
 fn assert_discovered_example_game(
     result: &InstallGameResult,
     temp_dir: &Path,
@@ -196,29 +196,6 @@ fn validate_install_request_accepts_flatpak_host_mounted_paths() {
 }
 
 #[test]
-fn install_game_creates_prefix_and_prefers_discovered_executable() {
-    let temp_dir = tempdir().expect("temp dir");
-    let request = valid_request(temp_dir.path());
-    let prefix_path = PathBuf::from(&request.prefix_path);
-    let log_path = temp_dir.path().join("install.log");
-
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("test runtime");
-    let task_log_path = log_path.clone();
-    let result = runtime
-        .block_on(async move {
-            tokio::task::spawn_blocking(move || install_game(&request, &task_log_path))
-                .await
-                .expect("join install task")
-        })
-        .expect("install game");
-
-    assert_discovered_example_game(&result, temp_dir.path(), &prefix_path, &log_path);
-}
-
-#[test]
 fn prepare_install_provisions_prefix_and_builds_run_installer_command() {
     let temp_dir = tempdir().expect("temp dir");
     let request = valid_request(temp_dir.path());
@@ -274,7 +251,7 @@ fn prepare_install_rejects_prefix_path_that_is_a_file() {
 }
 
 #[tokio::test]
-async fn finish_install_after_prepared_command_matches_install_game_result() {
+async fn finish_install_after_prepared_command_discovers_installed_game() {
     let temp_dir = tempdir().expect("temp dir");
     let request = valid_request(temp_dir.path());
     let log_path = temp_dir.path().join("install.log");

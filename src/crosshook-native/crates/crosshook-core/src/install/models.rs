@@ -67,11 +67,9 @@ pub struct InstallGameResult {
 #[serde(rename_all = "snake_case")]
 pub enum InstallGameError {
     Validation(InstallGameValidationError),
-    RuntimeUnavailable,
     HomeDirectoryUnavailable,
     PrefixPathExistsAsFile { path: PathBuf },
     PrefixCreationFailed { path: PathBuf, message: String },
-    LogAttachmentFailed { path: PathBuf, message: String },
     InstallerSpawnFailed { message: String },
     InstallerWaitFailed { message: String },
     InstallerExitedWithFailure { status: Option<i32> },
@@ -239,9 +237,6 @@ impl InstallGameError {
     pub fn message(&self) -> String {
         match self {
             Self::Validation(error) => error.message(),
-            Self::RuntimeUnavailable => {
-                "Install execution requires a Tokio runtime, but none was available.".to_string()
-            }
             Self::HomeDirectoryUnavailable => {
                 "CrossHook could not resolve the default prefix path because the home directory is unavailable.".to_string()
             }
@@ -256,9 +251,6 @@ impl InstallGameError {
                     "Failed to create the prefix directory '{}': {message}",
                     path.display()
                 )
-            }
-            Self::LogAttachmentFailed { path, message } => {
-                format!("Failed to attach installer logs to '{}': {message}", path.display())
             }
             Self::InstallerSpawnFailed { message } => {
                 format!("Failed to launch the installer through Proton: {message}")

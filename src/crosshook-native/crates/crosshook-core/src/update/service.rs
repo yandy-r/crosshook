@@ -4,7 +4,7 @@ use tokio::process::Command;
 
 use crate::launch::runtime_helpers::proton_command::build_direct_proton_command_lifecycle_with;
 use crate::launch::runtime_helpers::{
-    apply_working_directory, attach_log_stdio, host_environment_map, merge_runtime_proton_into_map,
+    apply_working_directory, host_environment_map, merge_runtime_proton_into_map,
     resolve_effective_working_directory,
 };
 use crate::platform::{
@@ -12,9 +12,7 @@ use crate::platform::{
     normalized_path_is_file,
 };
 
-use super::models::{
-    UpdateGameError, UpdateGameRequest, UpdateGameResult, UpdateGameValidationError,
-};
+use super::models::{UpdateGameError, UpdateGameRequest, UpdateGameValidationError};
 
 pub fn validate_update_request(
     request: &UpdateGameRequest,
@@ -58,37 +56,6 @@ fn build_update_command_with(request: &UpdateGameRequest, flatpak: bool) -> Comm
         apply_working_directory(&mut command, "", Path::new(normalized_updater_path.trim()));
     }
     command
-}
-
-pub fn update_game(
-    request: &UpdateGameRequest,
-    log_path: &Path,
-) -> Result<(UpdateGameResult, tokio::process::Child), UpdateGameError> {
-    validate_update_request(request)?;
-
-    let mut command = build_update_command(request)?;
-    attach_log_stdio(&mut command, log_path).map_err(|error| {
-        UpdateGameError::LogAttachmentFailed {
-            path: log_path.to_path_buf(),
-            message: error.to_string(),
-        }
-    })?;
-    let child = command
-        .spawn()
-        .map_err(|error| UpdateGameError::UpdaterSpawnFailed {
-            message: error.to_string(),
-        })?;
-
-    // `succeeded` indicates the update process was launched successfully, not that the
-    // updater itself has finished. The actual process exit status is communicated
-    // asynchronously via the `update-complete` event.
-    let result = UpdateGameResult {
-        succeeded: true,
-        message: "Update process launched.".to_string(),
-        helper_log_path: log_path.display().to_string(),
-    };
-
-    Ok((result, child))
 }
 
 fn validate_updater_path(path: &str) -> Result<(), UpdateGameValidationError> {
@@ -444,21 +411,6 @@ mod tests {
             .get_envs()
             .any(|(key, value)| key == std::ffi::OsStr::new("WINEPREFIX") && value.is_some());
         assert!(has_prefix_env, "native command must carry WINEPREFIX");
-    }
-
-    #[test]
-    fn update_game_rejects_invalid_request() {
-        let temp_dir = tempdir().unwrap();
-        let log_path = temp_dir.path().join("update.log");
-        std::fs::File::create(&log_path).unwrap();
-
-        let request = UpdateGameRequest::default(); // all empty — will fail validation
-        let result = update_game(&request, &log_path);
-        assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            UpdateGameError::Validation(UpdateGameValidationError::UpdaterPathRequired)
-        ));
     }
 
     #[test]

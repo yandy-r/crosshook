@@ -1,5 +1,4 @@
 pub mod detection;
-pub mod lock;
 pub mod models;
 pub mod runner;
 pub mod validation;

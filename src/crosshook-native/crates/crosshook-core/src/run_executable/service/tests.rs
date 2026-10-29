@@ -1,8 +1,7 @@
 use super::command_builder::build_run_executable_command_with;
 use super::{
-    is_throwaway_prefix_path, is_throwaway_prefix_path_in, prepare_run_executable,
-    resolve_adhoc_prefix_path, resolve_default_adhoc_prefix_path, run_executable,
-    validate_run_executable_request,
+    adhoc_prefix_root, is_throwaway_prefix_path, is_throwaway_prefix_path_in,
+    prepare_run_executable, resolve_adhoc_prefix_path, validate_run_executable_request,
 };
 use crate::run_executable::{
     RunExecutableError, RunExecutableRequest, RunExecutableValidationError,
@@ -12,6 +11,13 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tempfile::tempdir;
 use tokio::process::Command;
+
+/// A throwaway prefix under the real adhoc root, as `prepare_run_executable`
+/// would resolve it for `executable`.
+fn resolve_real_adhoc_prefix(executable: &str) -> PathBuf {
+    let root = adhoc_prefix_root().expect("resolve adhoc root");
+    resolve_adhoc_prefix_path(&root, Path::new(executable), "0a1b2c3d4e5f")
+}
 
 fn argv(command: &Command) -> Vec<String> {
     let std_command = command.as_std();
@@ -418,11 +424,10 @@ fn resolve_adhoc_prefix_path_slugifies_executable_stem() {
 
 #[test]
 fn is_throwaway_prefix_path_accepts_real_adhoc_prefix() {
-    // The path produced by resolve_default_adhoc_prefix_path is by
-    // definition a child of the adhoc namespace root, so this should
-    // always validate as a safe throwaway target.
-    let resolved = resolve_default_adhoc_prefix_path(Path::new("/x/Setup Wizard.exe"))
-        .expect("resolve adhoc prefix path");
+    // A prefix resolved under the adhoc namespace root is by definition a
+    // direct child of it, so this should always validate as a safe
+    // throwaway target.
+    let resolved = resolve_real_adhoc_prefix("/x/Setup Wizard.exe");
     assert!(
         is_throwaway_prefix_path(&resolved),
         "resolved adhoc prefix should be classified as throwaway: {}",
@@ -450,8 +455,7 @@ fn is_throwaway_prefix_path_rejects_paths_outside_namespace() {
 fn is_throwaway_prefix_path_rejects_parent_dir_traversal() {
     // Build a path that nominally lives under the adhoc root but uses
     // `..` to walk back out before terminating elsewhere.
-    let resolved =
-        resolve_default_adhoc_prefix_path(Path::new("/x/setup.exe")).expect("resolve adhoc");
+    let resolved = resolve_real_adhoc_prefix("/x/setup.exe");
     let traversal = resolved
         .parent()
         .unwrap()
@@ -469,28 +473,11 @@ fn is_throwaway_prefix_path_rejects_parent_dir_traversal() {
 fn is_throwaway_prefix_path_rejects_namespace_root_itself() {
     // Even the namespace root directory must be rejected — deleting it
     // would wipe every other in-flight or recently-finished adhoc run.
-    let resolved =
-        resolve_default_adhoc_prefix_path(Path::new("/x/setup.exe")).expect("resolve adhoc");
+    let resolved = resolve_real_adhoc_prefix("/x/setup.exe");
     let namespace_root = resolved.parent().unwrap().to_path_buf();
     assert!(
         !is_throwaway_prefix_path(&namespace_root),
         "namespace root must NOT be classified as throwaway: {}",
         namespace_root.display()
     );
-}
-
-#[test]
-fn run_executable_rejects_invalid_request() {
-    let temp_dir = tempdir().expect("temp dir");
-    let log_path = temp_dir.path().join("run.log");
-    std::fs::File::create(&log_path).unwrap();
-
-    let request = RunExecutableRequest::default();
-    let result = run_executable(&request, &log_path);
-
-    assert!(result.is_err());
-    assert!(matches!(
-        result.unwrap_err(),
-        RunExecutableError::Validation(RunExecutableValidationError::ExecutablePathRequired)
-    ));
 }

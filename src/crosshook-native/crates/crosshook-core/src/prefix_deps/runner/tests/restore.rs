@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use tempfile::tempdir;
 
+use super::install::run_install_then_restore;
 use super::{make_fake_binary, make_install_restore_binary, write_registry_fixture};
 use crate::prefix_deps::runner::{prepare_install_packages, restore_prefix_windows_version};
 use crate::prefix_deps::{PrefixDepsTool, PrefixVersionRestorePlan, PrefixVersionRestoreState};
@@ -26,14 +27,11 @@ async fn restoration_timeout_is_reported_separately() {
         None,
     )
     .unwrap();
-    let child = prepared
-        .spawn_with_restore_timeout(Duration::from_millis(50))
-        .unwrap();
-    let outcome = child.wait_and_restore().await;
-    assert!(outcome.install_succeeded);
-    assert_eq!(outcome.restore_state, PrefixVersionRestoreState::Failed);
-    assert!(outcome
-        .restore_error
+    let (status, restore) = run_install_then_restore(prepared, Duration::from_millis(50)).await;
+    assert!(status.success());
+    assert_eq!(restore.state, PrefixVersionRestoreState::Failed);
+    assert!(restore
+        .error
         .as_deref()
         .is_some_and(|error| error.contains("timed out")));
 }
@@ -62,10 +60,10 @@ async fn restoration_verification_mismatch_is_reported_as_failure() {
         "\"CurrentBuild\"=\"7601\"\n\"ProductName\"=\"Microsoft Windows 7\"",
     );
 
-    let outcome = prepared.spawn().unwrap().wait_and_restore().await;
-    assert_eq!(outcome.restore_state, PrefixVersionRestoreState::Failed);
-    assert!(outcome
-        .restore_error
+    let (_, restore) = run_install_then_restore(prepared, Duration::from_secs(90)).await;
+    assert_eq!(restore.state, PrefixVersionRestoreState::Failed);
+    assert!(restore
+        .error
         .as_deref()
         .is_some_and(|error| error.contains("verification")));
 }

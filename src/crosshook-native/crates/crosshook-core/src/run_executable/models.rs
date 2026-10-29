@@ -45,8 +45,6 @@ pub struct RunExecutableResult {
 #[serde(rename_all = "snake_case")]
 pub enum RunExecutableError {
     Validation(RunExecutableValidationError),
-    RuntimeUnavailable,
-    LogAttachmentFailed { path: PathBuf, message: String },
     PrefixCreationFailed { path: PathBuf, message: String },
     HomeDirectoryUnavailable,
     RunnerSpawnFailed { message: String },
@@ -117,16 +115,6 @@ impl RunExecutableError {
     pub fn message(&self) -> String {
         match self {
             Self::Validation(error) => error.message(),
-            Self::RuntimeUnavailable => {
-                "Run-executable execution requires a Tokio runtime, but none was available."
-                    .to_string()
-            }
-            Self::LogAttachmentFailed { path, message } => {
-                format!(
-                    "Failed to attach run-executable logs to '{}': {message}",
-                    path.display()
-                )
-            }
             Self::PrefixCreationFailed { path, message } => {
                 format!(
                     "Failed to create the throwaway Proton prefix at '{}': {message}",

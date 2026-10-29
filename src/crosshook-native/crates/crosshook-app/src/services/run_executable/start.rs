@@ -218,9 +218,7 @@ fn core_error(error: RunExecutableError) -> RunExecutableStartError {
         }
         RunExecutableError::PrefixCreationFailed { .. } => AppErrorKind::Io,
         RunExecutableError::HomeDirectoryUnavailable => AppErrorKind::Unavailable,
-        RunExecutableError::RuntimeUnavailable
-        | RunExecutableError::LogAttachmentFailed { .. }
-        | RunExecutableError::RunnerSpawnFailed { .. }
+        RunExecutableError::RunnerSpawnFailed { .. }
         | RunExecutableError::RunnerWaitFailed { .. }
         | RunExecutableError::RunnerExitedWithFailure { .. } => AppErrorKind::Internal,
     };

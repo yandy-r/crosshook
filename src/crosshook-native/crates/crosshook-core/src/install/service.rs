@@ -2,12 +2,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use tokio::process::Command;
-use tokio::runtime::Handle;
 
 use crate::launch::request::{path_exists_visible_or_host, path_is_executable_visible_or_host};
 use crate::launch::runtime_helpers::proton_command::build_direct_proton_command_lifecycle_with;
 use crate::launch::runtime_helpers::{
-    apply_working_directory, attach_log_stdio, host_environment_map, merge_runtime_proton_into_map,
+    apply_working_directory, host_environment_map, merge_runtime_proton_into_map,
     resolve_effective_working_directory,
 };
 use crate::platform::{
@@ -107,43 +106,6 @@ pub fn finish_install(
             .collect(),
         profile,
     }
-}
-
-pub fn install_game(
-    request: &InstallGameRequest,
-    log_path: &Path,
-) -> Result<InstallGameResult, InstallGameError> {
-    let PreparedInstall {
-        mut command,
-        prefix_path,
-    } = prepare_install(request)?;
-    let runtime_handle = Handle::try_current().map_err(|_| InstallGameError::RuntimeUnavailable)?;
-
-    attach_log_stdio(&mut command, log_path).map_err(|error| {
-        InstallGameError::LogAttachmentFailed {
-            path: log_path.to_path_buf(),
-            message: error.to_string(),
-        }
-    })?;
-    let mut child = command
-        .spawn()
-        .map_err(|error| InstallGameError::InstallerSpawnFailed {
-            message: error.to_string(),
-        })?;
-
-    let status = runtime_handle.block_on(child.wait()).map_err(|error| {
-        InstallGameError::InstallerWaitFailed {
-            message: error.to_string(),
-        }
-    })?;
-
-    if !status.success() {
-        return Err(InstallGameError::InstallerExitedWithFailure {
-            status: status.code(),
-        });
-    }
-
-    Ok(finish_install(request, &prefix_path, log_path))
 }
 
 fn build_install_command(

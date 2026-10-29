@@ -16,6 +16,5 @@ pub use models::{
 pub use service::{
     adhoc_prefix_root, build_run_executable_command, is_throwaway_prefix_path,
     is_throwaway_prefix_path_in, prepare_run_executable, resolve_adhoc_prefix_path,
-    resolve_default_adhoc_prefix_path, run_executable, validate_run_executable_request,
-    PreparedRunExecutable,
+    validate_run_executable_request, PreparedRunExecutable,
 };

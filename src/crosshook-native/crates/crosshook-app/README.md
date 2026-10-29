@@ -120,6 +120,10 @@ feature checks in CI and `scripts/lint.sh` reject `bootstrap-trace` in shipped b
 | `ProtonUpService`        | `ProtonUpService::new(metadata, settings, steam, jobs)`; `list_providers`, `list_available_versions`, `resolve_install_roots`, `get_suggestion`, legacy `install_version`, `start_install(owner, request, version) -> ProtonInstallStart`, `cancel_install(owner, op_id)`, `plan_uninstall`, `uninstall`                                                                                                                                                                                                                         | `protonup_list_providers`, `protonup_list_available_versions`, `protonup_resolve_install_roots`, `protonup_get_suggestion`, `protonup_install_version`, `protonup_install_version_async`, `protonup_cancel_install`, `protonup_plan_uninstall_version`, `protonup_uninstall_version` |
 | `ProtonMigrationService` | `ProtonMigrationService::new(profiles, writer, steam)`; `check`, `apply`, `apply_batch` (writes through the shared `ProfileWriter`)                                                                                                                                                                                                                                                                                                                                                                                              | `check_proton_migrations`, `apply_proton_migration`, `apply_batch_migration`                                                                                                                                                                                                         |
 | `UmuService`             | `UmuService::new(metadata)`; `refresh`, `coverage(Option<String>)` (blank or absent app id → `Unknown`), `clear_gameid_cache() -> usize`                                                                                                                                                                                                                                                                                                                                                                                         | `refresh_umu_database`, `check_umu_coverage`, `clear_umu_gameid_lookup_cache`; bootstrap also calls `refresh`                                                                                                                                                                        |
+| `InstallService`         | `InstallService::new(jobs)`; `default_prefix_path(profile_name)`, `validate(request)`, `start(request) -> ProcessRun<Result<InstallGameResult, AppError>>` (`install-game` job holding the prefix key)                                                                                                                                                                                                                                                                                                                           | `install_default_prefix_path`, `validate_install_request`, `install_game`                                                                                                                                                                                                            |
+| `UpdateService`          | `UpdateService::new(jobs)`; `validate(request)`, `start(owner, request) -> (UpdateGameResponse, ProcessRun<UpdateCompletion>)` (`update-game` job holding the prefix key), `cancel(owner) -> bool`                                                                                                                                                                                                                                                                                                                               | `validate_update_request`, `update_game`, `cancel_update`                                                                                                                                                                                                                            |
+| `RunExecutableService`   | `RunExecutableService::new(jobs)`; `validate(request)`, `start(owner, request) -> (RunExecutableResponse, ProcessRun<RunCompletion>)` (`run-executable` job holding the resolved prefix key; `RunExecutableStartError` keeps the typed validation variant), `cancel(owner) -> bool`, `stop(owner) -> bool`                                                                                                                                                                                                                       | `validate_run_executable_request`, `run_executable`, `cancel_run_executable`, `stop_run_executable`                                                                                                                                                                                  |
+| `PrefixDepsService`      | `PrefixDepsService::new(settings, profiles, metadata, jobs)`; `detect_binary`, `check(profile, prefix, packages)` (no key), `start_install(profile, prefix, packages) -> ProcessRun<DepInstallCompletion>` (`prefix-deps-install` job), `repair_status(prefix)`, `repair(prefix)` (`prefix-version-repair` job), `dependency_status(profile, prefix)`; pure `resolve_tool`                                                                                                                                                       | `detect_protontricks_binary`, `check_prefix_dependencies`, `install_prefix_dependency`, `get_prefix_version_repair_status`, `repair_prefix_windows_version`, `get_dependency_status`; bootstrap runs startup journal recovery                                                        |
 
 Attachment names must be a single relative file name (no `/`, `\`, `..`, NUL,
 or empty); invalid names fail with `Validation { field: "attachments" }` before
@@ -360,6 +364,86 @@ failed`, `failed to refresh the umu database`). Underlying paths, URLs and
   coverage reads the cached CSV, and clearing the GAMEID cache returns the
   deleted row count.
 
+### Install, update, run-executable and prefix deps
+
+`InstallService`, `UpdateService`, `RunExecutableService` and
+`PrefixDepsService` own the 16 commands above. `src-tauri` only delegates,
+maps errors and relays a run's events; command names, argument keys and event
+names are unchanged, and wire changes are additive only: `run_id` (the job
+id) on the `update_game` and `run_executable` results and on both
+`run-executable-*` payloads (`run-executable-log` is `{ run_id, line }`), and
+`in_progress`/`last_recovery` on `PrefixVersionRepairStatus`. `update-log`
+stays a bare string, `RunCommandError` keeps its tagged shape, and the
+`prefix-dep-*` events echo the raw request `profile_name`/`prefix_path`.
+
+- **App owns spawning.** Core only builds prepared commands
+  (`prepare_install`, `build_update_command`, `prepare_run_executable`,
+  `prepare_install_packages(..).into_parts()`); Proton runs use
+  `build_direct_proton_command_lifecycle` and winetricks/protontricks (the
+  read-only `list-installed` check included) use
+  `host_command_with_env_and_directory_lifecycle`, so under Flatpak
+  `--watch-bus` follows `--host`. The shared `services::process` plumbing
+  spawns the child with a null stdin, `process_group(0)` and `kill_on_drop`,
+  and supervises it with `supervise_child_with_kill`. App shutdown cancels
+  every job, so quitting CrossHook now ends a running installer, updater,
+  ad-hoc executable or dependency install instead of orphaning it.
+- **One run, then one completion.** `start_run` returns a `ProcessRun` only
+  after the job body signalled `started`, so no output precedes the handle.
+  `ProcessRun::next` yields `RunEvent::Log` batches, then exactly one
+  `RunEvent::Finished(Option<C>)` (`None` when the job ended without a
+  completion) and reaps the job; a dropped run is reaped in the background.
+  `run_child` returns only after the bounded final log drain, so the
+  completion always follows the last log line.
+- **Per-prefix exclusivity.** Every job that touches a prefix holds
+  `JobKey("prefix:<canonical pfx>")`: `install-game` (a fresh prefix is keyed
+  on the `pfx` Proton is about to create), `update-game`, `run-executable`
+  (resolved prefix, throwaway included), `prefix-deps-install`,
+  `prefix-version-repair` and `prefix-version-recovery`. A second job on the
+  same prefix (symlink aliases included) gets `Conflict` (`another operation
+is already running for this prefix`, or `installation already in progress
+for prefix: …` for prefix deps); different prefixes run in parallel.
+  `check` takes no key.
+- **Cancel ownership.** `cancel_update`, `cancel_run_executable` and
+  `stop_run_executable` keep their no-argument IPC. A runtime-only owner slot
+  (`JobOwner` from the injected webview label) records each run's job id and
+  kill token; a foreign owner or no active job is a no-op (`false`). Cancel
+  sends `SIGTERM` to the process group and `SIGKILL` after
+  `DEFAULT_KILL_GRACE`; stop `SIGKILL`s the group at once, then sweeps the
+  prefix with `kill_processes_using_prefix`. No stored PID is signalled.
+  Install-game and prefix-deps installs have no cancel IPC; only app shutdown
+  cancels them.
+- **Throwaway prefixes.** A run without a prefix gets a unique
+  `_run-adhoc/<slug>-<suffix>` directory, so same-stem runs never share or
+  delete one prefix. The job removes it before sending its completion, still
+  holding the key: only a direct child of the `_run-adhoc` root is deleted,
+  symlinks are never followed, and a failed attempt gets a kill sweep and at
+  most two retries (no shell `rm`).
+- **Windows-version journal.** `PrefixVersionJournal` (seams `JournalStore`,
+  `PrefixVersionRestorer`, `PrefixInUse`) writes the `pending` row before the
+  install child spawns. The restore runs on its own 90 s timeout, also after
+  a failed or cancelled install; the row is deleted only after a restore
+  verified against `system.reg`, a failed restore or a failed delete marks it
+  `failed`, and a child that never ran leaves it `pending`. Each install first
+  recovers a `pending` row of its own prefix and refuses with `This prefix
+requires Windows version repair before installing dependencies.` while one
+  remains. Startup recovery (`prefix-journal-recovery`, scheduled by
+  `App::bootstrap`) retries `pending` rows only, each in a
+  `prefix-version-recovery` job under the prefix key; busy and in-use
+  prefixes stay `pending`, `failed` rows wait for an explicit repair, and it
+  is skipped when the metadata store is unavailable or under
+  `CROSSHOOK_BENCH=1`. Replayed rows are re-validated (tool, verb, App ID,
+  binary path) before anything runs.
+- **Tool selection and offline.** The pure `resolve_tool` picks protontricks
+  only with a valid nonzero Steam App ID and falls back to winetricks on
+  `PATH`. With `offline_mode` on, `start_install` returns `Unavailable`
+  (`offline mode is enabled`) before any job; install-game, update,
+  run-executable, check and repair are ungated.
+- **Logs.** Each run logs to `/tmp/crosshook-logs` through
+  `create_log_file_in` (mode `0600`, `create_new`); child stdio is attached to
+  clones of the returned handle (prefix-deps output goes through the lossy
+  pipe tee and is sanitized before it reaches subscribers), never reopened by
+  path.
+
 ## Jobs
 
 `App::jobs()` returns the app's `JobRegistry` (also constructible standalone
@@ -368,8 +452,11 @@ with `JobRegistry::new(JobRegistryConfig { event_capacity, retention })` or
 app shutdown token, so app shutdown cancels every job. The startup scans,
 umu refresh and background portal requests run as jobs scheduled by
 `App::bootstrap` (`startup-scans`, `startup-umu-refresh`,
-`startup-background-portal`). Proton installs also run through this registry
-as `protonup-install` jobs.
+`startup-background-portal`) and the untracked `prefix-journal-recovery`
+job. Proton installs also run through this registry as `protonup-install`
+jobs, and the process services as `install-game`, `update-game`,
+`run-executable`, `prefix-deps-install`, `prefix-version-repair` and
+`prefix-version-recovery` jobs.
 
 | API                                      | Behavior                                                                                                                                                                                     |
 | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -379,6 +466,8 @@ as `protonup-install` jobs.
 | `subscribe(&JobId)`                      | Live receiver while running; a one-shot `Finished` replay once finished and unreaped; `NotFound` otherwise.                                                                                  |
 | `cancel(&JobId)` / `reap` / `outcome`    | Scoped to one job; unknown, foreign, reaped, or evicted ids are `NotFound`. `reap` of a running job is `Conflict`.                                                                           |
 | `supervise_child(child, &cancel, grace)` | Child must lead its group (`process_group(0)`, else `InvalidInput`); cancel: `killpg(SIGTERM)`, `SIGKILL` at `grace` if any member lives. Returns `ChildExit::{Natural,Terminated,Killed}`.  |
+| `supervise_child_with_kill(..)`          | As `supervise_child`, plus a `kill` token: firing it (before or during the grace) `SIGKILL`s the group at once and yields `ChildExit::Killed`.                                               |
+| `is_key_held(&JobKey)`                   | Whether a running job holds the key; released before its `Finished` is published.                                                                                                            |
 
 `Outcome` is `Succeeded`, `Failed(AppError)`, or `Cancelled`; job closures
 may return `Outcome` or `Result<(), AppError>` (a `Cancelled` error maps to
@@ -399,13 +488,19 @@ must be built with `crosshook_core::platform::host_command_lifecycle` or
 other public `host_command*` builders omit `--watch-bus`, so cancelling a job
 that uses them leaves the host process running.
 
-`jobs` also hosts the process helpers used by the Tauri shell:
-`create_log_path` (`/tmp/crosshook-logs/<prefix>-<slug>-<millis>.log`) and its
-log-dir seam `create_log_path_in(dir, …)` (used by `LaunchService::with_log_dir`
-in tests), `slugify_target`, and `kill_processes_using_prefix` (`/proc/*/environ`
-prefix sweep via the host gateway `kill`). Log files are created with
-`create_new` plus a `-N` uniqueness suffix, so two same-millisecond launches
-never share or truncate one log.
+`jobs` also hosts the process helpers the services share:
+`create_log_file_in(dir, …)` (creates
+`<dir>/<prefix>-<slug>-<millis>.log` with mode `0600` and returns the path
+plus the open handle the child's stdio is attached to), `create_log_path` /
+`create_log_path_in` (path only; `LaunchService` uses the latter as its
+log-dir seam), `slugify_target`, `processes_using_prefix` (`/proc/*/environ`
+scan at a path boundary, no signals; startup recovery's in-use probe) and
+`kill_processes_using_prefix` (`SIGKILL`s those pids via the host gateway
+`kill`; run-executable stop and throwaway-prefix retries). Under Flatpak
+only the sandbox `/proc` is visible, so the sweep finds nothing there; the
+process-group kill plus `--watch-bus` is the real teardown. Log files are
+created with `create_new` plus a `-N` uniqueness suffix, so two
+same-millisecond runs never share or truncate one log.
 
 ## Storage boundary
 
@@ -423,7 +518,10 @@ never share or truncate one log.
   row on write. Diagnostics reads metadata status only.
   `LaunchService` writes existing `launch_operations` rows (start and
   finish, with the diagnostic JSON), version snapshots and known-good tags,
-  fail-open on a degraded store.
+  fail-open on a degraded store. `PrefixDepsService` uses the existing
+  `prefix_dependency_state` and `prefix_version_restore_journal` (v27)
+  tables unchanged; its only addition is the read-only
+  `list_prefix_version_restores()` query (no schema change, no migration).
 - **Community and discovery:** subscribed taps and external sources live in
   `settings.toml` (written with `SettingsStore::update`, unknown keys kept);
   tap clones live in the tap workspaces; the index, offline state, external
@@ -437,10 +535,17 @@ never share or truncate one log.
   job state, handles, and retained job outcomes; launch sessions, their
   event streams and `session_id`s (never persisted); the startup report,
   its step log and job results (served by `get_startup_report`, never
-  persisted).
+  persisted); the process services' owner slots (`JobOwner` → active job and
+  kill token), the per-prefix recovery ledger behind `last_recovery`, and
+  `in_progress` (whether a job holds the prefix key).
+- **Ephemeral files:** install, update, run-executable and prefix-deps logs
+  in `/tmp/crosshook-logs` (mode `0600`, never reopened by path for
+  writing); throwaway `_run-adhoc/<slug>-<suffix>` prefixes, deleted by
+  their run.
 
-Offline mode gates only community `sync` and external trainer search (see
-_Community, Lutris, discovery and ProtonDB_). Save failures surface as `AppErrorKind::Io`.
+Offline mode gates only community `sync`, external trainer search (see
+_Community, Lutris, discovery and ProtonDB_), Proton installs and prefix
+dependency installs. Save failures surface as `AppErrorKind::Io`.
 A missing portal resolves to `Unavailable`/`NotApplicable` and launches
 continue. Users view and edit settings and recent files through the settings
 UI; the diagnostics archive is a regular file the user chose to create.

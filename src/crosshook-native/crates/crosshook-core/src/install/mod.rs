@@ -9,6 +9,6 @@ pub use models::{
     InstallGameError, InstallGameRequest, InstallGameResult, InstallGameValidationError,
 };
 pub use service::{
-    finish_install, install_default_prefix_path, install_game, prepare_install,
-    resolve_default_prefix_path, validate_install_request, PreparedInstall,
+    finish_install, install_default_prefix_path, prepare_install, resolve_default_prefix_path,
+    validate_install_request, PreparedInstall,
 };

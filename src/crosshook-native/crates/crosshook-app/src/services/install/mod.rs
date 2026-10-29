@@ -87,11 +87,10 @@ fn install_error(error: InstallGameError) -> AppError {
         InstallGameError::PrefixPathExistsAsFile { .. } => {
             AppError::validation("prefix_path", message)
         }
-        InstallGameError::RuntimeUnavailable | InstallGameError::HomeDirectoryUnavailable => {
+        InstallGameError::HomeDirectoryUnavailable => {
             AppError::new(AppErrorKind::Unavailable, message)
         }
         InstallGameError::PrefixCreationFailed { .. }
-        | InstallGameError::LogAttachmentFailed { .. }
         | InstallGameError::InstallerSpawnFailed { .. }
         | InstallGameError::InstallerWaitFailed { .. }
         | InstallGameError::InstallerExitedWithFailure { .. } => {

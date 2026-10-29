@@ -97,25 +97,6 @@ pub fn is_throwaway_prefix_path_in(prefix_path: &Path, adhoc_root: &Path) -> boo
     parent == adhoc_root
 }
 
-/// Resolves the legacy shared `_run-adhoc/<slug>` prefix path for an
-/// executable. Used only by [`super::run_executable`].
-pub fn resolve_default_adhoc_prefix_path(
-    executable_path: &Path,
-) -> Result<PathBuf, RunExecutableError> {
-    resolve_default_adhoc_prefix_path_with(
-        crate::flatpak_migration::host_prefix_root(),
-        executable_path,
-    )
-}
-
-pub(crate) fn resolve_default_adhoc_prefix_path_with(
-    host_override: Option<PathBuf>,
-    executable_path: &Path,
-) -> Result<PathBuf, RunExecutableError> {
-    let root = adhoc_prefix_root_with(host_override)?;
-    Ok(root.join(slugify(executable_stem(executable_path))))
-}
-
 pub(crate) fn provision_prefix(prefix_path: &Path) -> Result<(), RunExecutableError> {
     if let Ok(metadata) = fs::metadata(prefix_path) {
         if !metadata.is_dir() {
@@ -185,18 +166,6 @@ mod tests {
             root.ends_with("crosshook/prefixes/_run-adhoc"),
             "expected path ending in 'crosshook/prefixes/_run-adhoc', got '{}'",
             root.display()
-        );
-    }
-
-    #[test]
-    fn resolve_default_adhoc_prefix_path_with_host_override_uses_override_root() {
-        let executable = Path::new("/some/path/MyGame.exe");
-        let result =
-            resolve_default_adhoc_prefix_path_with(Some(PathBuf::from(HOST_ROOT)), executable)
-                .expect("resolve with override");
-        assert_eq!(
-            result,
-            PathBuf::from(HOST_ROOT).join("_run-adhoc").join("mygame")
         );
     }
 
