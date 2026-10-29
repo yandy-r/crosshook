@@ -21,23 +21,27 @@ pub mod diagnostics;
 pub mod discovery;
 pub mod health;
 pub mod host_tools;
+pub mod install;
 pub mod launch;
 pub mod launcher_export;
 pub mod lutris;
 pub mod mods;
 pub mod offline;
 pub mod onboarding;
+pub mod prefix_deps;
 pub(crate) mod process;
 pub mod profiles;
 pub mod proton_migration;
 pub mod protondb;
 pub mod protonup;
 pub mod recent_files;
+pub mod run_executable;
 pub mod settings;
 pub mod startup_scans;
 pub mod steam;
 pub mod storage;
 pub mod umu;
+pub mod update;
 pub mod version;
 
 pub use background::{
@@ -54,18 +58,24 @@ pub use diagnostics::{
 pub use discovery::DiscoveryService;
 pub use health::HealthService;
 pub use host_tools::{CoreHostProbe, HostProbe, HostToolsService};
+pub use install::InstallService;
 pub use launch::LaunchService;
 pub use launcher_export::{LauncherExportService, LauncherRenameRequest};
 pub use lutris::LutrisService;
 pub use mods::{ModsService, ProfileModsResponse};
 pub use offline::OfflineService;
 pub use onboarding::OnboardingService;
+pub use prefix_deps::PrefixDepsService;
 pub use process::{JobOwner, ProcessRun, RunEvent};
 pub use profiles::ProfileWriter;
 pub use proton_migration::ProtonMigrationService;
 pub use protondb::ProtonDbService;
 pub use protonup::ProtonUpService;
 pub use recent_files::{RecentFileKind, RecentFilesService};
+pub use run_executable::{
+    RunCompletion, RunExecutableResponse, RunExecutableService, RunExecutableStartError,
+    RUN_EXECUTABLE_JOB_KIND,
+};
 pub use settings::{
     merge_save_request, SettingsSaveRequest, SettingsService, SettingsSnapshot, UiSettingsService,
 };
@@ -73,6 +83,7 @@ pub use startup_scans::StartupScansService;
 pub use steam::SteamService;
 pub use storage::{PrefixStorageHistoryResponse, StorageService};
 pub use umu::UmuService;
+pub use update::{UpdateCompletion, UpdateGameResponse, UpdateService, UPDATE_GAME_JOB_KIND};
 pub use version::{VersionCheckResult, VersionService, VersionSnapshotInfo};
 
 /// Boxed `Send` future returned by the object-safe async seams of the

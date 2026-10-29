@@ -49,6 +49,18 @@ pub enum UmuRefresh {
     },
 }
 
+/// Policy for the startup prefix Windows-version journal recovery job.
+#[derive(Debug, Clone, Copy)]
+pub enum PrefixJournalRecovery {
+    /// Retry pending journal rows in a background job.
+    Enabled,
+    /// Skip recovery, logging an explicit explanation.
+    Skip {
+        /// Why the shell disabled recovery.
+        reason: &'static str,
+    },
+}
+
 /// Phase-B choices. Phase A must finish before any runtime is constructed.
 #[non_exhaustive]
 pub struct BootstrapOptions {
@@ -60,6 +72,8 @@ pub struct BootstrapOptions {
     pub logging: LoggingMode,
     /// Compatibility database refresh policy.
     pub umu_refresh: UmuRefresh,
+    /// Startup prefix journal recovery policy.
+    pub prefix_journal_recovery: PrefixJournalRecovery,
 }
 
 impl BootstrapOptions {
@@ -72,6 +86,7 @@ impl BootstrapOptions {
                 mirror_stdout: false,
             },
             umu_refresh: UmuRefresh::Enabled,
+            prefix_journal_recovery: PrefixJournalRecovery::Enabled,
         }
     }
 
@@ -96,6 +111,12 @@ impl BootstrapOptions {
     /// Selects compatibility refresh policy.
     pub fn with_umu_refresh(mut self, refresh: UmuRefresh) -> Self {
         self.umu_refresh = refresh;
+        self
+    }
+
+    /// Selects startup prefix journal recovery policy.
+    pub fn with_prefix_journal_recovery(mut self, recovery: PrefixJournalRecovery) -> Self {
+        self.prefix_journal_recovery = recovery;
         self
     }
 }

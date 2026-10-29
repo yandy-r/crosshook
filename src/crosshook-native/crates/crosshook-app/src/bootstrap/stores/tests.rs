@@ -197,6 +197,59 @@ async fn services_new_builds_bundle_from_stores() {
     }
     jobs.reap(&proton_held_id).unwrap();
 
+    // The four process services share the app registry: a prefix key held
+    // through `prefix_deps` conflicts for every other process service.
+    let prefix_key = crate::services::process::prefix_job_key_for_path(std::path::Path::new(
+        "/wiring-test/prefix/pfx",
+    ));
+    let prefix_spec =
+        |kind: &'static str| crate::jobs::JobSpec::new(kind).with_key(prefix_key.clone());
+    let prefix_held = services
+        .prefix_deps
+        .jobs()
+        .start(
+            prefix_spec(crate::services::prefix_deps::PREFIX_DEPS_INSTALL_JOB_KIND),
+            |ctx| async move {
+                ctx.cancelled().await;
+                crate::jobs::Outcome::Cancelled
+            },
+        )
+        .unwrap();
+    assert!(jobs.is_key_held(&prefix_key));
+    let process_registries = [
+        (
+            crate::services::update::UPDATE_GAME_JOB_KIND,
+            services.update.jobs(),
+        ),
+        (
+            crate::services::install::INSTALL_GAME_JOB_KIND,
+            services.install.jobs(),
+        ),
+        (
+            crate::services::run_executable::RUN_EXECUTABLE_JOB_KIND,
+            services.run_executable.jobs(),
+        ),
+    ];
+    for (kind, registry) in process_registries {
+        let conflict = registry
+            .start(prefix_spec(kind), |_ctx| async {
+                crate::jobs::Outcome::Succeeded
+            })
+            .err()
+            .unwrap_or_else(|| panic!("the {kind} service must share the app job registry"));
+        assert_eq!(conflict.kind(), crate::AppErrorKind::Conflict);
+    }
+    let prefix_held_id = prefix_held.id().clone();
+    let mut prefix_events = prefix_held.into_events();
+    jobs.cancel(&prefix_held_id).unwrap();
+    while let Some(event) = prefix_events.recv().await {
+        if matches!(event.kind, crate::jobs::JobEventKind::Finished(_)) {
+            break;
+        }
+    }
+    jobs.reap(&prefix_held_id).unwrap();
+    assert!(!jobs.is_key_held(&prefix_key));
+
     // The community service starts sync jobs on the same app registry.
     let observed = services
         .community

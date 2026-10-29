@@ -152,6 +152,7 @@ impl App {
             boot.stores(),
             boot.services(),
             opts.umu_refresh,
+            opts.prefix_journal_recovery,
         );
         let report = boot.startup_report();
         Ok((boot, report))

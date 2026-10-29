@@ -57,7 +57,9 @@ pub(crate) mod version_scan;
 pub use app_bootstrap::BootstrappedApp;
 pub use env_policy::{EnvPolicy, PreRuntimeEnv};
 pub use error::{BootstrapError, StoreKind};
-pub use options::{BootstrapOptions, LoggingMode, RuntimeChoice, StoreRoots, UmuRefresh};
+pub use options::{
+    BootstrapOptions, LoggingMode, PrefixJournalRecovery, RuntimeChoice, StoreRoots, UmuRefresh,
+};
 pub use pre_runtime::{pre_runtime, FlatpakMode, PreRuntime, PreRuntimeOptions};
 pub use report::{
     DegradedStores, FlatpakMigrationReport, FlatpakStartup, JobSnapshotKind, JobState,
