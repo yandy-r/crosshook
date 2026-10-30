@@ -1,0 +1,10 @@
+{
+  "profile_name": "p",
+  "prefix_path": "/raw/prefix",
+  "succeeded": false,
+  "exit_code": 0,
+  "install_succeeded": true,
+  "install_exit_code": 0,
+  "restore_state": "failed",
+  "restore_error": "e"
+}

@@ -1,13 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 
-import type { PrefixDependencyStatus, PrefixVersionRepairStatus } from '../types/prefix-deps';
+import { isPrefixBusy, type PrefixDependencyStatus, type PrefixVersionRepairStatus } from '../types/prefix-deps';
 
 const NO_REPAIR_REQUIRED: PrefixVersionRepairStatus = {
   required: false,
   state: null,
   last_error: null,
+  in_progress: false,
+  last_recovery: null,
 };
+
+/** Re-poll interval of the repair status while another job holds the prefix. */
+export const PREFIX_BUSY_POLL_MS = 2000;
 
 export interface UsePrefixDepsResult {
   deps: PrefixDependencyStatus[];
@@ -36,8 +41,10 @@ export function usePrefixDeps(profileName: string, prefixPath: string): UsePrefi
   const [repairing, setRepairing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Resolves to the loaded repair status, or null when its lookup failed or
+  // the load was superseded (`isActive` turned false).
   const load = useCallback(
-    async (isActive: () => boolean = () => true) => {
+    async (isActive: () => boolean = () => true): Promise<PrefixVersionRepairStatus | null> => {
       if (!profileName) {
         if (isActive()) {
           setDeps([]);
@@ -47,7 +54,7 @@ export function usePrefixDeps(profileName: string, prefixPath: string): UsePrefi
           setError(null);
           setLoading(false);
         }
-        return;
+        return NO_REPAIR_REQUIRED;
       }
 
       setLoading(true);
@@ -58,7 +65,7 @@ export function usePrefixDeps(profileName: string, prefixPath: string): UsePrefi
           callCommand<PrefixVersionRepairStatus>('get_prefix_version_repair_status', args),
         ]);
 
-        if (!isActive()) return;
+        if (!isActive()) return null;
         const loadErrors: string[] = [];
         if (dependencyResult.status === 'fulfilled') {
           setDeps(dependencyResult.value);
@@ -66,8 +73,10 @@ export function usePrefixDeps(profileName: string, prefixPath: string): UsePrefi
           setDeps([]);
           loadErrors.push(normalizeError(dependencyResult.reason));
         }
+        let loadedStatus: PrefixVersionRepairStatus | null = null;
         if (repairResult.status === 'fulfilled') {
-          setRepairStatus(repairResult.value);
+          loadedStatus = repairResult.value;
+          setRepairStatus(loadedStatus);
           setRepairStatusKnown(true);
           setRepairStatusError(null);
         } else {
@@ -76,6 +85,7 @@ export function usePrefixDeps(profileName: string, prefixPath: string): UsePrefi
           loadErrors.push(repairError);
         }
         setError(loadErrors.length > 0 ? loadErrors.join(' ') : null);
+        return loadedStatus;
       } finally {
         if (isActive()) setLoading(false);
       }
@@ -91,6 +101,50 @@ export function usePrefixDeps(profileName: string, prefixPath: string): UsePrefi
       active = false;
     };
   }, [load]);
+
+  // While a job holds the prefix over a repair row, the status is provisional:
+  // re-poll until the job releases it, then reload everything so a finished
+  // recovery or a new repair requirement shows up. The poll re-arms itself
+  // after that reload while the prefix is still busy or the lookup failed, as
+  // `prefixBusy` (the effect's trigger) may not change in either case.
+  const prefixBusy = isPrefixBusy(repairStatus);
+  useEffect(() => {
+    if (!profileName || !prefixBusy) return;
+    let active = true;
+    let timer: number | undefined;
+    const poll = async () => {
+      try {
+        const next = await callCommand<PrefixVersionRepairStatus>('get_prefix_version_repair_status', {
+          profileName,
+          prefixPath,
+        });
+        if (!active) return;
+        if (isPrefixBusy(next)) {
+          setRepairStatus(next);
+          setRepairStatusError(null);
+          timer = window.setTimeout(() => void poll(), PREFIX_BUSY_POLL_MS);
+          return;
+        }
+        const loaded = await load(() => active);
+        if (!active) return;
+        if (loaded === null || isPrefixBusy(loaded)) {
+          timer = window.setTimeout(() => void poll(), PREFIX_BUSY_POLL_MS);
+        }
+      } catch (err) {
+        if (!active) return;
+        // Keep the last known (busy) status and keep polling; dependency
+        // actions stay blocked while the error is set.
+        setRepairStatusError(normalizeError(err));
+        timer = window.setTimeout(() => void poll(), PREFIX_BUSY_POLL_MS);
+      }
+    };
+    timer = window.setTimeout(() => void poll(), PREFIX_BUSY_POLL_MS);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [load, prefixBusy, prefixPath, profileName]);
 
   const checkDeps = useCallback(
     async (packages: string[]) => {

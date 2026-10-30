@@ -23,6 +23,22 @@ vi.mock('@/lib/events', () => ({
 
 const callCommandMock = vi.mocked(callCommand);
 
+const CLEAN_REPAIR_STATUS = {
+  required: false,
+  state: null,
+  last_error: null,
+  in_progress: false,
+  last_recovery: null,
+};
+
+function mockRepairStatus(status: Record<string, unknown>): void {
+  const fallback = callCommandMock.getMockImplementation();
+  callCommandMock.mockImplementation(async (name, args) => {
+    if (name === 'get_prefix_version_repair_status') return { ...CLEAN_REPAIR_STATUS, ...status };
+    return fallback?.(name, args);
+  });
+}
+
 describe('PrefixDepsPanel', () => {
   let repairRequired: boolean;
 
@@ -44,12 +60,12 @@ describe('PrefixDepsPanel', () => {
       }
       if (name === 'get_prefix_version_repair_status') {
         return repairRequired
-          ? { required: true, state: 'failed', last_error: 'restore timed out' }
-          : { required: false, state: null, last_error: null };
+          ? { ...CLEAN_REPAIR_STATUS, required: true, state: 'failed', last_error: 'restore timed out' }
+          : CLEAN_REPAIR_STATUS;
       }
       if (name === 'repair_prefix_windows_version') {
         repairRequired = false;
-        return { required: false, state: null, last_error: null };
+        return CLEAN_REPAIR_STATUS;
       }
       throw new Error(`unexpected command: ${name}`);
     });
@@ -117,7 +133,51 @@ describe('PrefixDepsPanel', () => {
     repairRequired = false;
     render(<PrefixDepsPanel profileName="Ghost" prefixPath="/prefix" requiredPackages={[]} />);
 
-    expect(await screen.findByRole('status')).toHaveTextContent('No prefix dependencies are declared');
+    expect(await screen.findByText(/No prefix dependencies are declared/)).toHaveAttribute('role', 'status');
+  });
+
+  it('shows an automatic restore as a status note, not an alert', async () => {
+    mockRepairStatus({ last_recovery: { outcome: 'restored', message: null } });
+    render(<PrefixDepsPanel profileName="Ghost" prefixPath="/prefix" requiredPackages={['dotnet48']} />);
+
+    const note = await screen.findByText(/CrossHook restored this prefix's Windows compatibility version/);
+    expect(note).toHaveAttribute('role', 'status');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Install' })).toBeEnabled());
+  });
+
+  it('keeps the blocking alert when automatic recovery failed', async () => {
+    mockRepairStatus({
+      required: true,
+      state: 'failed',
+      last_error: 'restore timed out',
+      last_recovery: { outcome: 'failed', message: 'restore timed out' },
+    });
+    render(<PrefixDepsPanel profileName="Ghost" prefixPath="/prefix" requiredPackages={['dotnet48']} />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Prefix repair required');
+    expect(screen.queryByText(/CrossHook restored this prefix/)).not.toBeInTheDocument();
+  });
+
+  it('shows no repair banner while a job holds the prefix', async () => {
+    mockRepairStatus({ required: true, state: 'pending', in_progress: true });
+    render(<PrefixDepsPanel profileName="Ghost" prefixPath="/prefix" requiredPackages={['dotnet48']} />);
+
+    // The dependency badge and repair status are applied in the same update.
+    expect(await screen.findByText('dotnet48: Missing')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Install' })).toBeDisabled();
+    expect(screen.queryByText('Prefix repair required')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByText(/Another operation is using this prefix/)).toHaveAttribute('role', 'status');
+  });
+
+  it('shows no busy note while a job holds the prefix without a repair row', async () => {
+    mockRepairStatus({ in_progress: true });
+    render(<PrefixDepsPanel profileName="Ghost" prefixPath="/prefix" requiredPackages={['dotnet48']} />);
+
+    expect(await screen.findByText('dotnet48: Missing')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Install' })).toBeEnabled());
+    expect(screen.queryByText(/Another operation is using this prefix/)).not.toBeInTheDocument();
   });
 
   it('disables installation but allows status retry when repair safety is unknown', async () => {

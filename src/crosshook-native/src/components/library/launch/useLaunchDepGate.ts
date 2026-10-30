@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLaunchStateContext } from '@/context/LaunchStateContext';
 import { useLaunchPrefixDependencyGate } from '@/hooks/useLaunchPrefixDependencyGate';
 import { subscribeEvent } from '@/lib/events';
-import type { PrefixDepCompletePayload, PrefixVersionRepairStatus } from '@/types/prefix-deps';
+import { isPrefixBusy, type PrefixDepCompletePayload, type PrefixVersionRepairStatus } from '@/types/prefix-deps';
 import type { GameProfile } from '@/types/profile';
 import { resolveEffectivePrefixPath } from '@/utils/prefixPath';
 
@@ -36,6 +36,8 @@ export interface DepGateState {
   setDepGateVerifying: (verifying: boolean) => void;
   setDepGateRepairing: (repairing: boolean) => void;
   handleBeforeLaunch: (action: LaunchAction) => Promise<boolean>;
+  /** Re-checks the pending launch (after a busy prefix) and launches when allowed. */
+  retryPendingLaunch: () => Promise<void>;
   repairPrefixVersion: () => Promise<void>;
   installPrefixDependency: ReturnType<typeof useLaunchPrefixDependencyGate>['installPrefixDependency'];
 }
@@ -117,6 +119,8 @@ export function useLaunchDepGate({
       required: true,
       state: 'failed',
       last_error: `Unable to verify prefix repair status: ${normalizeError(error)}`,
+      in_progress: false,
+      last_recovery: null,
     };
   }, []);
 
@@ -158,14 +162,19 @@ export function useLaunchDepGate({
         if (!operation || !isOperationCurrent(operation)) return;
 
         clearPrefixDepListener();
-        if (event.payload.restore_state === 'failed') {
+        const restoreState = event.payload.restore_state;
+        // `pending`: the restore never completed (spawn failure or the job
+        // ended without a result), so the prefix needs repair like `failed`.
+        if (restoreState === 'failed' || restoreState === 'pending') {
           setDepGateInstalling(false);
           setDepGateVerifying(false);
           setDepGatePackages(null);
           blockForKnownRepair(prefixPath, {
             required: true,
-            state: 'failed',
+            state: restoreState,
             last_error: event.payload.restore_error,
+            in_progress: false,
+            last_recovery: null,
           });
           return;
         }
@@ -177,6 +186,16 @@ export function useLaunchDepGate({
             try {
               const status = await getPrefixVersionRepairStatus(profileName, prefixPath);
               if (!isOperationCurrent(operation)) return;
+              if (isPrefixBusy(status)) {
+                // Another job holds the prefix over a provisional repair row;
+                // show the busy state and let the user retry instead of
+                // offering a repair.
+                setDepGateInstalling(false);
+                setDepGateVerifying(false);
+                setDepGatePackages(null);
+                setDepGateRepair(status);
+                return;
+              }
               if (status.required) {
                 setDepGateInstalling(false);
                 setDepGateVerifying(false);
@@ -361,6 +380,8 @@ export function useLaunchDepGate({
         required: true,
         state: 'failed',
         last_error: normalizeError(error),
+        in_progress: false,
+        last_recovery: null,
       });
     } finally {
       if (isOperationCurrent(operation)) setDepGateRepairing(false);
@@ -380,15 +401,20 @@ export function useLaunchDepGate({
     verificationFailure,
   ]);
 
-  const handleBeforeLaunch = useCallback(
-    async (action: LaunchAction): Promise<boolean> => {
-      const prefixPath = resolvedPrefixPath;
-      if (!prefixPath) return true;
-      const operation = beginOperation(action, prefixPath);
-
+  const evaluateLaunch = useCallback(
+    async (action: LaunchAction, prefixPath: string, operation: GateOperationToken): Promise<boolean> => {
       try {
         const repairStatus = await getPrefixVersionRepairStatus(selectedName, prefixPath);
         if (!isOperationCurrent(operation)) return false;
+        if (isPrefixBusy(repairStatus)) {
+          // A job holds the prefix over a provisional repair row (e.g. an
+          // install's pending restore): show a busy/retry state, not a repair.
+          // A job holding the prefix without a repair row does not block.
+          setDepGatePackages(null);
+          setDepGateRepair(repairStatus);
+          setDepGatePendingAction(action);
+          return false;
+        }
         if (repairStatus.required) {
           setDepGatePackages(null);
           blockForKnownRepair(prefixPath, repairStatus);
@@ -419,15 +445,42 @@ export function useLaunchDepGate({
     },
     [
       blockForKnownRepair,
-      beginOperation,
       evaluatePackageGate,
       getPrefixVersionRepairStatus,
       isOperationCurrent,
-      resolvedPrefixPath,
       selectedName,
       setDepGatePendingAction,
     ]
   );
+
+  const handleBeforeLaunch = useCallback(
+    async (action: LaunchAction): Promise<boolean> => {
+      const prefixPath = resolvedPrefixPath;
+      if (!prefixPath) return true;
+      return evaluateLaunch(action, prefixPath, beginOperation(action, prefixPath));
+    },
+    [beginOperation, evaluateLaunch, resolvedPrefixPath]
+  );
+
+  const retryPendingLaunch = useCallback(async () => {
+    const action = pendingActionRef.current;
+    const prefixPath = resolvedPrefixPath;
+    if (!action || !prefixPath) return;
+    const operation = beginOperation(action, prefixPath);
+    const mayLaunch = await evaluateLaunch(action, prefixPath, operation);
+    if (!mayLaunch || !isOperationCurrent(operation)) return;
+    setDepGateRepair(null);
+    setDepGatePendingAction(null);
+    activeOperationRef.current = null;
+    launchPendingAction(action);
+  }, [
+    beginOperation,
+    evaluateLaunch,
+    isOperationCurrent,
+    launchPendingAction,
+    resolvedPrefixPath,
+    setDepGatePendingAction,
+  ]);
 
   return {
     depGatePackages,
@@ -444,6 +497,7 @@ export function useLaunchDepGate({
     setDepGateVerifying,
     setDepGateRepairing,
     handleBeforeLaunch,
+    retryPendingLaunch,
     repairPrefixVersion,
     installPrefixDependency: installPrefixDependencyWithListener,
   };

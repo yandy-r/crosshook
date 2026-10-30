@@ -15,6 +15,40 @@ export function LaunchDepGateModal({ depGate, profile, selectedName }: LaunchDep
   const depGatePackages = depGate.depGatePackages;
   const repair = depGate.depGateRepair;
 
+  if (repair?.in_progress) {
+    return (
+      <div className="crosshook-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="dep-gate-busy-title">
+        <div className="crosshook-modal crosshook-prefix-deps__confirm crosshook-panel">
+          <h3 id="dep-gate-busy-title">Prefix Busy</h3>
+          <p role="status" aria-live="polite">
+            Another operation is using this prefix. Wait for it to finish, then try again.
+          </p>
+          <div className="crosshook-modal__actions">
+            <button
+              type="button"
+              className="crosshook-button"
+              onClick={() => {
+                void depGate.retryPendingLaunch();
+              }}
+            >
+              Try Again
+            </button>
+            <button
+              type="button"
+              className="crosshook-button crosshook-button--secondary"
+              onClick={() => {
+                depGate.setDepGateRepair(null);
+                depGate.setDepGatePendingAction(null);
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (repair?.required) {
     return (
       <div

@@ -7,6 +7,7 @@
 //! - `StoreRoots::Explicit` — no XDG fallback, no real user directories.
 //! - `LoggingMode::Skip` — the tracing subscriber is once-per-process.
 //! - `UmuRefresh::Skip` — no network in tests.
+//! - `PrefixJournalRecovery::Skip` — no background journal recovery job.
 //! - `RuntimeChoice::Handle(Handle::current())` on the current-thread test
 //!   runtime: jobs are spawned but not polled until the first `.await`, so
 //!   subscribing before awaiting makes every `StartupJobFinished` event
@@ -20,7 +21,7 @@ use std::path::Path;
 use crosshook_app::bootstrap::{
     pre_runtime_with_host, BootstrapError, BootstrapOptions, BootstrapStep, BootstrappedApp,
     FlatpakMigrationReport, FlatpakMode, JobSnapshotKind, JobState, LoggingMode, PreRuntimeHost,
-    PreRuntimeOptions, StepOutcome, StoreKind, StoreRoots, UmuRefresh,
+    PreRuntimeOptions, PrefixJournalRecovery, StepOutcome, StoreKind, StoreRoots, UmuRefresh,
 };
 use crosshook_app::{App, AppEvent, StartupJobKind};
 use crosshook_core::metadata::MetadataStatus;
@@ -97,6 +98,9 @@ fn test_options(dir: &Path) -> BootstrapOptions {
         .with_store_roots(explicit_roots(dir))
         .with_logging(LoggingMode::Skip)
         .with_umu_refresh(UmuRefresh::Skip {
+            reason: "integration test",
+        })
+        .with_prefix_journal_recovery(PrefixJournalRecovery::Skip {
             reason: "integration test",
         })
 }

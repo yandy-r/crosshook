@@ -1,6 +1,5 @@
 use std::error::Error;
 use std::fmt;
-use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
@@ -32,8 +31,6 @@ pub struct UpdateGameResult {
 #[serde(rename_all = "snake_case")]
 pub enum UpdateGameError {
     Validation(UpdateGameValidationError),
-    RuntimeUnavailable,
-    LogAttachmentFailed { path: PathBuf, message: String },
     UpdaterSpawnFailed { message: String },
     UpdaterWaitFailed { message: String },
     UpdaterExitedWithFailure { status: Option<i32> },
@@ -43,13 +40,16 @@ pub enum UpdateGameError {
 #[serde(rename_all = "snake_case")]
 pub enum UpdateGameValidationError {
     UpdaterPathRequired,
+    UpdaterPathNotAbsolute,
     UpdaterPathMissing,
     UpdaterPathNotFile,
     UpdaterPathNotWindowsExecutable,
     ProtonPathRequired,
+    ProtonPathNotAbsolute,
     ProtonPathMissing,
     ProtonPathNotExecutable,
     PrefixPathRequired,
+    PrefixPathNotAbsolute,
     PrefixPathMissing,
     PrefixPathNotDirectory,
 }
@@ -58,17 +58,22 @@ impl UpdateGameValidationError {
     pub fn message(&self) -> String {
         match self {
             Self::UpdaterPathRequired => "The updater executable path is required.".to_string(),
+            Self::UpdaterPathNotAbsolute => {
+                "The updater executable path must be an absolute path.".to_string()
+            }
             Self::UpdaterPathMissing => "The updater executable path does not exist.".to_string(),
             Self::UpdaterPathNotFile => "The updater executable path must be a file.".to_string(),
             Self::UpdaterPathNotWindowsExecutable => {
                 "The updater executable path must point to a Windows .exe file.".to_string()
             }
             Self::ProtonPathRequired => "A Proton path is required.".to_string(),
+            Self::ProtonPathNotAbsolute => "The Proton path must be an absolute path.".to_string(),
             Self::ProtonPathMissing => "The Proton path does not exist.".to_string(),
             Self::ProtonPathNotExecutable => {
                 "The Proton path does not point to an executable file.".to_string()
             }
             Self::PrefixPathRequired => "A prefix path is required.".to_string(),
+            Self::PrefixPathNotAbsolute => "The prefix path must be an absolute path.".to_string(),
             Self::PrefixPathMissing => "The prefix path does not exist.".to_string(),
             Self::PrefixPathNotDirectory => "The prefix path must be a directory.".to_string(),
         }
@@ -87,15 +92,6 @@ impl UpdateGameError {
     pub fn message(&self) -> String {
         match self {
             Self::Validation(error) => error.message(),
-            Self::RuntimeUnavailable => {
-                "Update execution requires a Tokio runtime, but none was available.".to_string()
-            }
-            Self::LogAttachmentFailed { path, message } => {
-                format!(
-                    "Failed to attach updater logs to '{}': {message}",
-                    path.display()
-                )
-            }
             Self::UpdaterSpawnFailed { message } => {
                 format!("Failed to launch the updater through Proton: {message}")
             }

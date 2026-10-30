@@ -1,41 +1,50 @@
 //! Tests for child supervision and the moved process helpers.
 
-use std::io;
 use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
 use std::process::Stdio;
 use std::time::{Duration, Instant};
+use std::{fs, io};
 
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::{Child, Command};
+use tokio::process::{Child, ChildStdout, Command};
 use tokio_util::sync::CancellationToken;
 
+use super::sweep::{
+    environ_references_prefix, kill_processes_using_prefix_with, protected_pids, PrefixTarget,
+};
 use super::{
-    create_log_path, create_log_path_in, environ_entry_contains_prefix_path, slugify_target,
-    supervise_child, ChildExit, LOG_DIR,
+    processes_using_prefix, slugify_target, supervise_child, supervise_child_with_kill, ChildExit,
 };
 
 const GRACE: Duration = Duration::from_millis(200);
+/// A grace no kill-path test may wait out.
+const LONG_GRACE: Duration = Duration::from_secs(60);
+/// Upper bound for every await that must not hang.
+const TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Spawns `sh -c script` in its own process group and waits until the script
-/// prints its first line, so signal dispositions are installed before cancel.
-async fn spawn_ready(script: &str) -> Child {
-    let mut child = Command::new("sh")
-        .arg("-c")
-        .arg(script)
+/// Spawns `command` (which must print `ready` first) in its own process group
+/// and returns it with its stdout reader positioned after the `ready` line.
+async fn spawn_ready_command(mut command: Command) -> (Child, BufReader<ChildStdout>) {
+    let mut child = command
         .stdout(Stdio::piped())
         .process_group(0)
         .kill_on_drop(true)
         .spawn()
-        .expect("spawn sh");
-    let stdout = child.stdout.take().expect("piped stdout");
+        .expect("spawn ready command");
+    let mut stdout = BufReader::new(child.stdout.take().expect("piped stdout"));
     let mut line = String::new();
-    BufReader::new(stdout)
-        .read_line(&mut line)
-        .await
-        .expect("read ready line");
+    stdout.read_line(&mut line).await.expect("read ready line");
     assert_eq!(line.trim(), "ready");
-    child
+    (child, stdout)
+}
+
+/// Spawns `sh -c script` in its own process group and waits until the script
+/// prints its first line, so signal dispositions are installed before cancel.
+async fn spawn_ready(script: &str) -> Child {
+    let mut command = Command::new("sh");
+    command.arg("-c").arg(script);
+    spawn_ready_command(command).await.0
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -204,81 +213,189 @@ fn slugify_maps_non_alphanumerics_and_falls_back() {
     assert_eq!(slugify_target("!!!", "install"), "install");
 }
 
-#[test]
-fn prefix_path_rejects_sibling_with_extra_suffix_after_match() {
-    let prefix = b"/foo/bar";
-    assert!(!environ_entry_contains_prefix_path(
-        b"WINEPREFIX=/foo/bar-baz",
-        prefix
-    ));
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn kill_sigkills_group_without_waiting_for_grace() {
+    // Ignores SIGTERM: only SIGKILL can end it.
+    let child = spawn_ready("trap '' TERM; echo ready; sleep 30").await;
+    let cancel = CancellationToken::new();
+    let kill = CancellationToken::new();
+    kill.cancel();
+    let exit = tokio::time::timeout(
+        TIMEOUT,
+        supervise_child_with_kill(child, &cancel, &kill, LONG_GRACE),
+    )
+    .await
+    .expect("kill must not wait out the grace")
+    .unwrap();
+    assert!(matches!(exit, ChildExit::Killed(_)), "{exit:?}");
+    assert_eq!(exit.status().signal(), Some(libc_sigkill()));
+    assert!(exit.was_cancelled());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn kill_during_term_grace_sigkills_immediately() {
+    // The handler survives SIGTERM and reports it, so the test knows the
+    // supervisor is inside the TERM grace before firing `kill`. The builtin
+    // `read` (stdin held open by the child handle) lets the shell run the
+    // trap at once; a foreground external command would defer it.
+    let mut command = Command::new("sh");
+    command
+        .arg("-c")
+        .arg("trap 'echo term' TERM; echo ready; while :; do read line; done")
+        .stdin(Stdio::piped());
+    let (child, mut stdout) = spawn_ready_command(command).await;
+    let cancel = CancellationToken::new();
+    let kill = CancellationToken::new();
+    let supervision = {
+        let (cancel, kill) = (cancel.clone(), kill.clone());
+        tokio::spawn(
+            async move { supervise_child_with_kill(child, &cancel, &kill, LONG_GRACE).await },
+        )
+    };
+    cancel.cancel();
+    let mut line = String::new();
+    tokio::time::timeout(TIMEOUT, stdout.read_line(&mut line))
+        .await
+        .expect("SIGTERM reaches the group")
+        .expect("read term line");
+    assert_eq!(line.trim(), "term");
+    assert!(!supervision.is_finished(), "grace must still be running");
+
+    kill.cancel();
+    let exit = tokio::time::timeout(TIMEOUT, supervision)
+        .await
+        .expect("kill must cut the grace short")
+        .expect("supervision task")
+        .unwrap();
+    assert!(matches!(exit, ChildExit::Killed(_)), "{exit:?}");
+    assert_eq!(exit.status().signal(), Some(libc_sigkill()));
+}
+
+/// Spawns `env <var>=<value> sh` blocked on `read`, so its environ is stable.
+async fn spawn_with_env(var: &str, value: &Path) -> Child {
+    let mut command = Command::new("env");
+    command
+        .arg(format!("{var}={}", value.display()))
+        .arg("sh")
+        .arg("-c")
+        .arg("echo ready; read line")
+        .stdin(Stdio::piped());
+    spawn_ready_command(command).await.0
+}
+
+/// A canonical `<dir>/real/compat/pfx` prefix and a `<dir>/alias` symlink to
+/// `<dir>/real`.
+fn prefix_with_alias(dir: &Path) -> (std::path::PathBuf, std::path::PathBuf) {
+    let real = dir.join("real");
+    fs::create_dir_all(real.join("compat/pfx")).unwrap();
+    std::os::unix::fs::symlink(&real, dir.join("alias")).unwrap();
+    let prefix = fs::canonicalize(real.join("compat/pfx")).unwrap();
+    (prefix, dir.join("alias"))
+}
+
+fn references(environ: &[u8], prefix: &Path) -> bool {
+    let target = PrefixTarget::new(prefix).expect("non-empty prefix");
+    environ_references_prefix(environ, &target, &mut Default::default())
 }
 
 #[test]
-fn prefix_path_accepts_exact_match_and_subdirectory() {
-    let prefix = b"/foo/bar";
-    assert!(environ_entry_contains_prefix_path(
-        b"WINEPREFIX=/foo/bar",
-        prefix
-    ));
-    assert!(environ_entry_contains_prefix_path(b"/foo/bar", prefix));
-    assert!(environ_entry_contains_prefix_path(
-        b"WINEPREFIX=/foo/bar/pfx",
-        prefix
-    ));
-}
-
-#[test]
-fn prefix_path_accepts_colon_separated_path_list() {
-    let prefix = b"/foo/bar";
-    assert!(environ_entry_contains_prefix_path(
-        b"PATH=/a:/foo/bar:/c",
-        prefix
-    ));
-}
-
-#[test]
-fn create_log_path_writes_into_the_shared_tmp_directory() {
-    let path = create_log_path("logdir-prod", "slug").expect("production log path");
-
-    assert_eq!(path.parent(), Some(Path::new(LOG_DIR)));
-    assert!(path.is_file());
-    let _ = std::fs::remove_file(path);
-}
-
-#[test]
-fn create_log_path_in_creates_the_directory_and_a_unique_file() {
+fn environ_matches_only_prefix_variables_by_canonical_path() {
     let dir = tempfile::tempdir().unwrap();
-    let nested = dir.path().join("deep/logs");
+    let (prefix, alias) = prefix_with_alias(dir.path());
+    let entry = |key: &str, value: &Path| format!("{key}={}\0", value.display()).into_bytes();
 
-    let path = create_log_path_in(nested.clone(), "game", "quest")
-        .expect("log file in the given directory");
-
-    assert_eq!(path.parent(), Some(nested.as_path()));
-    assert!(path.is_file(), "the log file exists and is empty");
-    assert!(path
-        .file_name()
-        .unwrap()
-        .to_string_lossy()
-        .starts_with("game-quest-"));
+    assert!(references(&entry("WINEPREFIX", &prefix), &prefix));
+    // A symlinked alias of the same prefix.
+    assert!(references(
+        &entry("WINEPREFIX", &alias.join("compat/pfx")),
+        &prefix
+    ));
+    // The Proton compat-data root whose `pfx` is the prefix.
+    assert!(references(
+        &entry("STEAM_COMPAT_DATA_PATH", &alias.join("compat")),
+        &prefix
+    ));
+    // The `pfx` of a compat-data root target.
+    assert!(references(
+        &entry("WINEPREFIX", &prefix),
+        prefix.parent().expect("compat root")
+    ));
+    // Other variables, siblings, children and relative values never match.
+    assert!(!references(&entry("HOME", &prefix), &prefix));
+    assert!(!references(&entry("WINEDLLPATH", &prefix), &prefix));
+    assert!(!references(
+        &entry("WINEPREFIX", &prefix.with_file_name("pfx-other")),
+        &prefix
+    ));
+    assert!(!references(
+        &entry("WINEPREFIX", &prefix.join("drive_c")),
+        &prefix
+    ));
+    assert!(!references(b"WINEPREFIX=compat/pfx\0", &prefix));
+    // A prefix-sized home folder does not match every process's `HOME`.
+    assert!(!references(&entry("HOME", dir.path()), dir.path()));
 }
 
-#[test]
-fn create_log_path_in_never_truncates_an_existing_same_millisecond_file() {
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn processes_using_prefix_matches_aliases_but_not_other_variables() {
     let dir = tempfile::tempdir().unwrap();
-    // Two sessions in the same millisecond resolve to the same stem; the
-    // second call must not open (and truncate) the first file.
-    let first =
-        create_log_path_in(dir.path().to_path_buf(), "game", "twin").expect("first log file");
-    std::fs::write(&first, b"first-session-bytes").unwrap();
+    let (prefix, alias) = prefix_with_alias(dir.path());
+    let user = spawn_with_env("WINEPREFIX", &alias.join("compat/pfx")).await;
+    let home = spawn_with_env("HOME", &prefix).await;
+    let sibling = spawn_with_env("WINEPREFIX", &prefix.with_file_name("pfx-other")).await;
+    let user_pid = user.id().expect("user pid");
 
-    let second =
-        create_log_path_in(dir.path().to_path_buf(), "game", "twin").expect("second log file");
+    let pids = processes_using_prefix(&prefix);
 
-    assert_ne!(first, second, "the second session gets its own file");
-    assert_eq!(
-        std::fs::read(&first).unwrap(),
-        b"first-session-bytes",
-        "the first session's log is never truncated"
+    assert!(pids.contains(&user_pid), "{user_pid} not in {pids:?}");
+    assert!(!pids.contains(&home.id().expect("home pid")), "{pids:?}");
+    assert!(
+        !pids.contains(&sibling.id().expect("sibling pid")),
+        "{pids:?}"
     );
-    assert!(second.is_file());
+    assert!(processes_using_prefix(Path::new("")).is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn kill_sweep_signals_locally_and_spares_protected_pids() {
+    let dir = tempfile::tempdir().unwrap();
+    let (prefix, _) = prefix_with_alias(dir.path());
+    let mut user = spawn_with_env("WINEPREFIX", &prefix).await;
+    let mut protected_user = spawn_with_env("WINEPREFIX", &prefix).await;
+    let protected = std::collections::HashSet::from([protected_user.id().expect("pid")]);
+
+    kill_processes_using_prefix_with(&prefix, false, &protected);
+
+    let status = tokio::time::timeout(TIMEOUT, user.wait())
+        .await
+        .expect("swept process exits")
+        .unwrap();
+    assert_eq!(status.signal(), Some(libc_sigkill()));
+    assert!(
+        protected_user.try_wait().unwrap().is_none(),
+        "a protected pid was signalled"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn kill_sweep_is_skipped_under_flatpak() {
+    let dir = tempfile::tempdir().unwrap();
+    let (prefix, _) = prefix_with_alias(dir.path());
+    let mut user = spawn_with_env("WINEPREFIX", &prefix).await;
+
+    kill_processes_using_prefix_with(&prefix, true, &Default::default());
+
+    assert!(processes_using_prefix(&prefix).contains(&user.id().expect("pid")));
+    assert!(user.try_wait().unwrap().is_none(), "swept under Flatpak");
+}
+
+#[test]
+fn protected_pids_cover_the_process_and_its_ancestors() {
+    let protected = protected_pids();
+    assert!(protected.contains(&std::process::id()));
+    let parent = std::os::unix::process::parent_id();
+    assert!(
+        protected.contains(&parent),
+        "parent {parent} in {protected:?}"
+    );
 }

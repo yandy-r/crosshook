@@ -99,11 +99,18 @@ export function useUpdateGame(): UseUpdateGameResult {
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState('');
   const [profileCoverSource, setProfileCoverSource] = useState<UpdateGameProfileCoverSource | null>(null);
-  const unlistenRef = useRef<(() => void) | null>(null);
+  // Completion listeners of started runs. `update-complete` carries no run id,
+  // so each listener handles only the first completion after its start and
+  // then removes itself; once no run is active nothing listens. Any left are
+  // removed on unmount.
+  const listenersRef = useRef(new Set<() => void>());
+  // Bumped by every start and by reset; a start whose generation is stale
+  // detaches from its run (cancelling it) instead of driving this hook's state.
+  const generationRef = useRef(0);
 
-  const cleanupListener = useCallback(() => {
-    unlistenRef.current?.();
-    unlistenRef.current = null;
+  const cleanupListeners = useCallback(() => {
+    for (const unlisten of listenersRef.current) unlisten();
+    listenersRef.current.clear();
   }, []);
 
   const loadProfiles = useCallback(async () => {
@@ -193,7 +200,9 @@ export function useUpdateGame(): UseUpdateGameResult {
   }, []);
 
   const startUpdate = useCallback(async () => {
-    cleanupListener();
+    generationRef.current += 1;
+    const generation = generationRef.current;
+    const isCurrent = () => generationRef.current === generation;
     setValidation(createEmptyValidationState());
     setError(null);
     setResult(null);
@@ -202,6 +211,7 @@ export function useUpdateGame(): UseUpdateGameResult {
     try {
       await callCommand<void>('validate_update_request', { request });
     } catch (invokeError) {
+      if (!isCurrent()) return;
       const message = normalizeErrorMessage(invokeError);
       const validationField = mapValidationErrorToField(message);
 
@@ -224,16 +234,28 @@ export function useUpdateGame(): UseUpdateGameResult {
 
       return;
     }
+    if (!isCurrent()) return;
 
-    // Track whether the completion event arrived before invoke resolved,
-    // so we don't overwrite a terminal stage with 'running_updater'.
-    let completedBeforeInvoke = false;
-
+    let sawCompletion = false;
+    let unlisten: (() => void) | null = null;
+    const detach = () => {
+      if (unlisten !== null) {
+        listenersRef.current.delete(unlisten);
+        unlisten();
+        unlisten = null;
+      }
+    };
     try {
       // Subscribe to the completion event BEFORE invoking the command
       // to avoid a race where the process exits before the listener exists.
-      const unlisten = await subscribeEvent<number | null>('update-complete', (event) => {
-        completedBeforeInvoke = true;
+      // The listener outlives a reset so a detached start still learns
+      // whether its run already ended before cancelling it.
+      unlisten = await subscribeEvent<number | null>('update-complete', (event) => {
+        sawCompletion = true;
+        detach();
+        if (!isCurrent()) {
+          return;
+        }
         const exitCode = event.payload;
 
         if (exitCode === 0) {
@@ -245,26 +267,35 @@ export function useUpdateGame(): UseUpdateGameResult {
           setStage('failed');
           setError(`Update process exited with code ${exitCode}.`);
         }
-
-        unlistenRef.current = null;
-        unlisten();
       });
-      unlistenRef.current = unlisten;
+      listenersRef.current.add(unlisten);
+      if (!isCurrent()) {
+        detach();
+        return;
+      }
 
       const updateResult = await callCommand<UpdateGameResult>('update_game', { request });
+      if (!isCurrent()) {
+        // Reset or a newer start happened while this start was in flight:
+        // stop the run it started unless a completion already ended it.
+        if (!sawCompletion) {
+          detach();
+          void callCommand<void>('cancel_update').catch(() => undefined);
+        }
+        return;
+      }
       setResult(updateResult);
 
-      // Only transition to 'running_updater' if the process hasn't already exited.
-      if (!completedBeforeInvoke) {
-        setStage('running_updater');
-      }
+      // The process may already have exited; keep a terminal stage.
+      setStage((current) => (current === 'preparing' ? 'running_updater' : current));
     } catch (invokeError) {
+      detach();
+      if (!isCurrent()) return;
       const message = normalizeErrorMessage(invokeError);
       setStage('failed');
       setError(message);
-      cleanupListener();
     }
-  }, [request, cleanupListener]);
+  }, [request]);
 
   const cancelUpdate = useCallback(async () => {
     try {
@@ -275,10 +306,12 @@ export function useUpdateGame(): UseUpdateGameResult {
   }, []);
 
   const reset = useCallback(() => {
-    if (stage === 'running_updater') {
+    // The backend claims the window's run slot at the start of `update_game`,
+    // so a cancel while preparing aborts the pending start before it spawns.
+    if (stage === 'preparing' || stage === 'running_updater') {
       void cancelUpdate();
     }
-    cleanupListener();
+    generationRef.current += 1;
     setRequest(createEmptyRequest());
     setValidation(createEmptyValidationState());
     setStage('idle');
@@ -287,15 +320,15 @@ export function useUpdateGame(): UseUpdateGameResult {
     setProfilesError(null);
     setSelectedProfile('');
     setProfileCoverSource(null);
-  }, [stage, cancelUpdate, cleanupListener]);
+  }, [stage, cancelUpdate]);
 
   useEffect(() => {
     void loadProfiles();
   }, [loadProfiles]);
 
   useEffect(() => {
-    return () => cleanupListener();
-  }, [cleanupListener]);
+    return () => cleanupListeners();
+  }, [cleanupListeners]);
 
   const statusText = (() => {
     switch (stage) {

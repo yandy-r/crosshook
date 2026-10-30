@@ -13,11 +13,9 @@ use tokio::process::Child;
 use tokio_util::sync::CancellationToken;
 
 use crate::jobs::{supervise_child, DEFAULT_KILL_GRACE};
+use crate::services::process::child::DRAIN_GRACE;
 
 const OUTPUT_LIMIT: usize = 64 * 1024;
-/// How long the pipes may stay open after supervision returns before the
-/// drains are abandoned (a descendant outside the process group can hold them).
-const DRAIN_GRACE: Duration = Duration::from_secs(2);
 
 pub(super) struct SupervisedGitRunner {
     cancel: CancellationToken,

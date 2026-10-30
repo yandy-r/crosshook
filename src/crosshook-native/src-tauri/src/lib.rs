@@ -1,11 +1,14 @@
 mod commands;
 mod env_policy;
 mod fatal;
+mod signals;
 mod startup_bridge;
 
 pub use crosshook_app::services::{BackgroundGrantHolder, BackgroundProtectionState};
 
-use crosshook_app::bootstrap::{pre_runtime, BootstrapOptions, PreRuntimeOptions, UmuRefresh};
+use crosshook_app::bootstrap::{
+    pre_runtime, BootstrapOptions, PreRuntimeOptions, PrefixJournalRecovery, UmuRefresh,
+};
 use crosshook_app::App;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -16,14 +19,22 @@ pub fn run() {
             Ok(pre) => pre,
             Err(error) => fatal::show_and_exit(context, error),
         };
+    let bench = commands::bench::bench_enabled();
     let options = BootstrapOptions::new()
         .with_runtime_handle(tauri::async_runtime::handle().inner().clone())
-        .with_umu_refresh(if commands::bench::bench_enabled() {
+        .with_umu_refresh(if bench {
             UmuRefresh::Skip {
                 reason: "CROSSHOOK_BENCH=1",
             }
         } else {
             UmuRefresh::Enabled
+        })
+        .with_prefix_journal_recovery(if bench {
+            PrefixJournalRecovery::Skip {
+                reason: "CROSSHOOK_BENCH=1",
+            }
+        } else {
+            PrefixJournalRecovery::Enabled
         });
     let (core, _) = match App::bootstrap(pre, options) {
         Ok(result) => result,
@@ -33,6 +44,7 @@ pub fn run() {
     let stores = core.stores();
     let services = core.services();
     let ui_settings = services.ui_settings.clone();
+    let app_owner = core.app().clone();
     tauri::Builder::default()
         .manage(stores.settings.clone())
         .manage(stores.profiles.clone())
@@ -63,14 +75,17 @@ pub fn run() {
         .manage(services.protonup.clone())
         .manage(services.proton_migration.clone())
         .manage(services.umu.clone())
+        .manage(services.install.clone())
+        .manage(services.update.clone())
+        .manage(services.run_executable.clone())
+        .manage(services.prefix_deps.clone())
         .manage(core.clone())
         .setup(move |app| {
             startup_bridge::spawn(app.handle().clone(), core.startup(), startup_events);
+            // SIGINT/SIGTERM/SIGHUP take the normal exit path below.
+            signals::exit_on_termination(app.handle().clone());
             Ok(())
         })
-        .manage(commands::update::UpdateProcessState::new())
-        .manage(commands::run_executable::RunExecutableProcessState::new())
-        .manage(commands::prefix_deps::PrefixDepsInstallState::new())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -247,10 +262,24 @@ pub fn run() {
         .build(context)
         .expect("error while building CrossHook Native")
         .run(move |_app, event| {
+            // `Exit` fires once on every exit path (after `ExitRequested`,
+            // including a termination signal, see `signals`), right before
+            // tao ends the process with `process::exit`: `App`'s drop never
+            // runs, so shut down explicitly here.
             if let tauri::RunEvent::Exit = event {
                 // Persist any trailing `[ui]` write still waiting on the throttle.
                 if let Err(error) = tauri::async_runtime::block_on(ui_settings.flush()) {
                     tracing::warn!(error = %error.message(), "failed to flush [ui] settings on exit");
+                }
+                // Cancel every job so supervised process groups (installers,
+                // updaters, ad-hoc executables, winetricks) end with the app;
+                // bounded (`App::DEFAULT_SHUTDOWN_TIMEOUT`), so a job ignoring
+                // cancel delays quit by at most that long.
+                let finished = tauri::async_runtime::block_on(
+                    app_owner.shutdown(App::DEFAULT_SHUTDOWN_TIMEOUT),
+                );
+                if !finished {
+                    tracing::warn!("jobs still running after the shutdown timeout; exiting anyway");
                 }
             }
         });

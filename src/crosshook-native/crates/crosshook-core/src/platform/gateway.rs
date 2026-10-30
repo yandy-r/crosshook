@@ -173,7 +173,7 @@ pub(crate) fn host_command_with_env_and_directory_inner(
     )
 }
 
-pub(super) fn host_command_with_env_and_directory_lifecycle_inner(
+pub(crate) fn host_command_with_env_and_directory_lifecycle_inner(
     program: &str,
     envs: &BTreeMap<String, String>,
     directory: Option<&str>,

@@ -12,6 +12,7 @@ import { InstallField } from './ui/InstallField';
 import { ProtonPathField } from './ui/ProtonPathField';
 
 const RUNNING_WARNING_ID = 'run-executable-running-warning';
+const RUN_LOG_TITLE_ID = 'run-executable-log-title';
 
 const RUN_EXE_OMIT_NODES: readonly PipelineNodeId[] = ['trainer', 'optimizations'];
 
@@ -31,6 +32,8 @@ function stageLabel(stage: RunExecutableStage): string {
       return 'Preparing';
     case 'running':
       return 'Running';
+    case 'busy':
+      return 'Busy';
     case 'complete':
       return 'Complete';
     case 'failed':
@@ -53,6 +56,8 @@ export function RunExecutablePanel({ protonInstalls, protonInstallsError }: RunE
     actionLabel,
     canStart,
     isRunning,
+    canCancel,
+    logLines,
     startRun,
     cancelRun,
     stopRun,
@@ -222,7 +227,24 @@ export function RunExecutablePanel({ protonInstalls, protonInstallsError }: RunE
             </div>
           ) : null}
 
-          {isRunning ? (
+          {isRunning || logLines.length > 0 ? (
+            <div className="crosshook-process-log">
+              <div className="crosshook-process-log__header">
+                <strong id={RUN_LOG_TITLE_ID}>Run output</strong>
+              </div>
+              <pre
+                className="crosshook-process-log__output"
+                role="log"
+                aria-live="polite"
+                aria-busy={isRunning}
+                aria-labelledby={RUN_LOG_TITLE_ID}
+              >
+                {logLines.length > 0 ? logLines.join('\n') : 'Waiting for output...'}
+              </pre>
+            </div>
+          ) : null}
+
+          {canCancel ? (
             <p
               id={RUNNING_WARNING_ID}
               className="crosshook-install-shell__running-warning"
@@ -250,10 +272,9 @@ export function RunExecutablePanel({ protonInstalls, protonInstallsError }: RunE
           </button>
           <button
             type="button"
-            className="crosshook-button crosshook-button--secondary"
             onClick={() => void cancelRun()}
-            disabled={!isRunning}
-            aria-describedby={isRunning ? RUNNING_WARNING_ID : undefined}
+            disabled={!canCancel}
+            aria-describedby={canCancel ? RUNNING_WARNING_ID : undefined}
           >
             Cancel
           </button>
@@ -261,8 +282,8 @@ export function RunExecutablePanel({ protonInstalls, protonInstallsError }: RunE
             type="button"
             className="crosshook-button crosshook-button--secondary"
             onClick={() => void stopRun()}
-            disabled={!isRunning}
-            aria-describedby={isRunning ? RUNNING_WARNING_ID : undefined}
+            disabled={!canCancel}
+            aria-describedby={canCancel ? RUNNING_WARNING_ID : undefined}
           >
             Stop
           </button>
@@ -289,7 +310,7 @@ export function RunExecutablePanel({ protonInstalls, protonInstallsError }: RunE
           >
             <h4 id="run-executable-confirm-title">Run {fileNameFromPath(request.executable_path)} through Proton?</h4>
             <p id="run-executable-confirm-body">
-              This will spawn the executable inside {prefixHint} and stream its output to the runtime console.
+              This will spawn the executable inside {prefixHint} and stream its output below.
             </p>
             <div className="crosshook-modal-actions">
               <button

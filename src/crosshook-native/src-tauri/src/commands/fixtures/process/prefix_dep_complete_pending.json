@@ -1,0 +1,10 @@
+{
+  "profile_name": "p",
+  "prefix_path": "/raw/prefix",
+  "succeeded": false,
+  "exit_code": null,
+  "install_succeeded": false,
+  "install_exit_code": null,
+  "restore_state": "pending",
+  "restore_error": "dependency install ended without a result"
+}

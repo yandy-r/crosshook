@@ -25,10 +25,11 @@ use crate::events::EventBus;
 use crate::jobs::JobRegistry;
 use crate::services::{
     BackgroundGrantHolder, CollectionsService, CommunityService, DiagnosticsService,
-    DiscoveryService, HealthService, HostToolsService, LaunchService, LauncherExportService,
-    LutrisService, ModsService, OfflineService, OnboardingService, ProfileWriter, ProtonDbService,
-    ProtonMigrationService, ProtonUpService, RecentFilesService, SettingsService, SteamService,
-    StorageService, UiSettingsService, UmuService, VersionService,
+    DiscoveryService, HealthService, HostToolsService, InstallService, LaunchService,
+    LauncherExportService, LutrisService, ModsService, OfflineService, OnboardingService,
+    PrefixDepsService, ProfileWriter, ProtonDbService, ProtonMigrationService, ProtonUpService,
+    RecentFilesService, RunExecutableService, SettingsService, SteamService, StorageService,
+    UiSettingsService, UmuService, UpdateService, VersionService,
 };
 
 /// The persistent stores the application owns. Clones are cheap; clones of
@@ -98,13 +99,22 @@ pub struct Services {
     pub proton_migration: ProtonMigrationService,
     /// umu database refresh, coverage lookup and game-id cache clearing.
     pub umu: UmuService,
+    /// Game installer runs: default prefix, validation and supervised install.
+    pub install: InstallService,
+    /// Game update runs: validation, supervised update and owner cancel.
+    pub update: UpdateService,
+    /// Ad-hoc executable runs: validation, supervised run, cancel and stop.
+    pub run_executable: RunExecutableService,
+    /// Prefix dependency installs, Windows-version repair and journal recovery.
+    pub prefix_deps: PrefixDepsService,
 }
 
 impl Services {
     /// Builds the service bundle over `stores`; `events` is the app bus that
     /// services publish change notifications on, `runtime` spawns the `[ui]`
     /// settings writer, and `jobs` is the app job registry (cancelled on app
-    /// shutdown) that supervises storage scan, health batch and readiness jobs.
+    /// shutdown) that supervises storage scan, health batch, readiness and the
+    /// prefix-keyed process jobs (install, update, run-executable, prefix deps).
     pub fn new(stores: &Stores, events: EventBus, runtime: Handle, jobs: JobRegistry) -> Self {
         let background = Arc::new(BackgroundGrantHolder::new());
         let steam = SteamService::new(stores.metadata.clone(), stores.settings.clone());
@@ -175,7 +185,11 @@ impl Services {
                 stores.metadata.clone(),
                 Some(background.clone()),
             ),
-            storage: StorageService::new(stores.profiles.clone(), stores.metadata.clone(), jobs),
+            storage: StorageService::new(
+                stores.profiles.clone(),
+                stores.metadata.clone(),
+                jobs.clone(),
+            ),
             mods: ModsService::new(stores.profiles.clone(), stores.metadata.clone()),
             collections: CollectionsService::new(stores.metadata.clone(), stores.profiles.clone()),
             launcher_export: LauncherExportService::new(
@@ -184,6 +198,15 @@ impl Services {
                 stores.metadata.clone(),
             ),
             version: VersionService::new(stores.profiles.clone(), stores.metadata.clone()),
+            install: InstallService::new(jobs.clone()),
+            update: UpdateService::new(jobs.clone()),
+            run_executable: RunExecutableService::new(jobs.clone()),
+            prefix_deps: PrefixDepsService::new(
+                stores.settings.clone(),
+                stores.profiles.clone(),
+                stores.metadata.clone(),
+                jobs,
+            ),
             steam,
             background,
         }

@@ -50,15 +50,18 @@ export type InstallGameValidationError =
   | 'ProfileNameRequired'
   | 'ProfileNameInvalid'
   | 'InstallerPathRequired'
+  | 'InstallerPathNotAbsolute'
   | 'InstallerPathMissing'
   | 'InstallerPathNotFile'
   | 'InstallerPathNotWindowsExecutable'
   | 'TrainerPathMissing'
   | 'TrainerPathNotFile'
   | 'ProtonPathRequired'
+  | 'ProtonPathNotAbsolute'
   | 'ProtonPathMissing'
   | 'ProtonPathNotExecutable'
   | 'PrefixPathRequired'
+  | 'PrefixPathNotAbsolute'
   | 'PrefixPathMissing'
   | 'PrefixPathNotDirectory'
   | 'InstalledGameExecutablePathMissing'
@@ -75,15 +78,18 @@ export const INSTALL_GAME_VALIDATION_MESSAGES: Record<InstallGameValidationError
   ProfileNameRequired: 'An install profile name is required.',
   ProfileNameInvalid: 'The install profile name contains invalid characters.',
   InstallerPathRequired: 'An installer path is required.',
+  InstallerPathNotAbsolute: 'The installer path must be an absolute path.',
   InstallerPathMissing: 'The installer path does not exist.',
   InstallerPathNotFile: 'The installer path must be a file.',
   InstallerPathNotWindowsExecutable: 'The installer path must point to a Windows .exe file.',
   TrainerPathMissing: 'The trainer path does not exist.',
   TrainerPathNotFile: 'The trainer path must be a file.',
   ProtonPathRequired: 'A Proton path is required.',
+  ProtonPathNotAbsolute: 'The Proton path must be an absolute path.',
   ProtonPathMissing: 'The Proton path does not exist.',
   ProtonPathNotExecutable: 'The Proton path must be executable.',
   PrefixPathRequired: 'A prefix path is required.',
+  PrefixPathNotAbsolute: 'The prefix path must be an absolute path.',
   PrefixPathMissing: 'The prefix path does not exist.',
   PrefixPathNotDirectory: 'The prefix path must be a directory.',
   InstalledGameExecutablePathMissing: 'The final game executable path does not exist.',
@@ -100,15 +106,18 @@ export const INSTALL_GAME_VALIDATION_FIELD: Record<InstallGameValidationError, k
   ProfileNameRequired: 'profile_name',
   ProfileNameInvalid: 'profile_name',
   InstallerPathRequired: 'installer_path',
+  InstallerPathNotAbsolute: 'installer_path',
   InstallerPathMissing: 'installer_path',
   InstallerPathNotFile: 'installer_path',
   InstallerPathNotWindowsExecutable: 'installer_path',
   TrainerPathMissing: 'trainer_path',
   TrainerPathNotFile: 'trainer_path',
   ProtonPathRequired: 'proton_path',
+  ProtonPathNotAbsolute: 'proton_path',
   ProtonPathMissing: 'proton_path',
   ProtonPathNotExecutable: 'proton_path',
   PrefixPathRequired: 'prefix_path',
+  PrefixPathNotAbsolute: 'prefix_path',
   PrefixPathMissing: 'prefix_path',
   PrefixPathNotDirectory: 'prefix_path',
   InstalledGameExecutablePathMissing: 'installed_game_executable_path',

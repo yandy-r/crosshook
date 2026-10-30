@@ -91,9 +91,58 @@ pub fn validate_protontricks_verbs(verbs: &[String]) -> Result<(), PrefixDepsErr
     Ok(())
 }
 
+/// Parse a Steam App ID into its canonical decimal form.
+///
+/// Accepts surrounding whitespace and ASCII digits only; the value must fit a
+/// `u32` and be non-zero (`" 0012 "` → `"12"`). Anything else is `None`.
+pub fn parse_nonzero_steam_app_id(raw: &str) -> Option<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if !trimmed.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    let parsed = trimmed.parse::<u32>().ok()?;
+    if parsed == 0 {
+        return None;
+    }
+    Some(parsed.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parse_nonzero_steam_app_id_rejects_invalid_ids() {
+        for raw in [
+            "",
+            "  ",
+            "0",
+            "00",
+            "abc",
+            "-1",
+            "+5",
+            "--help",
+            "4294967296",
+        ] {
+            assert_eq!(parse_nonzero_steam_app_id(raw), None, "accepted {raw:?}");
+        }
+    }
+
+    #[test]
+    fn parse_nonzero_steam_app_id_returns_canonical_decimal() {
+        assert_eq!(
+            parse_nonzero_steam_app_id(" 12345 ").as_deref(),
+            Some("12345")
+        );
+        assert_eq!(parse_nonzero_steam_app_id("007").as_deref(), Some("7"));
+        assert_eq!(
+            parse_nonzero_steam_app_id("4294967295").as_deref(),
+            Some("4294967295")
+        );
+    }
 
     #[test]
     fn valid_verbs_pass() {

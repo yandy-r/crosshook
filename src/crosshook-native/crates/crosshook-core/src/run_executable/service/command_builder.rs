@@ -2,19 +2,29 @@ use std::path::Path;
 
 use tokio::process::Command;
 
+use crate::launch::runtime_helpers::proton_command::build_direct_proton_command_lifecycle_with;
 use crate::launch::runtime_helpers::{
-    apply_working_directory, attach_log_stdio,
-    build_direct_proton_command_with_wrappers_in_directory, host_environment_map,
-    merge_runtime_proton_into_map, resolve_effective_working_directory,
+    host_environment_map, merge_runtime_proton_into_map, resolve_effective_working_directory,
 };
 use crate::platform::{is_flatpak, normalize_flatpak_host_path};
-use crate::run_executable::{RunExecutableError, RunExecutableRequest};
+use crate::run_executable::RunExecutableRequest;
 
-pub fn build_run_executable_command(
+/// Builds the lifecycle-bound `<proton> run <exe>` command (or
+/// `<proton> run msiexec /i <msi> /qb` for `.msi` inputs) for `prefix_path`.
+///
+/// Under Flatpak the host process is bound to the `flatpak-spawn` proxy
+/// (`--watch-bus`), so killing the proxy also stops the host process. Stdio,
+/// process group and `kill_on_drop` are left to the caller that spawns and
+/// supervises the child.
+pub fn build_run_executable_command(request: &RunExecutableRequest, prefix_path: &Path) -> Command {
+    build_run_executable_command_with(request, prefix_path, is_flatpak())
+}
+
+pub(crate) fn build_run_executable_command_with(
     request: &RunExecutableRequest,
     prefix_path: &Path,
-    log_path: &Path,
-) -> Result<Command, RunExecutableError> {
+    flatpak: bool,
+) -> Command {
     let normalized_executable_path = normalize_flatpak_host_path(&request.executable_path);
     let normalized_working_directory = normalize_flatpak_host_path(&request.working_directory);
     let executable_path = normalized_executable_path.trim();
@@ -28,13 +38,11 @@ pub fn build_run_executable_command(
         normalized_working_directory.trim(),
         Path::new(executable_path),
     );
-    let mut command = build_direct_proton_command_with_wrappers_in_directory(
+    let mut command = build_direct_proton_command_lifecycle_with(
         request.proton_path.trim(),
-        &[],
         &env,
         effective_working_directory.as_deref(),
-        &std::collections::BTreeMap::new(),
-        false,
+        flatpak,
     );
 
     if is_msi_path(Path::new(executable_path)) {
@@ -48,21 +56,8 @@ pub fn build_run_executable_command(
     } else {
         command.arg(executable_path);
     }
-    if !is_flatpak() {
-        apply_working_directory(
-            &mut command,
-            normalized_working_directory.trim(),
-            Path::new(executable_path),
-        );
-    }
-    attach_log_stdio(&mut command, log_path).map_err(|error| {
-        RunExecutableError::LogAttachmentFailed {
-            path: log_path.to_path_buf(),
-            message: error.to_string(),
-        }
-    })?;
 
-    Ok(command)
+    command
 }
 
 fn is_msi_path(path: &Path) -> bool {

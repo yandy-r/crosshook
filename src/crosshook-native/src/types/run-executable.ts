@@ -9,15 +9,58 @@ export interface RunExecutableRequest {
 
 export interface RunExecutableResult {
   /**
-   * `true` once the Proton wrapper has been *spawned* successfully. This
-   * does NOT reflect the eventual exit status of the Windows executable —
-   * that arrives asynchronously via the `run-executable-complete` event.
+   * `true` once the executable's process has been spawned; a spawn failure
+   * rejects the call instead. This does NOT reflect the eventual exit status
+   * of the Windows executable — that arrives asynchronously via the
+   * `run-executable-complete` event.
    */
   succeeded: boolean;
   message: string;
   helper_log_path: string;
   /** Echo of the prefix path the backend actually used (auto-resolved when `prefix_path` was empty). */
   resolved_prefix_path: string;
+  /** Job id of this run; every `run-executable-*` event for the run carries it. */
+  run_id: string;
+}
+
+/** Payload of `run-executable-log`: one output line of a run. */
+export interface RunExecutableLogPayload {
+  run_id: string;
+  line: string;
+}
+
+/**
+ * Payload of `run-executable-complete`. `code` is null when the process was
+ * killed by `signal`; both are null when the run could not be supervised.
+ */
+export interface RunExecutableCompletePayload {
+  run_id: string;
+  code: number | null;
+  signal: number | null;
+}
+
+function isNullableInteger(value: unknown): value is number | null {
+  return value === null || Number.isInteger(value);
+}
+
+/** Narrows an untrusted `run-executable-log` event payload. */
+export function isRunExecutableLogPayload(value: unknown): value is RunExecutableLogPayload {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.run_id === 'string' && typeof candidate.line === 'string';
+}
+
+/** Narrows an untrusted `run-executable-complete` event payload. */
+export function isRunExecutableCompletePayload(value: unknown): value is RunExecutableCompletePayload {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.run_id === 'string' && isNullableInteger(candidate.code) && isNullableInteger(candidate.signal)
+  );
 }
 
 /**
@@ -29,12 +72,15 @@ export interface RunExecutableResult {
  */
 export type RunExecutableValidationVariant =
   | 'executable_path_required'
+  | 'executable_path_not_absolute'
   | 'executable_path_missing'
   | 'executable_path_not_file'
   | 'executable_path_not_windows_executable'
   | 'proton_path_required'
+  | 'proton_path_not_absolute'
   | 'proton_path_missing'
   | 'proton_path_not_executable'
+  | 'prefix_path_not_absolute'
   | 'prefix_path_missing'
   | 'prefix_path_not_directory';
 
@@ -56,7 +102,12 @@ export type RunCommandError =
       message: string;
     };
 
-export type RunExecutableStage = 'idle' | 'preparing' | 'running' | 'complete' | 'failed';
+/**
+ * `busy`: the backend refused the start because a run started earlier in this
+ * window (e.g. before the panel was remounted) is still active. That run can
+ * still be cancelled or stopped, which acts on the window's active run.
+ */
+export type RunExecutableStage = 'idle' | 'preparing' | 'running' | 'busy' | 'complete' | 'failed';
 
 export interface RunExecutableValidationState {
   fieldErrors: Partial<Record<keyof RunExecutableRequest, string>>;

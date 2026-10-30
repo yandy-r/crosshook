@@ -125,6 +125,28 @@ async fn active_key_conflicts_and_is_reusable_after_finished() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn key_is_held_while_running_and_released_after_finished() {
+    let registry = JobRegistry::default();
+    let key = JobKey::new("prefix:/prefixes/held");
+    let other = JobKey::new("prefix:/prefixes/free");
+    assert!(!registry.is_key_held(&key));
+
+    let (release, released) = oneshot::channel::<()>();
+    let mut handle = registry
+        .start(JobSpec::new("held").with_key(key.clone()), |_ctx| async {
+            let _ = released.await;
+            Outcome::Succeeded
+        })
+        .unwrap();
+    assert!(registry.is_key_held(&key));
+    assert!(!registry.is_key_held(&other));
+
+    release.send(()).unwrap();
+    assert_eq!(finished(&mut handle).await, Outcome::Succeeded);
+    assert!(!registry.is_key_held(&key));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn lagging_receiver_gets_dropped_count_then_tail_and_finished() {
     let registry = registry_with(4, 8);
     let (go, wait_go) = oneshot::channel::<()>();
@@ -433,6 +455,46 @@ fn start_without_runtime_is_unavailable() {
         .err()
         .unwrap();
     assert_eq!(error.kind(), AppErrorKind::Unavailable);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn wait_idle_resolves_only_after_every_running_job_finished() {
+    let registry = JobRegistry::default();
+    tokio::time::timeout(TIMEOUT, registry.wait_idle())
+        .await
+        .expect("an idle registry resolves at once");
+
+    let (release_first, first_gate) = oneshot::channel::<()>();
+    let (release_second, second_gate) = oneshot::channel::<()>();
+    let mut first = registry
+        .start(JobSpec::new("first"), |_ctx| async move {
+            let _ = first_gate.await;
+            Outcome::Succeeded
+        })
+        .unwrap();
+    let mut second = registry
+        .start(JobSpec::new("second"), |_ctx| async move {
+            let _ = second_gate.await;
+            Outcome::Succeeded
+        })
+        .unwrap();
+    let idle = tokio::spawn({
+        let registry = registry.clone();
+        async move { registry.wait_idle().await }
+    });
+
+    release_first.send(()).unwrap();
+    assert_eq!(finished(&mut first).await, Outcome::Succeeded);
+    // One job still runs: the wait must not have resolved.
+    assert!(!idle.is_finished());
+    assert_eq!(registry.job_counts().0, 1);
+
+    release_second.send(()).unwrap();
+    assert_eq!(finished(&mut second).await, Outcome::Succeeded);
+    tokio::time::timeout(TIMEOUT, idle)
+        .await
+        .expect("wait_idle resolves once the last job finished")
+        .unwrap();
 }
 
 #[test]

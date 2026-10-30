@@ -6,7 +6,8 @@
 //! addressed by unguessable [`JobId`]s, may hold an exclusive [`JobKey`], and
 //! are cancelled cooperatively through a token derived from the registry (and,
 //! for [`App::jobs`](crate::App::jobs), the app shutdown token).
-//! [`supervise_child`] ties a process group to that token.
+//! [`supervise_child`] ties a process group to that token;
+//! [`supervise_child_with_kill`] adds an immediate-kill token.
 
 mod process;
 mod registry;
@@ -14,8 +15,8 @@ mod types;
 
 pub(crate) use process::LOG_DIR;
 pub use process::{
-    create_log_path, create_log_path_in, kill_processes_using_prefix, slugify_target,
-    supervise_child, ChildExit, DEFAULT_KILL_GRACE,
+    create_log_file_in, create_log_path_in, kill_processes_using_prefix, processes_using_prefix,
+    slugify_target, supervise_child, supervise_child_with_kill, ChildExit, DEFAULT_KILL_GRACE,
 };
 pub use registry::{
     JobContext, JobEvents, JobHandle, JobRegistry, JobRegistryConfig, DEFAULT_JOB_RETENTION,

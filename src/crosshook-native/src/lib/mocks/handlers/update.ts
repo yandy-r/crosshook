@@ -7,6 +7,14 @@ let updateInFlight: string | null = null;
 /** Set to true when cancel_update is called during a running update. */
 let updateCancelled = false;
 const pendingUpdateTimers = new Set<number>();
+/** Monotonic counter for synthetic `run_id` values. */
+let updateRunCounter = 0;
+const MOCK_UPDATE_LOG_LINES = [
+  'Starting updater under Proton...',
+  'Extracting update archive...',
+  'Patching game files...',
+  'Updater finished.',
+];
 
 function validateRequest(request: UpdateGameRequest): void {
   if (!request.updater_path || request.updater_path.trim().length === 0) {
@@ -49,11 +57,21 @@ export function registerUpdate(map: Map<string, Handler>): void {
     updateCancelled = false;
 
     const profileName = request.profile_name;
+    updateRunCounter += 1;
+    const runId = `mock-update-${updateRunCounter}`;
 
-    // Emit update-complete after a synthetic delay (exit code 0 = success).
-    // The hook subscribes to update-complete to transition stage.
-    // We do not emit update-started or update-progress because useUpdateGame.ts
-    // does not subscribe to those events; only update-complete is consumed.
+    // Stream a few updater lines on `update-log` (bare strings, like the relay),
+    // then `update-complete` with the exit code (null = terminated by a signal).
+    MOCK_UPDATE_LOG_LINES.forEach((line, index) => {
+      scheduleUpdateTimeout(
+        () => {
+          if (!updateCancelled) {
+            emitMockEvent('update-log', `[dev-mock] ${line}`);
+          }
+        },
+        300 * (index + 1)
+      );
+    });
     scheduleUpdateTimeout(() => {
       const exitCode: number | null = updateCancelled ? null : 0;
 
@@ -67,6 +85,7 @@ export function registerUpdate(map: Map<string, Handler>): void {
       succeeded: true,
       message: `[dev-mock] Update process started for "${profileName}".`,
       helper_log_path: `/mock/logs/update-${profileName.toLowerCase().replace(/\s+/g, '-')}.log`,
+      run_id: runId,
     };
   });
 
@@ -81,6 +100,7 @@ export function registerUpdate(map: Map<string, Handler>): void {
 export function resetUpdateMockState(): void {
   updateInFlight = null;
   updateCancelled = false;
+  updateRunCounter = 0;
   for (const timerId of pendingUpdateTimers) {
     window.clearTimeout(timerId);
   }

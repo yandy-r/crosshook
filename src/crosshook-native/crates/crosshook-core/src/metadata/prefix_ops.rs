@@ -31,6 +31,15 @@ impl MetadataStore {
         })
     }
 
+    /// Read-only listing of every prefix version restore journal row, ordered by prefix path.
+    pub fn list_prefix_version_restores(
+        &self,
+    ) -> Result<Vec<PrefixVersionRestoreJournalRow>, MetadataStoreError> {
+        self.with_sqlite_conn("list prefix version restores", |conn| {
+            prefix_version_restore_store::list_restores(conn)
+        })
+    }
+
     pub fn mark_prefix_version_restore_failed(
         &self,
         prefix_path: &str,
@@ -57,6 +66,23 @@ impl MetadataStore {
         }
         self.with_conn_mut("delete prefix version restore", |conn| {
             prefix_version_restore_store::delete_restore(conn, prefix_path)
+        })
+    }
+
+    /// Atomically moves the journal row of `from` to `to` (a moved prefix);
+    /// see [`prefix_version_restore_store::rekey_restore`].
+    pub fn rekey_prefix_version_restore(
+        &self,
+        from: &str,
+        to: &str,
+    ) -> Result<(), MetadataStoreError> {
+        if !self.is_available() {
+            return Err(MetadataStoreError::ReadOnlyDisabled {
+                reason: "metadata store unavailable".into(),
+            });
+        }
+        self.with_conn_mut("move prefix version restore", |conn| {
+            prefix_version_restore_store::rekey_restore(conn, from, to)
         })
     }
 

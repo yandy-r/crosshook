@@ -12,17 +12,11 @@ import type {
 import type { CommandArgumentCatalogPayload, CommandArgumentEntry } from '../../../types/launch-command-arguments';
 import type { HashVerifyResult, OfflineReadinessReport, TrainerTypeEntry } from '../../../types/offline';
 import type {
-  BinaryDetectionResult,
-  PrefixDependencyStatus,
-  PrefixVersionRepairStatus,
-} from '../../../types/prefix-deps';
-import type {
   PrefixCleanupResult,
   PrefixCleanupTarget,
   PrefixStorageHistoryResponse,
   PrefixStorageScanResult,
 } from '../../../types/prefix-storage';
-import type { RunExecutableResult } from '../../../types/run-executable';
 import type { OptimizationCatalogPayload, OptimizationEntry } from '../../../utils/optimization-catalog';
 import { getActiveFixture } from '../../fixture';
 import { getActiveToggles } from '../../toggles';
@@ -302,22 +296,6 @@ const MOCK_PREFIX_SCAN: PrefixStorageScanResult = {
   inventory_incomplete: false,
 };
 
-// --- prefix deps ---
-
-const MOCK_BINARY_DETECTION: BinaryDetectionResult = {
-  found: true,
-  binary_path: '/usr/bin/winetricks',
-  binary_name: 'winetricks',
-  tool_type: 'winetricks',
-  source: 'PATH',
-};
-
-const MOCK_PREFIX_VERSION_REPAIR_STATUS: PrefixVersionRepairStatus = {
-  required: false,
-  state: null,
-  last_error: null,
-};
-
 // --- optimization catalog ---
 
 const MOCK_CATALOG_ENTRIES: OptimizationEntry[] = [
@@ -575,30 +553,6 @@ export function registerSystem(map: Map<string, Handler>): void {
     return structuredClone(externalSources);
   });
 
-  // --- run_executable ---
-
-  map.set('validate_run_executable_request', async (_args): Promise<void> => {
-    console.warn('[dev-mock] validate_run_executable_request: suppressed in browser mode');
-  });
-
-  map.set('run_executable', async (_args): Promise<RunExecutableResult> => {
-    console.warn('[dev-mock] run_executable: suppressed in browser mode — no process spawned');
-    return {
-      succeeded: true,
-      message: '[dev-mock] run_executable: browser stub — no process spawned',
-      helper_log_path: '/mock/logs/run-executable.log',
-      resolved_prefix_path: '/home/devuser/.local/share/crosshook/_run-adhoc/mock-slug',
-    };
-  });
-
-  map.set('cancel_run_executable', async (): Promise<void> => {
-    console.warn('[dev-mock] cancel_run_executable: suppressed in browser mode');
-  });
-
-  map.set('stop_run_executable', async (): Promise<void> => {
-    console.warn('[dev-mock] stop_run_executable: suppressed in browser mode');
-  });
-
   // --- prefix_storage ---
 
   map.set('scan_prefix_storage', async (): Promise<PrefixStorageScanResult> => {
@@ -621,40 +575,6 @@ export function registerSystem(map: Map<string, Handler>): void {
       snapshots: [],
       audit: [],
     };
-  });
-
-  // --- prefix_deps ---
-
-  map.set('detect_protontricks_binary', async (): Promise<BinaryDetectionResult> => {
-    return structuredClone(MOCK_BINARY_DETECTION);
-  });
-
-  map.set('check_prefix_dependencies', async (args): Promise<PrefixDependencyStatus[]> => {
-    const { packages } = args as { packages: string[] };
-    return (packages ?? []).map((pkg) => ({
-      package_name: pkg,
-      state: 'installed' as const,
-      checked_at: new Date().toISOString(),
-      installed_at: new Date().toISOString(),
-      last_error: null,
-    }));
-  });
-
-  map.set('install_prefix_dependency', async (_args): Promise<void> => {
-    console.warn('[dev-mock] install_prefix_dependency: suppressed in browser mode — no install performed');
-  });
-
-  map.set('get_dependency_status', async (_args): Promise<PrefixDependencyStatus[]> => {
-    return [];
-  });
-
-  map.set('get_prefix_version_repair_status', async (_args): Promise<PrefixVersionRepairStatus> => {
-    return structuredClone(MOCK_PREFIX_VERSION_REPAIR_STATUS);
-  });
-
-  map.set('repair_prefix_windows_version', async (_args): Promise<PrefixVersionRepairStatus> => {
-    console.warn('[dev-mock] repair_prefix_windows_version: no repair required in browser mode');
-    return structuredClone(MOCK_PREFIX_VERSION_REPAIR_STATUS);
   });
 
   // --- diagnostics ---

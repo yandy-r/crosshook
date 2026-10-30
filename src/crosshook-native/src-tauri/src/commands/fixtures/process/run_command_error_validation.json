@@ -1,0 +1,6 @@
+{
+  "kind": "validation",
+  "variant": "executable_path_missing",
+  "field": "executable_path",
+  "message": "The executable path does not exist."
+}

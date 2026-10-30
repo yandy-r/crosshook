@@ -2,19 +2,17 @@ use std::path::Path;
 
 use tokio::process::Command;
 
+use crate::launch::runtime_helpers::proton_command::build_direct_proton_command_lifecycle_with;
 use crate::launch::runtime_helpers::{
-    apply_working_directory, attach_log_stdio,
-    build_direct_proton_command_with_wrappers_in_directory, host_environment_map,
-    merge_runtime_proton_into_map, resolve_effective_working_directory,
+    apply_working_directory, host_environment_map, merge_runtime_proton_into_map,
+    resolve_effective_working_directory,
 };
 use crate::platform::{
     normalize_flatpak_host_path, normalized_path_is_dir, normalized_path_is_executable_file,
     normalized_path_is_file,
 };
 
-use super::models::{
-    UpdateGameError, UpdateGameRequest, UpdateGameResult, UpdateGameValidationError,
-};
+use super::models::{UpdateGameRequest, UpdateGameValidationError};
 
 pub fn validate_update_request(
     request: &UpdateGameRequest,
@@ -26,10 +24,15 @@ pub fn validate_update_request(
     Ok(())
 }
 
-pub fn build_update_command(
-    request: &UpdateGameRequest,
-    log_path: &Path,
-) -> Result<Command, UpdateGameError> {
+/// Builds the lifecycle-bound updater command (`<proton> run <updater>`).
+///
+/// No stdio is attached; the caller owns stdio, process group, spawn and
+/// supervision.
+pub fn build_update_command(request: &UpdateGameRequest) -> Command {
+    build_update_command_with(request, crate::platform::is_flatpak())
+}
+
+fn build_update_command_with(request: &UpdateGameRequest, flatpak: bool) -> Command {
     let normalized_updater_path = normalize_flatpak_host_path(&request.updater_path);
     let mut env = host_environment_map();
     merge_runtime_proton_into_map(
@@ -39,50 +42,17 @@ pub fn build_update_command(
     );
     let effective_working_directory =
         resolve_effective_working_directory("", Path::new(normalized_updater_path.trim()));
-    let mut command = build_direct_proton_command_with_wrappers_in_directory(
+    let mut command = build_direct_proton_command_lifecycle_with(
         request.proton_path.trim(),
-        &[],
         &env,
         effective_working_directory.as_deref(),
-        &std::collections::BTreeMap::new(),
-        false,
+        flatpak,
     );
     command.arg(normalized_updater_path.trim());
-    if !crate::platform::is_flatpak() {
+    if !flatpak {
         apply_working_directory(&mut command, "", Path::new(normalized_updater_path.trim()));
     }
-    attach_log_stdio(&mut command, log_path).map_err(|error| {
-        UpdateGameError::LogAttachmentFailed {
-            path: log_path.to_path_buf(),
-            message: error.to_string(),
-        }
-    })?;
-    Ok(command)
-}
-
-pub fn update_game(
-    request: &UpdateGameRequest,
-    log_path: &Path,
-) -> Result<(UpdateGameResult, tokio::process::Child), UpdateGameError> {
-    validate_update_request(request)?;
-
-    let mut command = build_update_command(request, log_path)?;
-    let child = command
-        .spawn()
-        .map_err(|error| UpdateGameError::UpdaterSpawnFailed {
-            message: error.to_string(),
-        })?;
-
-    // `succeeded` indicates the update process was launched successfully, not that the
-    // updater itself has finished. The actual process exit status is communicated
-    // asynchronously via the `update-complete` event.
-    let result = UpdateGameResult {
-        succeeded: true,
-        message: "Update process launched.".to_string(),
-        helper_log_path: log_path.display().to_string(),
-    };
-
-    Ok((result, child))
+    command
 }
 
 fn validate_updater_path(path: &str) -> Result<(), UpdateGameValidationError> {
@@ -92,6 +62,9 @@ fn validate_updater_path(path: &str) -> Result<(), UpdateGameValidationError> {
     }
 
     let path = Path::new(normalized_path.trim());
+    if !path.is_absolute() {
+        return Err(UpdateGameValidationError::UpdaterPathNotAbsolute);
+    }
     if !normalized_path_is_file(normalized_path.trim()) {
         if !path.exists() {
             return Err(UpdateGameValidationError::UpdaterPathMissing);
@@ -112,6 +85,9 @@ fn validate_proton_path(path: &str) -> Result<(), UpdateGameValidationError> {
     }
 
     let path = Path::new(normalized_path.trim());
+    if !path.is_absolute() {
+        return Err(UpdateGameValidationError::ProtonPathNotAbsolute);
+    }
     if !normalized_path_is_executable_file(normalized_path.trim()) {
         if !path.exists() {
             return Err(UpdateGameValidationError::ProtonPathMissing);
@@ -129,6 +105,9 @@ fn validate_prefix_path(path: &str) -> Result<(), UpdateGameValidationError> {
     }
 
     let path = Path::new(normalized_path.trim());
+    if !path.is_absolute() {
+        return Err(UpdateGameValidationError::PrefixPathNotAbsolute);
+    }
     if !normalized_path_is_dir(normalized_path.trim()) {
         if !path.exists() {
             return Err(UpdateGameValidationError::PrefixPathMissing);
@@ -332,13 +311,50 @@ mod tests {
     }
 
     #[test]
+    fn validate_update_request_rejects_relative_paths() {
+        let temp_dir = tempdir().expect("temp dir");
+        let base = valid_request(temp_dir.path());
+        let cases = [
+            (
+                UpdateGameRequest {
+                    updater_path: "patch.exe".to_string(),
+                    ..base.clone()
+                },
+                UpdateGameValidationError::UpdaterPathNotAbsolute,
+            ),
+            (
+                UpdateGameRequest {
+                    proton_path: "proton".to_string(),
+                    ..base.clone()
+                },
+                UpdateGameValidationError::ProtonPathNotAbsolute,
+            ),
+            (
+                // A flag-like value must never reach `flatpak-spawn` argv.
+                UpdateGameRequest {
+                    proton_path: "--foo".to_string(),
+                    ..base.clone()
+                },
+                UpdateGameValidationError::ProtonPathNotAbsolute,
+            ),
+            (
+                UpdateGameRequest {
+                    prefix_path: "prefix".to_string(),
+                    ..base.clone()
+                },
+                UpdateGameValidationError::PrefixPathNotAbsolute,
+            ),
+        ];
+        for (request, expected) in cases {
+            assert_eq!(validate_update_request(&request), Err(expected));
+        }
+    }
+
+    #[test]
     fn build_update_command_constructs_command_with_correct_proton_path() {
         let temp_dir = tempdir().expect("temp dir");
         let request = valid_request(temp_dir.path());
-        let log_path = temp_dir.path().join("test.log");
-        std::fs::File::create(&log_path).unwrap();
-
-        let command = build_update_command(&request, &log_path).unwrap();
+        let command = build_update_command(&request);
         let debug_output = format!("{command:?}");
 
         // The command should reference the proton binary
@@ -356,10 +372,7 @@ mod tests {
         let normalized_updater_path = request.updater_path.clone();
         request.proton_path = format!("/run/host{}", request.proton_path);
         request.updater_path = format!("/run/host{}", request.updater_path);
-        let log_path = temp_dir.path().join("test-flatpak.log");
-        std::fs::File::create(&log_path).unwrap();
-
-        let command = build_update_command(&request, &log_path).unwrap();
+        let command = build_update_command(&request);
         let debug_output = format!("{command:?}");
 
         assert!(
@@ -376,19 +389,74 @@ mod tests {
         );
     }
 
-    #[test]
-    fn update_game_rejects_invalid_request() {
-        let temp_dir = tempdir().unwrap();
-        let log_path = temp_dir.path().join("update.log");
-        std::fs::File::create(&log_path).unwrap();
+    fn command_argv(command: &Command) -> Vec<String> {
+        let std_command = command.as_std();
+        std::iter::once(std_command.get_program())
+            .chain(std_command.get_args())
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect()
+    }
 
-        let request = UpdateGameRequest::default(); // all empty — will fail validation
-        let result = update_game(&request, &log_path);
-        assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            UpdateGameError::Validation(UpdateGameValidationError::UpdaterPathRequired)
-        ));
+    #[test]
+    fn build_update_command_flatpak_argv_is_lifecycle_bound_proton_run() {
+        let temp_dir = tempdir().expect("temp dir");
+        let request = valid_request(temp_dir.path());
+
+        let command = build_update_command_with(&request, true);
+        let argv = command_argv(&command);
+
+        assert_eq!(
+            &argv[..4],
+            ["flatpak-spawn", "--host", "--watch-bus", "--clear-env"]
+        );
+        let expected_directory = format!("--directory={}", temp_dir.path().display());
+        assert!(
+            argv.contains(&expected_directory),
+            "expected {expected_directory} in {argv:?}"
+        );
+        let expected_prefix_env = format!(
+            "--env=WINEPREFIX={}",
+            crate::launch::runtime_helpers::resolve_wine_prefix_path(Path::new(
+                &request.prefix_path
+            ))
+            .display()
+        );
+        assert!(
+            argv.contains(&expected_prefix_env),
+            "expected {expected_prefix_env} in {argv:?}"
+        );
+        assert_eq!(
+            &argv[argv.len() - 3..],
+            [
+                request.proton_path.as_str(),
+                "run",
+                request.updater_path.as_str()
+            ]
+        );
+        assert!(command.as_std().get_current_dir().is_none());
+    }
+
+    #[test]
+    fn build_update_command_native_runs_proton_in_updater_directory() {
+        let temp_dir = tempdir().expect("temp dir");
+        let request = valid_request(temp_dir.path());
+
+        let command = build_update_command_with(&request, false);
+
+        assert_eq!(
+            command_argv(&command),
+            [
+                request.proton_path.as_str(),
+                "run",
+                request.updater_path.as_str()
+            ]
+        );
+        assert_eq!(command.as_std().get_current_dir(), Some(temp_dir.path()));
+        let has_prefix_env = command
+            .as_std()
+            .get_envs()
+            .any(|(key, value)| key == std::ffi::OsStr::new("WINEPREFIX") && value.is_some());
+        assert!(has_prefix_env, "native command must carry WINEPREFIX");
     }
 
     #[test]

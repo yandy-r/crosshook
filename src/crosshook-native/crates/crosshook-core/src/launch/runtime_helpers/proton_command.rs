@@ -6,7 +6,7 @@ use tokio::process::Command;
 use crate::launch::request::LaunchRequest;
 use crate::platform::{
     self, host_command_with_env_and_directory, host_command_with_env_and_directory_inner,
-    normalize_flatpak_host_path,
+    host_command_with_env_and_directory_lifecycle_inner, normalize_flatpak_host_path,
 };
 use crate::profile::{GamescopeConfig, GamescopeFilter, TrainerLoadingMode};
 
@@ -122,6 +122,33 @@ pub fn build_direct_proton_command_with_wrappers_in_directory(
     if !use_umu {
         command.arg("run");
     }
+    command
+}
+
+/// Builds a lifecycle-bound direct `<proton> run` command (no wrappers, no
+/// umu) with an explicit Flatpak decision (callers pass
+/// [`platform::is_flatpak`]).
+///
+/// Uses the lifecycle host-command builder, so inside Flatpak the proxy is
+/// `flatpak-spawn --host --watch-bus --clear-env …` and the host Proton
+/// process dies with the proxy on cancel, timeout or app exit. Outside
+/// Flatpak `env` is applied directly to the command. The caller sets stdio,
+/// `process_group(0)` and `kill_on_drop(true)` before spawning.
+pub(crate) fn build_direct_proton_command_lifecycle_with(
+    proton_path: &str,
+    env: &BTreeMap<String, String>,
+    working_directory: Option<&str>,
+    flatpak: bool,
+) -> Command {
+    let trimmed_proton = normalize_host_command_entry(proton_path);
+    let mut command = host_command_with_env_and_directory_lifecycle_inner(
+        trimmed_proton.as_str(),
+        env,
+        working_directory,
+        flatpak,
+        &BTreeMap::new(),
+    );
+    command.arg("run");
     command
 }
 

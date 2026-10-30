@@ -1,51 +1,21 @@
-use std::path::{Path, PathBuf};
-use std::sync::{Mutex, MutexGuard};
-use std::time::Duration;
+//! Thin IPC adapters over the run-executable service.
+//!
+//! The service owns validation, the supervised Proton child, cancel/stop and
+//! throwaway-prefix cleanup. This file maps its errors onto the frozen
+//! [`RunCommandError`] envelope and relays a run's events to the webview.
 
-use crosshook_core::platform::host_std_command;
-use crosshook_core::run_executable::{
-    is_throwaway_prefix_path, run_executable as run_executable_core,
-    validate_run_executable_request as validate_run_executable_request_core, RunExecutableError,
-    RunExecutableRequest, RunExecutableResult, RunExecutableValidationError,
+use crosshook_app::services::{
+    JobOwner, ProcessRun, RunCompletion, RunEvent, RunExecutableResponse, RunExecutableService,
+    RunExecutableStartError,
 };
+use crosshook_core::run_executable::{RunExecutableRequest, RunExecutableValidationError};
 use serde::Serialize;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter as _, State};
 
-use super::log_stream::spawn_log_stream;
-use crosshook_app::jobs::{create_log_path, kill_processes_using_prefix, slugify_target};
+use super::process_relay::batch_lines;
 
-#[derive(Debug, Clone)]
-struct RunningProcessInfo {
-    pid: u32,
-    /// Resolved prefix path. Used by [`stop_run_executable`] to drive the
-    /// `/proc` env-walk that kills lingering Wine processes attached to the
-    /// same prefix. The throwaway/keep-around decision is owned by the
-    /// [`spawn_log_stream`] callback below, which captures its own copy of
-    /// the prefix path so this struct does not need a separate flag.
-    prefix_path: PathBuf,
-}
-
-pub struct RunExecutableProcessState {
-    info: Mutex<Option<RunningProcessInfo>>,
-}
-
-impl RunExecutableProcessState {
-    pub fn new() -> Self {
-        Self {
-            info: Mutex::new(None),
-        }
-    }
-}
-
-/// Locks `info` and silently recovers from poisoning. A panicking previous
-/// handler must not permanently disable the cancel/stop pathway for the
-/// rest of the session.
-fn lock_info(state: &RunExecutableProcessState) -> MutexGuard<'_, Option<RunningProcessInfo>> {
-    state
-        .info
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-}
+const RUN_EXECUTABLE_LOG_EVENT: &str = "run-executable-log";
+const RUN_EXECUTABLE_COMPLETE_EVENT: &str = "run-executable-complete";
 
 /// Structured error envelope returned to the frontend by every `run_executable`
 /// command. The frontend matches on `kind` and uses `field` for input-level
@@ -63,14 +33,6 @@ pub enum RunCommandError {
     },
 }
 
-impl RunCommandError {
-    fn runtime(message: impl Into<String>) -> Self {
-        Self::Runtime {
-            message: message.into(),
-        }
-    }
-}
-
 impl From<RunExecutableValidationError> for RunCommandError {
     fn from(value: RunExecutableValidationError) -> Self {
         Self::Validation {
@@ -81,221 +43,232 @@ impl From<RunExecutableValidationError> for RunCommandError {
     }
 }
 
-impl From<RunExecutableError> for RunCommandError {
-    fn from(value: RunExecutableError) -> Self {
+impl From<RunExecutableStartError> for RunCommandError {
+    fn from(value: RunExecutableStartError) -> Self {
         match value {
-            RunExecutableError::Validation(variant) => RunCommandError::from(variant),
-            other => RunCommandError::Runtime {
-                message: other.to_string(),
+            RunExecutableStartError::Validation(variant) => Self::from(variant),
+            RunExecutableStartError::Failed(error) => Self::Runtime {
+                message: error.message().to_string(),
             },
         }
     }
 }
 
+/// `run-executable-log` payload: one log line of the run `run_id`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+struct RunExecutableLogPayload {
+    run_id: String,
+    line: String,
+}
+
+/// `run-executable-complete` payload: how the run `run_id` ended. Both
+/// fields are `null` when the process could not be spawned or supervised.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+struct RunExecutableCompletePayload {
+    run_id: String,
+    code: Option<i32>,
+    signal: Option<i32>,
+}
+
+impl RunExecutableCompletePayload {
+    fn new(run_id: String, completion: Option<RunCompletion>) -> Self {
+        let (code, signal) = completion.map_or((None, None), |done| (done.code, done.signal));
+        Self {
+            run_id,
+            code,
+            signal,
+        }
+    }
+}
+
+// Only pass the label of the injected invoking webview, never a JS argument.
+fn run_owner(webview: &tauri::Webview) -> JobOwner {
+    JobOwner::new(webview.label())
+}
+
+/// Relays the run's log lines, then its completion, to the webview. The
+/// completion is emitted only after the service has finished the run
+/// (final log drain and throwaway-prefix cleanup included).
+fn relay_run(app: AppHandle, mut run: ProcessRun<RunCompletion>) {
+    drop(tauri::async_runtime::spawn(async move {
+        let run_id = run.run_id().to_string();
+        while let Some(event) = run.next().await {
+            match event {
+                RunEvent::Log(batch) => {
+                    for line in batch_lines(batch) {
+                        let payload = RunExecutableLogPayload {
+                            run_id: run_id.clone(),
+                            line,
+                        };
+                        if let Err(error) = app.emit(RUN_EXECUTABLE_LOG_EVENT, &payload) {
+                            tracing::warn!(%error, "failed to emit run-executable log line");
+                        }
+                    }
+                }
+                RunEvent::Finished(completion) => {
+                    let payload = RunExecutableCompletePayload::new(run_id.clone(), completion);
+                    if let Err(error) = app.emit(RUN_EXECUTABLE_COMPLETE_EVENT, &payload) {
+                        tracing::warn!(%error, "failed to emit run-executable completion");
+                    }
+                }
+            }
+        }
+    }));
+}
+
 #[tauri::command]
 pub async fn validate_run_executable_request(
     request: RunExecutableRequest,
+    service: State<'_, RunExecutableService>,
 ) -> Result<(), RunCommandError> {
-    tauri::async_runtime::spawn_blocking(move || validate_run_executable_request_core(&request))
+    service
+        .validate(request)
         .await
-        .map_err(|join_error| RunCommandError::runtime(join_error.to_string()))?
         .map_err(RunCommandError::from)
 }
 
+/// Starts a supervised run for the invoking webview and streams its output
+/// on `run-executable-log`, then `run-executable-complete`, both tagged with
+/// the returned `run_id`.
 #[tauri::command]
 pub async fn run_executable(
     app: AppHandle,
-    state: tauri::State<'_, RunExecutableProcessState>,
+    webview: tauri::Webview,
     request: RunExecutableRequest,
-) -> Result<RunExecutableResult, RunCommandError> {
-    let executable_stem = Path::new(&request.executable_path)
-        .file_stem()
-        .and_then(|value| value.to_str())
-        .unwrap_or("")
-        .to_string();
-    let slug = slugify_target(&executable_stem, "run-executable");
-    let log_path = create_log_path("run-executable", &slug).map_err(RunCommandError::runtime)?;
-
-    // Capture before `request` is moved into spawn_blocking.
-    let is_throwaway = request.prefix_path.trim().is_empty();
-
-    let log_path_clone = log_path.clone();
-    let (result, child) = tauri::async_runtime::spawn_blocking(move || {
-        run_executable_core(&request, &log_path_clone)
-    })
-    .await
-    .map_err(|join_error| RunCommandError::runtime(join_error.to_string()))?
-    .map_err(RunCommandError::from)?;
-
-    if let Some(pid) = child.id() {
-        *lock_info(&state) = Some(RunningProcessInfo {
-            pid,
-            prefix_path: PathBuf::from(&result.resolved_prefix_path),
-        });
-    }
-
-    // Cleanup info captured by value into the post-exit callback. The
-    // callback fires when the wrapper child exits via ANY path — natural
-    // completion, Cancel-induced exit, or Stop-induced kill — and is the
-    // single source of truth for throwaway prefix removal.
-    let cleanup_prefix = if is_throwaway {
-        Some(PathBuf::from(&result.resolved_prefix_path))
-    } else {
-        None
-    };
-
-    let app_handle_for_clear = app.clone();
-    spawn_log_stream(
-        app,
-        log_path,
-        child,
-        "run-executable-log",
-        "run-executable-complete",
-        Box::new(move || {
-            if let Some(state) = app_handle_for_clear.try_state::<RunExecutableProcessState>() {
-                *lock_info(&state) = None;
-            }
-
-            if let Some(prefix) = cleanup_prefix {
-                // Fire-and-forget cleanup on a blocking thread so we don't
-                // stall the log_stream task on filesystem and process
-                // teardown work.
-                tauri::async_runtime::spawn_blocking(move || {
-                    cleanup_throwaway_prefix(&prefix);
-                });
-            }
-        }),
-    );
-
-    Ok(result)
+    service: State<'_, RunExecutableService>,
+) -> Result<RunExecutableResponse, RunCommandError> {
+    let (response, run) = service
+        .start(run_owner(&webview), request)
+        .await
+        .map_err(RunCommandError::from)?;
+    relay_run(app, run);
+    Ok(response)
 }
 
-/// Polite cancellation. Sends `SIGTERM` to the tracked Proton wrapper PID and
-/// lets the executable shut itself down. Use [`stop_run_executable`] when the
-/// process is wedged and ignoring `SIGTERM`.
-///
-/// Prefix cleanup is NOT triggered here directly; once the wrapper exits in
-/// response to `SIGTERM`, the [`spawn_log_stream`] callback handles it.
+/// Polite cancellation of the invoking webview's run: `SIGTERM` to its
+/// process group, `SIGKILL` after the grace period. No active run (or a run
+/// owned by another webview) is a no-op.
 #[tauri::command]
-pub async fn cancel_run_executable(
-    state: tauri::State<'_, RunExecutableProcessState>,
+pub fn cancel_run_executable(
+    webview: tauri::Webview,
+    service: State<'_, RunExecutableService>,
 ) -> Result<(), RunCommandError> {
-    let info = lock_info(&state).take();
-
-    if let Some(info) = info {
-        let _ = host_std_command("kill").arg(info.pid.to_string()).status();
-    }
-
+    service.cancel(&run_owner(&webview));
     Ok(())
 }
 
-/// Forcefully terminate the run-executable process tree.
-///
-/// 1. `SIGKILL` the tracked Proton wrapper PID.
-/// 2. Walk `/proc/[pid]/environ` and `SIGKILL` every process whose env
-///    references our prefix path string. Catches `wineserver`, the actual
-///    game executable, and any orphaned Wine helpers regardless of process
-///    group membership.
-///
-/// Prefix removal is handled by the [`spawn_log_stream`] callback once the
-/// wrapper actually exits — not here — so there is exactly one cleanup path
-/// regardless of how a run ended.
+/// Immediate `SIGKILL` of the invoking webview's run process group plus a
+/// sweep of every process still using its prefix. No active run (or a run
+/// owned by another webview) is a no-op.
 #[tauri::command]
-pub async fn stop_run_executable(
-    state: tauri::State<'_, RunExecutableProcessState>,
+pub fn stop_run_executable(
+    webview: tauri::Webview,
+    service: State<'_, RunExecutableService>,
 ) -> Result<(), RunCommandError> {
-    let info = lock_info(&state).take();
-
-    let Some(info) = info else {
-        return Ok(());
-    };
-
-    tauri::async_runtime::spawn_blocking(move || {
-        let _ = host_std_command("kill")
-            .arg("-KILL")
-            .arg(info.pid.to_string())
-            .status();
-
-        kill_processes_using_prefix(&info.prefix_path);
-    })
-    .await
-    .map_err(|join_error| RunCommandError::runtime(join_error.to_string()))?;
-
+    service.stop(&run_owner(&webview));
     Ok(())
 }
 
-/// Removes a throwaway prefix directory after the wrapper child exits.
-///
-/// Strategy:
-/// 1. Defense-in-depth: refuse anything that isn't a direct child of the
-///    canonical `_run-adhoc/` namespace under the platform data-local dir.
-///    The check delegates to [`is_throwaway_prefix_path`] in core so the
-///    Tauri layer and the resolver can never disagree.
-/// 2. Fast attempt — if `wineserver` already exited cleanly along with the
-///    main wine process, the directory is unlocked and `remove_dir_all`
-///    succeeds immediately.
-/// 3. If the first attempt fails, force-kill every process whose env still
-///    references the prefix path, settle briefly, then retry.
-/// 4. Final fallback shells out to a pinned `/usr/bin/rm -rf`, which
-///    handles a few edge cases that `std::fs::remove_dir_all` does not
-///    (read-only bits, etc.).
-fn cleanup_throwaway_prefix(prefix_path: &Path) {
-    if !is_throwaway_prefix_path(prefix_path) {
-        tracing::warn!(
-            prefix = %prefix_path.display(),
-            "cleanup_throwaway_prefix: refusing to delete prefix outside the canonical _run-adhoc namespace root"
-        );
-        return;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crosshook_app::AppError;
+    use serde_json::json;
+
+    fn assert_matches_fixture(value: &RunCommandError, fixture: &str) {
+        let actual = serde_json::to_value(value).expect("serialize RunCommandError");
+        let expected: serde_json::Value =
+            serde_json::from_str(fixture).expect("parse RunCommandError fixture");
+        assert_eq!(actual, expected);
     }
 
-    if !prefix_path.exists() {
-        return;
+    #[test]
+    fn command_names_match_expected_ipc_contract() {
+        // Async commands cannot be cast to fn pointers; naming them pins the
+        // exported symbol (and thus the IPC command name).
+        let _ = validate_run_executable_request;
+        let _ = run_executable;
+        let _ = cancel_run_executable;
+        let _ = stop_run_executable;
     }
 
-    if try_remove_dir(prefix_path) {
-        return;
-    }
-
-    // Wineserver may still be lingering. Force-kill survivors and retry.
-    kill_processes_using_prefix(prefix_path);
-    std::thread::sleep(Duration::from_millis(300));
-
-    if try_remove_dir(prefix_path) {
-        return;
-    }
-
-    // Last-ditch: retry remove_dir_all after a short settle (handles a few edge cases
-    // where the first attempt races with lingering file handles).
-    std::thread::sleep(Duration::from_millis(200));
-    if try_remove_dir(prefix_path) {
-        tracing::info!(
-            prefix = %prefix_path.display(),
-            "cleanup_throwaway_prefix: removed on retry without rm"
-        );
-    } else {
-        tracing::warn!(
-            prefix = %prefix_path.display(),
-            "cleanup_throwaway_prefix: could not remove prefix after retries; user may delete manually"
+    #[test]
+    fn fixture_run_command_error_validation_wire_shape() {
+        assert_matches_fixture(
+            &RunCommandError::from(RunExecutableValidationError::ExecutablePathMissing),
+            include_str!("fixtures/process/run_command_error_validation.json"),
         );
     }
-}
 
-fn try_remove_dir(prefix_path: &Path) -> bool {
-    match std::fs::remove_dir_all(prefix_path) {
-        Ok(()) => {
-            tracing::info!(
-                prefix = %prefix_path.display(),
-                "cleanup_throwaway_prefix: removed throwaway prefix"
-            );
-            true
-        }
-        Err(error) => {
-            tracing::warn!(
-                %error,
-                prefix = %prefix_path.display(),
-                "cleanup_throwaway_prefix: remove_dir_all failed; will retry"
-            );
-            false
-        }
+    #[test]
+    fn fixture_run_command_error_runtime_wire_shape() {
+        assert_matches_fixture(
+            &RunCommandError::Runtime {
+                message: "boom".to_string(),
+            },
+            include_str!("fixtures/process/run_command_error_runtime.json"),
+        );
+    }
+
+    #[test]
+    fn start_error_maps_onto_the_frozen_envelope() {
+        assert_matches_fixture(
+            &RunCommandError::from(RunExecutableStartError::Validation(
+                RunExecutableValidationError::ExecutablePathMissing,
+            )),
+            include_str!("fixtures/process/run_command_error_validation.json"),
+        );
+        assert_matches_fixture(
+            &RunCommandError::from(RunExecutableStartError::Failed(AppError::validation(
+                "prefix_path",
+                "boom",
+            ))),
+            include_str!("fixtures/process/run_command_error_runtime.json"),
+        );
+    }
+
+    #[test]
+    fn log_payload_wire_shape() {
+        let payload = RunExecutableLogPayload {
+            run_id: "job-1".to_string(),
+            line: "hello".to_string(),
+        };
+        assert_eq!(
+            serde_json::to_value(&payload).expect("serialize log payload"),
+            json!({ "run_id": "job-1", "line": "hello" })
+        );
+    }
+
+    #[test]
+    fn complete_payload_wire_shape() {
+        let exited = RunExecutableCompletePayload::new(
+            "job-1".to_string(),
+            Some(RunCompletion {
+                code: Some(0),
+                signal: None,
+            }),
+        );
+        assert_eq!(
+            serde_json::to_value(&exited).expect("serialize complete payload"),
+            json!({ "run_id": "job-1", "code": 0, "signal": null })
+        );
+
+        let killed = RunExecutableCompletePayload::new(
+            "job-2".to_string(),
+            Some(RunCompletion {
+                code: None,
+                signal: Some(9),
+            }),
+        );
+        assert_eq!(
+            serde_json::to_value(&killed).expect("serialize complete payload"),
+            json!({ "run_id": "job-2", "code": null, "signal": 9 })
+        );
+
+        let unsupervised = RunExecutableCompletePayload::new("job-3".to_string(), None);
+        assert_eq!(
+            serde_json::to_value(&unsupervised).expect("serialize complete payload"),
+            json!({ "run_id": "job-3", "code": null, "signal": null })
+        );
     }
 }

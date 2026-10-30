@@ -45,8 +45,6 @@ pub struct RunExecutableResult {
 #[serde(rename_all = "snake_case")]
 pub enum RunExecutableError {
     Validation(RunExecutableValidationError),
-    RuntimeUnavailable,
-    LogAttachmentFailed { path: PathBuf, message: String },
     PrefixCreationFailed { path: PathBuf, message: String },
     HomeDirectoryUnavailable,
     RunnerSpawnFailed { message: String },
@@ -58,12 +56,15 @@ pub enum RunExecutableError {
 #[serde(rename_all = "snake_case")]
 pub enum RunExecutableValidationError {
     ExecutablePathRequired,
+    ExecutablePathNotAbsolute,
     ExecutablePathMissing,
     ExecutablePathNotFile,
     ExecutablePathNotWindowsExecutable,
     ProtonPathRequired,
+    ProtonPathNotAbsolute,
     ProtonPathMissing,
     ProtonPathNotExecutable,
+    PrefixPathNotAbsolute,
     PrefixPathMissing,
     PrefixPathNotDirectory,
 }
@@ -72,16 +73,21 @@ impl RunExecutableValidationError {
     pub fn message(&self) -> String {
         match self {
             Self::ExecutablePathRequired => "The executable path is required.".to_string(),
+            Self::ExecutablePathNotAbsolute => {
+                "The executable path must be an absolute path.".to_string()
+            }
             Self::ExecutablePathMissing => "The executable path does not exist.".to_string(),
             Self::ExecutablePathNotFile => "The executable path must be a file.".to_string(),
             Self::ExecutablePathNotWindowsExecutable => {
                 "The executable path must point to a Windows .exe or .msi file.".to_string()
             }
             Self::ProtonPathRequired => "A Proton path is required.".to_string(),
+            Self::ProtonPathNotAbsolute => "The Proton path must be an absolute path.".to_string(),
             Self::ProtonPathMissing => "The Proton path does not exist.".to_string(),
             Self::ProtonPathNotExecutable => {
                 "The Proton path does not point to an executable file.".to_string()
             }
+            Self::PrefixPathNotAbsolute => "The prefix path must be an absolute path.".to_string(),
             Self::PrefixPathMissing => "The prefix path does not exist.".to_string(),
             Self::PrefixPathNotDirectory => "The prefix path must be a directory.".to_string(),
         }
@@ -94,13 +100,17 @@ impl RunExecutableValidationError {
     pub fn field(&self) -> &'static str {
         match self {
             Self::ExecutablePathRequired
+            | Self::ExecutablePathNotAbsolute
             | Self::ExecutablePathMissing
             | Self::ExecutablePathNotFile
             | Self::ExecutablePathNotWindowsExecutable => "executable_path",
-            Self::ProtonPathRequired | Self::ProtonPathMissing | Self::ProtonPathNotExecutable => {
-                "proton_path"
-            }
-            Self::PrefixPathMissing | Self::PrefixPathNotDirectory => "prefix_path",
+            Self::ProtonPathRequired
+            | Self::ProtonPathNotAbsolute
+            | Self::ProtonPathMissing
+            | Self::ProtonPathNotExecutable => "proton_path",
+            Self::PrefixPathNotAbsolute
+            | Self::PrefixPathMissing
+            | Self::PrefixPathNotDirectory => "prefix_path",
         }
     }
 }
@@ -117,16 +127,6 @@ impl RunExecutableError {
     pub fn message(&self) -> String {
         match self {
             Self::Validation(error) => error.message(),
-            Self::RuntimeUnavailable => {
-                "Run-executable execution requires a Tokio runtime, but none was available."
-                    .to_string()
-            }
-            Self::LogAttachmentFailed { path, message } => {
-                format!(
-                    "Failed to attach run-executable logs to '{}': {message}",
-                    path.display()
-                )
-            }
             Self::PrefixCreationFailed { path, message } => {
                 format!(
                     "Failed to create the throwaway Proton prefix at '{}': {message}",
@@ -245,6 +245,45 @@ mod tests {
             RunExecutableValidationError::PrefixPathNotDirectory.message(),
             "The prefix path must be a directory."
         );
+        assert_eq!(
+            RunExecutableValidationError::ExecutablePathNotAbsolute.message(),
+            "The executable path must be an absolute path."
+        );
+        assert_eq!(
+            RunExecutableValidationError::ProtonPathNotAbsolute.message(),
+            "The Proton path must be an absolute path."
+        );
+        assert_eq!(
+            RunExecutableValidationError::PrefixPathNotAbsolute.message(),
+            "The prefix path must be an absolute path."
+        );
+    }
+
+    #[test]
+    fn not_absolute_variants_serialize_to_snake_case_with_their_field() {
+        for (variant, wire, field) in [
+            (
+                RunExecutableValidationError::ExecutablePathNotAbsolute,
+                "executable_path_not_absolute",
+                "executable_path",
+            ),
+            (
+                RunExecutableValidationError::ProtonPathNotAbsolute,
+                "proton_path_not_absolute",
+                "proton_path",
+            ),
+            (
+                RunExecutableValidationError::PrefixPathNotAbsolute,
+                "prefix_path_not_absolute",
+                "prefix_path",
+            ),
+        ] {
+            assert_eq!(
+                serde_json::to_value(&variant).unwrap(),
+                serde_json::json!(wire)
+            );
+            assert_eq!(variant.field(), field);
+        }
     }
 
     #[test]
