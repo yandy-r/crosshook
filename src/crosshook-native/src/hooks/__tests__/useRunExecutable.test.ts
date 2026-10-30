@@ -211,7 +211,69 @@ describe('useRunExecutable', () => {
     expect(stages).not.toContain('failed');
   });
 
-  it('reports a Conflict from the backend as a run error', async () => {
+  it('reports a non-busy runtime error from the backend as a run error', async () => {
+    const { result } = await renderRunHook();
+    callCommandMock.mockImplementation((name: string) =>
+      name === 'run_executable' ? Promise.reject({ kind: 'runtime', message: 'boom' }) : Promise.resolve(undefined)
+    );
+
+    await act(async () => {
+      await result.current.startRun();
+    });
+
+    expect(result.current.stage).toBe('failed');
+    expect(result.current.error).toBe('boom');
+    expect(result.current.canCancel).toBe(false);
+  });
+
+  it("keeps Cancel and Stop usable for the window's earlier run after a remount", async () => {
+    // The first mount starts a run, then the panel unmounts (route change)
+    // while the backend still holds the window's run slot.
+    const first = await renderRunHook();
+    await startResolvedRun(first.result);
+    expect(first.result.current.stage).toBe('running');
+    first.unmount();
+
+    const { result } = await renderRunHook();
+    let slotHeld = true;
+    callCommandMock.mockImplementation((name: string) => {
+      if (name === 'run_executable') {
+        return slotHeld
+          ? Promise.reject({ kind: 'runtime', message: 'another run is already active for this window' })
+          : Promise.resolve({ ...RUN_RESULT, run_id: 'run-43' });
+      }
+      if (name === 'cancel_run_executable') slotHeld = false;
+      return Promise.resolve(undefined);
+    });
+    act(() => {
+      result.current.updateField('executable_path', '/mock/setup.exe');
+      result.current.updateField('proton_path', '/mock/proton');
+    });
+
+    await act(async () => {
+      await result.current.startRun();
+    });
+    expect(result.current.stage).toBe('busy');
+    expect(result.current.error).toBeNull();
+    expect(result.current.canCancel).toBe(true);
+    expect(result.current.canStart).toBe(false);
+    expect(result.current.statusText).toMatch(/started earlier in this window is still active/);
+
+    await act(async () => {
+      await result.current.cancelRun();
+    });
+    expect(callCommandMock).toHaveBeenCalledWith('cancel_run_executable', undefined);
+    expect(result.current.stage).toBe('idle');
+    expect(result.current.canStart).toBe(true);
+
+    await act(async () => {
+      await result.current.startRun();
+    });
+    expect(result.current.stage).toBe('running');
+    expect(result.current.result?.run_id).toBe('run-43');
+  });
+
+  it("lets Stop end the window's earlier run after a busy start", async () => {
     const { result } = await renderRunHook();
     callCommandMock.mockImplementation((name: string) =>
       name === 'run_executable'
@@ -222,9 +284,13 @@ describe('useRunExecutable', () => {
     await act(async () => {
       await result.current.startRun();
     });
+    expect(result.current.canCancel).toBe(true);
 
-    expect(result.current.stage).toBe('failed');
-    expect(result.current.error).toBe('another run is already active for this window');
+    await act(async () => {
+      await result.current.stopRun();
+    });
+    expect(callCommandMock).toHaveBeenCalledWith('stop_run_executable', undefined);
+    expect(result.current.stage).toBe('idle');
   });
 
   it('detaches and cancels a start that was reset while run_executable was in flight', async () => {

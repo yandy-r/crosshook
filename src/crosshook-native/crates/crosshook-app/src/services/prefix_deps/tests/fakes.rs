@@ -120,6 +120,11 @@ impl JournalStore for RecordingStore {
         self.inner.mark_failed(prefix, error)
     }
 
+    fn rekey(&self, from: &str, to: &str) -> Result<(), MetadataStoreError> {
+        self.log("rekey", to);
+        self.inner.rekey(from, to)
+    }
+
     fn delete(&self, prefix: &str) -> Result<(), MetadataStoreError> {
         self.log("delete", prefix);
         Self::injected(&self.fail_delete, "delete")?;

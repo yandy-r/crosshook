@@ -190,6 +190,135 @@ describe('usePrefixDeps', () => {
     }
   });
 
+  it('keeps polling when the reload after a released poll fails, then recovers', async () => {
+    vi.useFakeTimers();
+    try {
+      const busy: PrefixVersionRepairStatus = {
+        ...CLEAN_REPAIR_STATUS,
+        required: true,
+        state: 'pending',
+        in_progress: true,
+      };
+      // 1: initial load (busy). 2: poll sees the prefix released. 3: the
+      // reload's lookup fails. 4: next poll, released. 5: reload succeeds.
+      const lookups: Array<PrefixVersionRepairStatus | Error> = [
+        busy,
+        CLEAN_REPAIR_STATUS,
+        new Error('repair journal unavailable'),
+        CLEAN_REPAIR_STATUS,
+        CLEAN_REPAIR_STATUS,
+      ];
+      let calls = 0;
+      callCommandMock.mockImplementation(async (name) => {
+        if (name === 'get_dependency_status') return [];
+        if (name === 'get_prefix_version_repair_status') {
+          const next = lookups[Math.min(calls, lookups.length - 1)];
+          calls += 1;
+          if (next instanceof Error) throw next;
+          return next;
+        }
+        throw new Error(`unexpected command: ${name}`);
+      });
+
+      const { result } = renderHook(() => usePrefixDeps('Ghost', '/prefix'));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(calls).toBe(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(PREFIX_BUSY_POLL_MS);
+      });
+      expect(calls).toBe(3);
+      expect(result.current.repairStatusError).toBe('repair journal unavailable');
+      expect(result.current.repairStatus.in_progress).toBe(true);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(PREFIX_BUSY_POLL_MS);
+      });
+      expect(calls).toBe(5);
+      expect(result.current.repairStatus).toEqual(CLEAN_REPAIR_STATUS);
+      expect(result.current.repairStatusError).toBeNull();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(PREFIX_BUSY_POLL_MS * 3);
+      });
+      expect(calls).toBe(5);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps polling when the prefix is re-acquired between the poll and its reload', async () => {
+    vi.useFakeTimers();
+    try {
+      const busy: PrefixVersionRepairStatus = {
+        ...CLEAN_REPAIR_STATUS,
+        required: true,
+        state: 'pending',
+        in_progress: true,
+      };
+      const lookups = [busy, CLEAN_REPAIR_STATUS, busy, CLEAN_REPAIR_STATUS, CLEAN_REPAIR_STATUS];
+      let calls = 0;
+      callCommandMock.mockImplementation(async (name) => {
+        if (name === 'get_dependency_status') return [];
+        if (name === 'get_prefix_version_repair_status') {
+          const next = lookups[Math.min(calls, lookups.length - 1)];
+          calls += 1;
+          return next;
+        }
+        throw new Error(`unexpected command: ${name}`);
+      });
+
+      const { result } = renderHook(() => usePrefixDeps('Ghost', '/prefix'));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(calls).toBe(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(PREFIX_BUSY_POLL_MS);
+      });
+      expect(calls).toBe(3);
+      expect(result.current.repairStatus.in_progress).toBe(true);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(PREFIX_BUSY_POLL_MS);
+      });
+      expect(calls).toBe(5);
+      expect(result.current.repairStatus).toEqual(CLEAN_REPAIR_STATUS);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not poll while a job holds the prefix without a repair row', async () => {
+    vi.useFakeTimers();
+    try {
+      let calls = 0;
+      callCommandMock.mockImplementation(async (name) => {
+        if (name === 'get_dependency_status') return [];
+        if (name === 'get_prefix_version_repair_status') {
+          calls += 1;
+          return { ...CLEAN_REPAIR_STATUS, in_progress: true };
+        }
+        throw new Error(`unexpected command: ${name}`);
+      });
+
+      renderHook(() => usePrefixDeps('Ghost', '/prefix'));
+      // Let the initial load apply the status and arm any poll before advancing.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(PREFIX_BUSY_POLL_MS * 3);
+      });
+      expect(calls).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('stops re-polling after unmount', async () => {
     vi.useFakeTimers();
     try {

@@ -1,11 +1,14 @@
 //! Service-level startup recovery (D8) and explicit repair: pending rows are
 //! restored under the prefix key and reported in the status; `failed` rows,
-//! live prefixes and an unavailable store are left alone.
+//! live prefixes, an unavailable store and jobs cancelled by app shutdown
+//! before the restore are left alone.
 
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use crosshook_core::prefix_deps::PrefixVersionRestoreState;
+use tokio::runtime::Handle;
+use tokio_util::sync::CancellationToken;
 
 use super::super::journal::RecoveryResult;
 use super::super::seams::MetadataJournalStore;
@@ -183,5 +186,45 @@ async fn repair_of_clean_prefix_is_idempotent() {
     assert!(!status.required);
     assert_eq!(status.state, None);
     assert!(read_calls(&h.calls).is_empty());
+    assert_eq!(jobs.job_counts(), (0, 0));
+}
+
+/// A registry whose app shutdown token is already cancelled: every job it
+/// starts runs with a cancelled token.
+fn shut_down_registry() -> JobRegistry {
+    let shutdown = CancellationToken::new();
+    shutdown.cancel();
+    JobRegistry::for_app(Handle::current(), &shutdown)
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn shutdown_before_the_restore_starts_leaves_rows_pending() {
+    let h = Harness::new();
+    let tool = h.tool(&ToolScript::default());
+    h.seed_row(&pending_row(&h.prefix, &tool));
+    let restorer = h.restorer();
+    let jobs = shut_down_registry();
+    let service = h.service_with(
+        jobs.clone(),
+        Arc::new(MetadataJournalStore(h.metadata.clone())),
+        restorer.clone(),
+        Arc::new(FakeInUse::new(false, &h.prefix)),
+        Arc::new(FakeProbe::winetricks(&tool)),
+    );
+
+    let results = service.recover_on_startup().await;
+    assert_eq!(
+        results,
+        vec![(h.prefix.clone(), RecoveryResult::SkippedCancelled)]
+    );
+
+    let status = service.repair(raw_prefix(&h)).await.unwrap();
+    assert!(status.required, "the repair did not run either");
+    assert_eq!(status.state, Some(PrefixVersionRestoreState::Pending));
+    assert_eq!(status.last_recovery, None);
+
+    assert_eq!(restorer.count(), 0, "no restore started after shutdown");
+    assert!(read_calls(&h.calls).is_empty());
+    assert_eq!(h.row().map(|row| row.state).as_deref(), Some("pending"));
     assert_eq!(jobs.job_counts(), (0, 0));
 }

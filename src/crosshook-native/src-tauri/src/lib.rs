@@ -1,6 +1,7 @@
 mod commands;
 mod env_policy;
 mod fatal;
+mod signals;
 mod startup_bridge;
 
 pub use crosshook_app::services::{BackgroundGrantHolder, BackgroundProtectionState};
@@ -81,6 +82,8 @@ pub fn run() {
         .manage(core.clone())
         .setup(move |app| {
             startup_bridge::spawn(app.handle().clone(), core.startup(), startup_events);
+            // SIGINT/SIGTERM/SIGHUP take the normal exit path below.
+            signals::exit_on_termination(app.handle().clone());
             Ok(())
         })
         .plugin(tauri_plugin_shell::init())
@@ -259,9 +262,10 @@ pub fn run() {
         .build(context)
         .expect("error while building CrossHook Native")
         .run(move |_app, event| {
-            // `Exit` fires once on every exit path (after `ExitRequested`),
-            // right before tao ends the process with `process::exit`: `App`'s
-            // drop never runs, so shut down explicitly here.
+            // `Exit` fires once on every exit path (after `ExitRequested`,
+            // including a termination signal, see `signals`), right before
+            // tao ends the process with `process::exit`: `App`'s drop never
+            // runs, so shut down explicitly here.
             if let tauri::RunEvent::Exit = event {
                 // Persist any trailing `[ui]` write still waiting on the throttle.
                 if let Err(error) = tauri::async_runtime::block_on(ui_settings.flush()) {
@@ -269,7 +273,8 @@ pub fn run() {
                 }
                 // Cancel every job so supervised process groups (installers,
                 // updaters, ad-hoc executables, winetricks) end with the app;
-                // bounded, so a job ignoring cancel cannot hang quit.
+                // bounded (`App::DEFAULT_SHUTDOWN_TIMEOUT`), so a job ignoring
+                // cancel delays quit by at most that long.
                 let finished = tauri::async_runtime::block_on(
                     app_owner.shutdown(App::DEFAULT_SHUTDOWN_TIMEOUT),
                 );

@@ -201,6 +201,9 @@ impl JournalStore for RawRowStore {
     fn delete(&self, _prefix: &str) -> Result<(), MetadataStoreError> {
         panic!("status must not write")
     }
+    fn rekey(&self, _from: &str, _to: &str) -> Result<(), MetadataStoreError> {
+        panic!("status must not write")
+    }
 }
 
 // Ported row_status_mapping_* tests.
@@ -280,7 +283,10 @@ fn j4g_unresolved_ticket_keeps_row_pending() {
     drop(ticket);
     assert_eq!(h.row().unwrap().state, "pending");
     assert!(journal.status(&h.prefix).unwrap().required);
-    assert_eq!(journal.pending_prefixes().unwrap(), vec![h.prefix.clone()]);
+    let rows = journal.recovery_rows().unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].stored, h.prefix);
+    assert_eq!(rows[0].canonical, h.prefix);
 }
 
 // J4h: an explicit Windows-version verb produces no plan, so nothing is recorded.

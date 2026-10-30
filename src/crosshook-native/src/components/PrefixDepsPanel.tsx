@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { subscribeEvent } from '@/lib/events';
 import { usePrefixDeps } from '../hooks/usePrefixDeps';
-import type {
-  DepState,
-  PrefixDepCompletePayload,
-  PrefixDependencyStatus,
-  PrefixVersionRepairStatus,
+import {
+  type DepState,
+  isPrefixBusy,
+  type PrefixDepCompletePayload,
+  type PrefixDependencyStatus,
+  type PrefixVersionRepairStatus,
 } from '../types/prefix-deps';
 
 interface PrefixDepsPanelProps {
@@ -72,9 +73,9 @@ function RecoveryRestoredNote({ repairStatus }: { repairStatus: PrefixVersionRep
   );
 }
 
-/** Shown while another job holds the prefix; the hook re-polls until it ends. */
+/** Shown while the prefix is busy (see `isPrefixBusy`); the hook re-polls until it ends. */
 function PrefixBusyNote({ repairStatus }: { repairStatus: PrefixVersionRepairStatus }) {
-  if (!repairStatus.in_progress) {
+  if (!isPrefixBusy(repairStatus)) {
     return null;
   }
   return (
@@ -121,9 +122,9 @@ export function PrefixDepsPanel({ profileName, prefixPath, requiredPackages }: P
     .map((d) => d.package_name);
   const dependencyActionsBlocked =
     repairStatus.required || repairing || !repairStatusKnown || repairStatusError !== null;
-  // A held prefix job (install, repair or recovery) keeps a pending row by design;
-  // it is not a repair request until the job finishes.
-  const repairBannerVisible = repairStatus.required && !repairStatus.in_progress;
+  // A busy prefix's repair row is provisional (e.g. an install's pending
+  // restore); it is not a repair request until the job finishes.
+  const repairBannerVisible = repairStatus.required && !isPrefixBusy(repairStatus);
 
   // Listen for install events
   useEffect(() => {

@@ -11,6 +11,7 @@ use crate::error::AppError;
 use crate::events::{EventBus, EventReceiver, DEFAULT_EVENT_CAPACITY};
 use crate::jobs::{JobRegistry, DEFAULT_KILL_GRACE};
 use crate::runtime::AppRuntime;
+use crate::services::process::child::DRAIN_GRACE;
 
 /// Shared state behind every [`App`] clone.
 struct Inner {
@@ -66,10 +67,13 @@ impl Clone for App {
 
 impl App {
     /// Default bound for [`App::shutdown`]: the process-group kill grace
-    /// ([`DEFAULT_KILL_GRACE`]) plus one second for supervised jobs to reap
-    /// their children and publish `Finished`.
-    pub const DEFAULT_SHUTDOWN_TIMEOUT: Duration =
-        DEFAULT_KILL_GRACE.saturating_add(Duration::from_secs(1));
+    /// ([`DEFAULT_KILL_GRACE`]), the bounded log-pipe drain after the group
+    /// exited ([`DRAIN_GRACE`]), plus one second for supervised jobs to reap
+    /// their children and publish `Finished`. Quitting while a process job
+    /// runs can therefore delay the exit by up to this long.
+    pub const DEFAULT_SHUTDOWN_TIMEOUT: Duration = DEFAULT_KILL_GRACE
+        .saturating_add(DRAIN_GRACE)
+        .saturating_add(Duration::from_secs(1));
 
     /// Creates an app owning a new multi-thread Tokio runtime with the
     /// default event-bus capacity.
@@ -140,9 +144,10 @@ impl App {
     /// `timeout` elapses. Returns whether every job finished in time.
     ///
     /// Process jobs terminate their process groups on cancel (`SIGTERM`, then
-    /// `SIGKILL` after [`DEFAULT_KILL_GRACE`]), so
-    /// [`App::DEFAULT_SHUTDOWN_TIMEOUT`] lets them finish. A job that ignores
-    /// cancellation cannot extend the wait past `timeout`.
+    /// `SIGKILL` after [`DEFAULT_KILL_GRACE`]) and drain their pipes for at
+    /// most [`DRAIN_GRACE`], so [`App::DEFAULT_SHUTDOWN_TIMEOUT`] lets them
+    /// finish. A job that ignores cancellation cannot extend the wait past
+    /// `timeout`; the caller then exits with that job still running.
     ///
     /// The wait runs on the app runtime, so the returned future polls on any
     /// executor. Calling it again only waits again; the app stays cancelled.

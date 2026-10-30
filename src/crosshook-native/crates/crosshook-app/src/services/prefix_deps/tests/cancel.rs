@@ -1,5 +1,7 @@
-//! C1: cancelling an install terminates its whole process group and still
-//! restores the captured Windows version (I8), then resolves the row.
+//! C1: cancelling an install (only app shutdown does) terminates its whole
+//! process group and skips the restore: a restore started during shutdown
+//! would outlive the process, so the `pending` row stays for startup
+//! recovery.
 
 use std::fs::OpenOptions;
 use std::os::unix::fs::OpenOptionsExt;
@@ -11,7 +13,7 @@ use super::install::{drain, gated_tool, packages, raw_prefix, wait_for_line};
 use crate::jobs::{JobEventKind, JobId, JobRegistry, Outcome};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn c1_cancel_terminates_group_and_still_restores() {
+async fn c1_cancel_terminates_group_and_leaves_row_pending() {
     let h = Harness::new();
     let (tool, fifo) = gated_tool(&h);
     let jobs = JobRegistry::default();
@@ -40,10 +42,15 @@ async fn c1_cancel_terminates_group_and_still_restores() {
     let install = &completion.outcome;
     assert!(!install.install_succeeded);
     assert_eq!(install.install_exit_code, None, "ended by a signal");
-    assert_eq!(install.restore_state, PrefixVersionRestoreState::Succeeded);
-    // The install ran once, then the restore of the captured version.
-    assert_eq!(read_calls(&h.calls), vec!["-q dotnet48", "-q win7"]);
-    assert!(h.row().is_none(), "the verified restore deleted the row");
+    assert_eq!(install.restore_state, PrefixVersionRestoreState::Pending);
+    assert_eq!(install.restore_error, None);
+    // The install ran once; no restore was started.
+    assert_eq!(read_calls(&h.calls), vec!["-q dotnet48"]);
+    assert_eq!(
+        h.row().map(|row| row.state).as_deref(),
+        Some("pending"),
+        "the row stays for startup recovery"
+    );
 
     // The gate reader (`cat`, a group member, not the leader) is gone too:
     // a non-blocking writer finds no reader on the fifo.

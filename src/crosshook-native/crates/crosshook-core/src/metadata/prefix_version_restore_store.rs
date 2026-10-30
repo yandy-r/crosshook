@@ -132,6 +132,45 @@ pub fn delete_restore(conn: &Connection, prefix_path: &str) -> Result<(), Metada
     Ok(())
 }
 
+/// Moves the row of `from` to `to` (its prefix moved and `from` is now an
+/// alias of `to`), keeping state, error and timestamps of creation. A row
+/// already at `to` is replaced: the row recorded under the old path captured
+/// the earlier, original Windows version. Run inside one write transaction.
+pub fn rekey_restore(conn: &Connection, from: &str, to: &str) -> Result<(), MetadataStoreError> {
+    if from == to {
+        return Err(MetadataStoreError::Validation(
+            "cannot move a prefix repair onto its own path".to_string(),
+        ));
+    }
+    let map_err = |source| MetadataStoreError::Database {
+        action: "move prefix version restore journal",
+        source,
+    };
+    let now = Utc::now().to_rfc3339();
+    let copied = conn
+        .execute(
+            "INSERT OR REPLACE INTO prefix_version_restore_journal
+             (prefix_path, profile_id, binary_path, tool_type, steam_app_id,
+              restore_verb, state, last_error, created_at, updated_at)
+             SELECT ?2, profile_id, binary_path, tool_type, steam_app_id,
+                    restore_verb, state, last_error, created_at, ?3
+             FROM prefix_version_restore_journal WHERE prefix_path = ?1",
+            params![from, to, now],
+        )
+        .map_err(map_err)?;
+    if copied != 1 {
+        return Err(MetadataStoreError::Validation(
+            "cannot move prefix repair because no journal row exists".to_string(),
+        ));
+    }
+    conn.execute(
+        "DELETE FROM prefix_version_restore_journal WHERE prefix_path = ?1",
+        params![from],
+    )
+    .map_err(map_err)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -181,6 +220,36 @@ mod tests {
 
         let delete = delete_restore(&conn, "/games/missing/pfx");
         assert!(delete.unwrap_err().to_string().contains("no journal row"));
+    }
+
+    #[test]
+    fn rekey_moves_the_row_and_replaces_a_newer_one_at_the_target() {
+        let conn = db::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+        upsert_restore(&conn, &journal_row("/old/pfx", "win7")).unwrap();
+        mark_restore_failed(&conn, "/old/pfx", "restore timed out").unwrap();
+        upsert_restore(&conn, &journal_row("/new/pfx", "win10")).unwrap();
+
+        rekey_restore(&conn, "/old/pfx", "/new/pfx").unwrap();
+
+        assert!(load_restore(&conn, "/old/pfx").unwrap().is_none());
+        let moved = load_restore(&conn, "/new/pfx").unwrap().unwrap();
+        assert_eq!(moved.restore_verb, "win7");
+        assert_eq!(moved.state, "failed");
+        assert_eq!(moved.last_error.as_deref(), Some("restore timed out"));
+        assert_eq!(list_restores(&conn).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn rekey_rejects_a_missing_row_and_its_own_path() {
+        let conn = db::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+        upsert_restore(&conn, &journal_row("/same/pfx", "win10")).unwrap();
+
+        let missing = rekey_restore(&conn, "/missing/pfx", "/same/pfx").unwrap_err();
+        assert!(missing.to_string().contains("no journal row"));
+        assert!(rekey_restore(&conn, "/same/pfx", "/same/pfx").is_err());
+        assert!(load_restore(&conn, "/same/pfx").unwrap().is_some());
     }
 
     fn journal_row(prefix_path: &str, verb: &str) -> PrefixVersionRestoreJournalRow {

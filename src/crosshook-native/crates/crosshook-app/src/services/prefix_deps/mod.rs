@@ -69,6 +69,7 @@ impl RecoveryLedger {
             | RecoveryResult::SkippedFailed
             | RecoveryResult::SkippedInUse
             | RecoveryResult::SkippedBusy
+            | RecoveryResult::SkippedCancelled
             | RecoveryResult::StoreUnavailable => return,
         };
         self.0

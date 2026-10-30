@@ -153,4 +153,23 @@ describe('useLaunchDepGate prefix busy and pending restore', () => {
     expect(result.current.depGateRepair).toBeNull();
     expect(result.current.depGatePendingAction).toBeNull();
   });
+
+  it('launches normally while a job holds the prefix without a repair row', async () => {
+    // e.g. an ad-hoc executable run or an update holds the prefix lock.
+    getPrefixVersionRepairStatusMock.mockResolvedValue({ ...CLEAN_REPAIR_STATUS, in_progress: true });
+    getDependencyStatusMock.mockResolvedValue([]);
+    const profile = makeProfileDraft({
+      trainer: { required_protontricks: [] },
+      runtime: { prefix_path: '/mock/pfx' },
+    });
+    const { result } = renderHook(() =>
+      useLaunchDepGate({ profile, selectedName: 'Synthetic Quest', autoInstallPrefixDeps: false })
+    );
+
+    await act(async () => {
+      expect(await result.current.handleBeforeLaunch('game')).toBe(true);
+    });
+    expect(result.current.depGateRepair).toBeNull();
+    expect(result.current.depGatePendingAction).toBeNull();
+  });
 });

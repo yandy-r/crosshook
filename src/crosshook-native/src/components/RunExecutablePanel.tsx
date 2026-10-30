@@ -32,6 +32,8 @@ function stageLabel(stage: RunExecutableStage): string {
       return 'Preparing';
     case 'running':
       return 'Running';
+    case 'busy':
+      return 'Busy';
     case 'complete':
       return 'Complete';
     case 'failed':
@@ -54,6 +56,7 @@ export function RunExecutablePanel({ protonInstalls, protonInstallsError }: RunE
     actionLabel,
     canStart,
     isRunning,
+    canCancel,
     logLines,
     startRun,
     cancelRun,
@@ -241,7 +244,7 @@ export function RunExecutablePanel({ protonInstalls, protonInstallsError }: RunE
             </div>
           ) : null}
 
-          {isRunning ? (
+          {canCancel ? (
             <p
               id={RUNNING_WARNING_ID}
               className="crosshook-install-shell__running-warning"
@@ -269,10 +272,9 @@ export function RunExecutablePanel({ protonInstalls, protonInstallsError }: RunE
           </button>
           <button
             type="button"
-            className="crosshook-button crosshook-button--secondary"
             onClick={() => void cancelRun()}
-            disabled={!isRunning}
-            aria-describedby={isRunning ? RUNNING_WARNING_ID : undefined}
+            disabled={!canCancel}
+            aria-describedby={canCancel ? RUNNING_WARNING_ID : undefined}
           >
             Cancel
           </button>
@@ -280,8 +282,8 @@ export function RunExecutablePanel({ protonInstalls, protonInstallsError }: RunE
             type="button"
             className="crosshook-button crosshook-button--secondary"
             onClick={() => void stopRun()}
-            disabled={!isRunning}
-            aria-describedby={isRunning ? RUNNING_WARNING_ID : undefined}
+            disabled={!canCancel}
+            aria-describedby={canCancel ? RUNNING_WARNING_ID : undefined}
           >
             Stop
           </button>

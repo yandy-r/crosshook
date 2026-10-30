@@ -9,9 +9,9 @@ export interface RunExecutableRequest {
 
 export interface RunExecutableResult {
   /**
-   * `true` once the run job has been registered and the Proton wrapper is
-   * being started. This does NOT reflect the eventual exit status of the
-   * Windows executable — that arrives asynchronously via the
+   * `true` once the executable's process has been spawned; a spawn failure
+   * rejects the call instead. This does NOT reflect the eventual exit status
+   * of the Windows executable — that arrives asynchronously via the
    * `run-executable-complete` event.
    */
   succeeded: boolean;
@@ -29,7 +29,10 @@ export interface RunExecutableLogPayload {
   line: string;
 }
 
-/** Payload of `run-executable-complete`. `code` is null when the process was killed by `signal`. */
+/**
+ * Payload of `run-executable-complete`. `code` is null when the process was
+ * killed by `signal`; both are null when the run could not be supervised.
+ */
 export interface RunExecutableCompletePayload {
   run_id: string;
   code: number | null;
@@ -99,7 +102,12 @@ export type RunCommandError =
       message: string;
     };
 
-export type RunExecutableStage = 'idle' | 'preparing' | 'running' | 'complete' | 'failed';
+/**
+ * `busy`: the backend refused the start because a run started earlier in this
+ * window (e.g. before the panel was remounted) is still active. That run can
+ * still be cancelled or stopped, which acts on the window's active run.
+ */
+export type RunExecutableStage = 'idle' | 'preparing' | 'running' | 'busy' | 'complete' | 'failed';
 
 export interface RunExecutableValidationState {
   fieldErrors: Partial<Record<keyof RunExecutableRequest, string>>;

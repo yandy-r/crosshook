@@ -17,6 +17,12 @@ import {
 /** Maximum number of output lines kept for the live log region. */
 export const RUN_LOG_LINE_CAP = 500;
 
+/**
+ * Conflict text of `run_executable` while this window's earlier run is still
+ * active (`MSG_OWNER_BUSY` in `crosshook-app` `services/process/owner.rs`).
+ */
+const WINDOW_BUSY_MESSAGE = 'another run is already active for this window';
+
 export interface UseRunExecutableResult {
   request: RunExecutableRequest;
   validation: RunExecutableValidationState;
@@ -29,6 +35,8 @@ export interface UseRunExecutableResult {
   actionLabel: string;
   canStart: boolean;
   isRunning: boolean;
+  /** Cancel/Stop apply: this hook's run is in flight, or the window's earlier run is still active (`busy`). */
+  canCancel: boolean;
   /** Live output lines of the current run, oldest first, capped at {@link RUN_LOG_LINE_CAP}. */
   logLines: string[];
   startRun: () => Promise<void>;
@@ -82,7 +90,7 @@ interface BufferedRun {
  * late event of an earlier (cancelled) run or another window's run can arrive
  * then: they are buffered per `run_id`, and only the returned run's buffer is
  * replayed. The backend refuses a second run per window (`Conflict`), which
- * `startRun` surfaces as an error.
+ * `startRun` surfaces as the `busy` stage.
  */
 type StartingTracking = { kind: 'starting'; buffered: Map<string, BufferedRun> };
 type RunTracking = { kind: 'idle' } | StartingTracking | { kind: 'active'; runId: string };
@@ -216,12 +224,15 @@ export function useRunExecutable(): UseRunExecutableResult {
     });
   }, []);
 
+  // Cancel/Stop act on the window's active run, so they also end a run this
+  // hook never tracked (`busy`); afterwards a new start is allowed.
   const cancelRun = useCallback(async () => {
     try {
       await callCommand<void>('cancel_run_executable');
     } catch {
       // Best-effort cancellation — surface failures to the user via the next state transition.
     }
+    setStage((current) => (current === 'busy' ? 'idle' : current));
   }, []);
 
   const stopRun = useCallback(async () => {
@@ -230,6 +241,7 @@ export function useRunExecutable(): UseRunExecutableResult {
     } catch {
       // Best-effort forceful stop.
     }
+    setStage((current) => (current === 'busy' ? 'idle' : current));
   }, []);
 
   const startRun = useCallback(async () => {
@@ -296,8 +308,11 @@ export function useRunExecutable(): UseRunExecutableResult {
           // so the user can fix the input.
           setStage('idle');
           applyCommandError(invokeError);
+        } else if (invokeError.message.includes(WINDOW_BUSY_MESSAGE)) {
+          // A run started earlier in this window (e.g. before this panel
+          // was remounted) still holds the window's run slot.
+          setStage('busy');
         } else {
-          // Includes `Conflict` when this window already has an active run.
           setError(invokeError.message);
         }
       } else {
@@ -326,6 +341,8 @@ export function useRunExecutable(): UseRunExecutableResult {
         return 'Validating...';
       case 'running':
         return 'Running executable...';
+      case 'busy':
+        return 'A run started earlier in this window is still active.';
       case 'complete':
         return result?.message || 'Executable run complete.';
       case 'failed':
@@ -340,6 +357,8 @@ export function useRunExecutable(): UseRunExecutableResult {
     switch (stage) {
       case 'running':
         return 'Live output is shown below.';
+      case 'busy':
+        return 'Cancel or Stop it to start a new run.';
       case 'complete':
         return 'The executable finished. Review the log for details.';
       case 'failed':
@@ -365,6 +384,7 @@ export function useRunExecutable(): UseRunExecutableResult {
     request.executable_path.trim().length > 0 &&
     request.proton_path.trim().length > 0;
   const isRunning = stage === 'preparing' || stage === 'running';
+  const canCancel = isRunning || stage === 'busy';
 
   return {
     request,
@@ -378,6 +398,7 @@ export function useRunExecutable(): UseRunExecutableResult {
     actionLabel,
     canStart,
     isRunning,
+    canCancel,
     logLines,
     startRun,
     cancelRun,

@@ -1,6 +1,6 @@
 //! The dependency install job: pre-install recovery, record-before-mutate,
-//! the supervised install child, the always-run restore and the journal
-//! resolution, all under the prefix key (I6).
+//! the supervised install child, the restore (skipped on app shutdown) and
+//! the journal resolution, all under the prefix key (I6).
 
 use std::path::Path;
 
@@ -50,11 +50,13 @@ impl PrefixDepsService {
     /// recovery of a `pending` row, the profile id lookup, prepare (captures
     /// the restore plan), the durable `pending` row (I1), the install child
     /// (piped, sanitized lines; `started` once it spawned), the restore on its
-    /// own timeout (also after a failed or cancelled install, I8), the
-    /// dependency states, the journal resolution (I2/I3) and the completion.
-    /// A failure before the child spawned (spawn failure included) is
-    /// returned here and leaves a recorded row `pending`; a cancelled install
-    /// ends `Cancelled` with its completion still sent.
+    /// own timeout (also after a failed install, I8), the dependency states,
+    /// the journal resolution (I2/I3) and the completion. A failure before
+    /// the child spawned (spawn failure included) is returned here and leaves
+    /// a recorded row `pending`. A cancelled install (only app shutdown
+    /// cancels it) skips the restore, leaves the row `pending` for startup
+    /// recovery and ends `Cancelled` with its completion still sent
+    /// (`restore_state` pending).
     ///
     /// # Errors
     /// `Unavailable` [`MSG_OFFLINE`] in offline mode or without a tool,
@@ -140,9 +142,13 @@ async fn run_install(
     } = job;
     let journal = service.journal.clone();
     if let Err(error) = journal
-        .recover_before_install(&canonical, &service.recoveries)
+        .recover_before_install(&canonical, &service.recoveries, ctx.cancel_token())
         .await
     {
+        // Cancelled (app shutdown) before the recovery restore started.
+        if error.kind() == AppErrorKind::Cancelled {
+            return Outcome::Cancelled;
+        }
         return Outcome::Failed(error);
     }
     if ctx.is_cancelled() {
@@ -197,10 +203,13 @@ async fn run_install(
     // `Err`: supervision broke, so the child's fate is unknown. The `pending`
     // row stays for recovery (fail closed); nothing is restored meanwhile.
     let ran = exit.is_ok();
-    let cancelled = exit.as_ref().is_ok_and(ChildExit::was_cancelled);
+    // Only app shutdown cancels the job token: a restore started now would
+    // outlive the process (`App::shutdown` is bounded), so the `pending` row
+    // stays for startup recovery instead.
+    let cancelled = ctx.is_cancelled();
     let mut outcome = install_outcome(exit);
     let restored = match restore {
-        Some(restore) if ran => finish_restore(&service, restore).await,
+        Some(restore) if ran && !cancelled => finish_restore(&service, restore).await,
         Some((_, ticket)) => {
             drop(ticket);
             PrefixVersionRestoreOutcome {

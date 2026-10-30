@@ -171,6 +171,15 @@ describe('PrefixDepsPanel', () => {
     expect(screen.getByText(/Another operation is using this prefix/)).toHaveAttribute('role', 'status');
   });
 
+  it('shows no busy note while a job holds the prefix without a repair row', async () => {
+    mockRepairStatus({ in_progress: true });
+    render(<PrefixDepsPanel profileName="Ghost" prefixPath="/prefix" requiredPackages={['dotnet48']} />);
+
+    expect(await screen.findByText('dotnet48: Missing')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Install' })).toBeEnabled());
+    expect(screen.queryByText(/Another operation is using this prefix/)).not.toBeInTheDocument();
+  });
+
   it('disables installation but allows status retry when repair safety is unknown', async () => {
     callCommandMock.mockImplementation(async (name) => {
       if (name === 'get_dependency_status') {

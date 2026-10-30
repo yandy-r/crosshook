@@ -5,6 +5,7 @@ use std::future::Future;
 use std::path::Path;
 
 use tokio::sync::oneshot;
+use tokio_util::sync::CancellationToken;
 
 use super::messages::msg_already_installing;
 use super::{PrefixDepsService, PrefixVersionRepairStatus, PREFIX_REPAIR_JOB_KIND};
@@ -28,9 +29,11 @@ impl PrefixDepsService {
         let journal = self.journal.clone();
         let prefix = canonical.clone();
         let result = self
-            .run_keyed(PREFIX_REPAIR_JOB_KIND, &canonical, async move {
-                journal.recover(&prefix, true, false).await
-            })
+            .run_keyed(
+                PREFIX_REPAIR_JOB_KIND,
+                &canonical,
+                move |cancel| async move { journal.recover(&prefix, true, false, &cancel).await },
+            )
             .await
             .map_err(|error| conflict_as(error, &msg_already_installing(&canonical)))?;
         tracing::info!(?result, "prefix Windows-version repair finished");
@@ -47,10 +50,11 @@ impl PrefixDepsService {
     }
 
     /// Runs `work` as a `kind` job holding the key of the canonical prefix
-    /// and returns its value once the job finished and was reaped.
+    /// and returns its value once the job finished and was reaped. `work`
+    /// gets the job's cancel token (cancelled only by app shutdown).
     ///
-    /// The job is not bound to its cancel token: a started restore always
-    /// runs to its own timeout (I8).
+    /// `work` checks the token only before it starts a restore: a restore
+    /// already running is bounded by its own timeout (I8), not the token.
     ///
     /// # Errors
     /// `Conflict` while another job holds the prefix, the registry's other
@@ -60,7 +64,7 @@ impl PrefixDepsService {
         &self,
         kind: &'static str,
         canonical: &str,
-        work: Fut,
+        work: impl FnOnce(CancellationToken) -> Fut + Send + 'static,
     ) -> Result<T, AppError>
     where
         T: Send + 'static,
@@ -69,8 +73,8 @@ impl PrefixDepsService {
         let key = prefix_job_key_for_path(Path::new(canonical));
         let spec = JobSpec::new(kind).with_key(key);
         let (tx, rx) = oneshot::channel();
-        let handle = self.jobs.start(spec, move |_ctx: JobContext| async move {
-            let _ = tx.send(work.await);
+        let handle = self.jobs.start(spec, move |ctx: JobContext| async move {
+            let _ = tx.send(work(ctx.cancel_token().clone()).await);
             Outcome::Succeeded
         })?;
         let id = handle.id().clone();

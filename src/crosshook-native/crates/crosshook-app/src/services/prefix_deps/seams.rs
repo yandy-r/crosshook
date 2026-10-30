@@ -36,6 +36,8 @@ pub(crate) trait JournalStore: Send + Sync + 'static {
     ) -> Result<(), MetadataStoreError>;
     fn mark_failed(&self, prefix: &str, error: &str) -> Result<(), MetadataStoreError>;
     fn delete(&self, prefix: &str) -> Result<(), MetadataStoreError>;
+    /// Atomically moves the row of `from` to `to` (a moved prefix).
+    fn rekey(&self, from: &str, to: &str) -> Result<(), MetadataStoreError>;
 }
 
 /// Restores and verifies a prefix's Windows version.
@@ -96,6 +98,10 @@ impl JournalStore for MetadataJournalStore {
 
     fn delete(&self, prefix: &str) -> Result<(), MetadataStoreError> {
         self.0.delete_prefix_version_restore(prefix)
+    }
+
+    fn rekey(&self, from: &str, to: &str) -> Result<(), MetadataStoreError> {
+        self.0.rekey_prefix_version_restore(from, to)
     }
 }
 

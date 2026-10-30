@@ -389,9 +389,9 @@ export interface RunExecutableCompletePayload { run_id: string; code: number | n
 // src/types/update.ts
 export interface UpdateGameResult { succeeded; message; helper_log_path; run_id: string }
 // src/types/prefix-deps.ts
-export type PrefixVersionRecoveryOutcome = 'restored' | 'failed';
-export interface PrefixVersionLastRecovery { outcome: PrefixVersionRecoveryOutcome; message: string | null }
-export interface PrefixVersionRepairStatus { required; state; last_error; in_progress: boolean; last_recovery: PrefixVersionLastRecovery | null }
+export type PrefixRecoveryOutcome = 'restored' | 'failed';
+export interface PrefixLastRecovery { outcome: PrefixRecoveryOutcome; message: string | null }
+export interface PrefixVersionRepairStatus { required; state; last_error; in_progress: boolean; last_recovery: PrefixLastRecovery | null }
 // src/hooks/useRunExecutable.ts
 export interface UseRunExecutableResult { …existing; logLines: string[] }   // cap RUN_LOG_LINE_CAP = 500
 ```

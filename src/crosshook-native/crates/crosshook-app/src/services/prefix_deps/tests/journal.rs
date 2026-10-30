@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use crosshook_core::metadata::PrefixVersionRestoreJournalRow;
 use crosshook_core::prefix_deps::{PrefixVersionRestoreOutcome, PrefixVersionRestoreState};
+use tokio_util::sync::CancellationToken;
 
 use super::super::journal::{PrefixVersionJournal, RecoveryResult};
 use super::super::seams::MetadataJournalStore;
@@ -40,7 +41,9 @@ async fn j1a_startup_restores_changed_prefix_and_deletes_row() {
     h.seed_row(&pending_row(&h.prefix, &tool));
     let (journal, restorer) = h.journal(false);
 
-    let result = journal.recover(&h.prefix, false, true).await;
+    let result = journal
+        .recover(&h.prefix, false, true, &CancellationToken::new())
+        .await;
 
     assert_eq!(result, RecoveryResult::Restored);
     assert_eq!(read_calls(&h.calls), vec!["-q win10"]);
@@ -60,7 +63,9 @@ async fn j1b_protontricks_row_restores_with_app_id() {
     let (journal, _) = h.journal(false);
 
     assert_eq!(
-        journal.recover(&h.prefix, false, true).await,
+        journal
+            .recover(&h.prefix, false, true, &CancellationToken::new())
+            .await,
         RecoveryResult::Restored
     );
     assert_eq!(read_calls(&h.calls), vec!["12345 -q win10"]);
@@ -77,7 +82,7 @@ async fn j1c_pre_install_recovery_restores_pending_row() {
 
     let ledger = RecoveryLedger::default();
     let result = journal
-        .recover_before_install(&h.prefix, &ledger)
+        .recover_before_install(&h.prefix, &ledger, &CancellationToken::new())
         .await
         .unwrap();
 
@@ -103,7 +108,9 @@ async fn j2a_already_restored_prefix_is_verified_and_row_deleted() {
     let (journal, restorer) = h.journal(false);
 
     assert_eq!(
-        journal.recover(&h.prefix, false, true).await,
+        journal
+            .recover(&h.prefix, false, true, &CancellationToken::new())
+            .await,
         RecoveryResult::Restored
     );
     assert_eq!(restorer.count(), 1);
@@ -121,7 +128,9 @@ async fn j2b_unchanged_prefix_restores_without_install_verbs() {
     let (journal, _) = h.journal(false);
 
     assert_eq!(
-        journal.recover(&h.prefix, false, true).await,
+        journal
+            .recover(&h.prefix, false, true, &CancellationToken::new())
+            .await,
         RecoveryResult::Restored
     );
     let calls = read_calls(&h.calls);
@@ -141,7 +150,9 @@ async fn j3a_failed_restore_marks_row_failed_with_sanitized_error() {
     h.seed_row(&pending_row(&h.prefix, &tool));
     let (journal, _) = h.journal(false);
 
-    let RecoveryResult::RestoreFailed { error } = journal.recover(&h.prefix, false, true).await
+    let RecoveryResult::RestoreFailed { error } = journal
+        .recover(&h.prefix, false, true, &CancellationToken::new())
+        .await
     else {
         panic!("expected RestoreFailed");
     };
@@ -169,7 +180,9 @@ async fn j3b_verification_mismatch_marks_row_failed() {
     h.seed_row(&pending_row(&h.prefix, &tool));
     let (journal, _) = h.journal(false);
 
-    let RecoveryResult::RestoreFailed { error } = journal.recover(&h.prefix, false, true).await
+    let RecoveryResult::RestoreFailed { error } = journal
+        .recover(&h.prefix, false, true, &CancellationToken::new())
+        .await
     else {
         panic!("expected RestoreFailed");
     };
@@ -199,7 +212,9 @@ async fn j3c_timed_out_restore_marks_row_failed() {
     );
 
     assert_eq!(
-        journal.recover(&h.prefix, false, true).await,
+        journal
+            .recover(&h.prefix, false, true, &CancellationToken::new())
+            .await,
         RecoveryResult::RestoreFailed {
             error: timeout.to_string()
         }
@@ -221,7 +236,9 @@ async fn j3d_failed_row_is_not_auto_retried() {
     let (journal, restorer) = h.journal(false);
 
     assert_eq!(
-        journal.recover(&h.prefix, false, true).await,
+        journal
+            .recover(&h.prefix, false, true, &CancellationToken::new())
+            .await,
         RecoveryResult::SkippedFailed
     );
     assert_eq!(restorer.count(), 0);
@@ -239,7 +256,11 @@ async fn j3e_failed_row_blocks_install() {
     let (journal, restorer) = h.journal(false);
 
     let error = journal
-        .recover_before_install(&h.prefix, &RecoveryLedger::default())
+        .recover_before_install(
+            &h.prefix,
+            &RecoveryLedger::default(),
+            &CancellationToken::new(),
+        )
         .await
         .unwrap_err();
 
@@ -264,7 +285,7 @@ async fn failed_pre_install_recovery_is_recorded_in_ledger() {
     ledger.record(&h.prefix, &RecoveryResult::Restored);
 
     let error = journal
-        .recover_before_install(&h.prefix, &ledger)
+        .recover_before_install(&h.prefix, &ledger, &CancellationToken::new())
         .await
         .unwrap_err();
 
@@ -284,7 +305,9 @@ async fn j3f_explicit_repair_restores_failed_row() {
     let (journal, _) = h.journal(false);
 
     assert_eq!(
-        journal.recover(&h.prefix, true, false).await,
+        journal
+            .recover(&h.prefix, true, false, &CancellationToken::new())
+            .await,
         RecoveryResult::Restored
     );
     assert_eq!(read_calls(&h.calls), vec!["-q win10"]);
@@ -307,7 +330,9 @@ async fn j4d_row_vanished_after_restore_is_clean() {
     );
 
     assert_eq!(
-        journal.recover(&h.prefix, false, true).await,
+        journal
+            .recover(&h.prefix, false, true, &CancellationToken::new())
+            .await,
         RecoveryResult::Clean
     );
     assert_eq!(store.ops(), vec!["load".to_string(), "load".to_string()]);
@@ -319,7 +344,9 @@ async fn j4d_row_vanished_after_restore_is_clean() {
 async fn assert_corrupt_never_executes(h: &Harness, row: PrefixVersionRestoreJournalRow) {
     h.seed_row(&row);
     let (journal, restorer) = h.journal(false);
-    let result = journal.recover(&h.prefix, false, true).await;
+    let result = journal
+        .recover(&h.prefix, false, true, &CancellationToken::new())
+        .await;
     assert!(
         matches!(result, RecoveryResult::Corrupt { .. }),
         "{result:?} for {row:?}"
@@ -393,7 +420,9 @@ async fn non_canonical_prefix_rows_never_execute() {
         h.seed_row(&pending_row(&stored, &tool));
         let (journal, restorer) = h.journal(false);
 
-        let result = journal.recover(&stored, false, true).await;
+        let result = journal
+            .recover(&stored, false, true, &CancellationToken::new())
+            .await;
 
         assert!(
             matches!(result, RecoveryResult::Corrupt { .. }),
@@ -425,7 +454,9 @@ async fn j4_live_prefix_is_skipped_and_left_pending() {
     );
 
     assert_eq!(
-        journal.recover(&h.prefix, false, true).await,
+        journal
+            .recover(&h.prefix, false, true, &CancellationToken::new())
+            .await,
         RecoveryResult::SkippedInUse
     );
     assert_eq!(in_use.calls.load(Ordering::SeqCst), 1);
@@ -435,7 +466,9 @@ async fn j4_live_prefix_is_skipped_and_left_pending() {
 
     // Explicit repair and pre-install recovery do not consult the probe.
     assert_eq!(
-        journal.recover(&h.prefix, true, false).await,
+        journal
+            .recover(&h.prefix, true, false, &CancellationToken::new())
+            .await,
         RecoveryResult::Restored
     );
     assert_eq!(in_use.calls.load(Ordering::SeqCst), 1);
@@ -453,12 +486,18 @@ async fn unavailable_store_is_reported_and_blocks_install() {
     );
 
     assert_eq!(
-        journal.recover(&h.prefix, false, true).await,
+        journal
+            .recover(&h.prefix, false, true, &CancellationToken::new())
+            .await,
         RecoveryResult::StoreUnavailable
     );
     assert!(store.ops().is_empty());
     let error = journal
-        .recover_before_install(&h.prefix, &RecoveryLedger::default())
+        .recover_before_install(
+            &h.prefix,
+            &RecoveryLedger::default(),
+            &CancellationToken::new(),
+        )
         .await
         .unwrap_err();
     assert_eq!(error.kind(), AppErrorKind::Unavailable);

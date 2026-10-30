@@ -37,9 +37,22 @@ export interface PrefixVersionRepairStatus {
   required: boolean;
   state: PrefixVersionRestoreState | null;
   last_error: string | null;
-  /** A job currently holds this prefix, so a pending row is expected. */
+  /**
+   * Some job holds this prefix's lock: a dependency install, version repair or
+   * startup recovery, but also an ad-hoc executable run, an update or an
+   * install. On its own this does not block anything; see {@link isPrefixBusy}.
+   */
   in_progress: boolean;
   last_recovery: PrefixLastRecovery | null;
+}
+
+/**
+ * The prefix is busy when a job holds it while a repair row exists: the row
+ * is then provisional (e.g. a dependency install's pending restore) and is
+ * not a repair request until the job finishes.
+ */
+export function isPrefixBusy(status: PrefixVersionRepairStatus): boolean {
+  return status.in_progress && status.required;
 }
 
 /**

@@ -393,7 +393,7 @@ stays a bare string, `RunCommandError` keeps its tagged shape, and the
   ends a running installer, updater, ad-hoc executable or dependency install
   instead of orphaning it: `src-tauri` calls
   `App::shutdown(App::DEFAULT_SHUTDOWN_TIMEOUT)` on `RunEvent::Exit` (see
-  _Jobs_).
+  _Jobs_), and turns `SIGINT`/`SIGTERM`/`SIGHUP` into that same exit.
 - **One run, then one completion.** `start_run` returns a `ProcessRun` only
   after the job body signalled `started`, so no output precedes the handle.
   `started` is sent only after the child spawned: a spawn failure fails the
@@ -439,16 +439,21 @@ for prefix: …` for prefix deps); different prefixes run in parallel.
 - **Windows-version journal.** `PrefixVersionJournal` (seams `JournalStore`,
   `PrefixVersionRestorer`, `PrefixInUse`) writes the `pending` row before the
   install child spawns. The restore runs on its own 90 s timeout, also after
-  a failed or cancelled install; the row is deleted only after a restore
-  verified against `system.reg`, a failed restore or a failed delete marks it
-  `failed`, and a child that never ran leaves it `pending`. Each install first
+  a failed install; an install cancelled by app shutdown (the only cancel)
+  skips it and leaves the row `pending` for startup recovery, because a
+  restore started then would outlive the bounded shutdown. The row is deleted
+  only after a restore verified against `system.reg`, a failed restore or a
+  failed delete marks it `failed`, and a child that never ran leaves it
+  `pending`. Each install first
   recovers a `pending` row of its own prefix and refuses with `This prefix
 requires Windows version repair before installing dependencies.` while one
   remains. Startup recovery (`prefix-journal-recovery`, scheduled by
   `App::bootstrap`) retries `pending` rows only, each in a
   `prefix-version-recovery` job under the prefix key; busy and in-use
   prefixes stay `pending` (the in-use probe fails closed under Flatpak, where
-  host processes are invisible), `failed` rows wait for an explicit repair,
+  host processes are invisible), and so does a prefix whose restore had not
+  started when app shutdown cancelled its job (repair too; a restore already
+  running stays bounded by its timeout). `failed` rows wait for an explicit repair,
   and it is skipped when the metadata store is unavailable or under
   `CROSSHOOK_BENCH=1`. Replayed rows are re-validated (tool, verb, App ID,
   binary path, and a stored prefix path that must equal its canonical `pfx`)
@@ -475,8 +480,11 @@ with `JobRegistry::new(JobRegistryConfig { event_capacity, retention })` or
 app shutdown token, so app shutdown cancels every job. `App::shutdown(timeout)`
 cancels the app shutdown token (every job and every `App::spawn` task), then
 waits on `wait_idle()` up to `timeout` and returns whether every job finished;
-`App::DEFAULT_SHUTDOWN_TIMEOUT` is `DEFAULT_KILL_GRACE` plus one second (6 s),
-so cancelled process groups are reaped before exit. `src-tauri` calls it on
+`App::DEFAULT_SHUTDOWN_TIMEOUT` is `DEFAULT_KILL_GRACE` plus `DRAIN_GRACE`
+plus one second (8 s), so cancelled process groups are reaped before exit.
+Quitting while a job runs can delay the exit by up to that bound; a job that
+ignores cancel (a legacy `protonup_install_version`, a restore already
+running) is left behind when it elapses. `src-tauri` calls it on
 `RunEvent::Exit`, after the `[ui]` flush. The startup scans,
 umu refresh and background portal requests run as jobs scheduled by
 `App::bootstrap` (`startup-scans`, `startup-umu-refresh`,

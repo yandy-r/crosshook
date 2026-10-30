@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLaunchStateContext } from '@/context/LaunchStateContext';
 import { useLaunchPrefixDependencyGate } from '@/hooks/useLaunchPrefixDependencyGate';
 import { subscribeEvent } from '@/lib/events';
-import type { PrefixDepCompletePayload, PrefixVersionRepairStatus } from '@/types/prefix-deps';
+import { isPrefixBusy, type PrefixDepCompletePayload, type PrefixVersionRepairStatus } from '@/types/prefix-deps';
 import type { GameProfile } from '@/types/profile';
 import { resolveEffectivePrefixPath } from '@/utils/prefixPath';
 
@@ -186,9 +186,10 @@ export function useLaunchDepGate({
             try {
               const status = await getPrefixVersionRepairStatus(profileName, prefixPath);
               if (!isOperationCurrent(operation)) return;
-              if (status.in_progress) {
-                // Another job holds the prefix; show the busy state and let
-                // the user retry instead of offering a repair.
+              if (isPrefixBusy(status)) {
+                // Another job holds the prefix over a provisional repair row;
+                // show the busy state and let the user retry instead of
+                // offering a repair.
                 setDepGateInstalling(false);
                 setDepGateVerifying(false);
                 setDepGatePackages(null);
@@ -405,9 +406,10 @@ export function useLaunchDepGate({
       try {
         const repairStatus = await getPrefixVersionRepairStatus(selectedName, prefixPath);
         if (!isOperationCurrent(operation)) return false;
-        if (repairStatus.in_progress) {
-          // A job (install, repair or startup recovery) holds the prefix: its
-          // pending row is expected, so show a busy/retry state, not a repair.
+        if (isPrefixBusy(repairStatus)) {
+          // A job holds the prefix over a provisional repair row (e.g. an
+          // install's pending restore): show a busy/retry state, not a repair.
+          // A job holding the prefix without a repair row does not block.
           setDepGatePackages(null);
           setDepGateRepair(repairStatus);
           setDepGatePendingAction(action);

@@ -24,6 +24,48 @@ function renderPanel() {
 }
 
 describe('RunExecutablePanel', () => {
+  it("enables Cancel and Stop for the window's earlier run after a busy start", async () => {
+    const user = userEvent.setup();
+    const cancelRunExecutable = vi.fn(async () => undefined);
+    renderWithMocks(
+      <TooltipProvider>
+        <PreferencesProvider>
+          <RunExecutablePanel protonInstalls={[]} protonInstallsError={null} />
+        </PreferencesProvider>
+      </TooltipProvider>,
+      {
+        handlerOverrides: {
+          run_executable: async () => {
+            throw { kind: 'runtime', message: 'another run is already active for this window' };
+          },
+          cancel_run_executable: cancelRunExecutable,
+        },
+      }
+    );
+
+    await user.type(
+      await screen.findByPlaceholderText('/mnt/media/setup.exe or /mnt/media/installer.msi'),
+      '/mock/games/synthetic-quest/setup.exe'
+    );
+    await user.type(
+      screen.getByPlaceholderText(/steamapps\/common\/Proton - Experimental\/proton/),
+      '/mock/proton/GE-Proton/proton'
+    );
+    await user.click(screen.getByRole('button', { name: 'Run' }));
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Run' }));
+
+    expect(await screen.findByText(/A run started earlier in this window is still active/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Stop' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Run' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(cancelRunExecutable).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Run' })).toBeEnabled());
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+  });
+
   it('streams run output as text into a log region', async () => {
     const user = userEvent.setup();
     renderPanel();
