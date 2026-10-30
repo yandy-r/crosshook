@@ -43,6 +43,7 @@ pub fn run() {
     let stores = core.stores();
     let services = core.services();
     let ui_settings = services.ui_settings.clone();
+    let app_owner = core.app().clone();
     tauri::Builder::default()
         .manage(stores.settings.clone())
         .manage(stores.profiles.clone())
@@ -258,10 +259,22 @@ pub fn run() {
         .build(context)
         .expect("error while building CrossHook Native")
         .run(move |_app, event| {
+            // `Exit` fires once on every exit path (after `ExitRequested`),
+            // right before tao ends the process with `process::exit`: `App`'s
+            // drop never runs, so shut down explicitly here.
             if let tauri::RunEvent::Exit = event {
                 // Persist any trailing `[ui]` write still waiting on the throttle.
                 if let Err(error) = tauri::async_runtime::block_on(ui_settings.flush()) {
                     tracing::warn!(error = %error.message(), "failed to flush [ui] settings on exit");
+                }
+                // Cancel every job so supervised process groups (installers,
+                // updaters, ad-hoc executables, winetricks) end with the app;
+                // bounded, so a job ignoring cancel cannot hang quit.
+                let finished = tauri::async_runtime::block_on(
+                    app_owner.shutdown(App::DEFAULT_SHUTDOWN_TIMEOUT),
+                );
+                if !finished {
+                    tracing::warn!("jobs still running after the shutdown timeout; exiting anyway");
                 }
             }
         });

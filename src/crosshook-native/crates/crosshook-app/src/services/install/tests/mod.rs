@@ -10,10 +10,8 @@ use std::path::{Path, PathBuf};
 use crosshook_core::install::{InstallGameError, InstallGameRequest};
 use tempfile::TempDir;
 
-use super::start::install_job_key;
 use super::{install_error, InstallService};
 use crate::jobs::JobRegistry;
-use crate::services::process::{prefix_job_key, prefix_job_key_for_path};
 use crate::AppErrorKind;
 
 /// A temp workspace with an installer, a fake runner script standing in for
@@ -178,32 +176,4 @@ fn install_errors_keep_core_text_with_explicit_kinds() {
 
     let home = install_error(InstallGameError::HomeDirectoryUnavailable);
     assert_eq!(home.kind(), AppErrorKind::Unavailable);
-}
-
-#[test]
-fn install_key_is_the_effective_pfx_every_other_prefix_job_uses() {
-    let dir = TempDir::new().unwrap();
-    let prefix = dir.path().join("prefix");
-    fs::create_dir(&prefix).unwrap();
-    let canonical = fs::canonicalize(&prefix).unwrap();
-
-    // A fresh prefix is keyed on the `pfx` Proton is about to create ...
-    let fresh = install_job_key(&prefix).unwrap();
-    assert_eq!(fresh, prefix_job_key_for_path(&canonical.join("pfx")));
-
-    // ... which is the key prefix-deps, update and run-executable take once
-    // it exists, from either the compat-data root or `pfx` itself.
-    fs::create_dir(prefix.join("pfx")).unwrap();
-    let (_, shared) = prefix_job_key(&prefix.to_string_lossy()).unwrap();
-    assert_eq!(install_job_key(&prefix).unwrap(), shared);
-    assert_eq!(install_job_key(&prefix.join("pfx")).unwrap(), shared);
-    assert_eq!(fresh, shared);
-
-    let error = install_job_key(&dir.path().join("missing")).unwrap_err();
-    assert_eq!(
-        error.kind(),
-        AppErrorKind::Validation {
-            field: "prefix_path"
-        }
-    );
 }

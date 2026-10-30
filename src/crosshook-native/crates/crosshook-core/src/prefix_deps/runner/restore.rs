@@ -1,7 +1,7 @@
 use std::process::Stdio;
 use std::time::Duration;
 
-use tokio::io::AsyncReadExt;
+use super::bounded::{run_bounded, BoundedError, Limits, DRAIN_GRACE};
 
 use super::command::build_prefix_dep_mutation_command;
 use super::sanitize::sanitize_stderr;
@@ -27,6 +27,23 @@ pub(crate) async fn restore_prefix_windows_version_with_timeout(
     plan: &PrefixVersionRestorePlan,
     timeout: Duration,
 ) -> PrefixVersionRestoreOutcome {
+    restore_prefix_windows_version_with_limits(
+        plan,
+        Limits {
+            timeout,
+            drain_grace: DRAIN_GRACE,
+        },
+    )
+    .await
+}
+
+/// The restore child leads its own process group: on timeout the whole group
+/// (winetricks and its Wine children) is killed, and after a natural exit the
+/// stderr drain is bounded by `limits.drain_grace`.
+pub(super) async fn restore_prefix_windows_version_with_limits(
+    plan: &PrefixVersionRestorePlan,
+    limits: Limits,
+) -> PrefixVersionRestoreOutcome {
     if !is_windows_version_verb(&plan.restore_verb) {
         return failed_restore("invalid Windows version restore verb".to_string());
     }
@@ -45,45 +62,31 @@ pub(crate) async fn restore_prefix_windows_version_with_timeout(
         cmd.arg(app_id);
     }
     cmd.arg("-q").arg(&plan.restore_verb);
-    cmd.kill_on_drop(true);
     cmd.stdout(Stdio::null());
     cmd.stderr(Stdio::piped());
 
-    let mut child = match cmd.spawn() {
-        Ok(child) => child,
-        Err(error) => {
+    let output = match run_bounded(cmd, limits).await {
+        Ok(output) => output,
+        Err(BoundedError::Spawn(error)) => {
             return failed_restore(sanitize_stderr(&format!(
                 "failed to spawn Windows version restore: {error}"
             )));
         }
-    };
-    let stderr = child.stderr.take();
-    let stderr_task = tokio::spawn(async move {
-        let mut bytes = Vec::new();
-        if let Some(mut stderr) = stderr {
-            let _ = stderr.read_to_end(&mut bytes).await;
-        }
-        bytes
-    });
-
-    let status = match tokio::time::timeout(timeout, child.wait()).await {
-        Ok(Ok(status)) => status,
-        Ok(Err(error)) => {
+        Err(BoundedError::Wait(error)) => {
             return failed_restore(sanitize_stderr(&format!(
                 "failed to wait for Windows version restore: {error}"
             )));
         }
-        Err(_) => {
-            let _ = child.kill().await;
-            let _ = child.wait().await;
+        Err(BoundedError::TimedOut) => {
             return failed_restore(format!(
                 "restoring Windows version {} timed out after {} seconds",
                 plan.restore_verb,
-                timeout.as_secs_f64()
+                limits.timeout.as_secs_f64()
             ));
         }
     };
-    let stderr = stderr_task.await.unwrap_or_default();
+    let status = output.status;
+    let stderr = output.stderr;
 
     if !status.success() {
         let stderr = sanitize_stderr(&String::from_utf8_lossy(&stderr));

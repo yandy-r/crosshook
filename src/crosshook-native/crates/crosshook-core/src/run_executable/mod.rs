@@ -14,7 +14,7 @@ pub use models::{
     RunExecutableError, RunExecutableRequest, RunExecutableResult, RunExecutableValidationError,
 };
 pub use service::{
-    adhoc_prefix_root, build_run_executable_command, is_throwaway_prefix_path,
-    is_throwaway_prefix_path_in, prepare_run_executable, resolve_adhoc_prefix_path,
-    validate_run_executable_request, PreparedRunExecutable,
+    adhoc_prefix_root, build_run_executable_command, is_throwaway_prefix_path_in,
+    prepare_run_executable, resolve_adhoc_prefix_path, validate_run_executable_request,
+    PreparedRunExecutable,
 };

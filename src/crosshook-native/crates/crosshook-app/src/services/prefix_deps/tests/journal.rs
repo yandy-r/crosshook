@@ -376,6 +376,40 @@ async fn j4e_invalid_binary_path_never_executes() {
         .await;
 }
 
+// S-6: a row whose prefix path is not the canonical `pfx` path (symlinked
+// alias, the prefix root, a vanished prefix) is corrupt and never executed.
+#[tokio::test]
+async fn non_canonical_prefix_rows_never_execute() {
+    let h = Harness::new();
+    let alias_root = h.dir.path().join("alias");
+    std::os::unix::fs::symlink(&h.prefix_root, &alias_root).unwrap();
+    let tool = working_tool(&h);
+    for stored in [
+        alias_root.join("pfx"),
+        h.prefix_root.clone(),
+        h.dir.path().join("missing/pfx"),
+    ] {
+        let stored = stored.to_string_lossy().into_owned();
+        h.seed_row(&pending_row(&stored, &tool));
+        let (journal, restorer) = h.journal(false);
+
+        let result = journal.recover(&stored, false, true).await;
+
+        assert!(
+            matches!(result, RecoveryResult::Corrupt { .. }),
+            "{result:?} for {stored}"
+        );
+        assert_eq!(restorer.count(), 0, "restorer ran for {stored}");
+        assert!(read_calls(&h.calls).is_empty());
+        let row = h
+            .metadata
+            .load_prefix_version_restore(&stored)
+            .unwrap()
+            .expect("the row stays");
+        assert_eq!(row.state, "failed");
+    }
+}
+
 // J4 live prefix: startup recovery leaves a prefix in use pending.
 #[tokio::test]
 async fn j4_live_prefix_is_skipped_and_left_pending() {

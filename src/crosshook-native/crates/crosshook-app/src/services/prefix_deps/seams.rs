@@ -4,6 +4,7 @@
 use std::path::Path;
 
 use crosshook_core::metadata::{MetadataStore, MetadataStoreError, PrefixVersionRestoreJournalRow};
+use crosshook_core::platform::is_flatpak;
 use crosshook_core::prefix_deps::detection::{detect_binary, resolve_winetricks_path};
 use crosshook_core::prefix_deps::runner::restore_prefix_windows_version;
 use crosshook_core::prefix_deps::{
@@ -110,11 +111,21 @@ impl PrefixVersionRestorer for CoreRestorer {
     }
 }
 
-/// `/proc/*/environ` scan for processes whose `WINEPREFIX` is the prefix.
+/// `/proc/*/environ` scan for processes whose `WINEPREFIX` or
+/// `STEAM_COMPAT_DATA_PATH` is the prefix (canonical path comparison).
+///
+/// Under Flatpak host processes are invisible to the sandbox `/proc`, so the
+/// probe fails closed: the prefix is reported in use and its row waits for an
+/// explicit repair.
 pub(crate) struct ProcPrefixInUse;
 
 impl PrefixInUse for ProcPrefixInUse {
     fn in_use(&self, canonical_prefix: &Path) -> bool {
-        !processes_using_prefix(canonical_prefix).is_empty()
+        prefix_in_use_with(canonical_prefix, is_flatpak())
     }
+}
+
+/// [`ProcPrefixInUse`] with an explicit Flatpak decision.
+pub(crate) fn prefix_in_use_with(canonical_prefix: &Path, flatpak: bool) -> bool {
+    flatpak || !processes_using_prefix(canonical_prefix).is_empty()
 }

@@ -59,8 +59,8 @@ Test plan items from the issue: `cargo test -p crosshook-app` and `npm run test:
 - Native env clearing (L2).
 - A Rust-aware gateway lint for `Command::new(<variable>)` (L6).
 - Splitting core `prefix_deps/runner.rs` beyond what YAN-1538 touches. Note that B1 does split it into `runner/` submodules, because edits there require it (file-size rule). This does not change behaviour.
-- Narrowing `kill_processes_using_prefix` (M2; behaviour kept).
-- `/tmp/crosshook-logs` ownership/`O_NOFOLLOW` hardening (M3 follow-up).
+- ~~Narrowing `kill_processes_using_prefix` (M2)~~: done during review (see [decisions.md](./decisions.md) § _Changes made during review_).
+- ~~`/tmp/crosshook-logs` ownership/`O_NOFOLLOW` hardening (M3)~~: done during review.
 - Host-side `wineserver -k` under Flatpak.
 - An install-game UI cancel button.
 - Any new IPC command.
@@ -98,6 +98,7 @@ Test plan items from the issue: `cargo test -p crosshook-app` and `npm run test:
 - `install_prefix_dependency` is refused offline.
 - Run-exe and update completion payloads gain `run_id`, and the run-exe log payload becomes `{run_id, line}`.
 - Ad-hoc throwaway prefixes get a unique per-run suffix.
+- Added during review: a second `update_game`/`run_executable` start from the same window gets `Conflict`; a spawn failure fails the start call; relative installer, updater, executable, Proton or prefix paths are rejected; the prefix kill sweep matches only `WINEPREFIX`/`STEAM_COMPAT_DATA_PATH`, signals locally, spares CrossHook and its ancestors and is skipped under Flatpak; under Flatpak startup recovery treats every prefix as in use; quitting waits up to `App::DEFAULT_SHUTDOWN_TIMEOUT` (6 s) for cancelled jobs.
 
 ## Persistence classification
 
@@ -117,4 +118,4 @@ No schema bump, so `check-schema-version.sh` stays green.
 | Event relay misses early lines                            | `JobRegistry::start` subscribes before spawn. The service awaits a `started` oneshot before returning the handle.                     |
 | Frontend listeners silently drop prefix events            | The relay echoes the raw request `prefix_path` and `profile_name`. A relay unit test pins it.                                         |
 | Startup recovery races a user install                     | Same prefix key. A `Conflict` makes recovery skip, and the install's `recover_before_install` handles it.                             |
-| Flatpak sweep (`kill_processes_using_prefix`) is a no-op  | Kept as today (D15/M2). Group kill plus `--watch-bus` is the real teardown.                                                           |
+| Flatpak sweep (`kill_processes_using_prefix`) is a no-op  | Now skipped explicitly under Flatpak (review change). Group kill plus `--watch-bus` is the real teardown.                             |

@@ -196,6 +196,38 @@ fn validate_install_request_accepts_flatpak_host_mounted_paths() {
 }
 
 #[test]
+fn validate_install_request_rejects_relative_paths() {
+    let temp_dir = tempdir().expect("temp dir");
+    let base_request = valid_request(temp_dir.path());
+
+    let mut installer = base_request.clone();
+    installer.installer_path = "setup.exe".to_string();
+    let mut proton = base_request.clone();
+    proton.proton_path = "proton".to_string();
+    let mut flag_like = base_request.clone();
+    flag_like.proton_path = "--foo".to_string();
+    let mut prefix = base_request;
+    prefix.prefix_path = "prefix".to_string();
+
+    let results = [
+        validate_install_request(&installer),
+        validate_install_request(&proton),
+        validate_install_request(&flag_like),
+        validate_install_request(&prefix),
+    ];
+
+    assert_eq!(
+        results,
+        [
+            Err(InstallGameValidationError::InstallerPathNotAbsolute),
+            Err(InstallGameValidationError::ProtonPathNotAbsolute),
+            Err(InstallGameValidationError::ProtonPathNotAbsolute),
+            Err(InstallGameValidationError::PrefixPathNotAbsolute),
+        ]
+    );
+}
+
+#[test]
 fn prepare_install_provisions_prefix_and_builds_run_installer_command() {
     let temp_dir = tempdir().expect("temp dir");
     let request = valid_request(temp_dir.path());

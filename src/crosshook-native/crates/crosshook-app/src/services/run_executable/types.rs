@@ -5,6 +5,7 @@ use std::fmt;
 use crosshook_core::run_executable::{RunExecutableResult, RunExecutableValidationError};
 use serde::{Deserialize, Serialize};
 
+use crate::services::process::ProcessCompletion;
 use crate::AppError;
 
 /// The `run_executable` response: the launch result plus the run id that
@@ -18,19 +19,8 @@ pub struct RunExecutableResponse {
     pub run_id: String,
 }
 
-/// How the executable run ended.
-///
-/// `code` is set for a natural exit and `signal` when the process was
-/// terminated by a signal (cancel: `SIGTERM`, stop: `SIGKILL`). Both are
-/// `None` when the process could not be spawned or supervised; the error
-/// text is then in the run's log.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RunCompletion {
-    /// Exit code of a natural exit.
-    pub code: Option<i32>,
-    /// Signal number that terminated the process.
-    pub signal: Option<i32>,
-}
+/// How the executable run ended (see [`ProcessCompletion`]).
+pub type RunCompletion = ProcessCompletion;
 
 /// Why a run could not be validated or started.
 ///

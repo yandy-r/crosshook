@@ -48,7 +48,7 @@ pub fn prepare_run_executable(
     };
 
     provision_prefix(&prefix_path)?;
-    let command = build_run_executable_command(request, &prefix_path)?;
+    let command = build_run_executable_command(request, &prefix_path);
 
     Ok(PreparedRunExecutable {
         command,

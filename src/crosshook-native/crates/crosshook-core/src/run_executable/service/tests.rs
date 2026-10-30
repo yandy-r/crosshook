@@ -1,7 +1,7 @@
 use super::command_builder::build_run_executable_command_with;
 use super::{
-    adhoc_prefix_root, is_throwaway_prefix_path, is_throwaway_prefix_path_in,
-    prepare_run_executable, resolve_adhoc_prefix_path, validate_run_executable_request,
+    adhoc_prefix_root, is_throwaway_prefix_path_in, prepare_run_executable,
+    resolve_adhoc_prefix_path, validate_run_executable_request,
 };
 use crate::run_executable::{
     RunExecutableError, RunExecutableRequest, RunExecutableValidationError,
@@ -17,6 +17,12 @@ use tokio::process::Command;
 fn resolve_real_adhoc_prefix(executable: &str) -> PathBuf {
     let root = adhoc_prefix_root().expect("resolve adhoc root");
     resolve_adhoc_prefix_path(&root, Path::new(executable), "0a1b2c3d4e5f")
+}
+
+/// Whether `prefix_path` is a throwaway prefix under the real adhoc root.
+fn is_throwaway_prefix_path(prefix_path: &Path) -> bool {
+    let root = adhoc_prefix_root().expect("resolve adhoc root");
+    is_throwaway_prefix_path_in(prefix_path, &root)
 }
 
 fn argv(command: &Command) -> Vec<String> {
@@ -196,6 +202,55 @@ fn validate_run_executable_request_rejects_non_executable_proton_path() {
         validate_run_executable_request(&request),
         Err(RunExecutableValidationError::ProtonPathNotExecutable)
     ));
+}
+
+#[test]
+fn validate_run_executable_request_rejects_relative_paths() {
+    let temp_dir = tempdir().expect("temp dir");
+    let base = valid_request(temp_dir.path());
+    let cases = [
+        (
+            RunExecutableRequest {
+                executable_path: "setup.exe".to_string(),
+                ..base.clone()
+            },
+            RunExecutableValidationError::ExecutablePathNotAbsolute,
+        ),
+        (
+            RunExecutableRequest {
+                proton_path: "proton".to_string(),
+                ..base.clone()
+            },
+            RunExecutableValidationError::ProtonPathNotAbsolute,
+        ),
+        (
+            // A flag-like value must never reach `flatpak-spawn` argv.
+            RunExecutableRequest {
+                proton_path: "--foo".to_string(),
+                ..base.clone()
+            },
+            RunExecutableValidationError::ProtonPathNotAbsolute,
+        ),
+        (
+            RunExecutableRequest {
+                prefix_path: "prefix".to_string(),
+                ..base.clone()
+            },
+            RunExecutableValidationError::PrefixPathNotAbsolute,
+        ),
+    ];
+    for (request, expected) in cases {
+        let error = validate_run_executable_request(&request).unwrap_err();
+        assert_eq!(error, expected);
+        // Each variant attaches to the field that was relative.
+        let field_value = match error.field() {
+            "executable_path" => &request.executable_path,
+            "proton_path" => &request.proton_path,
+            "prefix_path" => &request.prefix_path,
+            other => panic!("unexpected field {other}"),
+        };
+        assert!(!Path::new(field_value).is_absolute());
+    }
 }
 
 #[test]

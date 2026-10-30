@@ -6,7 +6,9 @@ use std::path::Path;
 use crosshook_core::run_executable::RunExecutableValidationError;
 
 use super::{key_of, open_gate, Fixture, GATED};
-use crate::services::process::{JobOwner, MSG_PREFIX_BUSY};
+use crate::jobs::{JobSpec, Outcome};
+use crate::services::process::owner::MSG_OWNER_BUSY;
+use crate::services::process::{prefix_job_key_for_path, JobOwner, MSG_PREFIX_BUSY};
 use crate::services::run_executable::{RunCompletion, RunExecutableStartError};
 use crate::AppErrorKind;
 
@@ -20,8 +22,9 @@ async fn same_stem_throwaway_runs_get_distinct_dirs_and_both_run() {
     let fixture = Fixture::new();
     fixture.install_proton(GATED);
 
+    // Two windows (one active run per window).
     let (first, mut first_run) = fixture.start("main", fixture.request()).await;
-    let (second, mut second_run) = fixture.start("main", fixture.request()).await;
+    let (second, mut second_run) = fixture.start("second", fixture.request()).await;
     let first_prefix = first.result.resolved_prefix_path.clone();
     let second_prefix = second.result.resolved_prefix_path.clone();
 
@@ -207,4 +210,119 @@ async fn validation_errors_keep_their_variant_and_run_nothing() {
     assert!(fixture.throwaway_dirs().is_empty());
     assert!(fixture.log_files().is_empty());
     assert_eq!(fixture.jobs.job_counts(), (0, 0));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_second_start_of_the_same_window_conflicts_while_its_run_is_active() {
+    let fixture = Fixture::new();
+    fixture.install_proton(GATED);
+    let (response, mut run) = fixture.start("main", fixture.request()).await;
+    let prefix = response.result.resolved_prefix_path.clone();
+    run.wait_ready(&prefix).await;
+
+    let error = fixture
+        .service
+        .start(JobOwner::new("main"), fixture.request())
+        .await
+        .err()
+        .expect("one active run per window");
+    let error = match error {
+        RunExecutableStartError::Failed(error) => error,
+        other => panic!("expected Failed(Conflict), got {other:?}"),
+    };
+    assert_eq!(error.kind(), AppErrorKind::Conflict);
+    assert_eq!(error.message(), MSG_OWNER_BUSY);
+    // The refused start provisioned nothing and the first run stays
+    // reachable by its window.
+    assert_eq!(fixture.throwaway_dirs().len(), 1);
+    assert_eq!(fixture.log_files().len(), 1);
+
+    open_gate(&prefix).await;
+    let (_, completion) = run.drain().await;
+    assert_eq!(completion, Some(NATURAL_EXIT));
+    // Finished: the window may start again.
+    fixture.install_proton("exit 0");
+    let (_, mut next) = fixture.start("main", fixture.request()).await;
+    assert_eq!(next.drain().await.1, Some(NATURAL_EXIT));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_fresh_prefix_shares_the_key_of_its_future_pfx() {
+    let fixture = Fixture::new();
+    fixture.install_proton("exit 0");
+    // A compat data root Proton has not initialized yet (no `pfx`).
+    let fresh = fixture.root.join("fresh");
+    std::fs::create_dir(&fresh).unwrap();
+    // Another operation holds the prefix through its `pfx` form (e.g. a
+    // game install that anticipates the `pfx` Proton creates).
+    let key = prefix_job_key_for_path(&fresh.join("pfx"));
+    let (release_tx, release_rx) = tokio::sync::oneshot::channel::<()>();
+    let holder = fixture
+        .jobs
+        .start(
+            JobSpec::new("install-game").with_key(key),
+            move |_| async move {
+                let _ = release_rx.await;
+                Outcome::Succeeded
+            },
+        )
+        .unwrap();
+
+    let error = fixture
+        .service
+        .start(JobOwner::new("main"), fixture.request_with_prefix(&fresh))
+        .await
+        .err()
+        .expect("the fresh prefix is busy");
+    let error = match error {
+        RunExecutableStartError::Failed(error) => error,
+        other => panic!("expected Failed(Conflict), got {other:?}"),
+    };
+    assert_eq!(error.kind(), AppErrorKind::Conflict);
+    assert_eq!(error.message(), MSG_PREFIX_BUSY);
+    assert!(!fresh.join("drive_c").exists(), "nothing ran");
+
+    release_tx.send(()).unwrap();
+    let id = holder.id().clone();
+    let mut events = holder.into_events();
+    while events.recv().await.is_some() {}
+    fixture.jobs.reap(&id).unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_spawn_failure_fails_the_start_and_cleans_up() {
+    let fixture = Fixture::new();
+    // Proton passes validation but cannot be executed (no interpreter).
+    std::fs::write(&fixture.proton, "#!/nonexistent/interpreter\n").unwrap();
+    std::fs::set_permissions(
+        &fixture.proton,
+        std::os::unix::fs::PermissionsExt::from_mode(0o755),
+    )
+    .unwrap();
+
+    let error = fixture
+        .service
+        .start(JobOwner::new("main"), fixture.request())
+        .await
+        .err()
+        .expect("spawn failure fails the start");
+    let error = match error {
+        RunExecutableStartError::Failed(error) => error,
+        other => panic!("expected Failed(Io), got {other:?}"),
+    };
+    assert_eq!(error.kind(), AppErrorKind::Io);
+    assert!(
+        error
+            .message()
+            .starts_with("Failed to launch the executable"),
+        "unexpected text: {}",
+        error.message()
+    );
+    assert!(
+        fixture.throwaway_dirs().is_empty(),
+        "throwaway prefix removed"
+    );
+    assert!(fixture.log_files().is_empty(), "unused log removed");
+    assert_eq!(fixture.jobs.job_counts(), (0, 0));
+    assert_eq!(fixture.service.active.len(), 0);
 }

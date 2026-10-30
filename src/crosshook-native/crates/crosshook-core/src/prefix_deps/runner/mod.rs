@@ -2,6 +2,7 @@
 //! restoration. Every host command is lifecycle-bound (`--watch-bus` inside
 //! Flatpak) so cancellation and timeouts also stop the host process.
 
+mod bounded;
 mod check;
 mod command;
 mod install;

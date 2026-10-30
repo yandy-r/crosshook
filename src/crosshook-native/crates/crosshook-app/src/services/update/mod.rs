@@ -68,14 +68,13 @@ impl UpdateService {
     }
 
     /// Cancels `owner`'s active update: `SIGTERM` to its process group, then
-    /// `SIGKILL` after the grace period.
+    /// `SIGKILL` after the grace period; an update still being prepared ends
+    /// without starting the updater.
     ///
     /// Returns `false` when `owner` has no active update; no other job is
     /// touched.
     pub fn cancel(&self, owner: &JobOwner) -> bool {
-        self.active
-            .get(owner)
-            .is_some_and(|(id, _)| self.jobs.cancel(&id).is_ok())
+        self.active.cancel(owner, &self.jobs)
     }
 }
 
@@ -84,11 +83,18 @@ fn validation_error(error: UpdateGameValidationError) -> AppError {
     use UpdateGameValidationError as E;
     let field = match error {
         E::UpdaterPathRequired
+        | E::UpdaterPathNotAbsolute
         | E::UpdaterPathMissing
         | E::UpdaterPathNotFile
         | E::UpdaterPathNotWindowsExecutable => "updater_path",
-        E::ProtonPathRequired | E::ProtonPathMissing | E::ProtonPathNotExecutable => "proton_path",
-        E::PrefixPathRequired | E::PrefixPathMissing | E::PrefixPathNotDirectory => "prefix_path",
+        E::ProtonPathRequired
+        | E::ProtonPathNotAbsolute
+        | E::ProtonPathMissing
+        | E::ProtonPathNotExecutable => "proton_path",
+        E::PrefixPathRequired
+        | E::PrefixPathNotAbsolute
+        | E::PrefixPathMissing
+        | E::PrefixPathNotDirectory => "prefix_path",
     };
     AppError::validation(field, error.message())
 }

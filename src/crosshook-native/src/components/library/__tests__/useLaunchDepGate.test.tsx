@@ -1,20 +1,18 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeProfileDraft } from '@/test/fixtures';
+import type { PrefixDepCompletePayload, PrefixVersionRepairStatus } from '@/types/prefix-deps';
 import { useLaunchDepGate } from '../launch/useLaunchDepGate';
 
-type PrefixDepCompleteHandler = (event: {
-  payload: {
-    profile_name: string;
-    prefix_path: string;
-    succeeded: boolean;
-    exit_code: number | null;
-    install_succeeded: boolean;
-    install_exit_code: number | null;
-    restore_state: 'not_required' | 'succeeded' | 'failed';
-    restore_error: string | null;
-  };
-}) => void;
+type PrefixDepCompleteHandler = (event: { payload: PrefixDepCompletePayload }) => void;
+
+const CLEAN_REPAIR_STATUS: PrefixVersionRepairStatus = {
+  required: false,
+  state: null,
+  last_error: null,
+  in_progress: false,
+  last_recovery: null,
+};
 
 const launchGameMock = vi.fn();
 const launchTrainerMock = vi.fn();
@@ -54,7 +52,7 @@ vi.mock('@/lib/events', () => ({
   subscribeEvent: (name: string, handler: PrefixDepCompleteHandler) => subscribeEventMock(name, handler),
 }));
 
-function emitPrefixDepComplete() {
+function emitPrefixDepComplete(overrides: Partial<PrefixDepCompletePayload> = {}) {
   for (const handler of eventHandlers) {
     handler({
       payload: {
@@ -66,6 +64,7 @@ function emitPrefixDepComplete() {
         install_exit_code: 0,
         restore_state: 'succeeded',
         restore_error: null,
+        ...overrides,
       },
     });
   }
@@ -85,8 +84,8 @@ describe('useLaunchDepGate', () => {
       eventHandlers.push(handler);
       return Promise.resolve(vi.fn());
     });
-    getPrefixVersionRepairStatusMock.mockResolvedValue({ required: false, state: null, last_error: null });
-    repairPrefixWindowsVersionMock.mockResolvedValue({ required: false, state: null, last_error: null });
+    getPrefixVersionRepairStatusMock.mockResolvedValue(CLEAN_REPAIR_STATUS);
+    repairPrefixWindowsVersionMock.mockResolvedValue(CLEAN_REPAIR_STATUS);
   });
 
   it('silent-catches dependency status failures and allows launch', async () => {
@@ -144,6 +143,7 @@ describe('useLaunchDepGate', () => {
 
   it('checks required prefix repair before packages even when no packages are declared', async () => {
     getPrefixVersionRepairStatusMock.mockResolvedValue({
+      ...CLEAN_REPAIR_STATUS,
       required: true,
       state: 'pending',
       last_error: null,
@@ -169,7 +169,12 @@ describe('useLaunchDepGate', () => {
     await act(async () => {
       expect(await result.current.handleBeforeLaunch('game')).toBe(false);
     });
-    expect(result.current.depGateRepair).toEqual({ required: true, state: 'pending', last_error: null });
+    expect(result.current.depGateRepair).toEqual({
+      ...CLEAN_REPAIR_STATUS,
+      required: true,
+      state: 'pending',
+      last_error: null,
+    });
     expect(result.current.depGatePendingAction).toBe('game');
     expect(getDependencyStatusMock).not.toHaveBeenCalled();
   });
@@ -178,12 +183,12 @@ describe('useLaunchDepGate', () => {
     let repairRequired = true;
     getPrefixVersionRepairStatusMock.mockImplementation(async () =>
       repairRequired
-        ? { required: true, state: 'failed', last_error: 'restore timed out' }
-        : { required: false, state: null, last_error: null }
+        ? { ...CLEAN_REPAIR_STATUS, required: true, state: 'failed', last_error: 'restore timed out' }
+        : CLEAN_REPAIR_STATUS
     );
     repairPrefixWindowsVersionMock.mockImplementation(async () => {
       repairRequired = false;
-      return { required: false, state: null, last_error: null };
+      return CLEAN_REPAIR_STATUS;
     });
     getDependencyStatusMock.mockResolvedValue([
       {
@@ -362,7 +367,12 @@ describe('useLaunchDepGate', () => {
   });
 
   it('uses the Steam compatdata prefix when the runtime prefix is blank', async () => {
-    getPrefixVersionRepairStatusMock.mockResolvedValue({ required: true, state: 'pending', last_error: null });
+    getPrefixVersionRepairStatusMock.mockResolvedValue({
+      ...CLEAN_REPAIR_STATUS,
+      required: true,
+      state: 'pending',
+      last_error: null,
+    });
 
     const { result } = renderHook(() =>
       useLaunchDepGate({
@@ -384,7 +394,12 @@ describe('useLaunchDepGate', () => {
 
   it('keeps a same-session failed repair non-skippable after cancel and lookup failure', async () => {
     getPrefixVersionRepairStatusMock
-      .mockResolvedValueOnce({ required: true, state: 'failed', last_error: 'restore timed out' })
+      .mockResolvedValueOnce({
+        ...CLEAN_REPAIR_STATUS,
+        required: true,
+        state: 'failed',
+        last_error: 'restore timed out',
+      })
       .mockRejectedValueOnce(new Error('repair journal unavailable'));
 
     const { result } = renderHook(() =>
@@ -408,6 +423,7 @@ describe('useLaunchDepGate', () => {
     });
 
     expect(result.current.depGateRepair).toEqual({
+      ...CLEAN_REPAIR_STATUS,
       required: true,
       state: 'failed',
       last_error: 'restore timed out',
@@ -420,8 +436,8 @@ describe('useLaunchDepGate', () => {
     let journalRequired = false;
     getPrefixVersionRepairStatusMock.mockImplementation(async () =>
       journalRequired
-        ? { required: true, state: 'failed', last_error: 'journal cleanup failed' }
-        : { required: false, state: null, last_error: null }
+        ? { ...CLEAN_REPAIR_STATUS, required: true, state: 'failed', last_error: 'journal cleanup failed' }
+        : CLEAN_REPAIR_STATUS
     );
     getDependencyStatusMock.mockResolvedValue([]);
     installPrefixDependencyMock.mockResolvedValue(undefined);
@@ -457,9 +473,9 @@ describe('useLaunchDepGate', () => {
   });
 
   it('keeps the dependency gate busy until post-restore verification completes', async () => {
-    const verification = deferred<{ required: boolean; state: null; last_error: null }>();
+    const verification = deferred<PrefixVersionRepairStatus>();
     getPrefixVersionRepairStatusMock
-      .mockResolvedValueOnce({ required: false, state: null, last_error: null })
+      .mockResolvedValueOnce(CLEAN_REPAIR_STATUS)
       .mockReturnValueOnce(verification.promise);
     getDependencyStatusMock.mockResolvedValue([]);
     installPrefixDependencyMock.mockResolvedValue(undefined);
@@ -486,7 +502,7 @@ describe('useLaunchDepGate', () => {
     expect(launchGameMock).not.toHaveBeenCalled();
 
     await act(async () => {
-      verification.resolve({ required: false, state: null, last_error: null });
+      verification.resolve(CLEAN_REPAIR_STATUS);
       await verification.promise;
     });
     await waitFor(() => expect(launchGameMock).toHaveBeenCalledTimes(1));
@@ -496,9 +512,9 @@ describe('useLaunchDepGate', () => {
   });
 
   it('does not launch or mutate gate state when profile changes during completion verification', async () => {
-    const verification = deferred<{ required: boolean; state: null; last_error: null }>();
+    const verification = deferred<PrefixVersionRepairStatus>();
     getPrefixVersionRepairStatusMock
-      .mockResolvedValueOnce({ required: false, state: null, last_error: null })
+      .mockResolvedValueOnce(CLEAN_REPAIR_STATUS)
       .mockReturnValueOnce(verification.promise);
     getDependencyStatusMock.mockResolvedValue([]);
     installPrefixDependencyMock.mockResolvedValue(undefined);
@@ -534,7 +550,7 @@ describe('useLaunchDepGate', () => {
 
     rerender({ profile: profileB, selectedName: 'Profile B' });
     await act(async () => {
-      verification.resolve({ required: false, state: null, last_error: null });
+      verification.resolve(CLEAN_REPAIR_STATUS);
       await verification.promise;
     });
 
@@ -544,9 +560,9 @@ describe('useLaunchDepGate', () => {
   });
 
   it('does not launch after unmount during completion verification', async () => {
-    const verification = deferred<{ required: boolean; state: null; last_error: null }>();
+    const verification = deferred<PrefixVersionRepairStatus>();
     getPrefixVersionRepairStatusMock
-      .mockResolvedValueOnce({ required: false, state: null, last_error: null })
+      .mockResolvedValueOnce(CLEAN_REPAIR_STATUS)
       .mockReturnValueOnce(verification.promise);
     getDependencyStatusMock.mockResolvedValue([]);
     installPrefixDependencyMock.mockResolvedValue(undefined);
@@ -567,7 +583,7 @@ describe('useLaunchDepGate', () => {
     act(() => emitPrefixDepComplete());
     unmount();
 
-    verification.resolve({ required: false, state: null, last_error: null });
+    verification.resolve(CLEAN_REPAIR_STATUS);
     await verification.promise;
     await Promise.resolve();
 

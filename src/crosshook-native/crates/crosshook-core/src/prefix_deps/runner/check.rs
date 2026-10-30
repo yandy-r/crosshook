@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use tokio::process::Command;
 
+use super::bounded::{run_bounded, BoundedError, Limits, DRAIN_GRACE};
 use super::command::build_prefix_dep_command_with;
 use super::sanitize::sanitize_stderr;
 use crate::platform::is_flatpak;
@@ -33,7 +34,6 @@ pub(crate) fn build_check_command_with(
         cmd.arg(app_id);
     }
     cmd.arg("list-installed");
-    cmd.kill_on_drop(true);
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
     Ok(cmd)
@@ -48,31 +48,44 @@ pub async fn check_installed(
     tool_type: PrefixDepsTool,
     steam_app_id: Option<&str>,
 ) -> Result<Vec<String>, PrefixDepsError> {
-    let mut cmd = build_check_command_with(
+    let cmd = build_check_command_with(
         binary_path,
         prefix_path,
         tool_type,
         steam_app_id,
         is_flatpak(),
     )?;
-
-    let child = cmd.spawn().map_err(|e| PrefixDepsError::ProcessFailed {
-        exit_code: None,
-        stderr: format!("failed to spawn: {e}"),
-    })?;
-
-    let output = tokio::time::timeout(
-        Duration::from_secs(CHECK_TIMEOUT_SECS),
-        child.wait_with_output(),
+    run_check(
+        cmd,
+        Limits {
+            timeout: Duration::from_secs(CHECK_TIMEOUT_SECS),
+            drain_grace: DRAIN_GRACE,
+        },
     )
     .await
-    .map_err(|_| PrefixDepsError::Timeout {
-        seconds: CHECK_TIMEOUT_SECS,
-    })?
-    .map_err(|e| PrefixDepsError::ProcessFailed {
-        exit_code: None,
-        stderr: format!("failed to wait for process: {e}"),
-    })?;
+}
+
+/// Runs a built check command: its own process group, the whole group killed
+/// on timeout, and the output drain bounded after exit.
+pub(super) async fn run_check(
+    cmd: Command,
+    limits: Limits,
+) -> Result<Vec<String>, PrefixDepsError> {
+    let output = run_bounded(cmd, limits)
+        .await
+        .map_err(|error| match error {
+            BoundedError::Spawn(error) => PrefixDepsError::ProcessFailed {
+                exit_code: None,
+                stderr: format!("failed to spawn: {error}"),
+            },
+            BoundedError::Wait(error) => PrefixDepsError::ProcessFailed {
+                exit_code: None,
+                stderr: format!("failed to wait for process: {error}"),
+            },
+            BoundedError::TimedOut => PrefixDepsError::Timeout {
+                seconds: limits.timeout.as_secs(),
+            },
+        })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

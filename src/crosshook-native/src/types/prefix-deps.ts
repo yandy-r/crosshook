@@ -42,8 +42,12 @@ export interface PrefixVersionRepairStatus {
   last_recovery: PrefixLastRecovery | null;
 }
 
-/** Outcome of the restoration phase that follows dependency installation. */
-export type PrefixVersionRestoreOutcomeState = 'not_required' | 'succeeded' | 'failed';
+/**
+ * Outcome of the restoration phase that follows dependency installation.
+ * `pending` means the restore never completed (the installer failed to spawn or
+ * the job ended without a result), so the prefix still needs a repair.
+ */
+export type PrefixVersionRestoreOutcomeState = 'not_required' | 'succeeded' | 'failed' | 'pending';
 
 /** Payload emitted when dependency installation and compatibility restoration finish. */
 export interface PrefixDepCompletePayload {

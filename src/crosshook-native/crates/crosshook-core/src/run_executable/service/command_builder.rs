@@ -7,7 +7,7 @@ use crate::launch::runtime_helpers::{
     host_environment_map, merge_runtime_proton_into_map, resolve_effective_working_directory,
 };
 use crate::platform::{is_flatpak, normalize_flatpak_host_path};
-use crate::run_executable::{RunExecutableError, RunExecutableRequest};
+use crate::run_executable::RunExecutableRequest;
 
 /// Builds the lifecycle-bound `<proton> run <exe>` command (or
 /// `<proton> run msiexec /i <msi> /qb` for `.msi` inputs) for `prefix_path`.
@@ -16,15 +16,8 @@ use crate::run_executable::{RunExecutableError, RunExecutableRequest};
 /// (`--watch-bus`), so killing the proxy also stops the host process. Stdio,
 /// process group and `kill_on_drop` are left to the caller that spawns and
 /// supervises the child.
-pub fn build_run_executable_command(
-    request: &RunExecutableRequest,
-    prefix_path: &Path,
-) -> Result<Command, RunExecutableError> {
-    Ok(build_run_executable_command_with(
-        request,
-        prefix_path,
-        is_flatpak(),
-    ))
+pub fn build_run_executable_command(request: &RunExecutableRequest, prefix_path: &Path) -> Command {
+    build_run_executable_command_with(request, prefix_path, is_flatpak())
 }
 
 pub(crate) fn build_run_executable_command_with(

@@ -1,13 +1,16 @@
 //! The job registry: start, subscribe, cancel, and reap supervised jobs.
 
+mod events;
+
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::future::Future;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use tokio::runtime::Handle;
-use tokio::sync::broadcast::{self, error::RecvError};
+use tokio::sync::{broadcast, watch};
 use tokio_util::sync::{CancellationToken, WaitForCancellationFuture};
 
+pub use self::events::{JobEvents, JobHandle};
 use super::types::{JobEvent, JobEventKind, JobId, JobKey, JobProgress, JobSpec, Outcome};
 use crate::error::{AppError, AppErrorKind};
 use crate::events::{DEFAULT_EVENT_CAPACITY, MAX_EVENT_CAPACITY};
@@ -58,6 +61,8 @@ struct Shared {
     /// Parent of every job token.
     root: CancellationToken,
     state: Mutex<State>,
+    /// Number of running jobs, updated under the `state` lock.
+    running: watch::Sender<usize>,
 }
 
 impl Shared {
@@ -116,6 +121,7 @@ impl JobRegistry {
                 runtime,
                 root,
                 state: Mutex::new(State::default()),
+                running: watch::Sender::new(0),
             }),
         }
     }
@@ -165,6 +171,7 @@ impl JobRegistry {
                     tx: tx.clone(),
                 },
             );
+            self.shared.running.send_replace(state.running.len());
         }
 
         let publisher = Publisher::new(tx);
@@ -275,6 +282,15 @@ impl JobRegistry {
         self.shared.lock().keys.contains(key)
     }
 
+    /// Resolves once no job is running (immediately when idle). Jobs started
+    /// while waiting are waited for as well. Callers bound the wait, e.g. with
+    /// [`tokio::time::timeout`]; a job that ignores cancellation never ends.
+    pub async fn wait_idle(&self) {
+        let mut running = self.shared.running.subscribe();
+        // The sender lives in `self.shared`, so the channel never closes here.
+        let _ = running.wait_for(|count| *count == 0).await;
+    }
+
     /// `(running, finished-unreaped)` job counts, for tests asserting that a
     /// helper reaps its jobs.
     #[cfg(test)]
@@ -351,6 +367,7 @@ impl FinishGuard {
                     state.keys.remove(&key);
                 }
             }
+            self.shared.running.send_replace(state.running.len());
             let retention = self.shared.config.retention;
             if retention > 0 {
                 state.finished.insert(self.id.clone(), outcome.clone());
@@ -443,104 +460,5 @@ impl JobContext {
             job_id: self.id.clone(),
             kind,
         });
-    }
-}
-
-/// Returned by [`JobRegistry::start`]: the job id, its cancel token, and a
-/// receiver subscribed before the job began.
-pub struct JobHandle {
-    id: JobId,
-    cancel: CancellationToken,
-    events: JobEvents,
-}
-
-impl JobHandle {
-    /// The job id.
-    pub fn id(&self) -> &JobId {
-        &self.id
-    }
-
-    /// The job's cancellation token.
-    pub fn cancel_token(&self) -> &CancellationToken {
-        &self.cancel
-    }
-
-    /// Requests cancellation of this job only.
-    pub fn cancel(&self) {
-        self.cancel.cancel();
-    }
-
-    /// Receives the next event; see [`JobEvents::recv`].
-    pub async fn recv(&mut self) -> Option<JobEvent> {
-        self.events.recv().await
-    }
-
-    /// Splits off the event receiver.
-    pub fn into_events(self) -> JobEvents {
-        self.events
-    }
-}
-
-enum Source {
-    Live(broadcast::Receiver<JobEvent>),
-    Replay(Option<JobEvent>),
-}
-
-/// Receiver of one job's events.
-pub struct JobEvents {
-    id: JobId,
-    source: Source,
-    done: bool,
-}
-
-impl JobEvents {
-    fn live(id: JobId, rx: broadcast::Receiver<JobEvent>) -> Self {
-        Self {
-            id,
-            source: Source::Live(rx),
-            done: false,
-        }
-    }
-
-    fn replay(finished: JobEvent) -> Self {
-        Self {
-            id: finished.job_id.clone(),
-            source: Source::Replay(Some(finished)),
-            done: false,
-        }
-    }
-
-    /// The job these events belong to.
-    pub fn job_id(&self) -> &JobId {
-        &self.id
-    }
-
-    /// Next event, or `None` after `Finished` was yielded. A lagging receiver
-    /// gets `Log(LogBatch::Dropped { n })` with the number of lost events,
-    /// then the retained events; `Finished` is never lost to lag.
-    pub async fn recv(&mut self) -> Option<JobEvent> {
-        if self.done {
-            return None;
-        }
-        let event = match &mut self.source {
-            Source::Replay(finished) => finished.take(),
-            Source::Live(rx) => match rx.recv().await {
-                Ok(event) => Some(event),
-                Err(RecvError::Lagged(n)) => Some(JobEvent {
-                    job_id: self.id.clone(),
-                    kind: JobEventKind::Log(LogBatch::Dropped { n }),
-                }),
-                Err(RecvError::Closed) => None,
-            },
-        };
-        match &event {
-            None
-            | Some(JobEvent {
-                kind: JobEventKind::Finished(_),
-                ..
-            }) => self.done = true,
-            Some(_) => {}
-        }
-        event
     }
 }

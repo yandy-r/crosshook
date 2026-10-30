@@ -31,19 +31,25 @@ lib/mocks/
 │   ├── protondb.ts   — ProtonDB lookup + suggestions + dismissal tracking
 │   ├── community.ts  — community profile index, taps, sync, import/export
 │   ├── launcher.ts   — desktop launcher export, delete, rename, preview
-│   ├── library.ts    — cover art fetch, Steam metadata auto-populate
+│   ├── library.ts       — cover art fetch, Steam metadata auto-populate
+│   ├── lutris.ts        — Lutris import preview + profile import
+│   ├── collections.ts   — collection_* CRUD, defaults, TOML import/export
+│   ├── mods.ts          — profile mod list, detection, coexistence analysis
+│   ├── umu_database.ts  — umu coverage check + lookup cache reset
 │   ├── run_executable.ts — run_executable, cancel/stop, run-executable-log +
-│   │                       run-executable-complete events (keyed by run_id)
-│   └── system.ts     — discovery, prefix storage/deps (prefix-dep-log +
-│                       prefix-dep-complete events), diagnostics,
-│                       optimization catalog, offline readiness
-└── README.md         — this file
+│   │                      run-executable-complete events (keyed by run_id)
+│   ├── prefix_deps.ts   — winetricks detection, dependency check/install
+│   │                      (prefix-dep-log + prefix-dep-complete events),
+│   │                      prefix Windows-version repair status/repair
+│   └── system.ts        — discovery, prefix storage, diagnostics,
+│                          optimization
+└── README.md
 ```
 
-**Total commands registered**: ~113 across 15 handler files, covering ~95% of
-the Rust `#[tauri::command]` surface. The uncovered commands (`collection_*`)
-have no frontend callers yet, so they are intentionally not mocked.
-
+**Total commands registered**: 163 IPC commands (169 `map.set` entries under
+`handlers/`, minus 6 dev-only `_mock_*` helpers) through 21 `register*` calls
+in `index.ts`. `./scripts/check-mock-coverage.sh` reports no missing or
+orphaned handlers against the Rust `#[tauri::command]` surface.
 `ipc.ts` dynamically imports `./mocks` and calls `registerMocks()` when running in
 `webdev` mode. The returned `Map<string, Handler>` is used to dispatch every
 `callCommand()` invocation.

@@ -457,6 +457,46 @@ fn start_without_runtime_is_unavailable() {
     assert_eq!(error.kind(), AppErrorKind::Unavailable);
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn wait_idle_resolves_only_after_every_running_job_finished() {
+    let registry = JobRegistry::default();
+    tokio::time::timeout(TIMEOUT, registry.wait_idle())
+        .await
+        .expect("an idle registry resolves at once");
+
+    let (release_first, first_gate) = oneshot::channel::<()>();
+    let (release_second, second_gate) = oneshot::channel::<()>();
+    let mut first = registry
+        .start(JobSpec::new("first"), |_ctx| async move {
+            let _ = first_gate.await;
+            Outcome::Succeeded
+        })
+        .unwrap();
+    let mut second = registry
+        .start(JobSpec::new("second"), |_ctx| async move {
+            let _ = second_gate.await;
+            Outcome::Succeeded
+        })
+        .unwrap();
+    let idle = tokio::spawn({
+        let registry = registry.clone();
+        async move { registry.wait_idle().await }
+    });
+
+    release_first.send(()).unwrap();
+    assert_eq!(finished(&mut first).await, Outcome::Succeeded);
+    // One job still runs: the wait must not have resolved.
+    assert!(!idle.is_finished());
+    assert_eq!(registry.job_counts().0, 1);
+
+    release_second.send(()).unwrap();
+    assert_eq!(finished(&mut second).await, Outcome::Succeeded);
+    tokio::time::timeout(TIMEOUT, idle)
+        .await
+        .expect("wait_idle resolves once the last job finished")
+        .unwrap();
+}
+
 #[test]
 fn job_ids_are_uuid_v4() {
     let id = JobId::new_v4();

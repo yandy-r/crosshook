@@ -22,9 +22,11 @@ use super::types::{completion_payload, DepInstallCompletion};
 use super::{PrefixDepsService, PREFIX_DEPS_INSTALL_JOB_KIND};
 use crate::jobs::{create_log_file_in, slugify_target, ChildExit, JobContext, JobSpec, Outcome};
 use crate::log_tail::LogBatch;
-use crate::services::process::child::{run_child, ChildOutput, LogFile};
+use crate::services::process::child::{run_child, ChildError, ChildOutput, LogFile};
 use crate::services::process::run::start_run;
-use crate::services::process::{conflict_as, prefix_job_key, prefix_job_key_for_path, ProcessRun};
+use crate::services::process::{
+    conflict_as, prefix_job_key, prefix_job_key_for_path, remove_unused_log, ProcessRun,
+};
 use crate::services::run_blocking;
 use crate::{AppError, AppErrorKind};
 
@@ -46,20 +48,21 @@ impl PrefixDepsService {
     /// Offline mode, tool selection, verb validation, prefix normalization and
     /// log creation fail before any job. Inside the job, in order: pre-install
     /// recovery of a `pending` row, the profile id lookup, prepare (captures
-    /// the restore plan), the durable `pending` row (I1), `started`, the
-    /// install child (piped, sanitized lines), the restore on its own timeout
-    /// (also after a failed or cancelled install, I8), the dependency states,
-    /// the journal resolution (I2/I3) and the completion. A failure before
-    /// `started` is returned here; a cancelled install ends `Cancelled` with
-    /// its completion still sent.
+    /// the restore plan), the durable `pending` row (I1), the install child
+    /// (piped, sanitized lines; `started` once it spawned), the restore on its
+    /// own timeout (also after a failed or cancelled install, I8), the
+    /// dependency states, the journal resolution (I2/I3) and the completion.
+    /// A failure before the child spawned (spawn failure included) is
+    /// returned here and leaves a recorded row `pending`; a cancelled install
+    /// ends `Cancelled` with its completion still sent.
     ///
     /// # Errors
     /// `Unavailable` [`MSG_OFFLINE`] in offline mode or without a tool,
     /// `Validation` for the App ID, verbs or prefix, `Conflict`
     /// ([`msg_already_installing`]) while another job holds the prefix,
     /// `Conflict` [`MSG_REPAIR_REQUIRED`](super::MSG_REPAIR_REQUIRED) when
-    /// the prefix still needs repair, `NotFound` for an unindexed profile, and
-    /// store errors (nothing is spawned then).
+    /// the prefix still needs repair, `NotFound` for an unindexed profile,
+    /// store errors, and `Io` when the install tool cannot be spawned.
     pub async fn start_install(
         &self,
         profile_name: String,
@@ -81,9 +84,7 @@ impl PrefixDepsService {
         };
         if started.is_err() {
             // Nothing ran: drop the empty log this attempt created.
-            if let Err(remove_error) = std::fs::remove_file(&log_path) {
-                tracing::debug!(%remove_error, "unused prefix-deps log was not removed");
-            }
+            remove_unused_log(&log_path);
         }
         started
     }
@@ -180,12 +181,21 @@ async fn run_install(
         Err(error) => return Outcome::Failed(error),
     };
 
-    // The caller holds the run before any output exists.
-    let _ = started.send(());
-    let exit = run_install_child(&ctx, command, log).await;
-    // `Err` means the child never ran (or its supervision broke): the
-    // `pending` row stays for pre-install or startup recovery (I1, fail
-    // closed); nothing is restored with a tool that just failed to run.
+    let exit = match run_install_child(&ctx, command, log, started).await {
+        // Nothing ran: the error becomes the caller's, and a recorded
+        // `pending` row stays for pre-install or startup recovery (I1).
+        Err(ChildError::Cancelled) => return Outcome::Cancelled,
+        Err(ChildError::Spawn(error)) => {
+            return Outcome::Failed(AppError::new(
+                AppErrorKind::Io,
+                sanitize_output_for_ui(&format!("failed to spawn install process: {error}")),
+            ));
+        }
+        Err(ChildError::Supervise(error)) => Err(error),
+        Ok(exit) => Ok(exit),
+    };
+    // `Err`: supervision broke, so the child's fate is unknown. The `pending`
+    // row stays for recovery (fail closed); nothing is restored meanwhile.
     let ran = exit.is_ok();
     let cancelled = exit.as_ref().is_ok_and(ChildExit::was_cancelled);
     let mut outcome = install_outcome(exit);
@@ -220,13 +230,14 @@ async fn run_install(
 }
 
 /// Runs the install child; output lines are sanitized before they reach the
-/// job's subscribers. The command has no stop: only the job token (TERM,
-/// grace, KILL) ends it early.
+/// job's subscribers. `started` is sent once the child spawned. The command
+/// has no stop: only the job token (TERM, grace, KILL) ends it early.
 async fn run_install_child(
     ctx: &JobContext,
     command: Command,
     log: LogFile,
-) -> std::io::Result<ChildExit> {
+    started: oneshot::Sender<()>,
+) -> Result<ChildExit, ChildError> {
     let sink_ctx = ctx.clone();
     run_child(
         ctx,
@@ -234,6 +245,7 @@ async fn run_install_child(
         log,
         ChildOutput::Piped,
         &CancellationToken::new(),
+        started,
         move |batch| sink_ctx.log_batch(sanitize_batch(batch)),
     )
     .await
@@ -265,7 +277,7 @@ fn install_outcome(exit: std::io::Result<ChildExit>) -> PrefixDependencyInstallO
             false,
             None,
             Some(sanitize_output_for_ui(&format!(
-                "failed to spawn install process: {error}"
+                "install process supervision failed: {error}"
             ))),
         ),
     };

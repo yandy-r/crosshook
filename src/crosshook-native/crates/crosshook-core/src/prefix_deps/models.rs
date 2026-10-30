@@ -95,9 +95,6 @@ pub enum PrefixDepsError {
     Timeout {
         seconds: u64,
     },
-    AlreadyInstalling {
-        prefix_path: String,
-    },
     Database {
         action: &'static str,
         source: rusqlite::Error,
@@ -119,12 +116,6 @@ impl std::fmt::Display for PrefixDepsError {
                 )
             }
             Self::Timeout { seconds } => write!(f, "operation timed out after {seconds}s"),
-            Self::AlreadyInstalling { prefix_path } => {
-                write!(
-                    f,
-                    "installation already in progress for prefix: {prefix_path}"
-                )
-            }
             Self::Database { action, source } => {
                 write!(f, "database error during {action}: {source}")
             }

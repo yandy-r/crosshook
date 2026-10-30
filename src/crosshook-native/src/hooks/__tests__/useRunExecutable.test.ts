@@ -92,7 +92,8 @@ describe('useRunExecutable', () => {
     act(() => {
       emit('run-executable-complete', { run_id: RUN_ID, code: 0, signal: null });
     });
-    expect(result.current.stage).toBe('complete');
+    // Buffered until run_executable returns this run's id.
+    expect(result.current.stage).toBe('preparing');
 
     await act(async () => {
       resolveRun(RUN_RESULT);
@@ -176,5 +177,116 @@ describe('useRunExecutable', () => {
       emit('run-executable-log', { run_id: RUN_ID, line: 'late line' });
     });
     expect(result.current.logLines).toEqual([]);
+  });
+
+  it('replays only its own buffered events from the starting window and drops another run', async () => {
+    const stages: string[] = [];
+    const { result } = await renderRunHook(stages);
+    const resolveRun = deferRunExecutable();
+
+    let startPromise: Promise<void> = Promise.resolve();
+    act(() => {
+      startPromise = result.current.startRun();
+    });
+    await waitFor(() => expect(callCommandMock).toHaveBeenCalledWith('run_executable', expect.anything()));
+
+    act(() => {
+      // A late event of an earlier (reset) run arrives while this run starts.
+      emit('run-executable-log', { run_id: 'run-old', line: 'old line' });
+      emit('run-executable-complete', { run_id: 'run-old', code: 1, signal: null });
+      emit('run-executable-log', { run_id: RUN_ID, line: 'own line' });
+    });
+    expect(result.current.stage).toBe('preparing');
+    expect(result.current.logLines).toEqual([]);
+
+    await act(async () => {
+      resolveRun(RUN_RESULT);
+      await startPromise;
+    });
+
+    expect(result.current.stage).toBe('running');
+    expect(result.current.error).toBeNull();
+    expect(result.current.isRunning).toBe(true);
+    expect(result.current.logLines).toEqual(['own line']);
+    expect(stages).not.toContain('failed');
+  });
+
+  it('reports a Conflict from the backend as a run error', async () => {
+    const { result } = await renderRunHook();
+    callCommandMock.mockImplementation((name: string) =>
+      name === 'run_executable'
+        ? Promise.reject({ kind: 'runtime', message: 'another run is already active for this window' })
+        : Promise.resolve(undefined)
+    );
+
+    await act(async () => {
+      await result.current.startRun();
+    });
+
+    expect(result.current.stage).toBe('failed');
+    expect(result.current.error).toBe('another run is already active for this window');
+  });
+
+  it('detaches and cancels a start that was reset while run_executable was in flight', async () => {
+    const { result } = await renderRunHook();
+    const resolveRun = deferRunExecutable();
+
+    let startPromise: Promise<void> = Promise.resolve();
+    act(() => {
+      startPromise = result.current.startRun();
+    });
+    await waitFor(() => expect(callCommandMock).toHaveBeenCalledWith('run_executable', expect.anything()));
+
+    act(() => {
+      result.current.reset();
+    });
+    expect(callCommandMock).toHaveBeenCalledWith('cancel_run_executable', undefined);
+    const cancelsAfterReset = callCommandMock.mock.calls.filter(([name]) => name === 'cancel_run_executable').length;
+
+    await act(async () => {
+      resolveRun(RUN_RESULT);
+      await startPromise;
+    });
+
+    // The detached start cancels the run it started instead of tracking it.
+    expect(callCommandMock.mock.calls.filter(([name]) => name === 'cancel_run_executable')).toHaveLength(
+      cancelsAfterReset + 1
+    );
+    expect(result.current.stage).toBe('idle');
+    expect(result.current.result).toBeNull();
+
+    act(() => {
+      emit('run-executable-log', { run_id: RUN_ID, line: 'stray line' });
+      emit('run-executable-complete', { run_id: RUN_ID, code: 0, signal: null });
+    });
+    expect(result.current.logLines).toEqual([]);
+    expect(result.current.stage).toBe('idle');
+  });
+
+  it('does not cancel after a detached start whose run already completed', async () => {
+    const { result } = await renderRunHook();
+    const resolveRun = deferRunExecutable();
+
+    let startPromise: Promise<void> = Promise.resolve();
+    act(() => {
+      startPromise = result.current.startRun();
+    });
+    await waitFor(() => expect(callCommandMock).toHaveBeenCalledWith('run_executable', expect.anything()));
+
+    act(() => {
+      emit('run-executable-complete', { run_id: RUN_ID, code: 0, signal: null });
+      result.current.reset();
+    });
+    const cancelsAfterReset = callCommandMock.mock.calls.filter(([name]) => name === 'cancel_run_executable').length;
+
+    await act(async () => {
+      resolveRun(RUN_RESULT);
+      await startPromise;
+    });
+
+    expect(callCommandMock.mock.calls.filter(([name]) => name === 'cancel_run_executable')).toHaveLength(
+      cancelsAfterReset
+    );
+    expect(result.current.stage).toBe('idle');
   });
 });

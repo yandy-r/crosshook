@@ -103,15 +103,14 @@ impl RunExecutableService {
     }
 
     /// Cancels `owner`'s active run: `SIGTERM` to its process group, then
-    /// `SIGKILL` after the grace period. A throwaway prefix is still removed
+    /// `SIGKILL` after the grace period; a run still being prepared ends
+    /// without starting the executable. A throwaway prefix is still removed
     /// before the run completes.
     ///
     /// Returns `false` when `owner` has no active run; no other job is
     /// touched.
     pub fn cancel(&self, owner: &JobOwner) -> bool {
-        self.active
-            .get(owner)
-            .is_some_and(|(id, _)| self.jobs.cancel(&id).is_ok())
+        self.active.cancel(owner, &self.jobs)
     }
 
     /// Stops `owner`'s active run at once: `SIGKILL` to its process group
@@ -121,13 +120,7 @@ impl RunExecutableService {
     /// Returns `false` when `owner` has no active run; no other job is
     /// touched.
     pub fn stop(&self, owner: &JobOwner) -> bool {
-        match self.active.get(owner) {
-            Some((_, kill)) => {
-                kill.cancel();
-                true
-            }
-            None => false,
-        }
+        self.active.kill(owner)
     }
 }
 

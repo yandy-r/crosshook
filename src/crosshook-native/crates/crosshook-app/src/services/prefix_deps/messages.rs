@@ -63,7 +63,6 @@ pub(crate) fn deps_error(field: &'static str, error: PrefixDepsError) -> AppErro
         PrefixDepsError::BinaryNotFound { .. } | PrefixDepsError::Timeout { .. } => {
             AppError::new(AppErrorKind::Unavailable, message)
         }
-        PrefixDepsError::AlreadyInstalling { .. } => AppError::new(AppErrorKind::Conflict, message),
         PrefixDepsError::ProcessFailed { .. } | PrefixDepsError::Database { .. } => {
             AppError::new(AppErrorKind::Internal, message)
         }

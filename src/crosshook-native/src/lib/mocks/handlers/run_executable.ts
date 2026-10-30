@@ -12,7 +12,11 @@ const LINE_INTERVAL_MS = 250;
 const SIGTERM = 15;
 const SIGKILL = 9;
 
-/** run_id of the in-flight mock run, or null when idle (the backend allows one run at a time). */
+/**
+ * run_id of the in-flight mock run, null when idle. Like the backend, a second
+ * `run_executable` from the same window while a run is active is refused with
+ * a `Conflict`, surfaced as a runtime `RunCommandError`.
+ */
 let activeRunId: string | null = null;
 let runCounter = 0;
 const pendingRunTimers = new Set<number>();
@@ -50,7 +54,10 @@ export function registerRunExecutable(map: Map<string, Handler>): void {
   map.set('run_executable', async (args): Promise<RunExecutableResult> => {
     const { request } = args as { request: RunExecutableRequest };
     if (activeRunId !== null) {
-      const busy: RunCommandError = { kind: 'runtime', message: '[dev-mock] an executable is already running' };
+      const busy: RunCommandError = {
+        kind: 'runtime',
+        message: '[dev-mock] another run is already active for this window',
+      };
       throw busy;
     }
 

@@ -71,7 +71,6 @@ pub enum InstallGameError {
     PrefixPathExistsAsFile { path: PathBuf },
     PrefixCreationFailed { path: PathBuf, message: String },
     InstallerSpawnFailed { message: String },
-    InstallerWaitFailed { message: String },
     InstallerExitedWithFailure { status: Option<i32> },
 }
 
@@ -81,15 +80,18 @@ pub enum InstallGameValidationError {
     ProfileNameRequired,
     ProfileNameInvalid,
     InstallerPathRequired,
+    InstallerPathNotAbsolute,
     InstallerPathMissing,
     InstallerPathNotFile,
     InstallerPathNotWindowsExecutable,
     TrainerPathMissing,
     TrainerPathNotFile,
     ProtonPathRequired,
+    ProtonPathNotAbsolute,
     ProtonPathMissing,
     ProtonPathNotExecutable,
     PrefixPathRequired,
+    PrefixPathNotAbsolute,
     PrefixPathMissing,
     PrefixPathNotDirectory,
     InstalledGameExecutablePathMissing,
@@ -255,9 +257,6 @@ impl InstallGameError {
             Self::InstallerSpawnFailed { message } => {
                 format!("Failed to launch the installer through Proton: {message}")
             }
-            Self::InstallerWaitFailed { message } => {
-                format!("Failed to monitor the installer process: {message}")
-            }
             Self::InstallerExitedWithFailure { status } => match status {
                 Some(code) => format!(
                     "The installer exited unsuccessfully with status code {code}. Review the log file for details."
@@ -279,6 +278,9 @@ impl InstallGameValidationError {
                 "The install profile name contains invalid characters.".to_string()
             }
             Self::InstallerPathRequired => "An installer path is required.".to_string(),
+            Self::InstallerPathNotAbsolute => {
+                "The installer path must be an absolute path.".to_string()
+            }
             Self::InstallerPathMissing => "The installer path does not exist.".to_string(),
             Self::InstallerPathNotFile => "The installer path must be a file.".to_string(),
             Self::InstallerPathNotWindowsExecutable => {
@@ -287,9 +289,11 @@ impl InstallGameValidationError {
             Self::TrainerPathMissing => "The trainer path does not exist.".to_string(),
             Self::TrainerPathNotFile => "The trainer path must be a file.".to_string(),
             Self::ProtonPathRequired => "A Proton path is required.".to_string(),
+            Self::ProtonPathNotAbsolute => "The Proton path must be an absolute path.".to_string(),
             Self::ProtonPathMissing => "The Proton path does not exist.".to_string(),
             Self::ProtonPathNotExecutable => "The Proton path must be executable.".to_string(),
             Self::PrefixPathRequired => "A prefix path is required.".to_string(),
+            Self::PrefixPathNotAbsolute => "The prefix path must be an absolute path.".to_string(),
             Self::PrefixPathMissing => "The prefix path does not exist.".to_string(),
             Self::PrefixPathNotDirectory => "The prefix path must be a directory.".to_string(),
             Self::InstalledGameExecutablePathMissing => {

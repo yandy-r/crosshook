@@ -225,6 +225,16 @@ mod tests {
         );
     }
 
+    /// `pending` reaches the wire when the install child never ran or the
+    /// job ended without a completion (fail closed: the row stays pending).
+    #[test]
+    fn fixture_prefix_dep_complete_pending_wire_shape() {
+        assert_matches_fixture(
+            &complete_payload("p", "/raw/prefix", None),
+            include_str!("fixtures/process/prefix_dep_complete_pending.json"),
+        );
+    }
+
     /// The P0 fixture plus only the two additive runtime fields (D9).
     #[test]
     fn fixture_prefix_version_repair_status_wire_shape_is_additive() {

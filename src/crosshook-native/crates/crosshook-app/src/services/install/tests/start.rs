@@ -1,5 +1,7 @@
-//! The `install-game` job: success with discovery, non-zero exit, prefix
-//! exclusivity and shutdown cancellation.
+//! The `install-game` job: success with discovery, non-zero exit, spawn
+//! failure, prefix exclusivity and shutdown cancellation.
+
+use std::fs;
 
 use crosshook_core::install::InstallGameResult;
 use tokio_util::sync::CancellationToken;
@@ -7,7 +9,9 @@ use tokio_util::sync::CancellationToken;
 use super::Fixture;
 use crate::jobs::JobRegistry;
 use crate::log_tail::LogBatch;
-use crate::services::process::{ProcessRun, RunEvent, MSG_PREFIX_BUSY};
+use crate::services::process::{
+    prefix_job_key, prefix_job_key_for_path, ProcessRun, RunEvent, MSG_PREFIX_BUSY,
+};
 use crate::{AppError, AppErrorKind};
 
 type Completion = Result<InstallGameResult, AppError>;
@@ -90,6 +94,59 @@ async fn failing_installer_completes_with_the_status_code_text() {
     let error = completion.unwrap_err();
     assert_eq!(error.kind(), AppErrorKind::Io);
     assert!(error.message().contains("status code 3"), "{error}");
+    assert_eq!(jobs.job_counts(), (0, 0));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn installer_spawn_failure_fails_start_and_removes_the_log() {
+    let fixture = Fixture::new("exit 0");
+    // Executable, so it passes validation, but exec fails (no interpreter).
+    let missing_interpreter = fixture.dir.path().join("no-such-interpreter");
+    fs::write(
+        &fixture.runner,
+        format!("#!{}\nexit 0\n", missing_interpreter.display()),
+    )
+    .unwrap();
+    let jobs = JobRegistry::default();
+    let service = fixture.service(jobs.clone());
+
+    let error = service.start(fixture.request()).await.err().unwrap();
+
+    assert_eq!(error.kind(), AppErrorKind::Io);
+    assert!(
+        error
+            .message()
+            .starts_with("Failed to launch the installer through Proton: "),
+        "{error}"
+    );
+    assert!(fixture.log_files().is_empty());
+    assert_eq!(jobs.job_counts(), (0, 0));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn install_on_a_fresh_prefix_holds_the_key_of_its_future_pfx() {
+    let fixture = Fixture::new("echo waiting\nread x < '@GATE@'\nexit 0");
+    let jobs = JobRegistry::default();
+    let service = fixture.service(jobs.clone());
+
+    let mut run = service.start(fixture.request()).await.unwrap();
+    wait_for_line(&mut run, "waiting").await;
+    // The fresh prefix has no `pfx`: the install holds the key of the `pfx`
+    // Proton is about to create ...
+    let canonical = fs::canonicalize(&fixture.prefix).unwrap();
+    assert!(!canonical.join("pfx").exists());
+    assert!(jobs.is_key_held(&prefix_job_key_for_path(&canonical.join("pfx"))));
+    // ... which is the key prefix-deps, update and run-executable take once
+    // it exists, from either the compat-data root or `pfx` itself.
+    fs::create_dir(fixture.prefix.join("pfx")).unwrap();
+    for raw in [fixture.prefix.clone(), fixture.prefix.join("pfx")] {
+        let (_, key) = prefix_job_key(&raw.to_string_lossy()).unwrap();
+        assert!(jobs.is_key_held(&key), "{}", raw.display());
+    }
+
+    fixture.open_gate().await;
+    let (_, completion) = drain(&mut run).await;
+    assert!(completion.unwrap().succeeded);
     assert_eq!(jobs.job_counts(), (0, 0));
 }
 

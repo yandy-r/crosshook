@@ -7,23 +7,17 @@ use std::path::{Path, PathBuf};
 use crosshook_core::run_executable::{
     adhoc_prefix_root, prepare_run_executable, validate_run_executable_request,
     PreparedRunExecutable, RunExecutableError, RunExecutableRequest, RunExecutableResult,
+    RunExecutableValidationError,
 };
-use tokio::process::Command;
-use tokio::sync::oneshot;
-use tokio_util::sync::CancellationToken;
 
 use super::types::{RunCompletion, RunExecutableResponse, RunExecutableStartError};
 use super::{CleanupFn, RunExecutableService, RUN_EXECUTABLE_JOB_KIND};
 use crate::jobs::{
-    create_log_file_in, kill_processes_using_prefix, slugify_target, ChildExit, JobContext, JobKey,
-    JobSpec, Outcome,
+    create_log_file_in, kill_processes_using_prefix, slugify_target, JobKey, JobSpec,
 };
-use crate::services::process::child::{exit_code_and_signal, run_child, ChildOutput, LogFile};
-use crate::services::process::owner::{ActiveJob, ActiveJobs};
-use crate::services::process::run::start_run;
-use crate::services::process::{
-    conflict_as, prefix_job_key, JobOwner, ProcessRun, MSG_PREFIX_BUSY,
-};
+use crate::services::process::child::LogFile;
+use crate::services::process::owned::{start_owned, FailureText, OwnedRun};
+use crate::services::process::{prefix_job_key, JobOwner, ProcessRun};
 use crate::services::run_blocking;
 use crate::{AppError, AppErrorKind};
 
@@ -33,6 +27,12 @@ const MSG_LAUNCHED: &str = "Executable launched.";
 /// Length of the per-run throwaway directory suffix (hex digits of a v4
 /// UUID).
 const RUN_SUFFIX_LEN: usize = 12;
+
+/// The runner's failure texts (core's wording).
+const RUNNER_TEXT: FailureText = FailureText {
+    launch: |message| RunExecutableError::RunnerSpawnFailed { message }.message(),
+    exited: |status| RunExecutableError::RunnerExitedWithFailure { status }.message(),
+};
 
 /// Where a run's prefix lives and whether the job must delete it.
 #[derive(Clone)]
@@ -65,13 +65,20 @@ impl RunPrefix {
             tracing::warn!(%error, "throwaway prefix cleanup task failed");
         }
     }
-}
 
-/// Everything the job body needs, prepared on the blocking pool.
-struct RunJob {
-    command: Command,
-    prefix: RunPrefix,
-    log: LogFile,
+    /// After the child: a stop also kills the Wine processes outside the
+    /// group (wineserver); then a throwaway prefix is removed.
+    async fn finish(self, killed: bool) {
+        if killed {
+            let swept = self.path.clone();
+            if let Err(error) =
+                tokio::task::spawn_blocking(move || kill_processes_using_prefix(&swept)).await
+            {
+                tracing::warn!(%error, "run-executable stop sweep task failed");
+            }
+        }
+        self.cleanup().await;
+    }
 }
 
 impl RunExecutableService {
@@ -80,50 +87,50 @@ impl RunExecutableService {
     /// executable as a job holding the resolved prefix's key and owned by
     /// `owner` (for [`Self::cancel`] and [`Self::stop`]).
     ///
-    /// The returned response carries the log path, the resolved prefix and
-    /// the run id; the run streams the log, then finishes with the exit code
-    /// or terminating signal. A throwaway prefix is removed before the
-    /// completion is sent, whichever way the run ended.
+    /// Returns once the executable was spawned: the response carries the log
+    /// path, the resolved prefix and the run id; the run streams the log,
+    /// then finishes with the exit code or terminating signal. A throwaway
+    /// prefix is removed before the completion is sent, whichever way the
+    /// run ended.
     ///
     /// # Errors
-    /// - `Validation(variant)` for an invalid request; nothing runs.
+    /// Nothing runs on any error, and a throwaway prefix created by this
+    /// attempt is removed:
+    /// - `Failed(Conflict)` ("another run is already active for this
+    ///   window") while `owner`'s previous run is still active.
+    /// - `Validation(variant)` for an invalid request.
     /// - `Failed(Conflict)` ("another operation is already running for this
-    ///   prefix") when another job holds the prefix; nothing runs.
-    /// - `Failed(_)` when the prefix or log cannot be created or no runtime
-    ///   is available; nothing runs and a throwaway prefix created by this
-    ///   attempt is removed.
+    ///   prefix") when another job holds the prefix.
+    /// - `Failed(Io)` when the executable cannot be spawned (core's launch
+    ///   text), `Failed(Cancelled)` when `owner` cancelled or stopped before
+    ///   it started, and `Failed(_)` when the prefix or log cannot be created
+    ///   or no runtime is available.
     pub async fn start(
         &self,
         owner: JobOwner,
         request: RunExecutableRequest,
     ) -> Result<(RunExecutableResponse, ProcessRun<RunCompletion>), RunExecutableStartError> {
+        let slot = self.active.claim(owner)?;
         let log_dir = self.log_dir.clone();
         let adhoc_root = self.adhoc_root.clone();
         let cleanup = self.cleanup.clone();
-        let (key, job) = run_blocking(move || Ok(prepare(&request, adhoc_root, log_dir, cleanup)))
-            .await
-            .map_err(RunExecutableStartError::Failed)??;
-        let log_path = job.log.path.clone();
-        let prefix = job.prefix.clone();
-        let active = self.active.clone();
+        let (key, prefix, run) =
+            run_blocking(move || Ok(prepare(&request, adhoc_root, log_dir, cleanup)))
+                .await
+                .map_err(RunExecutableStartError::Failed)??;
+        let log_path = run.log.path.display().to_string();
+        let resolved_prefix_path = prefix.path.display().to_string();
         let spec = JobSpec::new(RUN_EXECUTABLE_JOB_KIND).with_key(key);
-        let starting = match start_run(&self.jobs, spec, move |ctx, completion, started| {
-            run_executable_job(ctx, job, owner, active, completion, started)
-        }) {
-            Ok(starting) => starting,
-            Err(error) => {
-                // Nothing ran: drop the empty log and the unique throwaway
-                // prefix this attempt created (a user prefix is kept).
-                remove_unused_log(&log_path);
-                prefix.cleanup().await;
-                return Err(conflict_as(error, MSG_PREFIX_BUSY).into());
-            }
-        };
-        let run = match starting.started().await {
+        let job_prefix = prefix.clone();
+        let run = match start_owned(&self.jobs, spec, slot, run, move |killed| {
+            job_prefix.finish(killed)
+        })
+        .await
+        {
             Ok(run) => run,
             Err(error) => {
-                // The job ended before its body ran (shutdown): its unique
-                // throwaway prefix belongs to no other run.
+                // A refused start never ran the body; the unique throwaway
+                // prefix of this attempt belongs to no other run.
                 prefix.cleanup().await;
                 return Err(error.into());
             }
@@ -132,8 +139,8 @@ impl RunExecutableService {
             result: RunExecutableResult {
                 succeeded: true,
                 message: MSG_LAUNCHED.to_string(),
-                helper_log_path: log_path.display().to_string(),
-                resolved_prefix_path: prefix.path.display().to_string(),
+                helper_log_path: log_path,
+                resolved_prefix_path,
             },
             run_id: run.run_id().to_string(),
         };
@@ -149,7 +156,7 @@ fn prepare(
     adhoc_root: Option<PathBuf>,
     log_dir: PathBuf,
     cleanup: CleanupFn,
-) -> Result<(JobKey, RunJob), RunExecutableStartError> {
+) -> Result<(JobKey, RunPrefix, OwnedRun), RunExecutableStartError> {
     validate_run_executable_request(request)?;
     let adhoc_root = match adhoc_root {
         Some(root) => root,
@@ -170,26 +177,38 @@ fn prepare(
     match key_and_log(request, &prefix, log_dir) {
         Ok((key, log)) => Ok((
             key,
-            RunJob {
+            prefix,
+            OwnedRun {
                 command,
-                prefix,
                 log,
+                text: RUNNER_TEXT,
             },
         )),
         Err(error) => {
             prefix.cleanup_blocking();
-            Err(error.into())
+            Err(error)
         }
     }
 }
 
 /// The resolved prefix's exclusivity key and the run's log file.
+///
+/// The prefix was just provisioned, so resolving it only fails when it
+/// vanished or became unreadable meanwhile: an explicit prefix then reports
+/// [`RunExecutableValidationError::PrefixPathMissing`] on its field, a
+/// throwaway prefix (no user field) an `Io` failure.
 fn key_and_log(
     request: &RunExecutableRequest,
     prefix: &RunPrefix,
     log_dir: PathBuf,
-) -> Result<(JobKey, LogFile), AppError> {
-    let (_, key) = prefix_job_key(&prefix.path.to_string_lossy())?;
+) -> Result<(JobKey, LogFile), RunExecutableStartError> {
+    let (_, key) = prefix_job_key(&prefix.path.to_string_lossy()).map_err(|error| {
+        if prefix.throwaway_root.is_some() {
+            RunExecutableStartError::Failed(AppError::new(AppErrorKind::Io, error.message()))
+        } else {
+            RunExecutableStartError::Validation(RunExecutableValidationError::PrefixPathMissing)
+        }
+    })?;
     let stem = Path::new(request.executable_path.trim())
         .file_stem()
         .and_then(|stem| stem.to_str())
@@ -223,96 +242,4 @@ fn core_error(error: RunExecutableError) -> RunExecutableStartError {
         | RunExecutableError::RunnerExitedWithFailure { .. } => AppErrorKind::Internal,
     };
     RunExecutableStartError::Failed(AppError::new(kind, error.message()))
-}
-
-fn remove_unused_log(path: &Path) {
-    if let Err(error) = std::fs::remove_file(path) {
-        tracing::debug!(%error, "unused run-executable log could not be removed");
-    }
-}
-
-/// The job body: registers the owner slot, signals `started`, runs the
-/// executable to completion, sweeps the prefix after a stop, removes a
-/// throwaway prefix, and only then sends the completion — so the prefix key
-/// is held until the prefix is gone.
-async fn run_executable_job(
-    ctx: JobContext,
-    job: RunJob,
-    owner: JobOwner,
-    active: ActiveJobs,
-    completion: oneshot::Sender<RunCompletion>,
-    started: oneshot::Sender<()>,
-) -> Outcome {
-    let RunJob {
-        command,
-        prefix,
-        log,
-    } = job;
-    let kill = CancellationToken::new();
-    let _slot = active.register(
-        owner,
-        ActiveJob {
-            id: ctx.id().clone(),
-            kill: kill.clone(),
-        },
-    );
-    if started.send(()).is_err() {
-        // The caller is gone before the executable started: run nothing.
-        prefix.cleanup().await;
-        return Outcome::Cancelled;
-    }
-    let sink_ctx = ctx.clone();
-    let result = run_child(
-        &ctx,
-        command,
-        log,
-        ChildOutput::LogFile,
-        &kill,
-        move |batch| {
-            sink_ctx.log_batch(batch);
-        },
-    )
-    .await;
-    if kill.is_cancelled() {
-        // Stop: also kill Wine processes outside the group (wineserver).
-        let swept = prefix.path.clone();
-        if let Err(error) =
-            tokio::task::spawn_blocking(move || kill_processes_using_prefix(&swept)).await
-        {
-            tracing::warn!(%error, "run-executable stop sweep task failed");
-        }
-    }
-    prefix.cleanup().await;
-    match result {
-        Ok(exit) => {
-            let (code, signal) = exit_code_and_signal(&exit);
-            let _ = completion.send(RunCompletion { code, signal });
-            exit_outcome(&exit, code)
-        }
-        Err(error) => {
-            let message = RunExecutableError::RunnerSpawnFailed {
-                message: error.to_string(),
-            }
-            .message();
-            ctx.log(vec![message.clone()]);
-            let _ = completion.send(RunCompletion {
-                code: None,
-                signal: None,
-            });
-            Outcome::Failed(AppError::new(AppErrorKind::Io, message))
-        }
-    }
-}
-
-fn exit_outcome(exit: &ChildExit, code: Option<i32>) -> Outcome {
-    if exit.was_cancelled() {
-        Outcome::Cancelled
-    } else if exit.status().success() {
-        Outcome::Succeeded
-    } else {
-        Outcome::Failed(AppError::new(
-            AppErrorKind::Internal,
-            RunExecutableError::RunnerExitedWithFailure { status: code }.message(),
-        ))
-    }
 }

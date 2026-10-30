@@ -15,9 +15,8 @@ mod types;
 
 pub(crate) use process::LOG_DIR;
 pub use process::{
-    create_log_file_in, create_log_path, create_log_path_in, kill_processes_using_prefix,
-    processes_using_prefix, slugify_target, supervise_child, supervise_child_with_kill, ChildExit,
-    DEFAULT_KILL_GRACE,
+    create_log_file_in, create_log_path_in, kill_processes_using_prefix, processes_using_prefix,
+    slugify_target, supervise_child, supervise_child_with_kill, ChildExit, DEFAULT_KILL_GRACE,
 };
 pub use registry::{
     JobContext, JobEvents, JobHandle, JobRegistry, JobRegistryConfig, DEFAULT_JOB_RETENTION,

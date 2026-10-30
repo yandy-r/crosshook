@@ -34,7 +34,7 @@ pub use platform::{
 };
 
 pub use proton_command::{
-    build_direct_proton_command_lifecycle, build_direct_proton_command_with_wrappers,
+    build_direct_proton_command_with_wrappers,
     build_direct_proton_command_with_wrappers_in_directory, build_gamescope_args,
     build_proton_command_with_gamescope, build_proton_command_with_gamescope_in_directory,
     build_proton_command_with_gamescope_pid_capture_in_directory, collect_pressure_vessel_paths,

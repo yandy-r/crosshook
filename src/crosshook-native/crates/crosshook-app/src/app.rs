@@ -2,13 +2,14 @@
 
 use std::future::Future;
 use std::sync::Arc;
+use std::time::Duration;
 
 use tokio::runtime::Handle;
 use tokio_util::sync::CancellationToken;
 
 use crate::error::AppError;
 use crate::events::{EventBus, EventReceiver, DEFAULT_EVENT_CAPACITY};
-use crate::jobs::JobRegistry;
+use crate::jobs::{JobRegistry, DEFAULT_KILL_GRACE};
 use crate::runtime::AppRuntime;
 
 /// Shared state behind every [`App`] clone.
@@ -36,6 +37,10 @@ impl Drop for Inner {
 /// initialize stores or startup snapshots.
 ///
 /// # Shutdown
+/// - Explicit ([`App::shutdown`]): cancels every job and app task, then waits
+///   (bounded) for running jobs to finish, so supervised child process groups
+///   are terminated before the shell exits the process. Shells whose event
+///   loop ends with `process::exit` (Tauri) must call it: drop never runs.
 /// - Owned runtime ([`App::new`]): the runtime is consumed with
 ///   [`tokio::runtime::Runtime::shutdown_background`] when the last clone
 ///   drops. This is safe to do from inside another Tokio runtime. Tasks are
@@ -60,6 +65,12 @@ impl Clone for App {
 }
 
 impl App {
+    /// Default bound for [`App::shutdown`]: the process-group kill grace
+    /// ([`DEFAULT_KILL_GRACE`]) plus one second for supervised jobs to reap
+    /// their children and publish `Finished`.
+    pub const DEFAULT_SHUTDOWN_TIMEOUT: Duration =
+        DEFAULT_KILL_GRACE.saturating_add(Duration::from_secs(1));
+
     /// Creates an app owning a new multi-thread Tokio runtime with the
     /// default event-bus capacity.
     /// This creates a runtime-only owner; use [`App::bootstrap`] for stores
@@ -122,6 +133,28 @@ impl App {
     /// Subscribes to the shared event bus.
     pub fn subscribe(&self) -> EventReceiver {
         self.inner.events.subscribe()
+    }
+
+    /// Shuts the app down: cancels the app shutdown token (every job token
+    /// and every [`App::spawn`] task) and waits until no job is running or
+    /// `timeout` elapses. Returns whether every job finished in time.
+    ///
+    /// Process jobs terminate their process groups on cancel (`SIGTERM`, then
+    /// `SIGKILL` after [`DEFAULT_KILL_GRACE`]), so
+    /// [`App::DEFAULT_SHUTDOWN_TIMEOUT`] lets them finish. A job that ignores
+    /// cancellation cannot extend the wait past `timeout`.
+    ///
+    /// The wait runs on the app runtime, so the returned future polls on any
+    /// executor. Calling it again only waits again; the app stays cancelled.
+    pub async fn shutdown(&self, timeout: Duration) -> bool {
+        self.inner.shutdown.cancel();
+        let jobs = self.inner.jobs.clone();
+        let wait = self
+            .inner
+            .runtime
+            .handle()
+            .spawn(async move { tokio::time::timeout(timeout, jobs.wait_idle()).await });
+        matches!(wait.await, Ok(Ok(())))
     }
 
     /// Spawns `f` on the app runtime immediately and returns a future that

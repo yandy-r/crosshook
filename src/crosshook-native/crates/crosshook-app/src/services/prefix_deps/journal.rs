@@ -13,7 +13,9 @@ use std::sync::Arc;
 use chrono::Utc;
 use crosshook_core::metadata::PrefixVersionRestoreJournalRow;
 use crosshook_core::platform::normalized_path_is_executable_file_on_host;
-use crosshook_core::prefix_deps::runner::{is_windows_version_verb, sanitize_output_for_ui};
+use crosshook_core::prefix_deps::runner::{
+    is_windows_version_verb, normalize_prefix_path, sanitize_output_for_ui,
+};
 use crosshook_core::prefix_deps::validation::{
     parse_nonzero_steam_app_id, validate_protontricks_verbs,
 };
@@ -115,6 +117,17 @@ fn validate_binary_path(binary_path: &str) -> Result<(), String> {
         return Ok(());
     }
     Err("repair journal has an invalid tool binary path".to_string())
+}
+
+/// S-6: a replayed row must name the prefix by the canonical `pfx` path the
+/// caller keyed on, so the job key, the in-use probe and the restore all
+/// target the same prefix. Blocking (canonicalizes).
+fn validate_prefix_path(canonical: &str, stored: &str) -> Result<(), String> {
+    match normalize_prefix_path(stored) {
+        Ok(normalized) if normalized == stored && stored == canonical => Ok(()),
+        Ok(_) => Err("repair journal prefix path is not canonical".to_string()),
+        Err(_) => Err("repair journal prefix path does not resolve to a prefix".to_string()),
+    }
 }
 
 impl TryFrom<PrefixVersionRestoreJournalRow> for JournalEntry {
@@ -360,7 +373,9 @@ impl PrefixVersionJournal {
         if row.state == STATE_FAILED && !include_failed {
             return RecoveryResult::SkippedFailed;
         }
-        let entry = match JournalEntry::try_from(row) {
+        let entry = match validate_prefix_path(canonical, &row.prefix_path)
+            .and_then(|()| JournalEntry::try_from(row))
+        {
             Ok(entry) => entry,
             Err(error) => {
                 let error = sanitize_output_for_ui(&error);

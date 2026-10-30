@@ -23,6 +23,9 @@ fn validate_executable_path(path: &str) -> Result<(), RunExecutableValidationErr
     }
 
     let path = Path::new(normalized_path.trim());
+    if !path.is_absolute() {
+        return Err(RunExecutableValidationError::ExecutablePathNotAbsolute);
+    }
     if !normalized_path_is_file(normalized_path.trim()) {
         if !path.exists() {
             return Err(RunExecutableValidationError::ExecutablePathMissing);
@@ -43,6 +46,9 @@ fn validate_proton_path(path: &str) -> Result<(), RunExecutableValidationError> 
     }
 
     let path = Path::new(normalized_path.trim());
+    if !path.is_absolute() {
+        return Err(RunExecutableValidationError::ProtonPathNotAbsolute);
+    }
     if !normalized_path_is_executable_file(normalized_path.trim()) {
         if !path.exists() {
             return Err(RunExecutableValidationError::ProtonPathMissing);
@@ -60,6 +66,9 @@ fn validate_optional_prefix_path(path: &str) -> Result<(), RunExecutableValidati
     }
 
     let path = Path::new(normalized_path.trim());
+    if !path.is_absolute() {
+        return Err(RunExecutableValidationError::PrefixPathNotAbsolute);
+    }
     if !normalized_path_is_dir(normalized_path.trim()) {
         if !path.exists() {
             return Err(RunExecutableValidationError::PrefixPathMissing);

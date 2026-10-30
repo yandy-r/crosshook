@@ -69,12 +69,15 @@ export function isRunExecutableCompletePayload(value: unknown): value is RunExec
  */
 export type RunExecutableValidationVariant =
   | 'executable_path_required'
+  | 'executable_path_not_absolute'
   | 'executable_path_missing'
   | 'executable_path_not_file'
   | 'executable_path_not_windows_executable'
   | 'proton_path_required'
+  | 'proton_path_not_absolute'
   | 'proton_path_missing'
   | 'proton_path_not_executable'
+  | 'prefix_path_not_absolute'
   | 'prefix_path_missing'
   | 'prefix_path_not_directory';
 

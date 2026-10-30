@@ -34,9 +34,9 @@ impl PrefixDepsService {
             .await
             .map_err(|error| conflict_as(error, &msg_already_installing(&canonical)))?;
         tracing::info!(?result, "prefix Windows-version repair finished");
-        // A later status must not keep showing an older automatic recovery
-        // result that this repair superseded.
-        self.recoveries.record(&canonical, &result);
+        // The repair supersedes any earlier automatic recovery result, and is
+        // itself not an automatic recovery (`last_recovery`, D9).
+        self.recoveries.clear(&canonical);
         let service = self.clone();
         run_blocking(move || {
             let mut status = service.journal.status(&canonical)?;

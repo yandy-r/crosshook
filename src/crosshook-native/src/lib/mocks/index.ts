@@ -23,6 +23,7 @@ import { registerLibrary } from './handlers/library';
 import { registerLutris } from './handlers/lutris';
 import { registerMods, resetModsMockState } from './handlers/mods';
 import { registerOnboarding, resetOnboardingMockState } from './handlers/onboarding';
+import { registerPrefixDeps, resetPrefixDepsMockState } from './handlers/prefix_deps';
 import { registerProfile, resetProfileMockState } from './handlers/profile';
 import { registerProton } from './handlers/proton';
 import { registerProtonDb, resetProtonDbMockState } from './handlers/protondb';
@@ -60,6 +61,7 @@ export function registerMocks(): Map<string, Handler> {
   registerLauncher(map);
   registerLibrary(map);
   registerSystem(map);
+  registerPrefixDeps(map);
   registerRunExecutable(map);
   registerCollections(map);
   registerMods(map);
@@ -83,6 +85,7 @@ export function resetMockEnvironment(): void {
   resetLaunchMockState();
   resetModsMockState();
   resetOnboardingMockState();
+  resetPrefixDepsMockState();
   resetProfileMockState();
   resetProtonDbMockState();
   resetProtonUpMockState();

@@ -232,7 +232,8 @@ async fn j4f_record_failure_spawns_nothing() {
     assert_eq!(jobs.job_counts(), (0, 0));
 }
 
-// J4g: a spawn failure after the record keeps the row `pending`.
+// J4g: a spawn failure after the record fails the start (C-3: no completion
+// is sent for a child that never ran) and keeps the row `pending`.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn j4g_spawn_failure_keeps_row_pending() {
     let h = Harness::new();
@@ -246,17 +247,14 @@ async fn j4g_spawn_failure_keeps_row_pending() {
         Arc::new(FakeProbe::winetricks(&missing.to_string_lossy())),
     );
 
-    let mut run = service
+    let error = service
         .start_install(PROFILE.to_string(), raw_prefix(&h), packages())
         .await
-        .unwrap();
-    let (_, completion) = drain(&mut run).await;
+        .err()
+        .expect("a tool that cannot be spawned fails the start");
 
-    assert!(!completion.outcome.install_succeeded);
-    assert_eq!(
-        completion.outcome.restore_state,
-        PrefixVersionRestoreState::Pending
-    );
+    assert_eq!(error.kind(), AppErrorKind::Io);
+    assert!(!error.message().contains("/home/"), "{}", error.message());
     assert_eq!(restorer.count(), 0, "no restore with a tool that never ran");
     let row = h
         .row()

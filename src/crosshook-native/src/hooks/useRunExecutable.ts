@@ -70,15 +70,33 @@ function normalizeUnknownError(error: unknown): string {
   return 'An unexpected error occurred.';
 }
 
+/** Events of one run that arrived before its `run_id` was known. */
+interface BufferedRun {
+  lines: string[];
+  completion: RunExecutableCompletePayload | null;
+}
+
 /**
  * Which run's events the hook accepts. `starting` covers the window between
- * calling `run_executable` and learning its `run_id`: the backend runs at most
- * one executable at a time, so any event seen then belongs to this run.
+ * calling `run_executable` and learning its `run_id`. Events are global, so a
+ * late event of an earlier (cancelled) run or another window's run can arrive
+ * then: they are buffered per `run_id`, and only the returned run's buffer is
+ * replayed. The backend refuses a second run per window (`Conflict`), which
+ * `startRun` surfaces as an error.
  */
-type RunTracking = { kind: 'idle' } | { kind: 'starting' } | { kind: 'active'; runId: string };
+type StartingTracking = { kind: 'starting'; buffered: Map<string, BufferedRun> };
+type RunTracking = { kind: 'idle' } | StartingTracking | { kind: 'active'; runId: string };
 
-function acceptsRun(tracking: RunTracking, runId: string): boolean {
-  return tracking.kind === 'starting' || (tracking.kind === 'active' && tracking.runId === runId);
+/** How many recently completed run_ids are remembered for detached starts. */
+const RECENT_COMPLETIONS_CAP = 16;
+
+function bufferFor(tracking: StartingTracking, runId: string): BufferedRun {
+  let entry = tracking.buffered.get(runId);
+  if (entry === undefined) {
+    entry = { lines: [], completion: null };
+    tracking.buffered.set(runId, entry);
+  }
+  return entry;
 }
 
 function appendCapped(lines: string[], line: string): string[] {
@@ -107,36 +125,58 @@ export function useRunExecutable(): UseRunExecutableResult {
   const [error, setError] = useState<string | null>(null);
   const [logLines, setLogLines] = useState<string[]>([]);
   const trackingRef = useRef<RunTracking>({ kind: 'idle' });
+  // Bumped by every start and by reset; an in-flight start whose generation is
+  // stale detaches (and cancels the run it started) instead of taking over.
+  const generationRef = useRef(0);
+  // run_ids whose completion was seen, so a detached start does not cancel the
+  // window's slot after its own run already ended (it may hold a newer run).
+  const recentCompletionsRef = useRef<string[]>([]);
+
+  const applyCompletion = useCallback((payload: RunExecutableCompletePayload) => {
+    const failure = completionError(payload);
+    setStage(failure === null ? 'complete' : 'failed');
+    setError(failure);
+  }, []);
 
   // One listener pair for the hook's lifetime, filtered by the tracked run.
-  // `run-executable-complete` may arrive before `run_executable` resolves for
-  // a short-lived process; the terminal stage it sets is kept by the
-  // functional update in `startRun`.
+  // While starting, events are buffered per run_id until `run_executable`
+  // returns this run's id; a short-lived process may complete before that.
   useEffect(() => {
     const unlistenLog = subscribeEvent<unknown>('run-executable-log', (event) => {
       const payload = event.payload;
-      if (!isRunExecutableLogPayload(payload) || !acceptsRun(trackingRef.current, payload.run_id)) {
+      if (!isRunExecutableLogPayload(payload)) {
         return;
       }
-      setLogLines((lines) => appendCapped(lines, payload.line));
+      const tracking = trackingRef.current;
+      if (tracking.kind === 'starting') {
+        const buffered = bufferFor(tracking, payload.run_id);
+        buffered.lines = appendCapped(buffered.lines, payload.line);
+      } else if (tracking.kind === 'active' && tracking.runId === payload.run_id) {
+        setLogLines((lines) => appendCapped(lines, payload.line));
+      }
     });
 
     const unlistenComplete = subscribeEvent<unknown>('run-executable-complete', (event) => {
       const payload = event.payload;
-      if (!isRunExecutableCompletePayload(payload) || !acceptsRun(trackingRef.current, payload.run_id)) {
+      if (!isRunExecutableCompletePayload(payload)) {
         return;
       }
-      const failure = completionError(payload);
-      setStage(failure === null ? 'complete' : 'failed');
-      setError(failure);
+      const recent = recentCompletionsRef.current;
+      recent.push(payload.run_id);
+      if (recent.length > RECENT_COMPLETIONS_CAP) recent.shift();
+      const tracking = trackingRef.current;
+      if (tracking.kind === 'starting') {
+        bufferFor(tracking, payload.run_id).completion = payload;
+      } else if (tracking.kind === 'active' && tracking.runId === payload.run_id) {
+        applyCompletion(payload);
+      }
     });
 
     return () => {
       void unlistenLog.then((unlisten) => unlisten());
       void unlistenComplete.then((unlisten) => unlisten());
     };
-  }, []);
-
+  }, [applyCompletion]);
   const applyCommandError = useCallback((commandError: RunCommandError) => {
     if (commandError.kind === 'validation') {
       setValidation((current) => ({
@@ -193,6 +233,9 @@ export function useRunExecutable(): UseRunExecutableResult {
   }, []);
 
   const startRun = useCallback(async () => {
+    generationRef.current += 1;
+    const generation = generationRef.current;
+    const isCurrent = () => generationRef.current === generation;
     trackingRef.current = { kind: 'idle' };
     setLogLines([]);
     setValidation(createEmptyValidationState());
@@ -203,6 +246,7 @@ export function useRunExecutable(): UseRunExecutableResult {
     try {
       await callCommand<void>('validate_run_executable_request', { request });
     } catch (invokeError) {
+      if (!isCurrent()) return;
       setStage('idle');
       if (isRunCommandError(invokeError)) {
         applyCommandError(invokeError);
@@ -214,15 +258,35 @@ export function useRunExecutable(): UseRunExecutableResult {
       }
       return;
     }
+    if (!isCurrent()) return;
 
-    trackingRef.current = { kind: 'starting' };
+    const starting: StartingTracking = { kind: 'starting', buffered: new Map() };
+    trackingRef.current = starting;
     try {
       const runResult = await callCommand<RunExecutableResult>('run_executable', { request });
+      if (!isCurrent()) {
+        // Reset or a newer start happened while this start was in flight:
+        // detach from the run and stop it, unless it already finished (then
+        // the window's run slot may belong to the newer run).
+        if (!recentCompletionsRef.current.includes(runResult.run_id)) {
+          void cancelRun();
+        }
+        return;
+      }
       trackingRef.current = { kind: 'active', runId: runResult.run_id };
       setResult(runResult);
-      // Keep a terminal stage set by a completion event that beat the invoke response.
-      setStage((current) => (current === 'preparing' ? 'running' : current));
+      // Replay only this run's events that beat the invoke response.
+      const buffered = starting.buffered.get(runResult.run_id);
+      if (buffered !== undefined) {
+        setLogLines(buffered.lines);
+      }
+      if (buffered?.completion) {
+        applyCompletion(buffered.completion);
+      } else {
+        setStage('running');
+      }
     } catch (invokeError) {
+      if (!isCurrent()) return;
       trackingRef.current = { kind: 'idle' };
       setStage('failed');
       if (isRunCommandError(invokeError)) {
@@ -233,18 +297,20 @@ export function useRunExecutable(): UseRunExecutableResult {
           setStage('idle');
           applyCommandError(invokeError);
         } else {
+          // Includes `Conflict` when this window already has an active run.
           setError(invokeError.message);
         }
       } else {
         setError(normalizeUnknownError(invokeError));
       }
     }
-  }, [applyCommandError, request]);
+  }, [applyCommandError, applyCompletion, cancelRun, request]);
 
   const reset = useCallback(() => {
     if (stage === 'running' || stage === 'preparing') {
       void cancelRun();
     }
+    generationRef.current += 1;
     trackingRef.current = { kind: 'idle' };
     setRequest(createEmptyRequest());
     setValidation(createEmptyValidationState());

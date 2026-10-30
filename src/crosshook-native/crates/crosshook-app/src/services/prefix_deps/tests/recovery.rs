@@ -115,11 +115,33 @@ async fn failed_row_waits_for_explicit_repair() {
     assert_eq!(row.state, "failed");
     assert_eq!(row.last_error.as_deref(), Some("restore timed out"));
 
-    // The explicit repair does retry it.
+    // The explicit repair does retry it, and is not reported as an automatic
+    // recovery.
     let status = service.repair(raw_prefix(&h)).await.unwrap();
     assert!(!status.required);
+    assert_eq!(status.last_recovery, None);
     assert_eq!(read_calls(&h.calls), vec!["-q win10"]);
     assert!(h.row().is_none());
+    let status = service.repair_status(raw_prefix(&h)).await.unwrap();
+    assert_eq!(status.last_recovery, None);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn explicit_repair_clears_an_earlier_failed_recovery() {
+    let h = Harness::new();
+    let tool = h.tool(&ToolScript {
+        restore_exit: 1,
+        ..ToolScript::default()
+    });
+    h.seed_row(&pending_row(&h.prefix, &tool));
+    let service = h.service(JobRegistry::default(), &tool);
+    let results = service.recover_on_startup().await;
+    assert!(matches!(results[0].1, RecoveryResult::RestoreFailed { .. }));
+
+    let status = service.repair(raw_prefix(&h)).await.unwrap();
+
+    assert!(status.required, "the restore still fails");
+    assert_eq!(status.last_recovery, None);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

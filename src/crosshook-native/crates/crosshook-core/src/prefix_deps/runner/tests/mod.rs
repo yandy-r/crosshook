@@ -3,6 +3,7 @@
 use std::fs;
 use std::path::Path;
 
+mod bounded;
 mod check;
 mod install;
 mod normalize;

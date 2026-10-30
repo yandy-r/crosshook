@@ -1,81 +1,76 @@
-//! Owner slot: register, get, and guard removal of the matching id only.
+//! Owner slots: one slot per owner, owner-checked cancel and kill, a cancel
+//! before the bind, and slot release on drop.
 
-use tokio_util::sync::CancellationToken;
+use tokio::sync::oneshot;
 
-use crate::jobs::JobId;
-use crate::services::process::owner::{ActiveJob, ActiveJobs, JobOwner};
-
-fn job(id: &str) -> (ActiveJob, CancellationToken) {
-    let kill = CancellationToken::new();
-    (
-        ActiveJob {
-            id: JobId::from_string(id),
-            kill: kill.clone(),
-        },
-        kill,
-    )
-}
+use crate::jobs::{JobId, JobRegistry, JobSpec, Outcome};
+use crate::services::process::owner::{ActiveJobs, JobOwner, MSG_OWNER_BUSY};
+use crate::AppErrorKind;
 
 #[test]
-fn register_and_get_return_the_owner_entry_only() {
+fn a_second_claim_of_the_same_owner_conflicts_until_the_first_is_released() {
     let active = ActiveJobs::default();
     let owner = JobOwner::new("main");
-    let foreign = JobOwner::new("other");
-    let (entry, kill) = job("job-1");
 
-    let guard = active.register(owner.clone(), entry);
-    let (id, token) = active.get(&owner).expect("owner has an active job");
-    assert_eq!(id, JobId::from_string("job-1"));
-    // The stored token is the registered one: firing it reaches the job.
-    token.cancel();
-    assert!(kill.is_cancelled());
-    assert!(active.get(&foreign).is_none());
+    let first = active.claim(owner.clone()).unwrap();
+    let error = active.claim(owner.clone()).err().expect("owner is busy");
+    assert_eq!(error.kind(), AppErrorKind::Conflict);
+    assert_eq!(error.message(), MSG_OWNER_BUSY);
+    // Another owner is independent.
+    let _other = active.claim(JobOwner::new("other")).unwrap();
+    assert_eq!(active.len(), 2);
+
+    drop(first);
     assert_eq!(active.len(), 1);
-
-    drop(guard);
-    assert!(active.get(&owner).is_none());
-    assert_eq!(active.len(), 0);
+    let _again = active.claim(owner).unwrap();
 }
 
 #[test]
-fn stale_guard_does_not_remove_a_newer_entry() {
+fn kill_fires_only_the_owner_token() {
     let active = ActiveJobs::default();
-    let owner = JobOwner::new("main");
-    let (first, _) = job("job-1");
-    let (second, _) = job("job-2");
+    let slot = active.claim(JobOwner::new("main")).unwrap();
+    let other = active.claim(JobOwner::new("other")).unwrap();
 
-    let old_guard = active.register(owner.clone(), first);
-    let new_guard = active.register(owner.clone(), second);
-    assert_eq!(active.get(&owner).unwrap().0, JobId::from_string("job-2"));
+    assert!(!active.kill(&JobOwner::new("stranger")));
+    assert!(active.kill(&JobOwner::new("main")));
+    assert!(slot.kill_token().is_cancelled());
+    assert!(!other.kill_token().is_cancelled());
 
-    // The replaced job finishing must leave the newer registration alone.
-    drop(old_guard);
-    assert_eq!(active.get(&owner).unwrap().0, JobId::from_string("job-2"));
-
-    drop(new_guard);
-    assert!(active.get(&owner).is_none());
+    drop(slot);
+    assert!(!active.kill(&JobOwner::new("main")));
 }
 
 #[test]
-fn owners_are_independent() {
+fn a_cancel_before_the_bind_is_reported_by_the_bind() {
     let active = ActiveJobs::default();
-    let (a, _) = job("job-a");
-    let (b, _) = job("job-b");
-    let guard_a = active.register(JobOwner::new("a"), a);
-    let _guard_b = active.register(JobOwner::new("b"), b);
-    drop(guard_a);
-    assert!(active.get(&JobOwner::new("a")).is_none());
-    assert_eq!(
-        active.get(&JobOwner::new("b")).unwrap().0,
-        JobId::from_string("job-b")
-    );
+    let jobs = JobRegistry::default();
+    let slot = active.claim(JobOwner::new("main")).unwrap();
+
+    assert!(active.cancel(&JobOwner::new("main"), &jobs));
+    assert!(slot.bind(&JobId::from_string("job-1")));
+    assert!(!active.cancel(&JobOwner::new("stranger"), &jobs));
 }
 
-#[test]
-fn clones_share_entries() {
+#[tokio::test]
+async fn a_cancel_after_the_bind_cancels_the_bound_job_only() {
     let active = ActiveJobs::default();
-    let clone = active.clone();
-    let (entry, _) = job("job-1");
-    let _guard = active.register(JobOwner::new("main"), entry);
-    assert!(clone.get(&JobOwner::new("main")).is_some());
+    let jobs = JobRegistry::default();
+    let slot = active.claim(JobOwner::new("main")).unwrap();
+    let (id_tx, id_rx) = oneshot::channel();
+    let handle = jobs
+        .start(JobSpec::new("test-owner"), move |ctx| async move {
+            let _ = id_tx.send(ctx.id().clone());
+            ctx.cancelled().await;
+            Outcome::Cancelled
+        })
+        .unwrap();
+    let id = id_rx.await.unwrap();
+    assert!(!slot.bind(&id));
+
+    assert!(!active.cancel(&JobOwner::new("stranger"), &jobs));
+    assert!(active.cancel(&JobOwner::new("main"), &jobs));
+    let mut events = handle.into_events();
+    while events.recv().await.is_some() {}
+    jobs.reap(&id).unwrap();
+    assert_eq!(jobs.job_counts(), (0, 0));
 }

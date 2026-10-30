@@ -8,7 +8,10 @@ use tokio::sync::oneshot;
 
 use super::{drain, next_line, open_gate, Fixture};
 use crate::jobs::{JobSpec, Outcome};
-use crate::services::process::{prefix_job_key, JobOwner, MSG_PREFIX_BUSY};
+use crate::services::process::owner::MSG_OWNER_BUSY;
+use crate::services::process::{
+    prefix_job_key, prefix_job_key_for_path, JobOwner, MSG_PREFIX_BUSY,
+};
 use crate::services::update::{UpdateCompletion, UpdateGameResponse};
 use crate::AppErrorKind;
 
@@ -187,6 +190,107 @@ async fn held_prefix_key_conflicts_and_nothing_runs() {
     let mut events = holder.into_events();
     while events.recv().await.is_some() {}
     fixture.jobs.reap(&id).unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_second_start_of_the_same_window_conflicts_while_its_update_is_active() {
+    let fixture = Fixture::new();
+    let fifo = fixture.fifo();
+    fixture.install_proton(&gate_script(&fifo, "echo ready", "echo done"));
+    let owner = JobOwner::new("main");
+    let (_, mut run) = fixture
+        .service
+        .start(owner.clone(), fixture.request())
+        .await
+        .unwrap();
+    assert_eq!(next_line(&mut run).await, "ready");
+
+    let error = fixture
+        .service
+        .start(owner.clone(), fixture.request())
+        .await
+        .err()
+        .expect("one active update per window");
+    assert_eq!(error.kind(), AppErrorKind::Conflict);
+    assert_eq!(error.message(), MSG_OWNER_BUSY);
+    assert_eq!(
+        fixture.log_files().len(),
+        1,
+        "the refused start left no log"
+    );
+    // The first update is still the window's: its cancel reaches it.
+    assert!(fixture.service.cancel(&owner));
+    let (_, completion) = drain(&mut run).await;
+    assert_eq!(
+        completion,
+        Some(UpdateCompletion {
+            code: None,
+            signal: Some(15)
+        })
+    );
+    assert_eq!(fixture.service.active.len(), 0);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_fresh_prefix_conflicts_with_a_job_on_its_future_pfx() {
+    let fixture = Fixture::new();
+    let invoked = fixture.dir.path().join("invoked");
+    fixture.install_proton(&format!("touch '{}'", invoked.display()));
+    // The fixture prefix has no `pfx` yet; a game install holds the `pfx`
+    // Proton will create there.
+    let key = prefix_job_key_for_path(&fixture.prefix.join("pfx"));
+    let (release_tx, release_rx) = oneshot::channel::<()>();
+    let holder = fixture
+        .jobs
+        .start(
+            JobSpec::new("install-game").with_key(key),
+            move |_| async move {
+                let _ = release_rx.await;
+                Outcome::Succeeded
+            },
+        )
+        .unwrap();
+
+    let error = fixture
+        .service
+        .start(JobOwner::new("main"), fixture.request())
+        .await
+        .err()
+        .expect("the fresh prefix is busy");
+    assert_eq!(error.kind(), AppErrorKind::Conflict);
+    assert_eq!(error.message(), MSG_PREFIX_BUSY);
+    assert!(!invoked.exists(), "the updater must not run");
+
+    release_tx.send(()).unwrap();
+    let id = holder.id().clone();
+    let mut events = holder.into_events();
+    while events.recv().await.is_some() {}
+    fixture.jobs.reap(&id).unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_spawn_failure_fails_the_start_like_before() {
+    let fixture = Fixture::new();
+    // Validation passes (an executable file) but the exec fails.
+    super::write_executable(&fixture.proton, "#!/nonexistent/interpreter\n");
+
+    let error = fixture
+        .service
+        .start(JobOwner::new("main"), fixture.request())
+        .await
+        .err()
+        .expect("spawn failure fails the start");
+    assert_eq!(error.kind(), AppErrorKind::Io);
+    assert!(
+        error
+            .message()
+            .starts_with("Failed to launch the updater through Proton: "),
+        "unexpected text: {}",
+        error.message()
+    );
+    assert!(fixture.log_files().is_empty(), "unused log removed");
+    assert_eq!(fixture.jobs.job_counts(), (0, 0));
+    assert_eq!(fixture.service.active.len(), 0);
 }
 
 #[tokio::test]

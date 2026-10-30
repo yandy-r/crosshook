@@ -1,7 +1,7 @@
 //! The installer run: prepare, take the prefix key, run the installer as a
 //! supervised job, then build the reviewable result.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crosshook_core::install::{
     finish_install, prepare_install, InstallGameError, InstallGameRequest, InstallGameResult,
@@ -13,10 +13,10 @@ use tokio_util::sync::CancellationToken;
 
 use super::{install_error, InstallService, INSTALL_GAME_JOB_KIND};
 use crate::jobs::{create_log_file_in, slugify_target, JobContext, JobKey, JobSpec, Outcome};
-use crate::services::process::child::{run_child, ChildOutput, LogFile};
+use crate::services::process::child::{run_child, ChildError, ChildOutput, LogFile};
 use crate::services::process::run::start_run;
 use crate::services::process::{
-    conflict_as, prefix_job_key, prefix_job_key_for_path, ProcessRun, MSG_PREFIX_BUSY,
+    conflict_as, prefix_job_key, remove_unused_log, ProcessRun, MSG_PREFIX_BUSY,
 };
 use crate::services::run_blocking;
 use crate::{AppError, AppErrorKind};
@@ -39,15 +39,18 @@ impl InstallService {
     /// Validation and prefix provisioning (`prepare_install`) and log-file
     /// creation fail synchronously; then the job takes the prefix's
     /// exclusivity key and runs `<proton> run <installer>` with its output in
-    /// the log file. The run's completion is the reviewable result after a
-    /// successful exit, the core failure text (`Io`) after a non-zero exit or
-    /// a spawn failure, or `Cancelled` when the job was cancelled (app
-    /// shutdown), which also ends the installer's process group.
+    /// the log file. The run is returned once the installer was spawned. Its
+    /// completion is the reviewable result after a successful exit, the core
+    /// failure text (`Io`) after a non-zero exit, or `Cancelled` when the job
+    /// was cancelled (app shutdown), which also ends the installer's process
+    /// group.
     ///
     /// # Errors
     /// `Validation { field }` for an invalid request, `Io` when the prefix or
-    /// the log file cannot be created, and `Conflict` when another operation
-    /// already holds the prefix.
+    /// the log file cannot be created or the installer cannot be spawned,
+    /// `Conflict` when another operation already holds the prefix, and
+    /// `Cancelled` when the job was cancelled before the spawn. The empty log
+    /// of an attempt that never started is removed.
     pub async fn start(
         &self,
         request: InstallGameRequest,
@@ -76,16 +79,15 @@ impl InstallService {
                 },
             )
         });
-        match starting {
+        let run = match starting {
             Ok(starting) => starting.started().await,
-            Err(error) => {
-                // Nothing ran: drop the empty log this attempt created.
-                if let Err(remove_error) = std::fs::remove_file(&log_path) {
-                    tracing::debug!(%remove_error, "unused install log was not removed");
-                }
-                Err(conflict_as(error, MSG_PREFIX_BUSY))
-            }
+            Err(error) => Err(conflict_as(error, MSG_PREFIX_BUSY)),
+        };
+        if run.is_err() {
+            // Nothing ran: drop the empty log this attempt created.
+            remove_unused_log(&log_path);
         }
+        run
     }
 }
 
@@ -96,7 +98,7 @@ fn prepare_run(request: &InstallGameRequest, log_dir: PathBuf) -> Result<Prepare
         command,
         prefix_path,
     } = prepare_install(request).map_err(install_error)?;
-    let key = install_job_key(&prefix_path)?;
+    let (_, key) = prefix_job_key(&prefix_path.to_string_lossy())?;
     let (path, file) = create_log_file_in(
         log_dir,
         "install",
@@ -109,33 +111,6 @@ fn prepare_run(request: &InstallGameRequest, log_dir: PathBuf) -> Result<Prepare
         key,
         log: LogFile { path, file },
     })
-}
-
-/// Proton's wine-prefix directory under the compat data path.
-const PFX_DIR: &str = "pfx";
-
-/// The exclusivity key of the provisioned `prefix_path`.
-///
-/// Proton keeps the wine prefix in `<compat data>/pfx`, which every later
-/// operation on this prefix resolves and keys on (D5). A fresh prefix has no
-/// `pfx` yet, so the install is keyed on the `pfx` Proton is about to create;
-/// an existing one on the same canonical effective prefix as everyone else.
-///
-/// # Errors
-/// `Validation { field: "prefix_path" }` when the prefix cannot be resolved.
-pub(super) fn install_job_key(prefix_path: &Path) -> Result<JobKey, AppError> {
-    let canonical = std::fs::canonicalize(prefix_path).map_err(|error| {
-        AppError::validation(
-            "prefix_path",
-            format!("could not resolve the prefix path: {error}"),
-        )
-    })?;
-    let is_pfx = canonical.file_name().is_some_and(|name| name == PFX_DIR);
-    if is_pfx || canonical.join(PFX_DIR).is_dir() {
-        let (_, key) = prefix_job_key(&canonical.to_string_lossy())?;
-        return Ok(key);
-    }
-    Ok(prefix_job_key_for_path(&canonical.join(PFX_DIR)))
 }
 
 /// The job body's inputs.
@@ -159,11 +134,6 @@ async fn run_installer(
         prefix_path,
         log,
     } = job;
-    // The caller holds the run before any output exists.
-    let _ = started.send(());
-    if ctx.is_cancelled() {
-        return finish(completion, Err(AppError::cancelled()));
-    }
     let log_path = log.path.clone();
     let sink_ctx = ctx.clone();
     let exit = run_child(
@@ -172,11 +142,20 @@ async fn run_installer(
         log,
         ChildOutput::LogFile,
         &CancellationToken::new(),
+        started,
         move |batch| sink_ctx.log_batch(batch),
     )
     .await;
     let result = match exit {
-        Err(error) => Err(failure(InstallGameError::InstallerSpawnFailed {
+        // Nothing was spawned and `started` was not sent: the outcome
+        // becomes the error of `start` itself, no completion is read.
+        Err(ChildError::Cancelled) => return Outcome::Cancelled,
+        Err(ChildError::Spawn(error)) => {
+            return Outcome::Failed(failure(InstallGameError::InstallerSpawnFailed {
+                message: error.to_string(),
+            }));
+        }
+        Err(ChildError::Supervise(error)) => Err(failure(InstallGameError::InstallerSpawnFailed {
             message: error.to_string(),
         })),
         Ok(exit) if exit.was_cancelled() => Err(cancelled()),

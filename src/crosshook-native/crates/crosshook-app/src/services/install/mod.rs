@@ -92,7 +92,6 @@ fn install_error(error: InstallGameError) -> AppError {
         }
         InstallGameError::PrefixCreationFailed { .. }
         | InstallGameError::InstallerSpawnFailed { .. }
-        | InstallGameError::InstallerWaitFailed { .. }
         | InstallGameError::InstallerExitedWithFailure { .. } => {
             AppError::new(AppErrorKind::Io, message)
         }
@@ -110,12 +109,19 @@ fn validation_field(error: &InstallGameValidationError) -> &'static str {
     match error {
         E::ProfileNameRequired | E::ProfileNameInvalid => "profile_name",
         E::InstallerPathRequired
+        | E::InstallerPathNotAbsolute
         | E::InstallerPathMissing
         | E::InstallerPathNotFile
         | E::InstallerPathNotWindowsExecutable => "installer_path",
         E::TrainerPathMissing | E::TrainerPathNotFile => "trainer_path",
-        E::ProtonPathRequired | E::ProtonPathMissing | E::ProtonPathNotExecutable => "proton_path",
-        E::PrefixPathRequired | E::PrefixPathMissing | E::PrefixPathNotDirectory => "prefix_path",
+        E::ProtonPathRequired
+        | E::ProtonPathNotAbsolute
+        | E::ProtonPathMissing
+        | E::ProtonPathNotExecutable => "proton_path",
+        E::PrefixPathRequired
+        | E::PrefixPathNotAbsolute
+        | E::PrefixPathMissing
+        | E::PrefixPathNotDirectory => "prefix_path",
         E::InstalledGameExecutablePathMissing | E::InstalledGameExecutablePathNotFile => {
             "installed_game_executable_path"
         }

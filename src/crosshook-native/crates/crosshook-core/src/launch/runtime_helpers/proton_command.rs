@@ -125,26 +125,15 @@ pub fn build_direct_proton_command_with_wrappers_in_directory(
     command
 }
 
-/// Builds a lifecycle-bound direct `<proton> run` command (no wrappers, no umu).
+/// Builds a lifecycle-bound direct `<proton> run` command (no wrappers, no
+/// umu) with an explicit Flatpak decision (callers pass
+/// [`platform::is_flatpak`]).
 ///
-/// Uses [`platform::host_command_with_env_and_directory_lifecycle`], so inside
-/// Flatpak the proxy is `flatpak-spawn --host --watch-bus --clear-env …` and the
-/// host Proton process dies with the proxy on cancel, timeout or app exit.
-/// Outside Flatpak `env` is applied directly to the command. The caller sets
-/// stdio, `process_group(0)` and `kill_on_drop(true)` before spawning.
-pub fn build_direct_proton_command_lifecycle(
-    proton_path: &str,
-    env: &BTreeMap<String, String>,
-    working_directory: Option<&str>,
-) -> Command {
-    build_direct_proton_command_lifecycle_with(
-        proton_path,
-        env,
-        working_directory,
-        platform::is_flatpak(),
-    )
-}
-
+/// Uses the lifecycle host-command builder, so inside Flatpak the proxy is
+/// `flatpak-spawn --host --watch-bus --clear-env …` and the host Proton
+/// process dies with the proxy on cancel, timeout or app exit. Outside
+/// Flatpak `env` is applied directly to the command. The caller sets stdio,
+/// `process_group(0)` and `kill_on_drop(true)` before spawning.
 pub(crate) fn build_direct_proton_command_lifecycle_with(
     proton_path: &str,
     env: &BTreeMap<String, String>,

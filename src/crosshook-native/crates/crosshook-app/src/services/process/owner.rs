@@ -1,16 +1,22 @@
 //! Owner slots for the no-argument cancel/stop commands (D6).
 //!
-//! A service records, per invoking owner (derived from the webview label),
-//! the id of its active job and that job's immediate-kill token. Cancel and
-//! stop act only on the caller's own entry, so a foreign owner or an owner
-//! without an active job never touches anyone else's job.
+//! A service claims, per invoking owner (derived from the webview label), one
+//! slot before it prepares a run; the job binds its id to the slot when its
+//! body starts. Cancel and stop act only on the caller's own slot, so a
+//! foreign owner or an owner without an active run never touches anyone
+//! else's job. An owner holds at most one slot: a second start while its run
+//! is still active is refused, so the first run never becomes unreachable.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use tokio_util::sync::CancellationToken;
 
-use crate::jobs::JobId;
+use crate::jobs::{JobId, JobRegistry};
+use crate::{AppError, AppErrorKind};
+
+/// Conflict text for a second start while the owner's run is still active.
+pub(crate) const MSG_OWNER_BUSY: &str = "another run is already active for this window";
 
 /// Who started a job, e.g. the invoking webview label.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -23,42 +29,81 @@ impl JobOwner {
     }
 }
 
-/// One owner's active job: its id and its immediate-kill token.
-pub(crate) struct ActiveJob {
-    pub(crate) id: JobId,
-    pub(crate) kill: CancellationToken,
+/// One owner's slot: its job id once bound, a cancel requested before the
+/// bind, and the run's immediate-kill token.
+struct Slot {
+    id: Option<JobId>,
+    cancel_requested: bool,
+    kill: CancellationToken,
 }
 
-type Entries = HashMap<JobOwner, ActiveJob>;
+type Slots = HashMap<JobOwner, Slot>;
 
-/// Shared map from owner to its active job. Cheap to clone; clones share
-/// state.
+/// Shared map from owner to its slot. Cheap to clone; clones share state.
 #[derive(Clone, Default)]
-pub(crate) struct ActiveJobs(Arc<Mutex<Entries>>);
+pub(crate) struct ActiveJobs(Arc<Mutex<Slots>>);
 
-fn lock(entries: &Mutex<Entries>) -> MutexGuard<'_, Entries> {
+fn lock(slots: &Mutex<Slots>) -> MutexGuard<'_, Slots> {
     // The lock is never held across user code, so a poisoned map is consistent.
-    entries.lock().unwrap_or_else(PoisonError::into_inner)
+    slots.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 impl ActiveJobs {
-    /// Records `job` as `owner`'s active job, replacing any previous entry,
-    /// until the returned guard drops.
-    pub(crate) fn register(&self, owner: JobOwner, job: ActiveJob) -> ActiveGuard {
-        let id = job.id.clone();
-        lock(&self.0).insert(owner.clone(), job);
-        ActiveGuard {
-            entries: Arc::clone(&self.0),
-            owner,
-            id,
+    /// Claims `owner`'s slot until the returned guard drops.
+    ///
+    /// # Errors
+    /// `Conflict` ([`MSG_OWNER_BUSY`]) while `owner` still holds a slot.
+    pub(crate) fn claim(&self, owner: JobOwner) -> Result<OwnerSlot, AppError> {
+        let mut slots = lock(&self.0);
+        if slots.contains_key(&owner) {
+            return Err(AppError::new(AppErrorKind::Conflict, MSG_OWNER_BUSY));
         }
+        let kill = CancellationToken::new();
+        slots.insert(
+            owner.clone(),
+            Slot {
+                id: None,
+                cancel_requested: false,
+                kill: kill.clone(),
+            },
+        );
+        Ok(OwnerSlot {
+            slots: Arc::clone(&self.0),
+            owner,
+            kill,
+        })
     }
 
-    /// `owner`'s active job id and kill token, if any.
-    pub(crate) fn get(&self, owner: &JobOwner) -> Option<(JobId, CancellationToken)> {
-        lock(&self.0)
-            .get(owner)
-            .map(|job| (job.id.clone(), job.kill.clone()))
+    /// Cancels `owner`'s run: its job through `jobs` once bound, otherwise
+    /// the run is marked so its job ends before spawning anything. Returns
+    /// `false` when `owner` holds no slot.
+    pub(crate) fn cancel(&self, owner: &JobOwner, jobs: &JobRegistry) -> bool {
+        let id = {
+            let mut slots = lock(&self.0);
+            let Some(slot) = slots.get_mut(owner) else {
+                return false;
+            };
+            match &slot.id {
+                Some(id) => id.clone(),
+                None => {
+                    slot.cancel_requested = true;
+                    return true;
+                }
+            }
+        };
+        jobs.cancel(&id).is_ok()
+    }
+
+    /// Fires `owner`'s immediate-kill token. Returns `false` when `owner`
+    /// holds no slot.
+    pub(crate) fn kill(&self, owner: &JobOwner) -> bool {
+        match lock(&self.0).get(owner) {
+            Some(slot) => {
+                slot.kill.cancel();
+                true
+            }
+            None => false,
+        }
     }
 
     #[cfg(test)]
@@ -67,23 +112,36 @@ impl ActiveJobs {
     }
 }
 
-/// Removes its owner's entry on drop — including while unwinding — but only
-/// while that entry still belongs to the job that registered it, so a newer
-/// job of the same owner is never unregistered by an older one finishing.
-pub(crate) struct ActiveGuard {
-    entries: Arc<Mutex<Entries>>,
+/// A claimed owner slot; dropping it — including while unwinding — frees the
+/// owner for its next run.
+pub(crate) struct OwnerSlot {
+    slots: Arc<Mutex<Slots>>,
     owner: JobOwner,
-    id: JobId,
+    kill: CancellationToken,
 }
 
-impl Drop for ActiveGuard {
+impl OwnerSlot {
+    /// The run's immediate-kill token (fired by [`ActiveJobs::kill`]).
+    pub(crate) fn kill_token(&self) -> &CancellationToken {
+        &self.kill
+    }
+
+    /// Binds the slot to the job `id`, so later cancels reach that job.
+    /// Returns `true` when a cancel was requested before the bind: the job
+    /// must then end without spawning anything.
+    pub(crate) fn bind(&self, id: &JobId) -> bool {
+        let mut slots = lock(&self.slots);
+        let Some(slot) = slots.get_mut(&self.owner) else {
+            return false;
+        };
+        slot.id = Some(id.clone());
+        slot.cancel_requested
+    }
+}
+
+impl Drop for OwnerSlot {
     fn drop(&mut self) {
-        let mut entries = lock(&self.entries);
-        if entries
-            .get(&self.owner)
-            .is_some_and(|job| job.id == self.id)
-        {
-            entries.remove(&self.owner);
-        }
+        // Claims are exclusive per owner: the entry is this slot's own.
+        lock(&self.slots).remove(&self.owner);
     }
 }

@@ -63,19 +63,13 @@ pub fn resolve_adhoc_prefix_path(
 }
 
 /// Returns `true` when `prefix_path` is a direct child of the throwaway
-/// `_run-adhoc/` namespace — i.e. it looks exactly like something
-/// [`resolve_adhoc_prefix_path`] would have produced.
+/// namespace `adhoc_root` — i.e. it looks exactly like something
+/// [`resolve_adhoc_prefix_path`] would have produced. The parent must be
+/// exactly `adhoc_root`, the file name must be non-empty, and no component
+/// may be `..`.
 ///
 /// Used as a defense-in-depth guard before any `remove_dir_all` against the
-/// prefix path. Delegates to [`is_throwaway_prefix_path_in`] with
-/// [`adhoc_prefix_root`]; returns `false` when the root cannot be resolved.
-pub fn is_throwaway_prefix_path(prefix_path: &Path) -> bool {
-    adhoc_prefix_root().is_ok_and(|root| is_throwaway_prefix_path_in(prefix_path, &root))
-}
-
-/// Strict throwaway check against an explicit namespace root: the parent must
-/// be exactly `adhoc_root`, the file name must be non-empty, and no
-/// component may be `..`.
+/// prefix path.
 pub fn is_throwaway_prefix_path_in(prefix_path: &Path, adhoc_root: &Path) -> bool {
     // Reject any `..` components — a malicious or buggy slug could otherwise
     // synthesize a path that *looks* rooted under `_run-adhoc/` but actually

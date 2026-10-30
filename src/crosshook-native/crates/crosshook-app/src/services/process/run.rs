@@ -144,9 +144,11 @@ fn not_started() -> AppError {
 /// Starts `body` as a job.
 ///
 /// The body gets its [`JobContext`], the completion sender and the `started`
-/// sender. It must send `started` before producing any output (typically
-/// right before spawning), send its completion before returning, and return
-/// the job [`Outcome`].
+/// sender. It must send `started` before producing any output — usually by
+/// handing it to [`run_child`](super::child::run_child), which sends it
+/// right after a successful spawn — send its completion before returning,
+/// and return the job [`Outcome`]. A body that fails before `started` makes
+/// [`StartingRun::started`] return its error.
 ///
 /// # Errors
 /// The registry's start errors (`Conflict` when `spec.key` is held,

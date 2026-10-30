@@ -12,7 +12,7 @@ use crate::platform::{
     normalized_path_is_file,
 };
 
-use super::models::{UpdateGameError, UpdateGameRequest, UpdateGameValidationError};
+use super::models::{UpdateGameRequest, UpdateGameValidationError};
 
 pub fn validate_update_request(
     request: &UpdateGameRequest,
@@ -28,11 +28,8 @@ pub fn validate_update_request(
 ///
 /// No stdio is attached; the caller owns stdio, process group, spawn and
 /// supervision.
-pub fn build_update_command(request: &UpdateGameRequest) -> Result<Command, UpdateGameError> {
-    Ok(build_update_command_with(
-        request,
-        crate::platform::is_flatpak(),
-    ))
+pub fn build_update_command(request: &UpdateGameRequest) -> Command {
+    build_update_command_with(request, crate::platform::is_flatpak())
 }
 
 fn build_update_command_with(request: &UpdateGameRequest, flatpak: bool) -> Command {
@@ -65,6 +62,9 @@ fn validate_updater_path(path: &str) -> Result<(), UpdateGameValidationError> {
     }
 
     let path = Path::new(normalized_path.trim());
+    if !path.is_absolute() {
+        return Err(UpdateGameValidationError::UpdaterPathNotAbsolute);
+    }
     if !normalized_path_is_file(normalized_path.trim()) {
         if !path.exists() {
             return Err(UpdateGameValidationError::UpdaterPathMissing);
@@ -85,6 +85,9 @@ fn validate_proton_path(path: &str) -> Result<(), UpdateGameValidationError> {
     }
 
     let path = Path::new(normalized_path.trim());
+    if !path.is_absolute() {
+        return Err(UpdateGameValidationError::ProtonPathNotAbsolute);
+    }
     if !normalized_path_is_executable_file(normalized_path.trim()) {
         if !path.exists() {
             return Err(UpdateGameValidationError::ProtonPathMissing);
@@ -102,6 +105,9 @@ fn validate_prefix_path(path: &str) -> Result<(), UpdateGameValidationError> {
     }
 
     let path = Path::new(normalized_path.trim());
+    if !path.is_absolute() {
+        return Err(UpdateGameValidationError::PrefixPathNotAbsolute);
+    }
     if !normalized_path_is_dir(normalized_path.trim()) {
         if !path.exists() {
             return Err(UpdateGameValidationError::PrefixPathMissing);
@@ -305,10 +311,50 @@ mod tests {
     }
 
     #[test]
+    fn validate_update_request_rejects_relative_paths() {
+        let temp_dir = tempdir().expect("temp dir");
+        let base = valid_request(temp_dir.path());
+        let cases = [
+            (
+                UpdateGameRequest {
+                    updater_path: "patch.exe".to_string(),
+                    ..base.clone()
+                },
+                UpdateGameValidationError::UpdaterPathNotAbsolute,
+            ),
+            (
+                UpdateGameRequest {
+                    proton_path: "proton".to_string(),
+                    ..base.clone()
+                },
+                UpdateGameValidationError::ProtonPathNotAbsolute,
+            ),
+            (
+                // A flag-like value must never reach `flatpak-spawn` argv.
+                UpdateGameRequest {
+                    proton_path: "--foo".to_string(),
+                    ..base.clone()
+                },
+                UpdateGameValidationError::ProtonPathNotAbsolute,
+            ),
+            (
+                UpdateGameRequest {
+                    prefix_path: "prefix".to_string(),
+                    ..base.clone()
+                },
+                UpdateGameValidationError::PrefixPathNotAbsolute,
+            ),
+        ];
+        for (request, expected) in cases {
+            assert_eq!(validate_update_request(&request), Err(expected));
+        }
+    }
+
+    #[test]
     fn build_update_command_constructs_command_with_correct_proton_path() {
         let temp_dir = tempdir().expect("temp dir");
         let request = valid_request(temp_dir.path());
-        let command = build_update_command(&request).unwrap();
+        let command = build_update_command(&request);
         let debug_output = format!("{command:?}");
 
         // The command should reference the proton binary
@@ -326,7 +372,7 @@ mod tests {
         let normalized_updater_path = request.updater_path.clone();
         request.proton_path = format!("/run/host{}", request.proton_path);
         request.updater_path = format!("/run/host{}", request.updater_path);
-        let command = build_update_command(&request).unwrap();
+        let command = build_update_command(&request);
         let debug_output = format!("{command:?}");
 
         assert!(

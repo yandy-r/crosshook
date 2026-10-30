@@ -77,6 +77,15 @@ impl RecoveryLedger {
             .insert(canonical.to_string(), entry);
     }
 
+    /// Forgets the recorded recovery of `canonical` (an explicit repair
+    /// superseded it; repairs are never reported as automatic recoveries).
+    pub(crate) fn clear(&self, canonical: &str) {
+        self.0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(canonical);
+    }
+
     /// The last recorded recovery of `canonical`.
     pub(crate) fn get(&self, canonical: &str) -> Option<LastRecovery> {
         self.0

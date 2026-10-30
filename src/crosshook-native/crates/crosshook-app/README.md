@@ -378,40 +378,58 @@ stays a bare string, `RunCommandError` keeps its tagged shape, and the
 
 - **App owns spawning.** Core only builds prepared commands
   (`prepare_install`, `build_update_command`, `prepare_run_executable`,
-  `prepare_install_packages(..).into_parts()`); Proton runs use
-  `build_direct_proton_command_lifecycle` and winetricks/protontricks (the
-  read-only `list-installed` check included) use
+  `prepare_install_packages(..).into_parts()`); Proton runs use core's
+  crate-private `build_direct_proton_command_lifecycle_with` and
+  winetricks/protontricks (the read-only `list-installed` check included) use
   `host_command_with_env_and_directory_lifecycle`, so under Flatpak
   `--watch-bus` follows `--host`. The shared `services::process` plumbing
   spawns the child with a null stdin, `process_group(0)` and `kill_on_drop`,
-  and supervises it with `supervise_child_with_kill`. App shutdown cancels
-  every job, so quitting CrossHook now ends a running installer, updater,
-  ad-hoc executable or dependency install instead of orphaning it.
+  and supervises it with `supervise_child_with_kill`. The prefix-deps restore
+  and `list-installed` children also run in their own process group, with a
+  timeout that `SIGKILL`s the group and bounded output drains. Installer,
+  updater, executable, Proton and prefix paths must be absolute
+  (`*PathNotAbsolute` validation errors on the matching field).
+- **Shutdown.** App shutdown cancels every job, so quitting CrossHook now
+  ends a running installer, updater, ad-hoc executable or dependency install
+  instead of orphaning it: `src-tauri` calls
+  `App::shutdown(App::DEFAULT_SHUTDOWN_TIMEOUT)` on `RunEvent::Exit` (see
+  _Jobs_).
 - **One run, then one completion.** `start_run` returns a `ProcessRun` only
   after the job body signalled `started`, so no output precedes the handle.
-  `ProcessRun::next` yields `RunEvent::Log` batches, then exactly one
-  `RunEvent::Finished(Option<C>)` (`None` when the job ended without a
-  completion) and reaps the job; a dropped run is reaped in the background.
+  `started` is sent only after the child spawned: a spawn failure fails the
+  start call itself (`Io`, with the unused log removed), and a run cancelled
+  before the spawn spawns nothing. `ProcessRun::next` yields `RunEvent::Log`
+  batches, then exactly one `RunEvent::Finished(Option<C>)` (`None` when the
+  job ended without a completion; prefix-deps then reports restore state
+  `pending`) and reaps the job; a dropped run is reaped in the background.
   `run_child` returns only after the bounded final log drain, so the
   completion always follows the last log line.
 - **Per-prefix exclusivity.** Every job that touches a prefix holds
-  `JobKey("prefix:<canonical pfx>")`: `install-game` (a fresh prefix is keyed
-  on the `pfx` Proton is about to create), `update-game`, `run-executable`
-  (resolved prefix, throwaway included), `prefix-deps-install`,
-  `prefix-version-repair` and `prefix-version-recovery`. A second job on the
+  `JobKey("prefix:<canonical pfx>")`: `install-game`, `update-game`,
+  `run-executable` (resolved prefix, throwaway included),
+  `prefix-deps-install`, `prefix-version-repair` and
+  `prefix-version-recovery`. A canonical path named `pfx` is keyed as is;
+  any other path is keyed on the `<path>/pfx` Proton will create, so a job on
+  a fresh compat-data root and a later job on its `pfx` share one key. A
+  second job on the
   same prefix (symlink aliases included) gets `Conflict` (`another operation
 is already running for this prefix`, or `installation already in progress
 for prefix: …` for prefix deps); different prefixes run in parallel.
   `check` takes no key.
 - **Cancel ownership.** `cancel_update`, `cancel_run_executable` and
   `stop_run_executable` keep their no-argument IPC. A runtime-only owner slot
-  (`JobOwner` from the injected webview label) records each run's job id and
-  kill token; a foreign owner or no active job is a no-op (`false`). Cancel
-  sends `SIGTERM` to the process group and `SIGKILL` after
-  `DEFAULT_KILL_GRACE`; stop `SIGKILL`s the group at once, then sweeps the
-  prefix with `kill_processes_using_prefix`. No stored PID is signalled.
-  Install-game and prefix-deps installs have no cancel IPC; only app shutdown
-  cancels them.
+  (`JobOwner` from the injected webview label) is claimed at the start of
+  `update_game`/`run_executable` and records the run's job id and kill
+  token. Each window has at most one active run: a second start gets
+  `Conflict` (`another run is already active for this window`). A foreign
+  owner or no active run is a no-op (`false`); a cancel while the run is
+  still being prepared ends it `Cancelled` with nothing spawned. Cancel sends
+  `SIGTERM` to the process group and `SIGKILL` after `DEFAULT_KILL_GRACE`,
+  and output written after the exit is still drained for up to
+  `DRAIN_GRACE`; stop `SIGKILL`s the group at once, then sweeps the prefix
+  with `kill_processes_using_prefix` (see _Jobs_). No stored PID is
+  signalled. Install-game and prefix-deps installs have no cancel IPC; only
+  app shutdown cancels them.
 - **Throwaway prefixes.** A run without a prefix gets a unique
   `_run-adhoc/<slug>-<suffix>` directory, so same-stem runs never share or
   delete one prefix. The job removes it before sending its completion, still
@@ -429,27 +447,37 @@ requires Windows version repair before installing dependencies.` while one
   remains. Startup recovery (`prefix-journal-recovery`, scheduled by
   `App::bootstrap`) retries `pending` rows only, each in a
   `prefix-version-recovery` job under the prefix key; busy and in-use
-  prefixes stay `pending`, `failed` rows wait for an explicit repair, and it
-  is skipped when the metadata store is unavailable or under
+  prefixes stay `pending` (the in-use probe fails closed under Flatpak, where
+  host processes are invisible), `failed` rows wait for an explicit repair,
+  and it is skipped when the metadata store is unavailable or under
   `CROSSHOOK_BENCH=1`. Replayed rows are re-validated (tool, verb, App ID,
-  binary path) before anything runs.
+  binary path, and a stored prefix path that must equal its canonical `pfx`)
+  before anything runs; a row that fails is marked `failed`. An explicit
+  repair clears the prefix's `last_recovery`, which reports automatic
+  recoveries only.
 - **Tool selection and offline.** The pure `resolve_tool` picks protontricks
   only with a valid nonzero Steam App ID and falls back to winetricks on
   `PATH`. With `offline_mode` on, `start_install` returns `Unavailable`
   (`offline mode is enabled`) before any job; install-game, update,
   run-executable, check and repair are ungated.
 - **Logs.** Each run logs to `/tmp/crosshook-logs` through
-  `create_log_file_in` (mode `0600`, `create_new`); child stdio is attached to
-  clones of the returned handle (prefix-deps output goes through the lossy
-  pipe tee and is sanitized before it reaches subscribers), never reopened by
-  path.
+  `create_log_file_in` (directory `0700` and owned by the user, file mode
+  `0600`, `create_new`); child stdio is attached to clones of the returned
+  handle (prefix-deps output goes through the lossy pipe tee and is sanitized
+  before it reaches subscribers), never reopened by path. The live tail uses
+  `log_tail::follow_file`, pinned to that handle's device and inode.
 
 ## Jobs
 
 `App::jobs()` returns the app's `JobRegistry` (also constructible standalone
 with `JobRegistry::new(JobRegistryConfig { event_capacity, retention })` or
 `Default`, which spawns on the ambient runtime). Job tokens are children of the
-app shutdown token, so app shutdown cancels every job. The startup scans,
+app shutdown token, so app shutdown cancels every job. `App::shutdown(timeout)`
+cancels the app shutdown token (every job and every `App::spawn` task), then
+waits on `wait_idle()` up to `timeout` and returns whether every job finished;
+`App::DEFAULT_SHUTDOWN_TIMEOUT` is `DEFAULT_KILL_GRACE` plus one second (6 s),
+so cancelled process groups are reaped before exit. `src-tauri` calls it on
+`RunEvent::Exit`, after the `[ui]` flush. The startup scans,
 umu refresh and background portal requests run as jobs scheduled by
 `App::bootstrap` (`startup-scans`, `startup-umu-refresh`,
 `startup-background-portal`) and the untracked `prefix-journal-recovery`
@@ -468,6 +496,7 @@ jobs, and the process services as `install-game`, `update-game`,
 | `supervise_child(child, &cancel, grace)` | Child must lead its group (`process_group(0)`, else `InvalidInput`); cancel: `killpg(SIGTERM)`, `SIGKILL` at `grace` if any member lives. Returns `ChildExit::{Natural,Terminated,Killed}`.  |
 | `supervise_child_with_kill(..)`          | As `supervise_child`, plus a `kill` token: firing it (before or during the grace) `SIGKILL`s the group at once and yields `ChildExit::Killed`.                                               |
 | `is_key_held(&JobKey)`                   | Whether a running job holds the key; released before its `Finished` is published.                                                                                                            |
+| `wait_idle()`                            | Resolves once no job is running (jobs started while it waits included).                                                                                                                      |
 
 `Outcome` is `Succeeded`, `Failed(AppError)`, or `Cancelled`; job closures
 may return `Outcome` or `Result<(), AppError>` (a `Cancelled` error maps to
@@ -489,18 +518,34 @@ other public `host_command*` builders omit `--watch-bus`, so cancelling a job
 that uses them leaves the host process running.
 
 `jobs` also hosts the process helpers the services share:
-`create_log_file_in(dir, …)` (creates
+`create_log_file_in(dir, …)` (creates `<dir>` with mode `0700` when missing
+and refuses a symlinked, non-directory or foreign-owned directory, tightening
+a group/world-accessible one of ours to `0700`; then creates
 `<dir>/<prefix>-<slug>-<millis>.log` with mode `0600` and returns the path
-plus the open handle the child's stdio is attached to), `create_log_path` /
-`create_log_path_in` (path only; `LaunchService` uses the latter as its
-log-dir seam), `slugify_target`, `processes_using_prefix` (`/proc/*/environ`
-scan at a path boundary, no signals; startup recovery's in-use probe) and
-`kill_processes_using_prefix` (`SIGKILL`s those pids via the host gateway
-`kill`; run-executable stop and throwaway-prefix retries). Under Flatpak
-only the sandbox `/proc` is visible, so the sweep finds nothing there; the
-process-group kill plus `--watch-bus` is the real teardown. Log files are
-created with `create_new` plus a `-N` uniqueness suffix, so two
-same-millisecond runs never share or truncate one log.
+plus the open handle the child's stdio is attached to), `create_log_path_in`
+(the same, path only; `LaunchService` uses it as its log-dir seam),
+`slugify_target`, `processes_using_prefix` (`/proc/*/environ` scan, no
+signals) and `kill_processes_using_prefix` (run-executable stop and
+throwaway-prefix retries). The scan matches only the values of `WINEPREFIX`
+and `STEAM_COMPAT_DATA_PATH`, compared as canonical paths: the prefix itself
+or a compat-data root whose `pfx` is the prefix (symlinked aliases match;
+siblings, relative values and variables such as `HOME` never do). The sweep
+`SIGKILL`s those pids locally with `nix::sys::signal::kill`, never signals
+CrossHook's own pid or any of its ancestors, and is skipped under Flatpak,
+where only the sandbox `/proc` is visible and host pids cannot be
+addressed; there the process-group kill plus `--watch-bus` is the real
+teardown. Startup recovery's in-use probe uses the same scan but fails
+closed under Flatpak (the prefix counts as in use). Log files are created
+with `create_new` plus a `-N` uniqueness suffix, so two same-millisecond
+runs never share or truncate one log, and a symlink planted at a log name
+is skipped, never followed.
+
+`log_tail::follow` opens the log once with `O_NOFOLLOW | O_NONBLOCK`,
+accepts only a regular file and never reopens the path: when the file is
+renamed, removed or replaced, the tail reads what remains of the original
+file and ends. `log_tail::follow_file(path, &file, …)` additionally pins the
+tail to the device and inode of the handle the log was created with, so a
+file swapped in at the path is never read.
 
 ## Storage boundary
 
@@ -553,7 +598,7 @@ UI; the diagnostics archive is a regular file the user chose to create.
 ## Dependencies
 
 `crosshook-core`, `tokio` (rt-multi-thread, sync, time, macros, process),
-`tokio-util` (rt), `nix` (signal), `uuid` (v4), `thiserror`, `serde` (derive),
+`tokio-util` (rt), `nix` (process, signal, user), `uuid` (v4), `thiserror`, `serde` (derive),
 `serde_json`, `toml`, `tracing`, and `static_assertions`. Dev: `tempfile`,
 `tar`, `flate2`, `tokio` (test-util, macros, rt, io-util).
 `scripts/check-app-deps.sh` guards against UI-toolkit leakage.

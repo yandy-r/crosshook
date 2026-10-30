@@ -413,16 +413,3 @@ fn lifecycle_proton_command_native_sets_working_directory() {
         Some(Path::new("/tmp/installer"))
     );
 }
-
-#[test]
-fn lifecycle_proton_command_public_builder_ends_with_proton_run() {
-    let command = crate::launch::runtime_helpers::build_direct_proton_command_lifecycle(
-        "/opt/proton/proton",
-        &BTreeMap::new(),
-        None,
-    );
-
-    let args = command_args(&command);
-    assert_eq!(args.last().map(String::as_str), Some("run"));
-    assert!(args.iter().all(|arg| !arg.starts_with("--directory=")));
-}

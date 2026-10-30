@@ -188,6 +188,9 @@ fn validate_installer_path(path: &str) -> Result<(), InstallGameValidationError>
     }
 
     let path = Path::new(normalized_path.trim());
+    if !path.is_absolute() {
+        return Err(InstallGameValidationError::InstallerPathNotAbsolute);
+    }
     if !normalized_path_is_file(normalized_path.trim()) {
         if !path.exists() {
             return Err(InstallGameValidationError::InstallerPathMissing);
@@ -278,6 +281,9 @@ fn validate_proton_path(path: &str) -> Result<(), InstallGameValidationError> {
     if normalized_path.is_empty() {
         return Err(InstallGameValidationError::ProtonPathRequired);
     }
+    if !Path::new(normalized_path.trim()).is_absolute() {
+        return Err(InstallGameValidationError::ProtonPathNotAbsolute);
+    }
 
     if path_is_executable_visible_or_host(path) {
         return Ok(());
@@ -316,6 +322,9 @@ fn validate_prefix_path(path: &str) -> Result<(), InstallGameValidationError> {
 
     let trimmed = normalized_path.trim();
     let path = Path::new(trimmed);
+    if !path.is_absolute() {
+        return Err(InstallGameValidationError::PrefixPathNotAbsolute);
+    }
     if !normalized_path_is_dir(trimmed)
         && !normalized_path_is_dir_on_host(trimmed)
         && (path.exists() || normalized_path_exists_on_host(trimmed))

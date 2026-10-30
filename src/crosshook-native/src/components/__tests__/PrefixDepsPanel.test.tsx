@@ -168,6 +168,7 @@ describe('PrefixDepsPanel', () => {
     expect(screen.getByRole('button', { name: 'Install' })).toBeDisabled();
     expect(screen.queryByText('Prefix repair required')).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByText(/Another operation is using this prefix/)).toHaveAttribute('role', 'status');
   });
 
   it('disables installation but allows status retry when repair safety is unknown', async () => {

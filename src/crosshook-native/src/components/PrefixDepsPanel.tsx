@@ -72,6 +72,18 @@ function RecoveryRestoredNote({ repairStatus }: { repairStatus: PrefixVersionRep
   );
 }
 
+/** Shown while another job holds the prefix; the hook re-polls until it ends. */
+function PrefixBusyNote({ repairStatus }: { repairStatus: PrefixVersionRepairStatus }) {
+  if (!repairStatus.in_progress) {
+    return null;
+  }
+  return (
+    <p className="crosshook-help-text" role="status" aria-live="polite">
+      Another operation is using this prefix. Actions resume when it finishes.
+    </p>
+  );
+}
+
 export function PrefixDepsPanel({ profileName, prefixPath, requiredPackages }: PrefixDepsPanelProps) {
   const {
     deps,
@@ -187,6 +199,7 @@ export function PrefixDepsPanel({ profileName, prefixPath, requiredPackages }: P
         <p className="crosshook-help-text" role="status">
           No prefix dependencies are declared for this profile.
         </p>
+        <PrefixBusyNote repairStatus={repairStatus} />
         <RecoveryRestoredNote repairStatus={repairStatus} />
         {error ? (
           <p className="crosshook-danger" role="alert" aria-live="assertive">
@@ -199,6 +212,7 @@ export function PrefixDepsPanel({ profileName, prefixPath, requiredPackages }: P
 
   return (
     <section aria-label="Prefix dependencies" className="crosshook-prefix-deps">
+      <PrefixBusyNote repairStatus={repairStatus} />
       <RecoveryRestoredNote repairStatus={repairStatus} />
       {repairBannerVisible ? (
         <div className="crosshook-error-banner" role="alert" aria-live="assertive">
