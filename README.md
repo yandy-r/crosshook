@@ -12,7 +12,9 @@ mods, and patches that run under the game's own Proton/WINE prefix.
 CrossHook also includes an `Install Game` flow inside the Profile panel. It installs Windows games
 through direct `proton run`, defaults new prefixes under `~/.local/share/crosshook/prefixes/<slug>`,
 and then returns you to the normal profile editor so you can review the generated profile before
-saving it.
+saving it. Quitting CrossHook stops a running installer, game update, Run executable,
+prefix-dependency install, or Repair Prefix. Only one of those can use a given prefix at a
+time; a different prefix can run at the same time.
 
 ## Contents
 
@@ -152,6 +154,7 @@ regular Linux processes alongside the game.
 - [Quickstart guide](docs/getting-started/quickstart.md)
 - [Steam / Proton trainer workflow](docs/features/steam-proton-trainer-launch.doc.md)
 - [Profile duplication](docs/features/profile-duplication.doc.md)
+- [Settings reference](docs/features/settings-reference.doc.md) (`[ui]` layout and display keys)
 
 ## Build
 
