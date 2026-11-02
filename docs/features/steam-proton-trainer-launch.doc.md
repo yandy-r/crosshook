@@ -2,7 +2,7 @@
 
 CrossHook is a native Linux application that orchestrates game and trainer launches through Steam and Proton. CrossHook itself runs directly on the host -- it does not run under WINE. Trainers are Windows executables that CrossHook launches under Proton against the game's prefix using a clean environment.
 
-CrossHook also includes an `Install Game` sub-tab inside the Profile panel. That flow uses direct `proton run`, defaults new prefixes under `~/.local/share/crosshook/prefixes/<slug>`, and opens a review modal for the generated `GameProfile` before you save it. Saving the draft persists the profile and then opens the Profile tab with that new profile selected.
+CrossHook also includes an `Install Game` sub-tab inside the Profile panel. That flow uses direct `proton run`, defaults new prefixes under `~/.local/share/crosshook/prefixes/<slug>`, and opens a review modal for the generated `GameProfile` before you save it. Saving the draft persists the profile and then opens the Profile tab with that new profile selected. Quitting CrossHook stops a running installer, game update, Run executable, prefix-dependency install, or Repair Prefix. Only one of those can use a given prefix at a time; a different prefix can run at the same time.
 
 This guide covers the three launch methods, auto-discovery, launcher export, and the console view. If you are just getting started, read the [CrossHook quickstart](../getting-started/quickstart.md) first.
 
@@ -145,7 +145,7 @@ Standalone launcher export requires shell-compatible variable names: a letter or
 
 Some trainers require Windows components such as `dotnet48`, `vcrun2022`, or `corefonts`. Add those Winetricks/Protontricks verbs in the profile's **Trainer → Prefix dependencies** field. CrossHook validates and saves the list in `trainer.required_protontricks`; no manual TOML edit is required.
 
-After adding a dependency, use the profile's **Prefix Dependencies** panel to run **Check Now** and install missing components. The launch gate can also install declared dependencies automatically when **Settings → Prefix Dependencies → Auto-install prefix dependencies on first launch** is enabled.
+After adding a dependency, use the profile's **Prefix Dependencies** panel to run **Check Now** and install missing components. The launch gate can also install declared dependencies automatically when **Settings → Prefix Dependencies → Auto-install prefix dependencies on first launch** is enabled. A dependency install uses the same per-prefix slot as Install Game, a game update, Run executable, and Repair Prefix: quitting CrossHook stops the running one, a second one on that prefix is refused until the first finishes, and a different prefix can run at the same time.
 
 CrossHook discovers and runs Winetricks/Protontricks on the host. In Flatpak builds, detection and installation cross the sandbox through `flatpak-spawn --host` while retaining the selected profile's resolved `WINEPREFIX`.
 
