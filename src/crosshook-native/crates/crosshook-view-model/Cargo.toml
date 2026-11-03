@@ -1,0 +1,23 @@
+[package]
+name = "crosshook-view-model"
+version.workspace = true
+edition = "2021"
+description = "Pure, toolkit-agnostic view state and reducers for CrossHook screens: no tokio, no I/O, no UI toolkit."
+
+[lints]
+workspace = true
+
+[features]
+default = []
+# Conversions from crosshook-app / crosshook-core types. Pulls in tokio via
+# those crates, so it stays off by default (see README § Dependencies).
+app = ["dep:crosshook-app", "dep:crosshook-core"]
+# Exposes `testing` (Script harness and fixtures) to other crates' tests.
+testing = []
+
+[dependencies]
+crosshook-app = { path = "../crosshook-app", optional = true }
+crosshook-core = { path = "../crosshook-core", optional = true }
+
+[dev-dependencies]
+proptest = { version = "1", default-features = false, features = ["std"] }

@@ -49,7 +49,30 @@ jobs:
         run: cargo clippy --manifest-path src/crosshook-native/Cargo.toml --all-targets -- -D warnings
 
       - name: Run application and native bootstrap tests
-        run: cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-app -p crosshook-native -p crosshook-cli
+        run: cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-app -p crosshook-native -p crosshook-cli -p crosshook-view-model
+
+      - name: UI-free dependency guardrail
+        run: |
+          ./scripts/check-app-deps.sh --selftest
+          ./scripts/check-app-deps.sh
+
+      - name: View-model clippy (default and all features) and tests (all features)
+        # Clippy reports clippy.toml entries that do not resolve to a concrete
+        # item as plain warnings that `-D warnings` does not promote, so a
+        # typo'd or module path would silently disable a ban. Fail on them.
+        run: |
+          set -euo pipefail
+          manifest=src/crosshook-native/Cargo.toml
+          log="$(mktemp)"
+          for features in "" "--all-features"; do
+            # shellcheck disable=SC2086 # $features is empty or one flag
+            cargo clippy --manifest-path "$manifest" -p crosshook-view-model $features --all-targets -- -D warnings 2>&1 | tee -a "$log"
+          done
+          if grep -E 'does not refer to a reachable|found a module|expected a (function|type)' "$log"; then
+            echo "error: crosshook-view-model clippy.toml has entries that do not resolve" >&2
+            exit 1
+          fi
+          cargo test --manifest-path "$manifest" -p crosshook-view-model --all-features
 
       - name: Release build must not enable bootstrap-trace
         run: |
