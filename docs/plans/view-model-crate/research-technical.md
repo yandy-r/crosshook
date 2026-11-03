@@ -353,7 +353,7 @@ Form field keys should be `&'static str` equal to the `SettingsSaveRequest` snak
 
 1. **Option (a).** No default deps. An optional `app = ["dep:crosshook-app", "dep:crosshook-core"]` feature carries `From` adapters plus `session_event(&AppEvent) -> Option<_>`, because `AppEvent` is `#[non_exhaustive]`.
 2. **Crate-local `clippy.toml` from §2.** Set `#![forbid(unsafe_code)]` and `#![deny(missing_docs)]` as attributes, and keep `[lints] workspace = true`.
-3. **CI.** Add `-p crosshook-view-model` clippy and tests with `--features app`, plain tests, and dependency gates. Generalize `check-app-deps.sh` with `--package` and the tokio/crosshook-* bans, and wire it into `lint.yml`; it is not wired in CI today.
+3. **CI.** Add `-p crosshook-view-model` clippy and tests with `--features app`, plain tests, and dependency gates. Generalize `check-app-deps.sh` with `--package` and the tokio/crosshook-\* bans, and wire it into `lint.yml`; it is not wired in CI today.
 4. **proptest.** `proptest = { version = "1.12", default-features = false, features = ["std"] }`.
 5. **Settings form.** `recent_files_limit` + `log_filter` for client-side state, `profiles_directory` for a field-level server error, `settings` for a form-level server error.
 6. **Versioning.** `version.workspace = true`; do not add the crate to the prepare-release or release.yml manifest lists. Gateway `SCAN_DIRS` already covers the crate.
