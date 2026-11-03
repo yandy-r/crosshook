@@ -9,7 +9,7 @@ use super::{
     LibraryFilter, LibrarySort, ProfileCard, RunningProfiles, RunningSession, SessionId,
     SessionKind,
 };
-use crate::testing::fixtures::{exited, running, started};
+use crate::testing::fixtures::{exited, running, started, synced};
 
 /// Small alphabet so searches, case ties and display-key ties all happen.
 const NAME: &str = "[a-cA-C ]{0,4}";
@@ -80,14 +80,12 @@ fn named_games(sessions: &[RunningSession]) -> BTreeSet<String> {
 }
 
 fn tracker_for(names: &[String]) -> RunningProfiles {
-    let mut tracker = RunningProfiles::default();
     let sessions = names
         .iter()
         .enumerate()
         .map(|(index, name)| running(&format!("r{index}"), Some(name), SessionKind::Game))
         .collect();
-    tracker.apply_snapshot(sessions, 0);
-    tracker
+    synced(sessions, 0)
 }
 
 /// Independent per-card predicate: the spec, written without the selector.
@@ -202,8 +200,7 @@ proptest! {
             0..16,
         ),
     ) {
-        let mut tracker = RunningProfiles::default();
-        tracker.apply_snapshot(snapshot.clone(), seq);
+        let mut tracker = synced(snapshot.clone(), seq);
         for (start, id, name, kind, raw) in events {
             let event_seq = raw % (seq + 1);
             let event = if start {
@@ -211,7 +208,7 @@ proptest! {
             } else {
                 exited(&id, event_seq)
             };
-            prop_assert!(!tracker.apply(event));
+            prop_assert_eq!(tracker.apply(event), None);
         }
         let expected = named_games(&snapshot);
         prop_assert_eq!(tracker.currently_playing_count(), expected.len());
@@ -227,8 +224,7 @@ proptest! {
             0..40,
         ),
     ) {
-        let mut tracker = RunningProfiles::default();
-        tracker.apply_snapshot(Vec::new(), 0);
+        let mut tracker = synced(Vec::new(), 0);
         let mut live: BTreeMap<SessionId, RunningSession> = BTreeMap::new();
         for (seq, (start, slot, name, kind)) in (1u64..).zip(ops) {
             let id = format!("s{slot}");

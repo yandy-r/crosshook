@@ -28,20 +28,25 @@ Enforcement:
 
 - `lib.rs`: `#![forbid(unsafe_code)]`, `#![deny(missing_docs)]`, and
   `#![deny(clippy::print_stdout, clippy::print_stderr, clippy::dbg_macro)]`.
-- Crate-local `clippy.toml` bans **concrete items**: `std::fs` functions and
-  `File`/`OpenOptions`/`DirBuilder`, the I/O methods of `Path` (`exists`,
-  `is_file`, `metadata`, ...), `std::process::{Command, Child, exit, abort}`,
-  `std::thread::{sleep, spawn, Builder}`,
-  `std::env::{var, var_os, vars, home_dir}`, `SystemTime::now`/`Instant::now`,
-  `std::io::{stdin, stdout, stderr}`, `std::net` sockets, and a few tokio
-  items. Clippy silently ignores module paths and globs (`std::fs`,
-  `tokio::*`) and `-D warnings` still passes, so every entry names an item.
-  The tokio entries are inert while tokio is not a dependency.
+- Crate-local `clippy.toml` bans **concrete items**, by category: `std::fs`
+  functions and `File`/`OpenOptions`/`DirBuilder`; the filesystem methods of
+  `Path` (existence, metadata, symlink and directory reads); process control
+  (`Command`, `Child`, `exit`, `abort`); threads (`sleep`, `spawn`, `scope`,
+  `Builder`); environment and working-directory reads and writes
+  (`std::env` variables, arguments, current and temp directory); clocks
+  (`now` and `elapsed` on `SystemTime`/`Instant`); console I/O
+  (`std::io::{stdin, stdout, stderr}`); TCP, UDP and Unix sockets; and a few
+  tokio items. Clippy does not match module paths or globs (`std::fs`,
+  `tokio::*`): an entry that does not resolve to a concrete item only prints a
+  warning, which `-D warnings` does not make fatal, so every entry names an
+  item and the CI clippy step fails on that warning. The tokio entries are
+  inert while tokio is not a dependency.
 - `scripts/check-app-deps.sh` is the real tokio guard: it fails when the
   crate's default tree (normal, build and dev edges) contains a UI toolkit
   crate (`tauri`, `wry`, `webkit2gtk`, `gtk`, `glib`, `iced`, `gpui`, `winit`
-  and families) or an async runtime (`tokio`, `mio` and families). CI runs it
-  with `--selftest` in the `rust` job of `.github/workflows/lint.yml`.
+  and families) or an async runtime (`tokio`, `mio`, `async-std`, `smol`,
+  `async-executor`, `futures-executor` and their families). CI runs it with
+  `--selftest` in the `rust` job of `.github/workflows/lint.yml`.
 
 ## `ViewModel` contract
 
@@ -72,8 +77,8 @@ fn update(&mut self, message: Message) -> Task<Message> {
         LibraryEffect::LoadProfiles => Task::perform(load_cards(self.app.clone()), |result| {
             Message::Library(LibraryIntent::ProfilesLoaded(result))
         }),
-        LibraryEffect::SetFavorite { name, favorite } => { /* ProfileWriter, then FavoriteSaved */ }
-        LibraryEffect::RequestRunningSessions => { /* snapshot, then RunningSnapshot */ }
+        LibraryEffect::SetFavorite { name, favorite } => { /* ProfileWriter, then FavoriteSaved { name, favorite, result } */ }
+        LibraryEffect::RequestRunningSessions { token } => { /* snapshot, then RunningSnapshot { token, .. } */ }
     }))
 }
 ```
@@ -171,22 +176,34 @@ and sort always runs last.
   per load, not per frame; a mismatched key slice panics in debug builds.
   `LibraryViewModel` does this itself and caches the visible indices.
 - **Favorites** are optimistic: `ToggleFavorite` flips the card and emits
-  `SetFavorite`; a failed `FavoriteSaved` restores the value from before that
-  request and sets `load_error`. Saves for one profile complete in request
-  order, so a later in-flight save still wins.
+  `SetFavorite { name, favorite }`; the bridge echoes both in
+  `FavoriteSaved { name, favorite, result }`. Per profile the view-model keeps
+  the confirmed value (`Ok` confirms the echoed `favorite`; `Err` leaves it
+  and sets `load_error`), the latest requested value and the number of saves
+  in flight. While saves are in flight the card shows the latest request; once
+  none are, it shows the confirmed value. A `ProfilesLoaded` taken while saves
+  are in flight keeps their latest request on those cards; other cards take
+  the loaded value. Replies may arrive in any order.
 - **Currently Playing count**: distinct profile names with a live **game**
   session. Trainer and anonymous (unsaved) sessions do not count, and the
   count is not intersected with loaded profiles (React parity). The UI hides
   the badge at 0.
 - **Session seq contract** (`RunningProfiles`, matching `crosshook-app`
-  `services/launch/sessions.rs`): the bridge subscribes to session events
-  first, then requests a snapshot. Events before the first snapshot (and after
-  a `Resync`) are buffered, at most 1024; on overflow the buffer is dropped and
-  a new snapshot is requested. A snapshot replaces the state and applies the
-  buffered events with `seq > snapshot.seq`. Once synced, events with
-  `seq <= snapshot.seq` are ignored; a duplicate start or an exit for an
-  unknown id is a no-op. A snapshot older than a change already seen is stale
-  and ignored. `Resync` emits `RequestRunningSessions`.
+  `services/launch/sessions.rs` and the `fetchToken` model of
+  `runningSessionsStore.ts`): the bridge subscribes to session events first,
+  then sends `Start`, which emits the first
+  `RequestRunningSessions { token }`. The bridge never requests a snapshot on
+  its own and answers each request with
+  `RunningSnapshot { token, sessions, seq }` (`running_snapshot` supplies
+  `sessions` and `seq`). Each request gets a
+  new token and supersedes the previous one; only the reply carrying the
+  latest token applies, so an older reply can never replace a newer one.
+  Until that reply arrives (before the first snapshot, after `Resync`, after
+  overflow), events are buffered, at most 1024; on overflow the buffer is
+  dropped and one new request is emitted. The reply replaces the state and
+  applies the buffered events with `seq > snapshot.seq`. Once synced, events
+  with `seq <= snapshot.seq` are ignored; a duplicate start or an exit for an
+  unknown id is a no-op. `Resync` emits a new `RequestRunningSessions`.
 
 ```rust
 use crosshook_view_model::library::{
@@ -210,15 +227,26 @@ vm.reduce(LibraryIntent::ProfilesLoaded(Ok(vec![
 vm.reduce(LibraryIntent::SetSort(LibrarySort::Name));
 assert_eq!(vm.visible_names().collect::<Vec<_>>(), ["alpha", "beta"]);
 
-// Optimistic favorite: the card flips now; the bridge persists it.
+// Optimistic favorite: the card flips now; the bridge persists it and echoes
+// the request back with the result.
 assert_eq!(
     vm.reduce(LibraryIntent::ToggleFavorite("beta".into())),
     [LibraryEffect::SetFavorite { name: "beta".into(), favorite: true }]
 );
 vm.reduce(LibraryIntent::SetFilter(LibraryFilter::Favorites));
 assert_eq!(vm.visible_names().collect::<Vec<_>>(), ["beta"]);
+vm.reduce(LibraryIntent::FavoriteSaved {
+    name: "beta".into(),
+    favorite: true,
+    result: Ok(()),
+});
 
-// Subscribed first: this event is buffered until the snapshot arrives.
+// Subscribed first, then `Start`: events are buffered until the reply to the
+// latest request arrives.
+assert_eq!(
+    vm.reduce(LibraryIntent::Start),
+    [LibraryEffect::RequestRunningSessions { token: 1 }]
+);
 vm.reduce(LibraryIntent::Session(SessionEvent::Started {
     session_id: SessionId::new("s2"),
     profile_name: Some("beta".into()),
@@ -226,6 +254,7 @@ vm.reduce(LibraryIntent::Session(SessionEvent::Started {
     seq: 8,
 }));
 vm.reduce(LibraryIntent::RunningSnapshot {
+    token: 1,
     sessions: vec![RunningSession {
         session_id: SessionId::new("s1"),
         profile_name: Some("alpha".into()),
@@ -236,15 +265,16 @@ vm.reduce(LibraryIntent::RunningSnapshot {
 assert_eq!(vm.currently_playing_count(), 2); // snapshot + buffered seq 8
 assert_eq!(
     vm.reduce(LibraryIntent::Session(SessionEvent::Resync)),
-    [LibraryEffect::RequestRunningSessions]
+    [LibraryEffect::RequestRunningSessions { token: 2 }]
 );
 ```
 
 With the `app` feature, `ProfileCard::from_summary(&summary, is_favorite)`,
-`running_snapshot(&RunningSessions)` and `session_event(&AppEvent)` convert
-`crosshook-app` types. `session_event` is a function returning `Option`
-because `AppEvent` is `#[non_exhaustive]`; events other than session
-start/exit and `Resync` map to `None`.
+`running_snapshot(&RunningSessions)` (the `sessions` and `seq` of
+`RunningSnapshot`; the bridge adds the request's `token`) and
+`session_event(&AppEvent)` convert `crosshook-app` types. `session_event` is a
+function returning `Option` because `AppEvent` is `#[non_exhaustive]`; events
+other than session start/exit and `Resync` map to `None`.
 
 ## Settings example
 
@@ -253,13 +283,20 @@ of each kind:
 
 | Field                | Input                          | Errors from                                                                          |
 | -------------------- | ------------------------------ | ------------------------------------------------------------------------------------ |
-| `profiles_directory` | text; trimmed, empty = default | backend `Validation { field: "profiles_directory" }`                                 |
+| `profiles_directory` | text; trimmed, empty = default | backend `Validation { field: "profiles_directory" }` from `SettingsService::load`    |
 | `recent_files_limit` | numeric text                   | client check: integer in `1..=100` (`RECENT_FILES_LIMIT_MESSAGE`); core still clamps |
 | `log_filter`         | select over `LogFilter`        | none (select; dirty when changed)                                                    |
 
 `Submit` emits `SettingsEffect::Save { id, request }`, where
-`SettingsSaveRequest` carries the parsed values. `Loaded(fields)` resets the
-form after an external reload.
+`SettingsSaveRequest` carries the parsed values; the bridge answers with
+`SaveFinished { id, result }`. `Loaded(fields)` resets the form after an
+external reload. `LoadFailed(error)` shows a failed load on the form with the
+error mapping below: `SettingsService::load` reports a profiles directory it
+cannot resolve as `Validation { field: "profiles_directory" }`, which lands on
+that field. `LogFilter::parse` reads the stored `log_filter` string (trimmed;
+the lowercase `as_str` names; empty means `Info`, the backend default). Other
+backend values, such as directives like `crosshook=debug`, return `None`: the
+example select cannot represent them.
 
 ```rust
 use crosshook_view_model::settings::{
@@ -290,16 +327,22 @@ let SettingsEffect::Save { id, request } = &effects[0];
 assert_eq!(request.profiles_directory, "/games/profiles");
 assert_eq!(request.recent_files_limit, 25);
 
-// The backend rejects the directory: the error lands on that field.
-vm.reduce(SettingsIntent::SaveFinished {
-    id: *id,
-    result: Err(ServiceError::validation("profiles_directory", "Directory not found.")),
-});
+// The save succeeds: the submitted values become the new baseline.
+vm.reduce(SettingsIntent::SaveFinished { id: *id, result: Ok(()) });
+assert_eq!(vm.form().submit_state(), SubmitState::Succeeded);
+
+// A later load cannot resolve the directory: the error lands on that field.
+vm.reduce(SettingsIntent::LoadFailed(ServiceError::validation(
+    "profiles_directory",
+    "Directory not found.",
+)));
 assert_eq!(vm.form().submit_state(), SubmitState::Failed);
 assert_eq!(
     vm.form().error(SettingsField::ProfilesDirectory),
     Some("Directory not found.")
 );
+assert_eq!(LogFilter::parse(" debug "), Some(LogFilter::Debug));
+assert_eq!(LogFilter::parse("crosshook=debug"), None);
 ```
 
 ## Adding a view-model for a ported screen
@@ -345,8 +388,9 @@ assert_eq!(
   ```
 
 - **`testing::fixtures`**: `card("alpha").game_name("Alpha").steam_app_id("123").favorite().build()`,
-  `started(id, profile, kind, seq)`, `exited(id, seq)` and
-  `running(id, profile, kind)`.
+  `started(id, profile, kind, seq)`, `exited(id, seq)`,
+  `running(id, profile, kind)` and `synced(sessions, seq)` (a
+  `RunningProfiles` whose first request is answered).
 - The `testing` module is compiled for this crate's tests and, with the
   **`testing` feature**, for other crates' tests (for example future
   `crosshook-ui` screen tests). It adds no dependencies.

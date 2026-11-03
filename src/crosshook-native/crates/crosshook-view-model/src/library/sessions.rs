@@ -1,17 +1,19 @@
 //! Running-session tracker behind the Currently Playing count and the
 //! `CurrentlyRunning` filter.
 //!
-//! Follows the backend seq contract (`crosshook-app` `services/launch/sessions.rs`):
-//! the bridge subscribes to session events first, then requests a snapshot;
-//! events that arrive before the snapshot are buffered, and the snapshot
-//! applies only the buffered events with `seq > snapshot.seq`.
+//! Follows the backend seq contract (`crosshook-app` `services/launch/sessions.rs`)
+//! and React's `fetchToken` model (`runningSessionsStore.ts`): the bridge
+//! subscribes to session events first, then requests a snapshot; events that
+//! arrive before the snapshot are buffered, and the snapshot applies only the
+//! buffered events with `seq > snapshot.seq`. Every request carries a token
+//! and only the reply to the latest request applies.
 
 use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 use std::fmt;
 
 /// Most session events buffered while no snapshot is applied. On overflow the
-/// buffer is dropped and a new snapshot is requested.
+/// buffer is dropped and a new snapshot is requested (with a new token).
 pub(crate) const MAX_BUFFERED_EVENTS: usize = 1024;
 
 /// Opaque launch-session id. With the `app` feature it is built from the
@@ -95,76 +97,84 @@ impl SessionEvent {
 /// Live sessions and the set of running profile names derived from them.
 ///
 /// Rules (React `runningSessionsStore.ts` parity):
-/// - Before the first snapshot, and after a [`SessionEvent::Resync`], started
-///   and exited events are buffered (at most 1024; on overflow the buffer is
-///   dropped and [`apply`](Self::apply) asks for a new snapshot once).
-/// - A snapshot replaces the state, then applies the buffered events with
+/// - Every snapshot request gets a new token from
+///   [`request_snapshot`](Self::request_snapshot). Only the reply carrying the
+///   latest token applies; replies to superseded requests, and replies when no
+///   request is outstanding, are ignored.
+/// - Until the latest request is answered (before the first request, after
+///   [`SessionEvent::Resync`] and after overflow), started and exited events
+///   are buffered (at most 1024; on overflow the buffer is dropped and
+///   [`apply`](Self::apply) issues one new request).
+/// - The latest reply replaces the state, then applies the buffered events with
 ///   `seq > snapshot.seq` in arrival order.
 /// - Once synced, events with `seq <= snapshot.seq` are ignored; a duplicate
 ///   start and an exit for an unknown id are no-ops.
-/// - A snapshot with a lower `seq` than a change the tracker already knows
-///   about (an earlier snapshot, an applied event, or an event dropped on
-///   overflow) is stale and ignored. A snapshot requested after an event is
-///   never older than that event, so the latest request's answer always applies.
 #[derive(Debug, Clone, Default)]
 pub struct RunningProfiles {
     sessions: BTreeMap<SessionId, RunningSession>,
     /// Live named game sessions per profile name.
     game_names: BTreeMap<String, usize>,
+    /// `seq` of the applied snapshot; `None` while a request is outstanding
+    /// or before the first reply.
     baseline: Option<u64>,
-    /// Highest `seq` the state reflects or has dropped; snapshots with a
-    /// lower `seq` are stale.
-    stale_below: u64,
+    /// Last token handed out by [`Self::request_snapshot`].
+    last_token: u64,
+    /// Token of the outstanding request, if any; the only reply that applies.
+    awaiting: Option<u64>,
     buffer: Vec<SessionEvent>,
 }
 
 impl RunningProfiles {
-    /// Replaces the state with `sessions` taken at `seq`, then applies the
-    /// buffered events newer than `seq`. Ignored when the snapshot is stale.
-    pub fn apply_snapshot(&mut self, sessions: Vec<RunningSession>, seq: u64) {
-        if seq < self.stale_below {
-            return;
+    /// Starts a snapshot request and returns its token. Supersedes any
+    /// outstanding request; events are buffered until this request's reply
+    /// arrives.
+    pub fn request_snapshot(&mut self) -> u64 {
+        self.last_token += 1;
+        self.awaiting = Some(self.last_token);
+        self.baseline = None;
+        self.last_token
+    }
+
+    /// Applies the reply to the request with `token`: replaces the state with
+    /// `sessions` taken at `seq`, then applies the buffered events newer than
+    /// `seq`. Returns `false` (and changes nothing) when `token` is not the
+    /// latest outstanding request.
+    pub fn apply_snapshot(&mut self, token: u64, sessions: Vec<RunningSession>, seq: u64) -> bool {
+        if self.awaiting != Some(token) {
+            return false;
         }
+        self.awaiting = None;
         self.sessions.clear();
         self.game_names.clear();
         for session in sessions {
             self.insert(session);
         }
         self.baseline = Some(seq);
-        self.stale_below = seq;
         for event in std::mem::take(&mut self.buffer) {
             self.apply_live(event);
         }
+        true
     }
 
-    /// Applies one event. Returns `true` when a new snapshot must be
-    /// requested: on [`SessionEvent::Resync`] and when the pre-snapshot
-    /// buffer overflows.
-    pub fn apply(&mut self, event: SessionEvent) -> bool {
+    /// Applies one event. Returns the token of a new snapshot request the
+    /// caller must issue: on [`SessionEvent::Resync`] and when the buffer
+    /// overflows.
+    pub fn apply(&mut self, event: SessionEvent) -> Option<u64> {
         if matches!(event, SessionEvent::Resync) {
-            self.baseline = None;
-            return true;
+            return Some(self.request_snapshot());
         }
         if self.baseline.is_some() {
             self.apply_live(event);
-            return false;
+            return None;
         }
         if self.buffer.len() < MAX_BUFFERED_EVENTS {
             self.buffer.push(event);
-            return false;
+            return None;
         }
-        // The requested snapshot is taken after every dropped event, so it
-        // covers them; any snapshot older than they are is stale.
-        let dropped = self
-            .buffer
-            .iter()
-            .filter_map(SessionEvent::seq)
-            .chain(event.seq())
-            .max()
-            .unwrap_or(0);
-        self.stale_below = self.stale_below.max(dropped);
+        // A snapshot requested now is taken after every dropped event, so it
+        // covers them; the reply to any earlier request may not.
         self.buffer.clear();
-        true
+        Some(self.request_snapshot())
     }
 
     /// Whether `profile_name` has a live game session (exact, case-sensitive).
@@ -181,7 +191,7 @@ impl RunningProfiles {
         self.game_names.len()
     }
 
-    /// Whether a snapshot is applied and no resync is pending.
+    /// Whether the latest requested snapshot is applied.
     #[must_use]
     pub fn is_synced(&self) -> bool {
         self.baseline.is_some()
@@ -194,7 +204,6 @@ impl RunningProfiles {
         if self.baseline.is_some_and(|baseline| seq <= baseline) {
             return;
         }
-        self.stale_below = self.stale_below.max(seq);
         match event {
             SessionEvent::Started {
                 session_id,

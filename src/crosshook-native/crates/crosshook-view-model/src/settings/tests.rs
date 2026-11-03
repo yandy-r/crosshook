@@ -378,3 +378,53 @@ fn every_field_id_round_trips_through_apply_errors() {
         assert_eq!(vm.form().form_error(), None, "{field:?}");
     }
 }
+
+#[test]
+fn load_failure_puts_the_profiles_directory_error_on_its_field() {
+    let error = ServiceError::validation("profiles_directory", "Directory is not usable.");
+    let vm = Script::new(vm())
+        .step(SettingsIntent::LoadFailed(error), [])
+        .into_inner();
+
+    let form = vm.form();
+    assert_eq!(
+        form.error(SettingsField::ProfilesDirectory),
+        Some("Directory is not usable.")
+    );
+    assert!(form.is_touched(SettingsField::ProfilesDirectory));
+    assert_eq!(form.form_error(), None);
+    assert_eq!(form.submit_state(), SubmitState::Failed);
+    assert_eq!(form.value(), &loaded());
+}
+
+#[test]
+fn load_failure_without_a_field_shows_a_banner() {
+    let error = ServiceError::new(ServiceErrorKind::Io, "settings file unreadable");
+    let vm = Script::new(vm())
+        .step(SettingsIntent::LoadFailed(error), [])
+        .into_inner();
+
+    assert_eq!(
+        vm.form().form_error(),
+        Some(&FormError {
+            kind: ServiceErrorKind::Io,
+            message: "settings file unreadable".to_owned(),
+        })
+    );
+}
+
+#[test]
+fn log_filter_parse_round_trips_as_str() {
+    for &filter in LogFilter::ALL {
+        assert_eq!(LogFilter::parse(filter.as_str()), Some(filter));
+        assert_eq!(
+            LogFilter::parse(&format!("  {} \n", filter.as_str())),
+            Some(filter)
+        );
+    }
+    assert_eq!(LogFilter::parse(""), Some(LogFilter::Info));
+    assert_eq!(LogFilter::parse("   "), Some(LogFilter::Info));
+    for unknown in ["DEBUG", "Info", "crosshook=debug", "warn,crosshook=trace"] {
+        assert_eq!(LogFilter::parse(unknown), None, "{unknown}");
+    }
+}

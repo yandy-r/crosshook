@@ -2,8 +2,10 @@
 //! client-validated numeric field and one select, driven by [`Form`].
 //!
 //! - `profiles_directory` is trimmed into the request; empty means the
-//!   default directory. Its errors come from the backend
-//!   (`Validation { field: "profiles_directory" }`).
+//!   default directory. Its backend error comes from loading the settings:
+//!   `SettingsService::load` reports a directory it cannot resolve as
+//!   `Validation { field: "profiles_directory" }`, delivered with
+//!   [`SettingsIntent::LoadFailed`].
 //! - `recent_files_limit` is numeric text; the client check requires an
 //!   integer in `1..=100`. This is a UI-input check only: core still clamps
 //!   the value server-side.
@@ -49,6 +51,22 @@ impl LogFilter {
             Self::Info => "info",
             Self::Debug => "debug",
             Self::Trace => "trace",
+        }
+    }
+
+    /// Parses a stored `log_filter` value: trimmed, then one of the
+    /// [`as_str`](Self::as_str) names (case-sensitive). Empty is
+    /// [`Info`](Self::Info), the backend default. `None` for any other value:
+    /// the backend accepts full filter directives (e.g. `crosshook=debug`),
+    /// which this example select cannot represent.
+    #[must_use]
+    pub fn parse(value: &str) -> Option<Self> {
+        match value.trim() {
+            "" => Some(Self::Info),
+            value => Self::ALL
+                .iter()
+                .copied()
+                .find(|filter| filter.as_str() == value),
         }
     }
 }
@@ -142,6 +160,9 @@ fn parse_recent_files_limit(text: &str) -> Option<u32> {
 pub enum SettingsIntent {
     /// Settings (re)loaded from the backend; resets the form to them.
     Loaded(SettingsFields),
+    /// Loading the settings failed. The error is shown on the form like a
+    /// save error (see [`Form::apply_errors`]); the values are kept.
+    LoadFailed(ServiceError),
     /// Profiles directory input changed.
     EditProfilesDirectory(String),
     /// Recent files limit input changed.
@@ -199,6 +220,7 @@ impl ViewModel for SettingsViewModel {
 
     fn reduce(&mut self, intent: SettingsIntent) -> Vec<SettingsEffect> {
         match intent {
+            SettingsIntent::LoadFailed(error) => self.form.apply_errors(&error),
             SettingsIntent::Loaded(fields) => self.form.reset(fields),
             SettingsIntent::EditProfilesDirectory(text) => {
                 self.form.edit(SettingsField::ProfilesDirectory, |v| {

@@ -1,11 +1,59 @@
 use super::sessions::MAX_BUFFERED_EVENTS;
 use super::{
     LibraryEffect as Effect, LibraryFilter, LibraryIntent as Intent, LibrarySort, LibraryViewModel,
-    ProfileCard, RunningProfiles, SessionEvent, SessionKind,
+    ProfileCard, RunningProfiles, RunningSession, SessionEvent, SessionKind,
 };
-use crate::testing::fixtures::{card, exited, running, started};
+use crate::testing::fixtures::{card, exited, running, started, synced};
 use crate::testing::Script;
 use crate::{ServiceError, ViewModel};
+
+fn snapshot(token: u64, sessions: Vec<RunningSession>, seq: u64) -> Intent {
+    Intent::RunningSnapshot {
+        token,
+        sessions,
+        seq,
+    }
+}
+
+fn request(token: u64) -> Effect {
+    Effect::RequestRunningSessions { token }
+}
+
+/// A library with `names` loaded and the first snapshot (token 1, empty, at
+/// `seq` 0) applied.
+fn started_library(names: &[&str]) -> Script<LibraryViewModel> {
+    Script::new(loaded(plain(names)))
+        .step(Intent::Start, [request(1)])
+        .step(snapshot(1, Vec::new(), 0), [])
+}
+
+fn toggle(name: &str) -> Intent {
+    Intent::ToggleFavorite(name.into())
+}
+
+fn set(name: &str, favorite: bool) -> Effect {
+    Effect::SetFavorite {
+        name: name.into(),
+        favorite,
+    }
+}
+
+fn saved(name: &str, favorite: bool, result: Result<(), ServiceError>) -> Intent {
+    Intent::FavoriteSaved {
+        name: name.into(),
+        favorite,
+        result,
+    }
+}
+
+#[track_caller]
+fn shows_favorite(vm: &LibraryViewModel, name: &str, expected: bool) {
+    let card = vm
+        .visible()
+        .find(|card| card.name == name)
+        .unwrap_or_else(|| panic!("{name} should be visible"));
+    assert_eq!(card.is_favorite, expected, "{name} favorite flag");
+}
 
 fn names(vm: &LibraryViewModel) -> Vec<&str> {
     vm.visible_names().collect()
@@ -164,8 +212,7 @@ fn refresh_loads_and_a_failed_load_keeps_the_list_until_a_later_success() {
 // 9
 #[test]
 fn only_named_game_sessions_count_as_playing() {
-    let mut tracker = RunningProfiles::default();
-    tracker.apply_snapshot(
+    let tracker = synced(
         vec![
             running("t", Some("alpha"), SessionKind::Trainer),
             running("anon", None, SessionKind::Game),
@@ -180,8 +227,7 @@ fn only_named_game_sessions_count_as_playing() {
 // 10
 #[test]
 fn two_game_sessions_of_one_profile_count_once_until_both_exit() {
-    let mut tracker = RunningProfiles::default();
-    tracker.apply_snapshot(Vec::new(), 0);
+    let mut tracker = synced(Vec::new(), 0);
     tracker.apply(started("g1", Some("alpha"), SessionKind::Game, 1));
     tracker.apply(started("g2", Some("alpha"), SessionKind::Game, 2));
     playing(&tracker, &["alpha"]);
@@ -194,8 +240,7 @@ fn two_game_sessions_of_one_profile_count_once_until_both_exit() {
 // 11
 #[test]
 fn events_at_or_below_the_snapshot_seq_are_ignored() {
-    let mut tracker = RunningProfiles::default();
-    tracker.apply_snapshot(vec![running("a", Some("alpha"), SessionKind::Game)], 5);
+    let mut tracker = synced(vec![running("a", Some("alpha"), SessionKind::Game)], 5);
     tracker.apply(started("b", Some("beta"), SessionKind::Game, 4));
     tracker.apply(started("c", Some("gamma"), SessionKind::Game, 5));
     tracker.apply(exited("a", 5));
@@ -208,11 +253,22 @@ fn events_at_or_below_the_snapshot_seq_are_ignored() {
 #[test]
 fn events_before_the_first_snapshot_are_buffered_and_filtered_by_seq() {
     let mut tracker = RunningProfiles::default();
-    assert!(!tracker.apply(started("c", Some("Gamma"), SessionKind::Game, 3)));
-    assert!(!tracker.apply(started("b", Some("Beta"), SessionKind::Game, 5)));
+    assert_eq!(
+        tracker.apply(started("c", Some("Gamma"), SessionKind::Game, 3)),
+        None
+    );
+    let token = tracker.request_snapshot();
+    assert_eq!(
+        tracker.apply(started("b", Some("Beta"), SessionKind::Game, 5)),
+        None
+    );
     assert!(!tracker.is_synced());
     playing(&tracker, &[]);
-    tracker.apply_snapshot(vec![running("a", Some("Alpha"), SessionKind::Game)], 4);
+    assert!(tracker.apply_snapshot(
+        token,
+        vec![running("a", Some("Alpha"), SessionKind::Game)],
+        4
+    ));
     assert!(tracker.is_synced());
     playing(&tracker, &["Alpha", "Beta"]);
     tracker.apply(started("c", Some("Gamma"), SessionKind::Game, 4));
@@ -224,23 +280,15 @@ fn events_before_the_first_snapshot_are_buffered_and_filtered_by_seq() {
 #[test]
 fn resync_requests_a_snapshot_that_replaces_the_state() {
     Script::new(LibraryViewModel::default())
+        .step(Intent::Start, [request(1)])
         .step(
-            Intent::RunningSnapshot {
-                sessions: vec![running("a", Some("alpha"), SessionKind::Game)],
-                seq: 1,
-            },
+            snapshot(1, vec![running("a", Some("alpha"), SessionKind::Game)], 1),
             [],
         )
         .step(game("b", "beta", 2), [])
+        .step(Intent::Session(SessionEvent::Resync), [request(2)])
         .step(
-            Intent::Session(SessionEvent::Resync),
-            [Effect::RequestRunningSessions],
-        )
-        .step(
-            Intent::RunningSnapshot {
-                sessions: vec![running("c", Some("gamma"), SessionKind::Game)],
-                seq: 9,
-            },
+            snapshot(2, vec![running("c", Some("gamma"), SessionKind::Game)], 9),
             [],
         )
         .assert_state(|vm| {
@@ -251,11 +299,67 @@ fn resync_requests_a_snapshot_that_replaces_the_state() {
         .into_inner();
 }
 
+#[test]
+fn only_the_reply_to_the_latest_request_applies() {
+    // Two resyncs in flight; the superseded reply (seq 10) must not make the
+    // latest one (seq 11) look stale after a live event at seq 12.
+    Script::new(LibraryViewModel::default())
+        .step(Intent::Start, [request(1)])
+        .step(snapshot(1, Vec::new(), 0), [])
+        .step(Intent::Session(SessionEvent::Resync), [request(2)])
+        .step(Intent::Session(SessionEvent::Resync), [request(3)])
+        .step(
+            snapshot(2, vec![running("old", Some("old"), SessionKind::Game)], 10),
+            [],
+        )
+        .assert_state(|vm| {
+            assert!(!vm.running.is_synced(), "superseded reply must not sync");
+            assert_eq!(vm.currently_playing_count(), 0);
+        })
+        .step(game("live", "live", 12), [])
+        .step(
+            snapshot(
+                3,
+                vec![running("lost", Some("lost"), SessionKind::Game)],
+                11,
+            ),
+            [],
+        )
+        .assert_state(|vm| {
+            assert!(vm.is_running("lost") && vm.is_running("live"));
+            assert!(!vm.is_running("old"));
+            assert_eq!(vm.currently_playing_count(), 2);
+        })
+        // A late reply to an already answered request changes nothing.
+        .step(snapshot(3, Vec::new(), 20), [])
+        .step(snapshot(2, Vec::new(), 20), [])
+        .assert_state(|vm| assert_eq!(vm.currently_playing_count(), 2))
+        .into_inner();
+}
+
+#[test]
+fn a_reply_without_an_outstanding_request_is_ignored() {
+    Script::new(LibraryViewModel::default())
+        // Before `Start`, nothing was requested; the event stays buffered.
+        .step(game("b", "beta", 5), [])
+        .step(
+            snapshot(1, vec![running("a", Some("alpha"), SessionKind::Game)], 1),
+            [],
+        )
+        .assert_state(|vm| assert_eq!(vm.currently_playing_count(), 0))
+        .step(Intent::Start, [request(1)])
+        .step(
+            snapshot(1, vec![running("a", Some("alpha"), SessionKind::Game)], 4),
+            [],
+        )
+        .assert_state(|vm| assert!(vm.is_running("alpha") && vm.is_running("beta")))
+        .into_inner();
+}
+
 // 14
 #[test]
 fn duplicate_start_is_idempotent_and_unknown_exit_is_a_no_op() {
-    let mut tracker = RunningProfiles::default();
-    tracker.apply_snapshot(Vec::new(), 0);
+    let mut tracker = synced(Vec::new(), 0);
     tracker.apply(started("g", Some("alpha"), SessionKind::Game, 1));
     tracker.apply(started("g", Some("alpha"), SessionKind::Game, 2));
     tracker.apply(exited("ghost", 3));
@@ -270,11 +374,9 @@ fn duplicate_start_is_idempotent_and_unknown_exit_is_a_no_op() {
 fn running_filter_follows_session_events_without_a_reload() {
     Script::new(loaded(plain(&["alpha", "beta", "gamma"])))
         .step(Intent::SetFilter(LibraryFilter::CurrentlyRunning), [])
+        .step(Intent::Start, [request(1)])
         .step(
-            Intent::RunningSnapshot {
-                sessions: vec![running("a", Some("alpha"), SessionKind::Game)],
-                seq: 1,
-            },
+            snapshot(1, vec![running("a", Some("alpha"), SessionKind::Game)], 1),
             [],
         )
         .assert_state(|vm| assert_eq!(names(vm), ["alpha"]))
@@ -287,15 +389,8 @@ fn running_filter_follows_session_events_without_a_reload() {
 
 #[test]
 fn running_profile_missing_from_the_library_counts_but_is_not_listed() {
-    Script::new(loaded(plain(&["alpha"])))
+    started_library(&["alpha"])
         .step(Intent::SetFilter(LibraryFilter::CurrentlyRunning), [])
-        .step(
-            Intent::RunningSnapshot {
-                sessions: Vec::new(),
-                seq: 0,
-            },
-            [],
-        )
         .step(game("r", "renamed", 1), [])
         .assert_state(|vm| {
             assert_eq!(vm.currently_playing_count(), 1);
@@ -307,33 +402,32 @@ fn running_profile_missing_from_the_library_counts_but_is_not_listed() {
 #[test]
 fn buffer_overflow_drops_events_and_requests_one_snapshot() {
     let mut vm = LibraryViewModel::default();
+    assert_eq!(vm.reduce(Intent::Start), [request(1)]);
     for seq in 1..=MAX_BUFFERED_EVENTS as u64 {
         let id = format!("s{seq}");
         assert!(vm.reduce(game(&id, "alpha", seq)).is_empty());
     }
     let overflow = MAX_BUFFERED_EVENTS as u64 + 1;
     Script::new(vm)
-        .step(
-            game("over", "beta", overflow),
-            [Effect::RequestRunningSessions],
-        )
+        .step(game("over", "beta", overflow), [request(2)])
         // The buffer starts again; the next event is buffered quietly.
         .step(game("next", "gamma", overflow + 1), [])
-        // A snapshot older than the dropped events is stale.
+        // The reply to the superseded request may predate the dropped events.
         .step(
-            Intent::RunningSnapshot {
-                sessions: Vec::new(),
-                seq: 3,
-            },
+            snapshot(1, vec![running("s1", Some("alpha"), SessionKind::Game)], 0),
             [],
         )
-        .assert_state(|vm| assert_eq!(vm.currently_playing_count(), 0))
-        // The requested snapshot covers the dropped events; the buffered tail applies.
+        .assert_state(|vm| {
+            assert!(!vm.running.is_synced());
+            assert_eq!(vm.currently_playing_count(), 0);
+        })
+        // The new request covers the dropped events; the buffered tail applies.
         .step(
-            Intent::RunningSnapshot {
-                sessions: vec![running("over", Some("beta"), SessionKind::Game)],
-                seq: overflow,
-            },
+            snapshot(
+                2,
+                vec![running("over", Some("beta"), SessionKind::Game)],
+                overflow,
+            ),
             [],
         )
         .assert_state(|vm| {
@@ -348,62 +442,97 @@ fn buffer_overflow_drops_events_and_requests_one_snapshot() {
 fn toggle_favorite_is_optimistic_and_a_failed_save_reverts_it() {
     Script::new(loaded(plain(&["alpha", "beta"])))
         .step(Intent::SetFilter(LibraryFilter::Favorites), [])
-        .step(
-            Intent::ToggleFavorite("beta".into()),
-            [Effect::SetFavorite {
-                name: "beta".into(),
-                favorite: true,
-            }],
-        )
+        .step(toggle("beta"), [set("beta", true)])
         .assert_state(|vm| assert_eq!(names(vm), ["beta"]))
-        .step(
-            Intent::FavoriteSaved {
-                name: "beta".into(),
-                result: Err(unavailable()),
-            },
-            [],
-        )
+        .step(saved("beta", true, Err(unavailable())), [])
         .assert_state(|vm| {
             assert!(names(vm).is_empty());
             assert_eq!(vm.load_error(), Some(&unavailable()));
         })
-        .step(Intent::ToggleFavorite("missing".into()), [])
+        .step(toggle("missing"), [])
         .into_inner();
 }
 
 #[test]
-fn a_failed_save_restores_the_value_before_its_own_request() {
-    // Two toggles in flight; the first save fails, the second succeeds.
+fn when_every_save_fails_the_confirmed_value_returns() {
     Script::new(loaded(plain(&["alpha"])))
+        .step(toggle("alpha"), [set("alpha", true)])
+        .step(toggle("alpha"), [set("alpha", false)])
+        .step(toggle("alpha"), [set("alpha", true)])
+        .step(saved("alpha", true, Err(unavailable())), [])
+        // Saves still in flight: the latest request stays on screen.
+        .assert_state(|vm| shows_favorite(vm, "alpha", true))
+        .step(saved("alpha", false, Err(unavailable())), [])
+        .assert_state(|vm| shows_favorite(vm, "alpha", true))
+        .step(saved("alpha", true, Err(unavailable())), [])
+        .assert_state(|vm| shows_favorite(vm, "alpha", false))
+        .into_inner();
+}
+
+#[test]
+fn a_failed_first_save_does_not_undo_later_successes() {
+    Script::new(loaded(plain(&["alpha"])))
+        .step(toggle("alpha"), [set("alpha", true)])
+        .step(toggle("alpha"), [set("alpha", false)])
+        .step(toggle("alpha"), [set("alpha", true)])
+        .step(saved("alpha", true, Err(unavailable())), [])
+        .assert_state(|vm| shows_favorite(vm, "alpha", true))
+        .step(saved("alpha", false, Ok(())), [])
+        .assert_state(|vm| shows_favorite(vm, "alpha", true))
+        .step(saved("alpha", true, Ok(())), [])
+        .assert_state(|vm| {
+            shows_favorite(vm, "alpha", true);
+            assert_eq!(vm.load_error(), Some(&unavailable()));
+        })
+        .into_inner();
+}
+
+#[test]
+fn out_of_order_replies_settle_on_the_last_confirmed_value() {
+    // The second save answers first and succeeds; the first then fails.
+    Script::new(loaded(plain(&["alpha", "beta"])))
+        .step(toggle("alpha"), [set("alpha", true)])
+        .step(toggle("alpha"), [set("alpha", false)])
+        .step(saved("alpha", false, Ok(())), [])
+        .step(saved("alpha", true, Err(unavailable())), [])
+        .assert_state(|vm| shows_favorite(vm, "alpha", false))
+        // The second save fails first; the first then succeeds.
+        .step(toggle("beta"), [set("beta", true)])
+        .step(toggle("beta"), [set("beta", false)])
+        .step(saved("beta", false, Err(unavailable())), [])
+        .assert_state(|vm| shows_favorite(vm, "beta", false))
+        .step(saved("beta", true, Ok(())), [])
+        .assert_state(|vm| shows_favorite(vm, "beta", true))
+        .into_inner();
+}
+
+#[test]
+fn a_reload_during_a_save_keeps_the_pending_value() {
+    Script::new(loaded(plain(&["alpha", "beta"])))
+        .step(toggle("alpha"), [set("alpha", true)])
+        // The reload was read before the save landed: stale `alpha`, and a
+        // `beta` change made elsewhere.
         .step(
-            Intent::ToggleFavorite("alpha".into()),
-            [Effect::SetFavorite {
-                name: "alpha".into(),
-                favorite: true,
-            }],
-        )
-        .step(
-            Intent::ToggleFavorite("alpha".into()),
-            [Effect::SetFavorite {
-                name: "alpha".into(),
-                favorite: false,
-            }],
-        )
-        .step(
-            Intent::FavoriteSaved {
-                name: "alpha".into(),
-                result: Err(unavailable()),
-            },
+            Intent::ProfilesLoaded(Ok(vec![
+                card("alpha").build(),
+                card("beta").favorite().build(),
+            ])),
             [],
         )
-        .assert_state(|vm| assert!(!vm.visible().next().is_some_and(|c| c.is_favorite)))
+        .assert_state(|vm| {
+            shows_favorite(vm, "alpha", true);
+            shows_favorite(vm, "beta", true);
+        })
+        .step(saved("alpha", true, Ok(())), [])
+        .assert_state(|vm| shows_favorite(vm, "alpha", true))
+        // Nothing pending: a reload is taken as is.
         .step(
-            Intent::FavoriteSaved {
-                name: "alpha".into(),
-                result: Ok(()),
-            },
+            Intent::ProfilesLoaded(Ok(vec![card("alpha").build(), card("beta").build()])),
             [],
         )
-        .assert_state(|vm| assert!(!vm.visible().next().is_some_and(|c| c.is_favorite)))
+        .assert_state(|vm| {
+            shows_favorite(vm, "alpha", false);
+            shows_favorite(vm, "beta", false);
+        })
         .into_inner();
 }

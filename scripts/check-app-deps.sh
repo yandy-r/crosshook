@@ -7,7 +7,9 @@
 #     glib, iced, gpui, winit and their families: gtk4, glib-sys,
 #     tauri-runtime, iced_core, ...).
 #   - crosshook-view-model (normal, build and dev edges): no UI toolkit and no
-#     async runtime (tokio, mio and their families: tokio-util, tokio_stream).
+#     async runtime (tokio, mio, async-std, smol, async-executor,
+#     futures-executor and their families: tokio-util, tokio_stream).
+# Trees cover every target platform (`--target all`).
 #
 # Usage: ./scripts/check-app-deps.sh [--help|-h] [--selftest]
 # Exit codes: 0 = clean, 1 = banned dependency / cargo failure / selftest failure.
@@ -20,9 +22,9 @@ MANIFEST="src/crosshook-native/Cargo.toml"
 # Exact name, or name followed by - _ or a digit (gtk4, glib-sys, iced_core).
 # `glibc`, `winitx`, etc. do not match.
 TOOLKIT_RE='^(tauri|wry|webkit2gtk|gtk|glib|iced|gpui|winit)([-_0-9].*)?$'
-# Exact name, or name followed by - or _ (tokio-util, tokio_stream).
-# `tokioz`, `miox`, etc. do not match.
-ASYNC_RE='^(tokio|mio)([-_].*)?$'
+# Exact name, or name followed by - or _ (tokio-util, tokio_stream,
+# async-std-macros). `tokioz`, `smolder`, `futures-util`, etc. do not match.
+ASYNC_RE='^(tokio|mio|async-std|smol|async-executor|futures-executor)([-_].*)?$'
 
 # package|cargo-tree edges|space-separated banned regexes. The regexes contain
 # `|`, so split only on the first two separators (see the main loop).
@@ -40,12 +42,14 @@ Fails if a UI-free crate's transitive dependencies include a banned crate:
                         webkit2gtk, gtk, glib, iced, gpui, winit and families
                         such as gtk4, glib-sys, tauri-runtime, iced_core).
   crosshook-view-model  normal, build and dev edges; no UI toolkit crate and
-                        no async runtime (tokio, mio and families such as
-                        tokio-util, tokio_stream).
+                        no async runtime (tokio, mio, async-std, smol,
+                        async-executor, futures-executor and families such
+                        as tokio-util, tokio_stream).
+Dependency trees cover every target platform (cargo tree --target all).
 
 Options:
   -h, --help    Print this help and exit 0.
-  --selftest    Run the checker against canned dependency trees; exit 0 on success.
+  --selftest    Run every CHECKS row against canned dependency trees; exit 0 on success.
 
 Exit codes: 0 = clean, 1 = banned dependency, cargo failure, or selftest failure.
 EOF
@@ -74,43 +78,81 @@ check_tree() {
   return "$bad"
 }
 
+# parse_check <entry>: splits a CHECKS row into the globals pkg, edges and
+# banned (array). Returns 1 if the row is malformed or has no banned regexes.
+parse_check() {
+  local regexes
+  IFS='|' read -r pkg edges regexes <<<"$1"
+  read -r -a banned <<<"$regexes"
+  if [[ -z "$pkg" || -z "$edges" || ${#banned[@]} -eq 0 ]]; then
+    echo "error: CHECKS row has no package, edges or banned regexes: $1" >&2
+    return 1
+  fi
+}
+
+# selftest_cases <package>: prints `<0|1>|<label>|<tree>` cases (tree uses
+# literal \n separators) for a CHECKS package; prints nothing for unknown ones.
+selftest_cases() {
+  case "$1" in
+    crosshook-app)
+      cat <<'EOF'
+0|clean tree|crosshook-app v0.1.0 (/x/tauri-app)\ncrosshook-core v0.1.0 (/x/crates/crosshook-core)\nserde v1.0.200\nglibc-compat v1.0.0\nwinitx v0.1.0\ntaurine v1.0.0\nwryly v2.0.0
+1|empty tree|
+1|direct tauri|crosshook-app v0.1.0\ntauri v2.0.0
+1|transitive webkit2gtk-sys|crosshook-app v0.1.0\nfoo v1.0.0\nwebkit2gtk-sys v2.0.0
+1|gtk4 family|crosshook-app v0.1.0\ngtk4 v0.9.0
+1|glib-sys|crosshook-app v0.1.0\nglib-sys v0.20.0
+1|tauri-runtime|crosshook-app v0.1.0\ntauri-runtime v2.0.0
+1|iced_core underscore|crosshook-app v0.1.0\niced_core v0.13.0
+1|winit proc-macro marker|crosshook-app v0.1.0\nwinit v0.30.0 (proc-macro)
+1|renamed dep (shows real package)|crosshook-app v0.1.0\nmy-ui-shim v1.0.0\nwry v0.45.0 (*)
+1|git source|crosshook-app v0.1.0\ngpui v0.1.0 (https://github.com/zed-industries/zed#abc)
+0|async runtimes allowed|crosshook-app v0.1.0\ntokio v1.40.0\nmio v1.0.0\nasync-std v1.13.0\nsmol v2.0.0\nfutures-executor v0.3.31
+EOF
+      ;;
+    crosshook-view-model)
+      cat <<'EOF'
+0|clean tree (tokioz, miox, smolder, futures-util accepted)|crosshook-view-model v0.1.0 (/x/crates/crosshook-view-model)\ncrosshook-core v0.1.0 (/x/crates/crosshook-core)\nproptest v1.5.0\ntokioz v0.1.0\nmiox v0.1.0\nsmolder v0.1.0\nfutures-util v0.3.31\nfutures-core v0.3.31\nglibc-compat v1.0.0
+1|empty tree|
+1|tokio|crosshook-view-model v0.1.0\ntokio v1.40.0
+1|tokio-util|crosshook-view-model v0.1.0\nfoo v1.0.0\ntokio-util v0.7.0
+1|tokio_stream underscore|crosshook-view-model v0.1.0\ntokio_stream v0.1.0
+1|mio|crosshook-view-model v0.1.0\nmio v1.0.0
+1|tokio-macros proc-macro|crosshook-view-model v0.1.0\ntokio-macros v2.4.0 (proc-macro)
+1|async-std|crosshook-view-model v0.1.0\nasync-std v1.13.0
+1|smol|crosshook-view-model v0.1.0\nsmol v2.0.0
+1|async-executor|crosshook-view-model v0.1.0\nasync-executor v1.13.0
+1|futures-executor|crosshook-view-model v0.1.0\nfutures-executor v0.3.31
+1|toolkit gtk4|crosshook-view-model v0.1.0\ngtk4 v0.9.0
+EOF
+      ;;
+  esac
+}
+
+# selftest: parses every CHECKS row exactly as the main loop does and runs that
+# package's canned trees against the parsed regexes.
 selftest() {
-  local ok=1
-  expect() { # expect <0|1> <label> <tree> <regex>...
-    local want="$1" label="$2" tree="$3" got=0
-    shift 3
-    check_tree "$@" <<<"$tree" 2>/dev/null || got=$?
-    if [[ "$got" != "$want" ]]; then
-      echo "selftest FAILED: $label (want $want, got $got)" >&2
+  local ok=1 entry cases want label tree got
+  for entry in "${CHECKS[@]}"; do
+    if ! parse_check "$entry"; then
       ok=0
+      continue
     fi
-  }
-  app() { expect "$1" "app: $2" "$3" "$TOOLKIT_RE"; }
-  vm() { expect "$1" "view-model: $2" "$3" "$TOOLKIT_RE" "$ASYNC_RE"; }
-
-  local clean=$'crosshook-app v0.1.0 (/x/tauri-app)\ncrosshook-core v0.1.0 (/x/crates/crosshook-core)\nserde v1.0.200\nglibc-compat v1.0.0\nwinitx v0.1.0\ntaurine v1.0.0\nwryly v2.0.0'
-  app 0 "clean tree" "$clean"
-  app 1 "empty tree" ""
-  app 1 "direct tauri" $'crosshook-app v0.1.0\ntauri v2.0.0'
-  app 1 "transitive webkit2gtk-sys" $'crosshook-app v0.1.0\nfoo v1.0.0\nwebkit2gtk-sys v2.0.0'
-  app 1 "gtk4 family" $'crosshook-app v0.1.0\ngtk4 v0.9.0'
-  app 1 "glib-sys" $'crosshook-app v0.1.0\nglib-sys v0.20.0'
-  app 1 "tauri-runtime" $'crosshook-app v0.1.0\ntauri-runtime v2.0.0'
-  app 1 "iced_core underscore" $'crosshook-app v0.1.0\niced_core v0.13.0'
-  app 1 "winit proc-macro marker" $'crosshook-app v0.1.0\nwinit v0.30.0 (proc-macro)'
-  app 1 "renamed dep (shows real package)" $'crosshook-app v0.1.0\nmy-ui-shim v1.0.0\nwry v0.45.0 (*)'
-  app 1 "git source" $'crosshook-app v0.1.0\ngpui v0.1.0 (https://github.com/zed-industries/zed#abc)'
-  app 0 "tokio allowed" $'crosshook-app v0.1.0\ntokio v1.40.0\nmio v1.0.0'
-
-  local vm_clean=$'crosshook-view-model v0.1.0 (/x/crates/crosshook-view-model)\ncrosshook-core v0.1.0 (/x/crates/crosshook-core)\nproptest v1.5.0\ntokioz v0.1.0\nmiox v0.1.0\nglibc-compat v1.0.0'
-  vm 0 "clean tree (tokioz, miox, crosshook-core accepted)" "$vm_clean"
-  vm 1 "empty tree" ""
-  vm 1 "tokio" $'crosshook-view-model v0.1.0\ntokio v1.40.0'
-  vm 1 "tokio-util" $'crosshook-view-model v0.1.0\nfoo v1.0.0\ntokio-util v0.7.0'
-  vm 1 "tokio_stream underscore" $'crosshook-view-model v0.1.0\ntokio_stream v0.1.0'
-  vm 1 "mio" $'crosshook-view-model v0.1.0\nmio v1.0.0'
-  vm 1 "tokio-macros proc-macro" $'crosshook-view-model v0.1.0\ntokio-macros v2.4.0 (proc-macro)'
-  vm 1 "toolkit gtk4" $'crosshook-view-model v0.1.0\ngtk4 v0.9.0'
+    cases="$(selftest_cases "$pkg")"
+    if [[ -z "$cases" ]]; then
+      echo "selftest FAILED: no cases for CHECKS package $pkg" >&2
+      ok=0
+      continue
+    fi
+    while IFS='|' read -r want label tree; do
+      got=0
+      check_tree "${banned[@]}" <<<"$(printf '%b' "$tree")" 2>/dev/null || got=$?
+      if [[ "$got" != "$want" ]]; then
+        echo "selftest FAILED: $pkg: $label (want $want, got $got)" >&2
+        ok=0
+      fi
+    done <<<"$cases"
+  done
 
   if (( ok )); then
     echo "selftest passed: allowed trees accepted, banned trees rejected."
@@ -130,10 +172,9 @@ done
 cd "$REPO_ROOT"
 failed=0
 for entry in "${CHECKS[@]}"; do
-  IFS='|' read -r pkg edges regexes <<<"$entry"
-  read -r -a banned <<<"$regexes"
+  parse_check "$entry" || exit 1
   tree_status=0
-  tree="$(cargo tree --manifest-path "$MANIFEST" -p "$pkg" -e "$edges" --prefix none --format '{p}')" || tree_status=$?
+  tree="$(cargo tree --manifest-path "$MANIFEST" -p "$pkg" -e "$edges" --target all --prefix none --format '{p}')" || tree_status=$?
   if (( tree_status != 0 )); then
     echo "error: cargo tree failed for $pkg (exit $tree_status)" >&2
     exit 1

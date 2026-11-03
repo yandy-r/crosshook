@@ -50,6 +50,9 @@ impl From<&AppRunningSession> for RunningSession {
 
 /// Converts a running-sessions snapshot into the sessions and `seq` of
 /// [`LibraryIntent::RunningSnapshot`](super::LibraryIntent::RunningSnapshot).
+/// The bridge adds the `token` from the
+/// [`LibraryEffect::RequestRunningSessions`](super::LibraryEffect::RequestRunningSessions)
+/// it answers.
 #[must_use]
 pub fn running_snapshot(snapshot: &AppRunningSessions) -> (Vec<RunningSession>, u64) {
     (

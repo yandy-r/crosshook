@@ -20,7 +20,7 @@
 //! assert_eq!(vm.visible_names().collect::<Vec<_>>(), ["beta"]);
 //! ```
 
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::BTreeMap;
 
 use crate::{ServiceError, ViewModel};
 
@@ -88,17 +88,28 @@ pub enum LibraryIntent {
     SetSort(LibrarySort),
     /// Flip the favorite flag of the named card (optimistic).
     ToggleFavorite(String),
-    /// Result of [`LibraryEffect::SetFavorite`]. `Err` reverts that card's
-    /// flag and sets [`LibraryViewModel::load_error`].
+    /// Result of the [`LibraryEffect::SetFavorite`] for `name` and
+    /// `favorite`, echoed from the effect. Replies may arrive in any order.
+    /// `Ok` confirms `favorite`; `Err` keeps the confirmed value and sets
+    /// [`LibraryViewModel::load_error`]. Once no save for the profile is in
+    /// flight, its card shows the confirmed value.
     FavoriteSaved {
-        /// Profile name the save was for.
+        /// Profile name from the effect.
         name: String,
+        /// Requested flag from the effect.
+        favorite: bool,
         /// Save outcome.
         result: Result<(), ServiceError>,
     },
-    /// Result of [`LibraryEffect::RequestRunningSessions`] (or the bridge's
-    /// initial request, made after subscribing to session events).
+    /// The bridge has subscribed to session events: requests the first
+    /// running-sessions snapshot. The bridge never requests a snapshot on its
+    /// own, so every reply carries a token the view-model issued.
+    Start,
+    /// Result of [`LibraryEffect::RequestRunningSessions`] with `token`.
+    /// Only the reply to the latest request applies; others are ignored.
     RunningSnapshot {
+        /// Token from the effect.
+        token: u64,
         /// Live sessions.
         sessions: Vec<RunningSession>,
         /// Registry change sequence the sessions reflect.
@@ -122,8 +133,22 @@ pub enum LibraryEffect {
         favorite: bool,
     },
     /// Read a running-sessions snapshot; answer with
-    /// [`LibraryIntent::RunningSnapshot`].
-    RequestRunningSessions,
+    /// [`LibraryIntent::RunningSnapshot`] carrying `token`.
+    RequestRunningSessions {
+        /// Request token to echo back.
+        token: u64,
+    },
+}
+
+/// Favorite saves in flight for one profile.
+#[derive(Debug, Clone, Copy)]
+struct PendingFavorite {
+    /// Last value the backend confirmed (or loaded, before any save).
+    confirmed: bool,
+    /// Value of the latest request; shown while saves are in flight.
+    latest: bool,
+    /// Saves without a reply yet; at least 1 while the entry exists.
+    in_flight: usize,
 }
 
 /// Library screen state.
@@ -141,9 +166,9 @@ pub struct LibraryViewModel {
     sort: LibrarySort,
     load_error: Option<ServiceError>,
     running: RunningProfiles,
-    /// Favorite values requested per profile, oldest first, awaiting
-    /// [`LibraryIntent::FavoriteSaved`].
-    pending_favorites: BTreeMap<String, VecDeque<bool>>,
+    /// Profiles with favorite saves in flight; removed when the last reply
+    /// arrives.
+    pending_favorites: BTreeMap<String, PendingFavorite>,
     visible: Vec<usize>,
 }
 
@@ -216,14 +241,32 @@ impl LibraryViewModel {
         self.cards.iter_mut().find(|card| card.name == name)
     }
 
-    /// Pops the oldest pending favorite value requested for `name`.
-    fn take_pending_favorite(&mut self, name: &str) -> Option<bool> {
-        let queue = self.pending_favorites.get_mut(name)?;
-        let requested = queue.pop_front();
-        if queue.is_empty() {
-            self.pending_favorites.remove(name);
+    /// Card value for `name` after a save reply: the latest request while
+    /// saves are in flight, the confirmed value once none are.
+    fn settle_favorite(&mut self, name: &str, favorite: bool, saved: bool) {
+        let Some(pending) = self.pending_favorites.get_mut(name) else {
+            return;
+        };
+        if saved {
+            pending.confirmed = favorite;
         }
-        requested
+        pending.in_flight -= 1;
+        let shown = if pending.in_flight == 0 {
+            let confirmed = pending.confirmed;
+            self.pending_favorites.remove(name);
+            confirmed
+        } else {
+            pending.latest
+        };
+        if let Some(card) = self.card_mut(name) {
+            card.is_favorite = shown;
+        }
+    }
+
+    fn request_running_sessions(&mut self) -> LibraryEffect {
+        LibraryEffect::RequestRunningSessions {
+            token: self.running.request_snapshot(),
+        }
     }
 }
 
@@ -233,7 +276,14 @@ impl ViewModel for LibraryViewModel {
 
     fn reduce(&mut self, intent: LibraryIntent) -> Vec<LibraryEffect> {
         match intent {
-            LibraryIntent::ProfilesLoaded(Ok(cards)) => {
+            LibraryIntent::ProfilesLoaded(Ok(mut cards)) => {
+                // A load may predate saves still in flight: show their latest
+                // request. Profiles with nothing pending take the loaded value.
+                for card in &mut cards {
+                    if let Some(pending) = self.pending_favorites.get(&card.name) {
+                        card.is_favorite = pending.latest;
+                    }
+                }
                 self.keys = select::search_keys(&cards);
                 self.cards = cards;
                 self.load_error = None;
@@ -241,6 +291,7 @@ impl ViewModel for LibraryViewModel {
             }
             LibraryIntent::ProfilesLoaded(Err(error)) => self.load_error = Some(error),
             LibraryIntent::Refresh => return vec![LibraryEffect::LoadProfiles],
+            LibraryIntent::Start => return vec![self.request_running_sessions()],
             LibraryIntent::SetQuery(query) => {
                 self.query = query;
                 self.recompute();
@@ -257,37 +308,48 @@ impl ViewModel for LibraryViewModel {
                 let Some(card) = self.card_mut(&name) else {
                     return Vec::new();
                 };
+                let confirmed = card.is_favorite;
                 card.is_favorite = !card.is_favorite;
                 let favorite = card.is_favorite;
-                self.pending_favorites
-                    .entry(name.clone())
-                    .or_default()
-                    .push_back(favorite);
+                let pending =
+                    self.pending_favorites
+                        .entry(name.clone())
+                        .or_insert(PendingFavorite {
+                            confirmed,
+                            latest: favorite,
+                            in_flight: 0,
+                        });
+                pending.latest = favorite;
+                pending.in_flight += 1;
                 self.recompute();
                 return vec![LibraryEffect::SetFavorite { name, favorite }];
             }
-            LibraryIntent::FavoriteSaved { name, result } => {
-                // Saves for one profile complete in request order. A failure
-                // restores the value from before that request (React sets the
-                // pre-toggle value back), so a later in-flight save still wins.
-                let requested = self.take_pending_favorite(&name);
+            LibraryIntent::FavoriteSaved {
+                name,
+                favorite,
+                result,
+            } => {
+                let saved = result.is_ok();
+                self.settle_favorite(&name, favorite, saved);
                 if let Err(error) = result {
-                    if let (Some(requested), Some(card)) = (requested, self.card_mut(&name)) {
-                        card.is_favorite = !requested;
-                    }
                     self.load_error = Some(error);
-                    self.recompute();
+                }
+                self.recompute();
+            }
+            LibraryIntent::RunningSnapshot {
+                token,
+                sessions,
+                seq,
+            } => {
+                if self.running.apply_snapshot(token, sessions, seq) {
+                    self.recompute_if_running_filter();
                 }
             }
-            LibraryIntent::RunningSnapshot { sessions, seq } => {
-                self.running.apply_snapshot(sessions, seq);
-                self.recompute_if_running_filter();
-            }
             LibraryIntent::Session(event) => {
-                let resync = self.running.apply(event);
+                let request = self.running.apply(event);
                 self.recompute_if_running_filter();
-                if resync {
-                    return vec![LibraryEffect::RequestRunningSessions];
+                if let Some(token) = request {
+                    return vec![LibraryEffect::RequestRunningSessions { token }];
                 }
             }
         }

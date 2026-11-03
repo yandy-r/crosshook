@@ -94,15 +94,16 @@ dev mode. Build or packaging changes should also pass `./scripts/build-flatpak.s
 
 All source lives under `src/crosshook-native/`:
 
-| Directory                | Role                                                                                                                                                                                        |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `crates/crosshook-core/` | Domain logic: profiles, launch builders, Steam, metadata, settings types, and the prepared commands for install, update, run-executable, and prefix tools                                   |
-| `crates/crosshook-app/`  | Bootstrap, the job registry, and the toolkit-independent services Tauri delegates to. Service list: [`crates/crosshook-app/README.md`](src/crosshook-native/crates/crosshook-app/README.md) |
-| `crates/crosshook-cli/`  | Thin CLI over core. Launch log tailing uses `stream_child_log` and `read_log_tail`                                                                                                          |
-| `src-tauri/`             | Thin Tauri IPC. Moved commands delegate to `crosshook-app`; other commands call `crosshook-core`                                                                                            |
-| `src/`                   | React/TypeScript frontend -- components, hooks, contexts, styles                                                                                                                            |
-| `runtime-helpers/`       | Shell scripts staged into the Flatpak bundle, run under Proton at launch time                                                                                                               |
-| `scripts/`               | Dev, build, and release scripts                                                                                                                                                             |
+| Directory                      | Role                                                                                                                                                                                                             |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `crates/crosshook-core/`       | Domain logic: profiles, launch builders, Steam, metadata, settings types, and the prepared commands for install, update, run-executable, and prefix tools                                                        |
+| `crates/crosshook-app/`        | Bootstrap, the job registry, and the toolkit-independent services Tauri delegates to. Service list: [`crates/crosshook-app/README.md`](src/crosshook-native/crates/crosshook-app/README.md)                      |
+| `crates/crosshook-cli/`        | Thin CLI over core. Launch log tailing uses `stream_child_log` and `read_log_tail`                                                                                                                               |
+| `crates/crosshook-view-model/` | Pure view state and reducers (`ViewModel`, `Form<T>`, `testing::Script`). No tokio, I/O or UI toolkit; see [`crates/crosshook-view-model/README.md`](src/crosshook-native/crates/crosshook-view-model/README.md) |
+| `src-tauri/`                   | Thin Tauri IPC. Moved commands delegate to `crosshook-app`; other commands call `crosshook-core`                                                                                                                 |
+| `src/`                         | React/TypeScript frontend -- components, hooks, contexts, styles                                                                                                                                                 |
+| `runtime-helpers/`             | Shell scripts staged into the Flatpak bundle, run under Proton at launch time                                                                                                                                    |
+| `scripts/`                     | Dev, build, and release scripts                                                                                                                                                                                  |
 
 **Key rule**: domain logic belongs in `crosshook-core`. Application services belong in
 `crosshook-app`. The CLI and Tauri crates stay thin (IPC, argument parsing, and event relay).

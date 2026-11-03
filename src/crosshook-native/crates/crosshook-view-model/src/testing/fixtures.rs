@@ -9,7 +9,9 @@
 //! let _event = started("s1", Some("alpha"), SessionKind::Game, 1);
 //! ```
 
-use crate::library::{ProfileCard, RunningSession, SessionEvent, SessionId, SessionKind};
+use crate::library::{
+    ProfileCard, RunningProfiles, RunningSession, SessionEvent, SessionId, SessionKind,
+};
 
 /// Starts a [`ProfileCard`] named `name` with an empty game name, no Steam
 /// App ID, and not a favorite.
@@ -81,4 +83,14 @@ pub fn running(id: &str, profile_name: Option<&str>, kind: SessionKind) -> Runni
         profile_name: profile_name.map(str::to_owned),
         kind,
     }
+}
+
+/// A [`RunningProfiles`] synced to a snapshot of `sessions` at `seq` (one
+/// request issued and answered).
+#[must_use]
+pub fn synced(sessions: Vec<RunningSession>, seq: u64) -> RunningProfiles {
+    let mut tracker = RunningProfiles::default();
+    let token = tracker.request_snapshot();
+    assert!(tracker.apply_snapshot(token, sessions, seq));
+    tracker
 }
