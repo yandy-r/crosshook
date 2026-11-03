@@ -10,8 +10,10 @@ pub enum PrefixReferenceSource {
     /// `runtime.prefix_path`: CrossHook-launched prefix. Protects the prefix and
     /// establishes discovery and trusted cleanup roots.
     RuntimePrefixPath,
-    /// `steam.compatdata_path`: a Steam-owned prefix. Protect-only: it never
-    /// widens discovery or the roots trusted for deletion.
+    /// `steam.compatdata_path`: a prefix that may be Steam-owned. The prefix is
+    /// protected from orphan cleanup, and stale entries in its own
+    /// `drive_c/CrossHook/StagedTrainers` may still be cleaned, but it never widens
+    /// discovery or the roots trusted for deleting other prefixes.
     SteamCompatdataPath,
 }
 
