@@ -5,7 +5,9 @@ use std::time::{Duration, SystemTime};
 use chrono::Utc;
 
 use super::constants::DRIVE_C_RELATIVE;
-use super::discovery::{collect_referenced_profiles, discover_candidate_prefixes};
+use super::discovery::{
+    collect_referenced_profiles, discover_candidate_prefixes, trust_anchor_prefixes,
+};
 use super::staged_trainers::staged_trainers_health;
 use super::types::{
     PrefixCleanupTarget, PrefixCleanupTargetKind, PrefixReference, PrefixStorageEntry,
@@ -24,8 +26,7 @@ pub fn scan_prefix_storage(
         .unwrap_or(SystemTime::UNIX_EPOCH);
 
     let referenced_by_prefix = collect_referenced_profiles(references);
-    let discovered_prefixes =
-        discover_candidate_prefixes(&referenced_by_prefix.keys().cloned().collect::<Vec<_>>());
+    let discovered_prefixes = discover_candidate_prefixes(&trust_anchor_prefixes(references));
 
     let mut all_prefixes = BTreeSet::new();
     all_prefixes.extend(referenced_by_prefix.keys().cloned());

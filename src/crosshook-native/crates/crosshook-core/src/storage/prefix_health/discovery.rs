@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::constants::DRIVE_C_RELATIVE;
-use super::types::PrefixReference;
+use super::types::{PrefixReference, PrefixReferenceSource};
 use super::utils::normalized_path_string;
 
 pub(super) fn collect_referenced_profiles(
@@ -26,6 +26,41 @@ pub(super) fn collect_referenced_profiles(
     }
 
     map
+}
+
+/// Normalized prefixes that may establish discovery and trusted cleanup roots.
+///
+/// Only `runtime.prefix_path` references outside a Steam `compatdata/` tree
+/// qualify. Steam compat-data prefixes are protect-only, whichever field names
+/// them: trusting one would make every sibling `compatdata/*/pfx` (other games'
+/// Steam-owned prefixes) a cleanup candidate.
+pub(super) fn trust_anchor_prefixes(references: &[PrefixReference]) -> Vec<String> {
+    let mut anchors = BTreeSet::new();
+    for reference in references {
+        if reference.source != PrefixReferenceSource::RuntimePrefixPath {
+            continue;
+        }
+        let key = normalized_path_string(Path::new(&reference.resolved_prefix_path));
+        if key.is_empty() || is_in_steam_compatdata(Path::new(&key)) {
+            continue;
+        }
+        anchors.insert(key);
+    }
+    anchors.into_iter().collect()
+}
+
+/// True for `<…>/compatdata/<id>` and `<…>/compatdata/<id>/pfx`.
+fn is_in_steam_compatdata(prefix: &Path) -> bool {
+    let compat_dir = if prefix.file_name().and_then(|name| name.to_str()) == Some("pfx") {
+        prefix.parent()
+    } else {
+        Some(prefix)
+    };
+    compat_dir
+        .and_then(Path::parent)
+        .and_then(Path::file_name)
+        .and_then(|name| name.to_str())
+        == Some("compatdata")
 }
 
 pub(super) fn discover_candidate_prefixes(referenced_prefixes: &[String]) -> BTreeSet<String> {

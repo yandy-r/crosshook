@@ -9,6 +9,7 @@ use tempfile::TempDir;
 use super::cleanup_prefix_storage;
 use crate::storage::prefix_health::{
     PrefixCleanupResult, PrefixCleanupTarget, PrefixCleanupTargetKind, PrefixReference,
+    PrefixReferenceSource,
 };
 
 fn reference(name: &str, resolved: &Path) -> PrefixReference {
@@ -16,6 +17,7 @@ fn reference(name: &str, resolved: &Path) -> PrefixReference {
         profile_name: name.to_string(),
         configured_prefix_path: resolved.to_string_lossy().into_owned(),
         resolved_prefix_path: resolved.to_string_lossy().into_owned(),
+        source: PrefixReferenceSource::RuntimePrefixPath,
     }
 }
 
@@ -83,7 +85,7 @@ fn orphan_happy_path_deletes_inside_trusted_root() {
 }
 
 #[test]
-fn orphan_compatdata_trusted_root_is_grandparent_of_pfx() {
+fn orphan_compatdata_sibling_is_never_trusted_via_compatdata_root() {
     let tmp = TempDir::new().unwrap();
     let compatdata = tmp.path().join("steam/compatdata");
     let referenced = compatdata.join("111/pfx");
@@ -92,8 +94,11 @@ fn orphan_compatdata_trusted_root_is_grandparent_of_pfx() {
     make_prefix(&orphan);
     let refs = vec![reference("a", &referenced)];
     let result = cleanup_prefix_storage(&refs, &[orphan_target(&orphan)]);
-    assert_eq!(result.deleted.len(), 1);
-    assert!(!orphan.exists());
+    assert_skipped(
+        &result,
+        "target is not strictly inside a trusted prefix root",
+    );
+    assert!(orphan.join("drive_c").is_dir());
 }
 
 #[test]
