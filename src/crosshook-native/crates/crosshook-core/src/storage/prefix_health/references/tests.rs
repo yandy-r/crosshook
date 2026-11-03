@@ -141,6 +141,58 @@ fn steam_compatdata_reference_never_makes_sibling_steam_prefixes_deletable() {
 }
 
 #[test]
+fn runtime_prefix_inside_compatdata_never_trusts_sibling_steam_prefixes() {
+    let fx = fixture();
+    fx.store
+        .save("proton-game", &proton_profile(&fx.steam_pfx))
+        .unwrap();
+
+    let (references, result) = scan(&fx.store);
+    assert!(
+        result.orphan_targets.is_empty(),
+        "unexpected orphans: {:?}",
+        result.orphan_targets
+    );
+
+    let cleanup = cleanup_prefix_storage(&references, &[orphan_target(&fx.sibling_pfx)]);
+    assert!(cleanup.deleted.is_empty(), "deleted: {:?}", cleanup.deleted);
+    assert!(fx.sibling_pfx.join("drive_c").is_dir());
+}
+
+#[test]
+fn compatdata_only_reference_still_allows_stale_staged_trainer_cleanup_in_own_prefix() {
+    let fx = fixture();
+    fx.store
+        .save("steam-game", &steam_profile(&fx.steam_compatdata))
+        .unwrap();
+    let staged_entry = fx
+        .steam_pfx
+        .join("drive_c/CrossHook/StagedTrainers/old-trainer");
+    fs::create_dir_all(&staged_entry).unwrap();
+    fs::File::open(&staged_entry)
+        .unwrap()
+        .set_times(
+            fs::FileTimes::new().set_modified(
+                std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1),
+            ),
+        )
+        .unwrap();
+
+    let (references, result) = scan(&fx.store);
+    let target = PrefixCleanupTarget {
+        kind: PrefixCleanupTargetKind::StaleStagedTrainer,
+        resolved_prefix_path: path_str(&fx.steam_pfx),
+        target_path: path_str(&staged_entry),
+    };
+    assert_eq!(result.stale_staged_targets, vec![target.clone()]);
+
+    let cleanup = cleanup_prefix_storage(&references, std::slice::from_ref(&target));
+    assert_eq!(cleanup.deleted, vec![target]);
+    assert!(!staged_entry.exists());
+    assert!(fx.steam_pfx.join("drive_c").is_dir());
+}
+
+#[test]
 fn runtime_prefix_mirroring_compatdata_stays_protect_only() {
     let fx = fixture();
     // Community imports copy `steam.compatdata_path` into `runtime.prefix_path`.

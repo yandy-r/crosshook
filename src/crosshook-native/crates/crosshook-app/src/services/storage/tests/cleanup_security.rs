@@ -331,23 +331,24 @@ async fn compatdata_nested_pfx_link_discovered_outside_trusted_roots_is_rejected
     fs::create_dir_all(compatdata.join("200")).unwrap();
     let link = compatdata.join("200/pfx");
     symlink(&outside_prefix, &link).unwrap();
-    // Discovery canonicalizes the nested pfx link. Even a server-produced
-    // tuple must fail core containment against inventory-derived roots.
-    let target = harness
-        .service
-        .scan()
-        .await
-        .unwrap()
+    // A compatdata tree is never a trusted discovery root, so the linked
+    // prefix is not scanned; a forged target fails the fresh-scan filter.
+    let scan = harness.service.scan().await.unwrap();
+    assert!(scan
         .orphan_targets
-        .into_iter()
-        .find(|target| target.target_path == path_string(&outside_prefix))
-        .unwrap();
+        .iter()
+        .all(|target| target.target_path != path_string(&outside_prefix)));
+    let target = PrefixCleanupTarget {
+        kind: PrefixCleanupTargetKind::OrphanPrefix,
+        resolved_prefix_path: path_string(&outside_prefix),
+        target_path: path_string(&outside_prefix),
+    };
 
     assert_rejected(
         &harness,
         vec![target.clone()],
         &target,
-        &["target is not strictly inside a trusted prefix root"],
+        &[NOT_IN_FRESH_SCAN],
     )
     .await;
 
@@ -381,24 +382,24 @@ async fn compatdata_nested_pfx_link_outside_trusted_roots_rejects_stale_staged_e
     fs::create_dir_all(compatdata.join("200")).unwrap();
     let link = compatdata.join("200/pfx");
     symlink(&outside_prefix, &link).unwrap();
-    // Discovery canonicalizes the nested pfx link, so the fresh scan emits a
-    // server-produced stale tuple for the outside prefix. Core must still
-    // reject it against inventory-derived trusted roots.
-    let target = harness
-        .service
-        .scan()
-        .await
-        .unwrap()
+    // A compatdata tree is never a trusted discovery root, so the stale entry
+    // under the linked prefix is not scanned; a forged target is rejected.
+    let scan = harness.service.scan().await.unwrap();
+    assert!(scan
         .stale_staged_targets
-        .into_iter()
-        .find(|target| target.target_path == path_string(&staged_entry))
-        .expect("discovery must surface the stale entry under the linked prefix");
+        .iter()
+        .all(|target| target.target_path != path_string(&staged_entry)));
+    let target = PrefixCleanupTarget {
+        kind: PrefixCleanupTargetKind::StaleStagedTrainer,
+        resolved_prefix_path: path_string(&outside_prefix),
+        target_path: path_string(&staged_entry),
+    };
 
     assert_rejected(
         &harness,
         vec![target.clone()],
         &target,
-        &["resolved prefix is not strictly inside a trusted prefix root"],
+        &[NOT_IN_FRESH_SCAN],
     )
     .await;
 
