@@ -132,14 +132,14 @@ export function useProfilesPageProton({
     }
 
     const recommendedVersion = suggestion.recommended_version;
-    const targetRoot = effectiveSteamClientInstallPath ? `${effectiveSteamClientInstallPath}/compatibilitytools.d` : '';
     setSuggestionInstallError(null);
 
     const provider = await resolveProtonUpProviderForVersion(recommendedVersion);
     const result = await installVersion({
       provider,
       version: recommendedVersion,
-      target_root: targetRoot,
+      // Empty: the backend installs into its default trusted install root.
+      target_root: '',
     });
     if (!result.success) {
       setSuggestionInstallError(result.error_message ?? result.error_kind ?? 'Install failed');
@@ -148,7 +148,7 @@ export function useProfilesPageProton({
 
     await reloadProtonInstalls();
     setSuggestionDismissed(true);
-  }, [effectiveSteamClientInstallPath, installVersion, reloadProtonInstalls, suggestion]);
+  }, [installVersion, reloadProtonInstalls, suggestion]);
 
   return {
     handleInstallSuggestedVersion,
