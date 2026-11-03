@@ -1,6 +1,57 @@
 use tempfile::tempdir;
 
-use crate::profile::toml_store::ProfileStore;
+use crate::profile::toml_store::{ProfileStore, ProfileStoreError};
+
+#[test]
+fn import_legacy_refuses_to_overwrite_an_existing_profile() {
+    let temp_dir = tempdir().unwrap();
+    let legacy_path = temp_dir.path().join("elden-ring.profile");
+    let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+    std::fs::write(
+        &legacy_path,
+        "GamePath=Z:\\games\\elden-ring\\eldenring.exe\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(&store.base_path).unwrap();
+    let existing_path = store.base_path.join("elden-ring.toml");
+    let existing = "# user edits\n[game]\nname = \"Edited\"\n";
+    std::fs::write(&existing_path, existing).unwrap();
+
+    let error = store.import_legacy(&legacy_path).unwrap_err();
+
+    assert!(
+        matches!(&error, ProfileStoreError::AlreadyExists(name) if name == "elden-ring"),
+        "{error:?}"
+    );
+    assert_eq!(std::fs::read_to_string(&existing_path).unwrap(), existing);
+}
+
+#[cfg(unix)]
+#[test]
+fn import_legacy_treats_a_dangling_symlink_as_an_existing_profile() {
+    let temp_dir = tempdir().unwrap();
+    let legacy_path = temp_dir.path().join("elden-ring.profile");
+    let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+    std::fs::write(
+        &legacy_path,
+        "GamePath=Z:\\games\\elden-ring\\eldenring.exe\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(&store.base_path).unwrap();
+    let target = temp_dir.path().join("missing-target.toml");
+    std::os::unix::fs::symlink(&target, store.base_path.join("elden-ring.toml")).unwrap();
+
+    let error = store.import_legacy(&legacy_path).unwrap_err();
+
+    assert!(
+        matches!(&error, ProfileStoreError::AlreadyExists(name) if name == "elden-ring"),
+        "{error:?}"
+    );
+    assert!(
+        !target.exists(),
+        "import must not write through the symlink"
+    );
+}
 
 #[test]
 fn import_legacy_converts_windows_paths_and_saves_toml() {

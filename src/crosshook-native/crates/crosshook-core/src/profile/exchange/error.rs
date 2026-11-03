@@ -22,6 +22,16 @@ pub enum CommunityExchangeError {
         version: u32,
         supported: u32,
     },
+    /// A profile store write found the target name already taken.
+    AlreadyExists {
+        name: String,
+    },
+    /// No free profile name was left for the import: `<base>` and every
+    /// `<base>-2` … `<base>-<max_suffix>` are taken.
+    NoFreeName {
+        base: String,
+        max_suffix: u32,
+    },
     ProfileStore {
         message: String,
     },
@@ -49,6 +59,11 @@ impl Display for CommunityExchangeError {
                     "unsupported community profile schema version {version}; supported version is {supported}"
                 )
             }
+            Self::AlreadyExists { name } => write!(f, "a profile named '{name}' already exists"),
+            Self::NoFreeName { base, max_suffix } => write!(
+                f,
+                "no free profile name for '{base}' (tried up to '{base}-{max_suffix}')"
+            ),
             Self::ProfileStore { message } => write!(f, "{message}"),
         }
     }
@@ -58,8 +73,11 @@ impl Error for CommunityExchangeError {}
 
 impl From<ProfileStoreError> for CommunityExchangeError {
     fn from(value: ProfileStoreError) -> Self {
-        Self::ProfileStore {
-            message: value.to_string(),
+        match value {
+            ProfileStoreError::AlreadyExists(name) => Self::AlreadyExists { name },
+            other => Self::ProfileStore {
+                message: other.to_string(),
+            },
         }
     }
 }

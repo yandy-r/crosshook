@@ -97,7 +97,8 @@ impl ProfileWriter {
     ///
     /// # Errors
     /// `Validation` for a file stem that is not a valid profile name (before
-    /// any side effect), unreadable legacy file or filesystem failure.
+    /// any side effect), `Conflict` when a profile of that name already
+    /// exists (left untouched), unreadable legacy file or filesystem failure.
     pub async fn import_legacy(
         &self,
         path: PathBuf,

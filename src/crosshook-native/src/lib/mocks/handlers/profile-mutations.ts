@@ -337,6 +337,10 @@ export function registerProfileMutations(map: Map<string, Handler>): void {
       const filename = segments[segments.length - 1] ?? 'imported';
       const stem = filename.replace(/\.[^.]+$/, '').trim() || 'imported';
       const store = getStore();
+      // Mirrors the backend: legacy import never overwrites (Conflict).
+      if (store.profiles.has(stem)) {
+        throw new Error(`[dev-mock] profile_import_legacy: a profile named '${stem}' already exists`);
+      }
       const base = createDefaultProfile();
       const imported: GameProfile = {
         ...base,

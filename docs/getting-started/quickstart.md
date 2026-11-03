@@ -297,7 +297,7 @@ CrossHook supports community profile sharing through a taps system, similar to H
 
 - **Add a tap**: Provide the URL of a Git repository containing CrossHook profiles. CrossHook clones the repository locally.
 - **Browse profiles**: View all profiles from your subscribed taps. Each profile includes the game name, trainer type, and recommended configuration.
-- **Import a profile**: Copy a community profile into your local profile library. You can then customize it for your system (paths, Proton version, etc.).
+- **Import a profile**: Copy a community profile into your local profile library. You can then customize it for your system (paths, Proton version, etc.). Importing never replaces an existing profile: if the name is already taken, the copy is saved as `<name>-2`, `<name>-3`, and so on, and the confirmation names the profile that was created.
 - **Sync**: Pull the latest updates from all subscribed taps.
 
 Community profiles are a convenient starting point, but you will still need to adjust paths to match your local system.
@@ -337,7 +337,7 @@ crosshook status --json
 # List all saved profiles
 crosshook profile list
 
-# Import a legacy .profile file
+# Import a legacy .profile file (named after the file; refuses to overwrite an existing profile of that name)
 crosshook profile import --legacy-path ~/.config/crosshook-old/elden-ring.profile
 
 # Export a profile as a portable community JSON file

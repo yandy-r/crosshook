@@ -161,7 +161,10 @@ mislabel provenance.
   TOML writes cannot interleave with other writes. Each publishes one
   `Imported` event with the written names (Lutris with nothing written
   publishes nothing). Community import also seeds the display-only version
-  snapshot from the manifest metadata.
+  snapshot from the manifest metadata. Imports never overwrite: community
+  import takes the derived name or the first free `<name>-N` (up to `-1000`,
+  else `Conflict`), and `import_legacy` over an existing name (a dangling
+  symlink counts) returns `Conflict` without writing or publishing.
 - **Write lock.** Clones share one `Arc<Mutex<()>>`; every mutation takes it
   inside `spawn_blocking` (a poisoned lock is recovered), so an autosave
   cannot interleave with a full save. Reads do not take it. Writers outside

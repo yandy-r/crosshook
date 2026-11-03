@@ -188,9 +188,10 @@ export function registerCommunity(map: Map<string, Handler>): void {
     if (!entry) {
       throw new Error('[dev-mock] community_import_profile: no mock entry available');
     }
-    // Mirrors the backend writer: persist under the imported name, record an
-    // `import` revision, then publish one `imported` event with that name.
-    const profileName = 'synthetic-quest';
+    // Mirrors the backend writer: never overwrite — take the derived name or
+    // the first free `<name>-N` (2..=1000), persist, record an `import`
+    // revision, then publish one `imported` event with the name written.
+    const profileName = uniqueImportName('synthetic-quest');
     getStore().profiles.set(profileName, structuredClone(entry.manifest.profile));
     appendRevision(profileName, 'import');
     emitProfilesChanged({ reason: { kind: 'imported' }, names: [profileName] });
@@ -202,6 +203,23 @@ export function registerCommunity(map: Map<string, Handler>): void {
       manifest: entry.manifest,
     };
   });
+}
+
+/** Highest `-N` suffix the backend tries before failing with `AlreadyExists`. */
+const MAX_UNIQUE_NAME_SUFFIX = 1000;
+
+function uniqueImportName(base: string): string {
+  const { profiles } = getStore();
+  if (!profiles.has(base)) {
+    return base;
+  }
+  for (let suffix = 2; suffix <= MAX_UNIQUE_NAME_SUFFIX; suffix += 1) {
+    const candidate = `${base}-${suffix}`;
+    if (!profiles.has(candidate)) {
+      return candidate;
+    }
+  }
+  throw new Error(`[dev-mock] a profile named '${base}' already exists`);
 }
 
 export function resetCommunityMockState(): void {
