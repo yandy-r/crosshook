@@ -6,17 +6,20 @@
 //! cancel drain and owns deregistration:
 //!
 //! - Until the helper exits it records any cancel reason, like the drain.
+//!   A reset during the helper's startup only records the reason: the
+//!   session ends when the helper exits (at the handoff, or through the
+//!   finalizer when the helper failed).
 //! - When the helper exits successfully (code 0, no signal), the finalizer
 //!   hands its deregister step off (a oneshot) instead of deregistering. The
 //!   watcher waits up to [`APPEAR_TIMEOUT`] for the game executable to be
-//!   visible, then polls every [`POLL_INTERVAL`] until it is gone, and
-//!   deregisters with no exit status. A game that never appears is
-//!   deregistered at the timeout.
+//!   visible, then polls every [`POLL_INTERVAL`] until it has been missing
+//!   for [`EXIT_MISS_THRESHOLD`] consecutive probes, and deregisters with no
+//!   exit status. A game that never appears is deregistered at the timeout.
 //! - A failed helper (non-zero code, a signal, or no status) never started
 //!   the game: the finalizer deregisters with the real status and drops the
 //!   handoff sender, which ends the watcher without probing.
-//! - A cancel (the user reset) or a closed cancel channel deregisters
-//!   immediately.
+//! - After the handoff, a cancel (the user reset) or a closed cancel channel
+//!   deregisters at once.
 //!
 //! The watcher never signals or kills anything: it only probes by executable
 //! name (same name-based match as the old UI poll, so a same-named process
@@ -49,6 +52,16 @@ pub(super) const APPEAR_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 
 /// Probe cadence, matching the gamescope watchdog's poll interval.
 pub(super) const POLL_INTERVAL: Duration = Duration::from_secs(2);
+
+/// Consecutive negative probes that end a visible game's session; any
+/// positive probe resets the count.
+///
+/// One miss is not proof the game exited: under Flatpak a transient
+/// `flatpak-spawn --host ps` failure reads as "not running", and some games
+/// briefly re-exec themselves. The registry session cannot come back after a
+/// false negative, so the watch waits about `3 * POLL_INTERVAL` (6 s) of
+/// absence before ending it.
+pub(super) const EXIT_MISS_THRESHOLD: u32 = 3;
 
 /// Whether a process with the given executable name is running. Production
 /// runs [`crosshook_core::launch::is_process_running`] on the blocking pool
@@ -156,7 +169,8 @@ pub(super) async fn watch_steam_game(
     );
 }
 
-/// Waits for the game to appear (bounded) and then to disappear.
+/// Waits for the game to appear (bounded) and then to stay gone for
+/// [`EXIT_MISS_THRESHOLD`] consecutive probes.
 async fn wait_for_game_exit(watch: &SteamWatch) {
     let deadline = Instant::now() + APPEAR_TIMEOUT;
     while !probe(watch).await {
@@ -169,9 +183,15 @@ async fn wait_for_game_exit(watch: &SteamWatch) {
         }
         tokio::time::sleep(POLL_INTERVAL).await;
     }
+    let mut misses = 0;
     loop {
         tokio::time::sleep(POLL_INTERVAL).await;
-        if !probe(watch).await {
+        if probe(watch).await {
+            misses = 0;
+            continue;
+        }
+        misses += 1;
+        if misses >= EXIT_MISS_THRESHOLD {
             return;
         }
     }

@@ -125,8 +125,9 @@ pub enum AppEvent {
     },
     /// A launch session left the session registry. Published exactly once
     /// per session. `code` / `signal` are the child's exit status when known;
-    /// both are `None` after a spawn failure, a dropped finalizer or a Steam
-    /// game exit observed by the process watch.
+    /// both are `None` after a spawn failure, a dropped finalizer, a
+    /// `start_game` future cancelled before the session task existed, or a
+    /// Steam game exit observed by the process watch.
     SessionExited {
         /// Registry id of the session.
         session_id: SessionId,

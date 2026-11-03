@@ -244,8 +244,9 @@ kind, env)` (plus `execution_method` and `pid_capture_required`), decides
   removal bumps a registry `seq` and publishes `AppEvent::SessionStarted` /
   `SessionExited { code, signal }` **inside the registry lock**, so bus order
   equals `seq` order and each session gets exactly one `SessionExited`
-  (finish passes the child's status; drop, spawn failure and a `start_game`
-  future dropped before the session task exists pass none).
+  (finish passes the child's status, except a Steam game whose helper exited
+  0, where the watch below publishes none; drop, spawn failure and a
+  `start_game` future dropped before the session task exists pass none).
   `running_sessions_snapshot()` returns `RunningSessions { sessions, seq }`
   read under the same lock; a client subscribes first, snapshots, then
   applies only events with a greater `seq`. `profile_name` is the trimmed
@@ -256,11 +257,15 @@ kind, env)` (plus `execution_method` and `pid_capture_required`), decides
   which exits while the game keeps running. When the helper exits with code
   0, the finalizer hands its deregister step to a watch that waits up to
   10 minutes for the game executable (Steam may pre-cache shaders or update
-  first), polls it every 2 s (on the blocking pool) until it is gone, and
-  then deregisters; a reset or closed cancel channel deregisters at once. A
-  failed helper (non-zero code, a signal, or no status) deregisters right
-  away with its real status and the watch never probes. It matches by
-  executable name and never kills anything.
+  first), polls it every 2 s (on the blocking pool) until three consecutive
+  probes miss it (any hit resets the count, so one failed host `ps` or a
+  game re-exec does not end the session), and then deregisters with no exit
+  status. A reset during the helper's startup only records the reason; the
+  session ends when the helper exits. After the handoff, a reset or closed
+  cancel channel deregisters at once. A failed helper (non-zero code, a
+  signal, or no status) deregisters right away with its real status and the
+  watch never probes. It matches by executable name and never kills
+  anything.
 - **Storage boundary.** No schema or TOML changes: the finalizer writes
   existing `launch_operations` rows (`record_launch_started` /
   `record_launch_finished` with the diagnostic JSON), version snapshots and

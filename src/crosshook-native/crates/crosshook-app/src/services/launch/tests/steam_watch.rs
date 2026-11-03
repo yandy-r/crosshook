@@ -115,7 +115,7 @@ async fn advance(by: Duration) {
 
 #[tokio::test(start_paused = true)]
 async fn deregisters_only_after_the_game_appeared_and_then_disappeared() {
-    // Not visible twice, visible twice, then gone.
+    // Not visible twice, visible twice, then gone (the last answer repeats).
     let probe = ScriptedProbe::new(&[false, false, true, true, false]);
     let mut running = start_watch(&probe);
     settle().await;
@@ -123,14 +123,46 @@ async fn deregisters_only_after_the_game_appeared_and_then_disappeared() {
 
     running.hand_off();
     settle().await;
-    for _ in 0..3 {
+    // Probes 1-4 (two misses before it appears, two hits), then the first
+    // two misses of the exit debounce.
+    for _ in 0..5 {
         assert!(running.registered());
         advance(POLL_INTERVAL).await;
     }
-    assert!(running.registered(), "visible game keeps the session");
+    assert!(running.registered(), "two misses do not end the session");
+    assert_eq!(probe.calls(), 6);
     advance(POLL_INTERVAL).await;
-    assert!(!running.registered(), "deregistered once the game is gone");
-    assert_eq!(probe.calls(), 5);
+    assert!(!running.registered(), "deregistered after three misses");
+    assert_eq!(probe.calls(), 7);
+    running.task.await.unwrap();
+    assert!(!running.outcome.was_killed(), "the watch never kills");
+}
+
+/// A single or double false negative (a failed host `ps` under Flatpak, a
+/// game re-exec) must not end a running game's session: only three
+/// consecutive misses do, and any hit resets the count.
+#[tokio::test(start_paused = true)]
+async fn only_three_consecutive_misses_end_a_visible_game() {
+    // Appears, one miss, hit, two misses, hit, then three misses.
+    let script = [true, false, true, false, false, true, false, false, false];
+    let probe = ScriptedProbe::new(&script);
+    let mut running = start_watch(&probe);
+    running.hand_off();
+    settle().await;
+    assert_eq!(probe.calls(), 1, "first probe sees the game");
+
+    for call in 2..script.len() {
+        advance(POLL_INTERVAL).await;
+        assert_eq!(probe.calls(), call);
+        assert!(
+            running.registered(),
+            "probe {call} ({}) must not end the session",
+            script[call - 1]
+        );
+    }
+    advance(POLL_INTERVAL).await;
+    assert_eq!(probe.calls(), script.len());
+    assert!(!running.registered(), "the third consecutive miss ends it");
     running.task.await.unwrap();
     assert!(!running.outcome.was_killed(), "the watch never kills");
 }
