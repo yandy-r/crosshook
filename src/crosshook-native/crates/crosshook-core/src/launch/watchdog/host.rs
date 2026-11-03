@@ -151,16 +151,16 @@ pub(super) fn read_host_process_cmdline(pid: u32) -> Option<String> {
     Some(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
-pub(super) fn probe_host_processes(candidates: &[String]) -> HostProcessProbe {
-    let output = match host_std_command("ps")
+/// Scans the host process table for `candidates`. `None` means the host
+/// `ps` query could not be spawned or exited unsuccessfully, so nothing is
+/// known about the host processes (distinct from "no match").
+pub(super) fn probe_host_processes(candidates: &[String]) -> Option<HostProcessProbe> {
+    let output = host_std_command("ps")
         .args(["-ww", "-eo", "pid=", "-o", "comm=", "--delimiter", "\t"])
         .output()
-    {
-        Ok(output) => output,
-        Err(_) => return HostProcessProbe::default(),
-    };
+        .ok()?;
     if !output.status.success() {
-        return HostProcessProbe::default();
+        return None;
     }
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut probe = HostProcessProbe::default();
@@ -193,7 +193,7 @@ pub(super) fn probe_host_processes(candidates: &[String]) -> HostProcessProbe {
             probe.truncated_matches.push(basename.to_string());
         }
     }
-    probe
+    Some(probe)
 }
 
 pub(super) fn read_host_process_text(pid: u32, suffix: &str) -> Option<String> {

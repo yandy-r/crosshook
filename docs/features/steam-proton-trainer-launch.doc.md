@@ -214,7 +214,7 @@ Custom Proton versions are searched in:
 1. Select or load a profile with `steam_applaunch` as the launch method.
 2. Verify that the Steam fields are populated (App ID, compatdata path, Proton path). Use auto-populate if they are not.
 3. Click the launch button. CrossHook starts the game through Steam.
-4. Wait until the game reaches the in-game menu. CrossHook moves to the "Launch Trainer" step as soon as the game launch starts; it does not poll from the UI. The backend tracks the game session and sends `launch-session-changed` events when it starts and ends. For Steam launches, a backend Steam game watch follows the game process by executable name after the Steam helper exits, so the session stays running until the game itself exits.
+4. Wait until the game reaches the in-game menu. CrossHook moves to the "Launch Trainer" step as soon as the game launch starts; it does not poll from the UI. The backend tracks the game session and sends `launch-session-changed` events when it starts and ends. For Steam launches, a backend Steam game watch follows the game process by executable name after the Steam helper exits, so the session normally stays running until the game itself exits. The session also ends, without a game exit, in two cases: the game does not appear within 10 minutes after the Steam helper exits, or you reset the launch after the Steam helper exits. If the Steam helper is stopped by a signal, CrossHook cannot tell whether Steam was already told to start the game, so it waits only 60 seconds for the game to appear. A helper that exits with an error ends the session at once.
 5. Click the launch button again. CrossHook:
    - Uses the profile's trainer loading mode.
    - Runs the trainer directly from its source directory by default.

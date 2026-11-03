@@ -78,6 +78,8 @@ impl LaunchService {
         let watchdog_outcome = WatchdogOutcome::new();
         let profile_key = session_profile_key_for_name(request.profile_name.as_deref());
         let (session_id, cancel_rx) = register_session(&self.registry, kind, profile_key);
+        // Subscribed now, so it sees every cancel the consumer below sees.
+        let pending_cancels = cancel_rx.resubscribe();
         let registration = RegistrationGuard {
             registry: &self.registry,
             session_id,
@@ -170,6 +172,7 @@ impl LaunchService {
             metadata: self.metadata.clone(),
             registry: self.registry.clone(),
             deregister_handoff,
+            pending_cancels: Some(pending_cancels),
         };
 
         // Stream first, then the cancel consumer (I-29). Neither path kills.

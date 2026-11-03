@@ -15,7 +15,7 @@ import type {
 } from '../types';
 import { isDiagnosticReport, isLaunchValidationIssue, LaunchPhase } from '../types';
 import type { RunningSession } from '../types/launch-sessions';
-import { useRunningSessions } from './runningSessionsStore';
+import { useRunningSessions, useSessionExited } from './runningSessionsStore';
 
 type LaunchState = {
   phase: LaunchPhase;
@@ -171,6 +171,10 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
   const isGameRunning = ownGameRunning || profileGameRunning;
   /** Drives `game-stopped`: the own session when tracked, else the profile's game session. */
   const trackedGameRunning = gameSessionId !== null ? ownGameRunning : profileGameRunning;
+  // An `exited` event for the own id ends the launch even when its `started`
+  // event was never applied (exit before `launch_game` resolved). `gameSessionId`
+  // is only set by the current launch generation, so an old launch's exit never matches.
+  const ownGameExited = useSessionExited(gameSessionId);
   const [offlineReadiness, setOfflineReadiness] = useState<OfflineReadinessReport | null>(null);
   const [offlineReadinessLoading, setOfflineReadinessLoading] = useState(false);
   const [offlineReadinessError, setOfflineReadinessError] = useState<string | null>(null);
@@ -246,19 +250,19 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
       return;
     }
 
-    if (trackedGameRunning) {
+    if (trackedGameRunning && !ownGameExited) {
       observedGameProcessRef.current = true;
       return;
     }
 
     const sessionCanEnd = state.phase === LaunchPhase.WaitingForTrainer || state.phase === LaunchPhase.SessionActive;
-    if (sessionCanEnd && observedGameProcessRef.current) {
+    if (sessionCanEnd && (observedGameProcessRef.current || ownGameExited)) {
       observedGameProcessRef.current = false;
       dispatch({ type: 'game-stopped' });
       // The own session is gone; fall back to the profile match from here on.
       setGameSessionId(null);
     }
-  }, [trackedGameRunning, state.phase]);
+  }, [trackedGameRunning, ownGameExited, state.phase]);
 
   useEffect(() => {
     let active = true;

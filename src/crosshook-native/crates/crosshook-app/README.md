@@ -245,7 +245,7 @@ kind, env)` (plus `execution_method` and `pid_capture_required`), decides
   `SessionExited { code, signal }` **inside the registry lock**, so bus order
   equals `seq` order and each session gets exactly one `SessionExited`
   (finish passes the child's status, except a Steam game whose helper exited
-  0, where the watch below publishes none; drop, spawn failure and a
+  0 or was signalled, where the watch below publishes none; drop, spawn failure and a
   `start_game` future dropped before the session task exists pass none).
   `running_sessions_snapshot()` returns `RunningSessions { sessions, seq }`
   read under the same lock; a client subscribes first, snapshots, then
@@ -258,14 +258,20 @@ kind, env)` (plus `execution_method` and `pid_capture_required`), decides
   0, the finalizer hands its deregister step to a watch that waits up to
   10 minutes for the game executable (Steam may pre-cache shaders or update
   first), polls it every 2 s (on the blocking pool) until three consecutive
-  probes miss it (any hit resets the count, so one failed host `ps` or a
-  game re-exec does not end the session), and then deregisters with no exit
-  status. A reset during the helper's startup only records the reason; the
-  session ends when the helper exits. After the handoff, a reset or closed
-  cancel channel deregisters at once. A failed helper (non-zero code, a
-  signal, or no status) deregisters right away with its real status and the
-  watch never probes. It matches by executable name and never kills
-  anything.
+  probes miss it (any hit resets the count, so a game re-exec does not end
+  the session), and then deregisters with no exit status. The probe is
+  tri-state (`probe_process_running`): a failed host `ps` under Flatpak is
+  unknown, which neither counts as a miss nor resets the count. A game that
+  never appears is deregistered at the appear timeout. A helper killed by a
+  signal also hands off, with a 60 s appear window, because a signal after
+  its `steam -applaunch` line leaves the game starting. A reset during the
+  helper's startup only records the reason; the session ends when the
+  helper exits. The finalizer also drains a second cancel subscription
+  before building the report, so a reset sent just before the helper exits
+  is in the report. After the handoff, a reset or closed cancel channel
+  deregisters at once. A helper with a non-zero exit code or no status
+  deregisters right away with its real status and the watch never probes.
+  It matches by executable name and never kills anything.
 - **Storage boundary.** No schema or TOML changes: the finalizer writes
   existing `launch_operations` rows (`record_launch_started` /
   `record_launch_finished` with the diagnostic JSON), version snapshots and

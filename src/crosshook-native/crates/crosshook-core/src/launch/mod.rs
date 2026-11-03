@@ -67,7 +67,7 @@ pub use session::{
 pub use trainer_hash::{
     collect_trainer_hash_launch_warnings, launch_issues_from_trainer_hash_outcome,
 };
-pub use watchdog::{gamescope_watchdog, is_process_running};
+pub use watchdog::{gamescope_watchdog, is_process_running, probe_process_running};
 
 /// Resolves the trainer gamescope config from a game config and an optional trainer override.
 ///

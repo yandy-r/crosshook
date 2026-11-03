@@ -19,8 +19,14 @@ import {
  * `seq > snapshot.seq` are applied (earlier ones are already in the snapshot).
  * Seqs are compared against the snapshot only — never assumed contiguous.
  * `resync` (or a malformed payload) re-fetches and replaces the state. A failed
- * or malformed snapshot keeps the previous state and keeps buffering; the next
- * received event retries it. The last consumer tears everything down. No timers.
+ * or malformed snapshot keeps the previous state and keeps buffering; a failed
+ * subscription leaves the store unsubscribed. Both are retried by event-driven
+ * triggers only: the next received event (snapshot), the window regaining focus
+ * or the document becoming visible, and another consumer subscribing. The DOM
+ * listeners exist only while the store has consumers. Session ids seen in an
+ * `exited` event are remembered (bounded) so a launch can detect an exit that
+ * arrived before it learned its own session id. The last consumer tears
+ * everything down. No timers.
  */
 
 type SessionEvent = LaunchSessionStartedPayload | LaunchSessionExitedPayload;
@@ -28,6 +34,8 @@ type Listener = () => void;
 
 const EMPTY_SESSIONS: ReadonlyMap<string, RunningSession> = new Map();
 const EMPTY_NAMES: ReadonlySet<string> = new Set();
+/** Upper bound on remembered exited session ids; the oldest is evicted first. */
+const MAX_EXITED_SESSION_IDS = 64;
 
 const listeners = new Set<Listener>();
 let refCount = 0;
@@ -36,13 +44,17 @@ let lifecycle = 0;
 /** Bumped per snapshot request so only the latest in-flight fetch applies. */
 let fetchToken = 0;
 let unlisten: UnlistenFn | null = null;
+/** True while the current lifecycle's `subscribeEvent` call is in flight. */
+let subscribing = false;
 /** `null` while a snapshot is pending; events are buffered until it resolves. */
 let baselineSeq: number | null = null;
 let buffered: SessionEvent[] = [];
-/** Set when the latest snapshot failed; the next received event retries it. */
+/** Set when the latest snapshot failed; the next recovery trigger retries it. */
 let snapshotRetryPending = false;
 let sessions: ReadonlyMap<string, RunningSession> = EMPTY_SESSIONS;
 let gameProfileNames: ReadonlySet<string> = EMPTY_NAMES;
+/** Session ids seen in `exited` events this lifecycle, oldest first (insertion order). */
+const exitedSessionIds = new Set<string>();
 
 function deriveGameProfileNames(next: ReadonlyMap<string, RunningSession>): ReadonlySet<string> {
   const names = new Set<string>();
@@ -57,15 +69,33 @@ function deriveGameProfileNames(next: ReadonlyMap<string, RunningSession>): Read
   return names.size === 0 ? EMPTY_NAMES : names;
 }
 
+function notify(): void {
+  for (const listener of listeners) {
+    listener();
+  }
+}
+
 function commit(next: ReadonlyMap<string, RunningSession>): void {
   if (next === sessions) {
     return;
   }
   sessions = next;
   gameProfileNames = deriveGameProfileNames(next);
-  for (const listener of listeners) {
-    listener();
+  notify();
+}
+
+function recordExit(sessionId: string): void {
+  if (exitedSessionIds.has(sessionId)) {
+    return;
   }
+  exitedSessionIds.add(sessionId);
+  if (exitedSessionIds.size > MAX_EXITED_SESSION_IDS) {
+    const oldest = exitedSessionIds.values().next().value;
+    if (oldest !== undefined) {
+      exitedSessionIds.delete(oldest);
+    }
+  }
+  notify();
 }
 
 /** Applies one started/exited event to `base`; returns `base` itself when nothing changed. */
@@ -107,7 +137,7 @@ function requestSnapshot(): void {
       }
       if (snapshot === null) {
         // Keep the previous state and keep buffering (baseline stays unset);
-        // the next received event retries the snapshot.
+        // the next recovery trigger retries the snapshot.
         snapshotRetryPending = true;
         return;
       }
@@ -131,6 +161,9 @@ function handlePayload(payload: unknown): void {
     requestSnapshot();
     return;
   }
+  if (parsed.kind === 'exited') {
+    recordExit(parsed.session_id);
+  }
   if (baselineSeq === null) {
     buffered.push(parsed);
     if (snapshotRetryPending) {
@@ -147,6 +180,7 @@ function handlePayload(payload: unknown): void {
 async function start(): Promise<void> {
   const owner = lifecycle;
   baselineSeq = null;
+  subscribing = true;
   let unsubscribe: UnlistenFn;
   try {
     unsubscribe = await subscribeEvent<unknown>(LAUNCH_SESSION_CHANGED_EVENT, (event) => {
@@ -156,9 +190,9 @@ async function start(): Promise<void> {
     });
   } catch {
     if (owner === lifecycle) {
+      // Stay unsubscribed (`unlisten === null`) so the next recovery trigger retries.
+      subscribing = false;
       buffered = [];
-      baselineSeq = -1;
-      commit(EMPTY_SESSIONS);
     }
     return;
   }
@@ -166,18 +200,54 @@ async function start(): Promise<void> {
     unsubscribe();
     return;
   }
+  subscribing = false;
   unlisten = unsubscribe;
   requestSnapshot();
+}
+
+/** Retries a failed subscription or snapshot; a no-op while healthy or while a retry is in flight. */
+function recover(): void {
+  if (refCount === 0) {
+    return;
+  }
+  if (unlisten === null) {
+    if (!subscribing) {
+      void start();
+    }
+    return;
+  }
+  if (snapshotRetryPending) {
+    requestSnapshot();
+  }
+}
+
+function handleVisibilityChange(): void {
+  if (document.visibilityState === 'visible') {
+    recover();
+  }
+}
+
+function addRecoveryTriggers(): void {
+  window.addEventListener('focus', recover);
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+}
+
+function removeRecoveryTriggers(): void {
+  window.removeEventListener('focus', recover);
+  document.removeEventListener('visibilitychange', handleVisibilityChange);
 }
 
 function stop(): void {
   lifecycle += 1;
   fetchToken += 1;
+  removeRecoveryTriggers();
   unlisten?.();
   unlisten = null;
+  subscribing = false;
   baselineSeq = null;
   buffered = [];
   snapshotRetryPending = false;
+  exitedSessionIds.clear();
   sessions = EMPTY_SESSIONS;
   gameProfileNames = EMPTY_NAMES;
 }
@@ -186,7 +256,10 @@ function subscribe(listener: Listener): () => void {
   listeners.add(listener);
   refCount += 1;
   if (refCount === 1) {
+    addRecoveryTriggers();
     void start();
+  } else {
+    recover();
   }
   return () => {
     listeners.delete(listener);
@@ -213,4 +286,13 @@ export function useRunningSessions(): ReadonlyMap<string, RunningSession> {
 /** Profile names with a running game session; anonymous and trainer sessions excluded. */
 export function useRunningGameProfileNames(): ReadonlySet<string> {
   return useSyncExternalStore(subscribe, getGameProfileNames);
+}
+
+/**
+ * True once an `exited` event for `sessionId` was received in the current store
+ * lifecycle, even when its `started` event was never applied. Absence from
+ * `useRunningSessions()` alone is never treated as an exit.
+ */
+export function useSessionExited(sessionId: string | null): boolean {
+  return useSyncExternalStore(subscribe, () => sessionId !== null && exitedSessionIds.has(sessionId));
 }

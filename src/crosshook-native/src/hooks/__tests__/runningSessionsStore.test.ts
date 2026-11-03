@@ -15,11 +15,17 @@ const order: string[] = [];
 const eventHandlers = new Set<EventHandler>();
 const unlistenSpy = vi.fn();
 let subscriptionGate: PromiseWithResolvers<void> | null = null;
+/** Number of upcoming `subscribeEvent` calls that reject. */
+let subscriptionFailures = 0;
 let snapshotRequests: PromiseWithResolvers<RunningSessionsSnapshot>[] = [];
 
 const subscribeEventMock = vi.fn(async (name: string, handler: EventHandler) => {
   order.push(`subscribe:${name}`);
   await subscriptionGate?.promise;
+  if (subscriptionFailures > 0) {
+    subscriptionFailures -= 1;
+    throw new Error('subscribe failed');
+  }
   eventHandlers.add(handler);
   order.push(`subscribed:${name}`);
   return () => {
@@ -69,6 +75,7 @@ describe('runningSessionsStore', () => {
     order.length = 0;
     eventHandlers.clear();
     subscriptionGate = null;
+    subscriptionFailures = 0;
     snapshotRequests = [];
   });
 
@@ -227,5 +234,110 @@ describe('runningSessionsStore', () => {
     });
     expect(subscribeEventMock).toHaveBeenCalledTimes(1);
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  describe('recovery without another session event or a timer', () => {
+    /** Settles pending promise chains without timers (waitFor would schedule some). */
+    async function flush(): Promise<void> {
+      await act(async () => {
+        for (let i = 0; i < 10; i += 1) {
+          await Promise.resolve();
+        }
+      });
+    }
+
+    async function settleSnapshot(index: number, outcome: RunningSessionsSnapshot | Error): Promise<void> {
+      expect(snapshotRequests.length).toBeGreaterThan(index);
+      if (outcome instanceof Error) {
+        snapshotRequests[index].reject(outcome);
+      } else {
+        snapshotRequests[index].resolve(outcome);
+      }
+      await flush();
+    }
+
+    it('retries a failed snapshot on window focus and document visibility, then removes its listeners', async () => {
+      vi.useFakeTimers();
+      const addSpy = vi.spyOn(window, 'addEventListener');
+      const removeSpy = vi.spyOn(window, 'removeEventListener');
+      const docAddSpy = vi.spyOn(document, 'addEventListener');
+      const docRemoveSpy = vi.spyOn(document, 'removeEventListener');
+      const { result, unmount } = renderHook(() => useRunningProfiles());
+      await flush();
+      await settleSnapshot(0, { sessions: [game('a', 'Alpha')], seq: 1 });
+      expect([...result.current]).toEqual(['Alpha']);
+
+      // Alpha's exit is folded into a resync whose snapshot fails; the stream then stays idle.
+      act(() => {
+        emit({ kind: 'resync' });
+      });
+      await settleSnapshot(1, new Error('ipc down'));
+      expect([...result.current]).toEqual(['Alpha']);
+
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      expect(document.visibilityState).toBe('visible');
+      await settleSnapshot(2, new Error('still down'));
+
+      act(() => {
+        window.dispatchEvent(new Event('focus'));
+      });
+      await settleSnapshot(3, { sessions: [], seq: 2 });
+      expect(result.current.size).toBe(0);
+
+      // Healthy again: focus no longer refetches.
+      act(() => {
+        window.dispatchEvent(new Event('focus'));
+      });
+      expect(snapshotRequests).toHaveLength(4);
+      expect(vi.getTimerCount()).toBe(0);
+
+      const focusListener = addSpy.mock.calls.find(([type]) => type === 'focus')?.[1];
+      const visibilityListener = docAddSpy.mock.calls.find(([type]) => type === 'visibilitychange')?.[1];
+      expect(focusListener).toBeDefined();
+      expect(visibilityListener).toBeDefined();
+      expect(removeSpy).not.toHaveBeenCalledWith('focus', focusListener);
+      unmount();
+      expect(removeSpy).toHaveBeenCalledWith('focus', focusListener);
+      expect(docRemoveSpy).toHaveBeenCalledWith('visibilitychange', visibilityListener);
+      for (const spy of [addSpy, removeSpy, docAddSpy, docRemoveSpy]) {
+        spy.mockRestore();
+      }
+    });
+
+    it('retries a failed subscription on focus and on a new consumer, then snapshots', async () => {
+      vi.useFakeTimers();
+      subscriptionFailures = 2;
+      const first = renderHook(() => useRunningProfiles());
+      await flush();
+      expect(subscribeEventMock).toHaveBeenCalledTimes(1);
+      expect(eventHandlers.size).toBe(0);
+      expect(snapshotRequests).toHaveLength(0);
+
+      act(() => {
+        window.dispatchEvent(new Event('focus'));
+      });
+      await flush();
+      expect(subscribeEventMock).toHaveBeenCalledTimes(2);
+      expect(snapshotRequests).toHaveLength(0);
+
+      // A newly mounted consumer retries too; this attempt succeeds.
+      const second = renderHook(() => useRunningSessions());
+      await flush();
+      expect(subscribeEventMock).toHaveBeenCalledTimes(3);
+      expect(eventHandlers.size).toBe(1);
+      await settleSnapshot(0, { sessions: [game('a', 'Alpha')], seq: 1 });
+      expect([...first.result.current]).toEqual(['Alpha']);
+      expect(second.result.current.size).toBe(1);
+      expect(vi.getTimerCount()).toBe(0);
+
+      // Subscribed and healthy: neither trigger resubscribes.
+      act(() => {
+        window.dispatchEvent(new Event('focus'));
+      });
+      await flush();
+      expect(subscribeEventMock).toHaveBeenCalledTimes(3);
+    });
   });
 });

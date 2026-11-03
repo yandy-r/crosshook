@@ -3,14 +3,14 @@
 //! [`SessionGuard::finish`] publishes diagnostics and the trainer injection
 //! wrap-up before `Exited`, then cascades, runs post-exit hooks, deregisters
 //! (with the child's exit code and signal), and unregisters the portal. A
-//! Steam game session whose helper exited successfully hands its deregister
-//! step to the Steam game watch instead, because the game outlives the
-//! helper child; a failed helper (non-zero code, a signal, or no status)
-//! deregisters here with its real status. If the session task panics or is
-//! dropped first, [`Drop`] still runs the teardown steps that had not
-//! finished (`Exited`, cascade, hooks, deregister without an exit status,
-//! portal). Earlier steps are not replayed, and `Exited` is published at
-//! most once.
+//! Steam game session whose helper exited successfully or was killed by a
+//! signal hands its deregister step to the Steam game watch instead, because
+//! the game may outlive the helper child; a helper with a non-zero exit code
+//! or no status deregisters here with its real status. If the session task
+//! panics or is dropped first, [`Drop`] still runs the teardown steps that
+//! had not finished (`Exited`, cascade, hooks, deregister without an exit
+//! status, portal). Earlier steps are not replayed, and `Exited` is
+//! published at most once.
 
 use std::os::unix::process::ExitStatusExt;
 use std::panic::AssertUnwindSafe;
@@ -25,10 +25,12 @@ use crosshook_core::launch::{
 };
 use crosshook_core::profile::LaunchHook;
 use tokio::runtime::Handle;
+use tokio::sync::broadcast::error::TryRecvError;
 
 use super::diagnostics::{diagnostic_method_for_log, read_log_tail, sanitize_diagnostic_report};
 use super::run_blocking;
 use super::snapshot::record_success_effects;
+use super::steam_watch::{APPEAR_TIMEOUT, SIGNALLED_APPEAR_TIMEOUT};
 use super::types::{
     EventPublisher, InjectionLevel, InjectionLogData, InjectionSource, SessionContext,
 };
@@ -67,6 +69,7 @@ impl SessionGuard {
     pub(super) async fn finish(mut self, status: Option<ExitStatus>) {
         let exit_code = status.as_ref().and_then(ExitStatus::code);
         let signal = status.as_ref().and_then(ExitStatusExt::signal);
+        self.record_pending_cancels();
         let report = self.build_report(status).await;
 
         self.record_finished(exit_code, signal, &report).await;
@@ -82,6 +85,22 @@ impl SessionGuard {
         self.run_hooks().await;
         self.deregister(exit_code, signal);
         self.unregister_portal().await;
+    }
+
+    /// Records cancel reasons already sent but not yet seen by the session's
+    /// cancel consumer, so a reset sent just before the child exited is in
+    /// the report even when that consumer task has not run yet.
+    fn record_pending_cancels(&mut self) {
+        let Some(pending) = self.ctx.pending_cancels.as_mut() else {
+            return;
+        };
+        loop {
+            match pending.try_recv() {
+                Ok(reason) => self.ctx.watchdog_outcome.record_reason(reason),
+                Err(TryRecvError::Lagged(_)) => {}
+                Err(TryRecvError::Empty | TryRecvError::Closed) => return,
+            }
+        }
     }
 
     async fn build_report(&self, status: Option<ExitStatus>) -> DiagnosticReport {
@@ -239,25 +258,29 @@ impl SessionGuard {
     }
 
     /// Removes the session with its exit status, or passes the step to the
-    /// Steam game watch when the helper exited successfully (code 0, no
-    /// signal). A failed helper never started the game, so it deregisters
-    /// here with its real status; dropping the handoff sender ends the
-    /// watch. A refused handoff (the watch already finished) also falls back
-    /// to deregistering here.
+    /// Steam game watch with an appear window: [`APPEAR_TIMEOUT`] when the
+    /// helper exited successfully (code 0, no signal), and the short
+    /// [`SIGNALLED_APPEAR_TIMEOUT`] when a signal killed it, because a signal
+    /// after its `steam -applaunch` line leaves the game starting. A helper
+    /// with a non-zero exit code, or one that could not be waited on, never
+    /// started the game, so it deregisters here with its real status;
+    /// dropping the handoff sender ends the watch. A refused handoff (the
+    /// watch already finished) also falls back to deregistering here.
     fn deregister(&mut self, code: Option<i32>, signal: Option<i32>) {
         if self.deregistered {
             return;
         }
         self.deregistered = true;
         let handoff = self.ctx.deregister_handoff.take();
-        if code == Some(0) && signal.is_none() {
-            if let Some(handoff) = handoff {
-                if handoff.send(()).is_ok() {
-                    return;
-                }
+        let appear_timeout = match (code, signal) {
+            (_, Some(_)) => Some(SIGNALLED_APPEAR_TIMEOUT),
+            (Some(0), None) => Some(APPEAR_TIMEOUT),
+            _ => None,
+        };
+        if let (Some(handoff), Some(appear_timeout)) = (handoff, appear_timeout) {
+            if handoff.send(appear_timeout).is_ok() {
+                return;
             }
-        } else {
-            drop(handoff);
         }
         self.ctx
             .registry

@@ -9,12 +9,12 @@
 use std::fmt;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use crosshook_core::launch::{
     is_inside_gamescope_session, CoexistenceAdvisoryRecord, DiagnosticReport,
     LaunchHookExecutionContext, LaunchSessionRegistry, LaunchValidationIssue, SessionId,
-    SessionKind, WatchdogOutcome,
+    SessionKind, TeardownReason, WatchdogOutcome,
 };
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::platform;
@@ -352,6 +352,12 @@ pub(super) struct SessionContext {
     pub metadata: MetadataStore,
     pub registry: Arc<LaunchSessionRegistry>,
     /// Set for Steam game sessions: the finalizer passes its deregister step
-    /// to the Steam game watch through this sender instead of deregistering.
-    pub deregister_handoff: Option<oneshot::Sender<()>>,
+    /// (with the watch's appear window) to the Steam game watch through this
+    /// sender instead of deregistering.
+    pub deregister_handoff: Option<oneshot::Sender<Duration>>,
+    /// A second subscription to the session's cancel channel, taken right at
+    /// registration. The finalizer drains it before building the report so
+    /// a cancel the cancel consumer has not processed yet still sets the
+    /// teardown reason.
+    pub pending_cancels: Option<broadcast::Receiver<TeardownReason>>,
 }

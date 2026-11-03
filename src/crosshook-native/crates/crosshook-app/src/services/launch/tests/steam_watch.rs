@@ -15,21 +15,31 @@ use tokio::task::JoinHandle;
 
 use super::super::finalizer::SessionGuard;
 use super::super::steam_watch::{
-    steam_game_exe, watch_steam_game, ProcessProbe, SteamWatch, APPEAR_TIMEOUT, POLL_INTERVAL,
+    steam_game_exe, watch_steam_game, ProcessProbe, SteamWatch, APPEAR_TIMEOUT,
+    EXIT_MISS_THRESHOLD, POLL_INTERVAL, SIGNALLED_APPEAR_TIMEOUT,
 };
-use super::super::types::{EventPublisher, SessionContext};
-use super::helpers::{exit_code, session_context, Harness, LaunchCase, Metadata, Script};
+use super::super::types::{EventPublisher, LaunchEvent, SessionContext};
+use super::helpers::{
+    collect_until_exited, exit_code, session_context, Harness, LaunchCase, Metadata, Script,
+};
 use crate::events::AppEvent;
 
 /// Probe answering from a script, repeating the last answer when it runs out.
 #[derive(Clone)]
 struct ScriptedProbe {
-    answers: Arc<Mutex<VecDeque<bool>>>,
+    answers: Arc<Mutex<VecDeque<Option<bool>>>>,
     calls: Arc<AtomicUsize>,
 }
 
 impl ScriptedProbe {
+    /// Every answer known (`Some`).
     fn new(answers: &[bool]) -> Self {
+        let answers: Vec<_> = answers.iter().copied().map(Some).collect();
+        Self::with_unknowns(&answers)
+    }
+
+    /// `None` answers are probes that could not tell.
+    fn with_unknowns(answers: &[Option<bool>]) -> Self {
         Self {
             answers: Arc::new(Mutex::new(answers.iter().copied().collect())),
             calls: Arc::new(AtomicUsize::new(0)),
@@ -49,7 +59,7 @@ impl ScriptedProbe {
             let visible = if answers.len() > 1 {
                 answers.pop_front().unwrap()
             } else {
-                answers.front().copied().unwrap_or(false)
+                answers.front().copied().unwrap_or(Some(false))
             };
             Box::pin(std::future::ready(visible))
         })
@@ -60,7 +70,7 @@ struct Running {
     registry: Arc<LaunchSessionRegistry>,
     id: SessionId,
     outcome: WatchdogOutcome,
-    handoff: Option<oneshot::Sender<()>>,
+    handoff: Option<oneshot::Sender<Duration>>,
     task: JoinHandle<()>,
 }
 
@@ -74,7 +84,11 @@ impl Running {
     }
 
     fn hand_off(&mut self) {
-        self.handoff.take().unwrap().send(()).unwrap();
+        self.hand_off_with(APPEAR_TIMEOUT);
+    }
+
+    fn hand_off_with(&mut self, appear_timeout: Duration) {
+        self.handoff.take().unwrap().send(appear_timeout).unwrap();
     }
 }
 
@@ -167,18 +181,62 @@ async fn only_three_consecutive_misses_end_a_visible_game() {
     assert!(!running.outcome.was_killed(), "the watch never kills");
 }
 
+/// A probe that cannot tell (failed host `ps`) is neither a miss nor a hit:
+/// unknowns never end a running game's session, and they do not reset the
+/// count of consecutive known misses either.
 #[tokio::test(start_paused = true)]
-async fn a_game_that_never_appears_is_deregistered_at_the_timeout() {
-    let probe = ScriptedProbe::new(&[false]);
+async fn unknown_probes_neither_count_as_misses_nor_reset_them() {
+    let (t, f, unknown) = (Some(true), Some(false), None);
+    // Appears, four unknowns, hit, then misses separated by unknowns.
+    let script = [
+        t, unknown, unknown, unknown, unknown, t, f, unknown, f, unknown, f,
+    ];
+    let probe = ScriptedProbe::with_unknowns(&script);
     let mut running = start_watch(&probe);
     running.hand_off();
     settle().await;
+    assert_eq!(probe.calls(), 1, "first probe sees the game");
 
-    advance(APPEAR_TIMEOUT - POLL_INTERVAL).await;
-    assert!(running.registered(), "still waiting before the timeout");
+    for call in 2..script.len() {
+        advance(POLL_INTERVAL).await;
+        assert_eq!(probe.calls(), call);
+        assert!(
+            running.registered(),
+            "probe {call} ({:?}) must not end the session",
+            script[call - 1]
+        );
+    }
     advance(POLL_INTERVAL).await;
-    assert!(!running.registered(), "deregistered at the timeout");
+    assert_eq!(probe.calls(), script.len());
+    assert!(
+        !running.registered(),
+        "the third known miss ends it despite the unknowns between"
+    );
     running.task.await.unwrap();
+}
+
+/// The watch waits for the appear window the finalizer handed off: the long
+/// one after a clean helper exit, the short one after a signalled helper.
+#[tokio::test(start_paused = true)]
+async fn a_game_that_never_appears_is_deregistered_at_the_handed_off_timeout() {
+    for appear_timeout in [APPEAR_TIMEOUT, SIGNALLED_APPEAR_TIMEOUT] {
+        let probe = ScriptedProbe::new(&[false]);
+        let mut running = start_watch(&probe);
+        running.hand_off_with(appear_timeout);
+        settle().await;
+
+        advance(appear_timeout - POLL_INTERVAL).await;
+        assert!(
+            running.registered(),
+            "{appear_timeout:?}: still waiting before the timeout"
+        );
+        advance(POLL_INTERVAL).await;
+        assert!(
+            !running.registered(),
+            "{appear_timeout:?}: deregistered at the timeout"
+        );
+        running.task.await.unwrap();
+    }
 }
 
 #[tokio::test(start_paused = true)]
@@ -262,7 +320,16 @@ async fn exit_of(
     rx: &mut crate::events::EventReceiver,
     id: SessionId,
 ) -> (Option<i32>, Option<i32>) {
-    tokio::time::timeout(Duration::from_secs(5), async {
+    exit_within(rx, id, Duration::from_secs(5)).await
+}
+
+/// [`exit_of`] with an explicit limit.
+async fn exit_within(
+    rx: &mut crate::events::EventReceiver,
+    id: SessionId,
+    limit: Duration,
+) -> (Option<i32>, Option<i32>) {
+    tokio::time::timeout(limit, async {
         loop {
             if let Some(AppEvent::SessionExited {
                 session_id,
@@ -278,12 +345,12 @@ async fn exit_of(
         }
     })
     .await
-    .expect("SessionExited within 5 s")
+    .expect("SessionExited within the limit")
 }
 
 /// A Steam game guard on the service registry (bus observer attached) whose
 /// deregister step may be handed off on the returned receiver.
-fn steam_guard(harness: &Harness) -> (SessionGuard, SessionId, oneshot::Receiver<()>) {
+fn steam_guard(harness: &Harness) -> (SessionGuard, SessionId, oneshot::Receiver<Duration>) {
     let registry = Arc::clone(harness.service.registry());
     let (id, _cancel) = registry.register(SessionKind::Game, "finalizer-profile");
     let (handoff, handoff_rx) = oneshot::channel();
@@ -302,19 +369,14 @@ fn steam_guard(harness: &Harness) -> (SessionGuard, SessionId, oneshot::Receiver
     (SessionGuard::new(ctx, publisher), id, handoff_rx)
 }
 
-/// A helper that failed (non-zero code, a signal, or no status) never
-/// started the game: the guard deregisters with the real status and never
-/// hands off, so the watch stands down instead of probing.
+/// A helper that exited with a non-zero code, or could not be waited on,
+/// never started the game: the guard deregisters with the real status and
+/// never hands off, so the watch stands down instead of probing.
 #[tokio::test]
 async fn a_failed_helper_deregisters_with_its_status_instead_of_handing_off() {
-    use std::os::unix::process::ExitStatusExt;
     let harness = Harness::new(Metadata::Disabled);
     let mut rx = harness.events.subscribe();
-    for (status, expected) in [
-        (Some(exit_code(1)), (Some(1), None)),
-        (Some(std::process::ExitStatus::from_raw(9)), (None, Some(9))),
-        (None, (None, None)),
-    ] {
+    for (status, expected) in [(Some(exit_code(1)), (Some(1), None)), (None, (None, None))] {
         let (guard, id, mut handoff_rx) = steam_guard(&harness);
         guard.finish(status).await;
         assert_eq!(exit_of(&mut rx, id).await, expected, "{status:?}");
@@ -329,6 +391,60 @@ async fn a_failed_helper_deregisters_with_its_status_instead_of_handing_off() {
         .running_sessions_snapshot()
         .sessions
         .is_empty());
+}
+
+/// A signal may hit the helper after its `steam -applaunch` line, leaving the
+/// game starting: the guard hands off with the short appear window instead
+/// of ending the session.
+#[tokio::test]
+async fn a_signalled_helper_hands_off_with_the_short_appear_window() {
+    use std::os::unix::process::ExitStatusExt;
+    let harness = Harness::new(Metadata::Disabled);
+    let (guard, id, mut handoff_rx) = steam_guard(&harness);
+    guard
+        .finish(Some(std::process::ExitStatus::from_raw(9)))
+        .await;
+    assert_eq!(handoff_rx.try_recv(), Ok(SIGNALLED_APPEAR_TIMEOUT));
+    let sessions = harness.service.running_sessions_snapshot().sessions;
+    assert_eq!(sessions.len(), 1, "the watch owns the session now");
+    assert_eq!(sessions[0].session_id, id);
+}
+
+/// A reset sent just before the child exits can reach the guard before the
+/// session's cancel consumer has run: the report still carries the reset.
+#[tokio::test]
+async fn a_reset_sent_just_before_the_helper_exits_is_in_the_report() {
+    let harness = Harness::new(Metadata::Disabled);
+    let registry = Arc::new(LaunchSessionRegistry::new());
+    // The cancel consumer's receiver is held but never polled, as when its
+    // task has not been scheduled yet.
+    let (id, consumer_rx) = registry.register(SessionKind::Game, "finalizer-profile");
+    let pending_cancels = consumer_rx.resubscribe();
+    let spec = LaunchCase::new(SessionKind::Game, "steam_applaunch", String::new());
+    let outcome = spec.outcome.clone();
+    let ctx = SessionContext {
+        operation_id: None,
+        pending_cancels: Some(pending_cancels),
+        ..session_context(&harness, Arc::clone(&registry), id, &spec)
+    };
+    let (publisher, mut events) = EventPublisher::channel(id);
+
+    assert!(registry.cancel_session(id, TeardownReason::UserRequest));
+    // Exit 1 surfaces the report as a diagnostic event.
+    SessionGuard::new(ctx, publisher)
+        .finish(Some(exit_code(1)))
+        .await;
+
+    let report = collect_until_exited(&mut events)
+        .await
+        .into_iter()
+        .find_map(|event| match event {
+            LaunchEvent::Diagnostic { report, .. } => Some(report),
+            _ => None,
+        })
+        .expect("the failed helper's report is surfaced");
+    assert_eq!(report.teardown_reason, Some(TeardownReason::UserRequest));
+    assert_eq!(outcome.reason(), Some(TeardownReason::UserRequest));
 }
 
 /// A successful helper whose watch already finished (receiver gone) falls
@@ -360,7 +476,7 @@ async fn a_failed_steam_helper_ends_the_session_at_once_without_probing() {
         .clone()
         .with_probe(Arc::new(move |_exe: String| {
             probe_calls.fetch_add(1, Ordering::SeqCst);
-            Box::pin(std::future::ready(true))
+            Box::pin(std::future::ready(Some(true)))
         }));
     harness.spawner.push(Script::piped("exit 1"));
     let mut rx = harness.events.subscribe();
@@ -425,7 +541,7 @@ async fn a_steam_game_session_outlives_its_helper_until_the_watch_ends_it() {
         .clone()
         .with_probe(Arc::new(move |exe: String| {
             let _ = probed_tx.send(exe);
-            Box::pin(std::future::ready(true))
+            Box::pin(std::future::ready(Some(true)))
         }));
     let mut rx = harness.events.subscribe();
 
@@ -471,4 +587,51 @@ async fn a_steam_game_session_outlives_its_helper_until_the_watch_ends_it() {
             seq: 2,
         }
     );
+}
+
+/// End to end without a reset: the helper exits 0, the watch sees the game
+/// and then misses it [`EXIT_MISS_THRESHOLD`] times in a row, and the
+/// session ends with `SessionExited` and no exit status.
+#[tokio::test]
+async fn a_steam_game_that_exits_on_its_own_publishes_session_exited() {
+    let mut harness = Harness::new(Metadata::Enabled);
+    let probe = ScriptedProbe::new(&[true, false]);
+    let first_probe = Arc::new(tokio::sync::Notify::new());
+    let notify = Arc::clone(&first_probe);
+    let scripted = probe.probe();
+    harness.service = harness
+        .service
+        .clone()
+        .with_probe(Arc::new(move |_exe: String| {
+            notify.notify_one();
+            scripted("Game.exe".to_string())
+        }));
+    let mut rx = harness.events.subscribe();
+
+    let session = harness
+        .service
+        .start_game(harness.steam_request("steam-exit"))
+        .await
+        .expect("steam game starts");
+    let id = session.id;
+    Harness::collect(session).await;
+    tokio::time::timeout(Duration::from_secs(5), first_probe.notified())
+        .await
+        .expect("the watch probes after the handoff");
+    assert_eq!(
+        harness.service.running_sessions_snapshot().sessions.len(),
+        1,
+        "the game is visible, so the session stays"
+    );
+
+    // Only the watch's poll timers remain; paused time runs them at once.
+    tokio::time::pause();
+    let limit = POLL_INTERVAL * (EXIT_MISS_THRESHOLD + 2);
+    assert_eq!(exit_within(&mut rx, id, limit).await, (None, None));
+    assert_eq!(probe.calls(), 1 + EXIT_MISS_THRESHOLD as usize);
+    assert!(harness
+        .service
+        .running_sessions_snapshot()
+        .sessions
+        .is_empty());
 }

@@ -10,14 +10,21 @@
 //!   session ends when the helper exits (at the handoff, or through the
 //!   finalizer when the helper failed).
 //! - When the helper exits successfully (code 0, no signal), the finalizer
-//!   hands its deregister step off (a oneshot) instead of deregistering. The
-//!   watcher waits up to [`APPEAR_TIMEOUT`] for the game executable to be
-//!   visible, then polls every [`POLL_INTERVAL`] until it has been missing
-//!   for [`EXIT_MISS_THRESHOLD`] consecutive probes, and deregisters with no
-//!   exit status. A game that never appears is deregistered at the timeout.
-//! - A failed helper (non-zero code, a signal, or no status) never started
-//!   the game: the finalizer deregisters with the real status and drops the
-//!   handoff sender, which ends the watcher without probing.
+//!   hands its deregister step off (a oneshot carrying the appear window)
+//!   instead of deregistering. The watcher waits up to that window
+//!   ([`APPEAR_TIMEOUT`]) for the game executable to be visible, then polls
+//!   every [`POLL_INTERVAL`] until it has been missing for
+//!   [`EXIT_MISS_THRESHOLD`] consecutive probes, and deregisters with no exit
+//!   status. A game that never appears is deregistered at the timeout. A
+//!   probe that cannot tell (the host `ps` query failed) neither counts as a
+//!   miss nor resets the count.
+//! - A helper killed by a signal may have been signalled before or after its
+//!   `steam -applaunch` line, so it hands off too, but with the short
+//!   [`SIGNALLED_APPEAR_TIMEOUT`] window.
+//! - A helper that exited with a non-zero code, or could not be waited on
+//!   (no status), never started the game: the finalizer deregisters with the
+//!   real status and drops the handoff sender, which ends the watcher
+//!   without probing.
 //! - After the handoff, a cancel (the user reset) or a closed cancel channel
 //!   deregisters at once.
 //!
@@ -50,34 +57,48 @@ use crate::services::BoxFuture;
 /// a reset still ends it immediately.
 pub(super) const APPEAR_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 
+/// Appear window after the helper was killed by a signal.
+///
+/// The helper starts the game in the background and does not forward
+/// signals, so a signal after its `steam -applaunch` line leaves the game
+/// starting while a signal before it starts nothing, and the exit status
+/// cannot tell the two apart. A game Steam was told to start is normally
+/// visible within this window; a session whose launch never happened
+/// lingers only this long instead of [`APPEAR_TIMEOUT`].
+pub(super) const SIGNALLED_APPEAR_TIMEOUT: Duration = Duration::from_secs(60);
+
 /// Probe cadence, matching the gamescope watchdog's poll interval.
 pub(super) const POLL_INTERVAL: Duration = Duration::from_secs(2);
 
 /// Consecutive negative probes that end a visible game's session; any
-/// positive probe resets the count.
+/// positive probe resets the count, and an unknown probe does neither.
 ///
-/// One miss is not proof the game exited: under Flatpak a transient
-/// `flatpak-spawn --host ps` failure reads as "not running", and some games
-/// briefly re-exec themselves. The registry session cannot come back after a
-/// false negative, so the watch waits about `3 * POLL_INTERVAL` (6 s) of
-/// absence before ending it.
+/// One miss is not proof the game exited: some games briefly re-exec
+/// themselves. The registry session cannot come back after a false
+/// negative, so the watch waits about `3 * POLL_INTERVAL` (6 s) of absence
+/// before ending it.
 pub(super) const EXIT_MISS_THRESHOLD: u32 = 3;
 
-/// Whether a process with the given executable name is running. Production
-/// runs [`crosshook_core::launch::is_process_running`] on the blocking pool
+/// Whether a process with the given executable name is running: `Some` when
+/// known, `None` when the probe could not tell. Production runs
+/// [`crosshook_core::launch::probe_process_running`] on the blocking pool
 /// (it may shell out to host `ps` under Flatpak); tests return ready
 /// futures so paused Tokio time stays deterministic.
-pub(super) type ProcessProbe = Arc<dyn Fn(String) -> BoxFuture<'static, bool> + Send + Sync>;
+pub(super) type ProcessProbe =
+    Arc<dyn Fn(String) -> BoxFuture<'static, Option<bool>> + Send + Sync>;
 
-/// The production probe. A failed blocking task counts as "not visible".
+/// The production probe. A failed host `ps` query or a failed blocking task
+/// is unknown, not "not visible".
 pub(super) fn default_probe() -> ProcessProbe {
     Arc::new(|exe: String| {
         Box::pin(async move {
-            match run_blocking(move || Ok(crosshook_core::launch::is_process_running(&exe))).await {
+            match run_blocking(move || Ok(crosshook_core::launch::probe_process_running(&exe)))
+                .await
+            {
                 Ok(visible) => visible,
                 Err(error) => {
                     tracing::warn!(%error, "steam game probe failed");
-                    false
+                    None
                 }
             }
         })
@@ -112,23 +133,22 @@ pub(super) struct SteamWatch {
 }
 
 /// Runs the watch to completion. Spawned as the session's cancel consumer;
-/// `handoff` resolves when the finalizer passes its deregister step over.
+/// `handoff` resolves with the appear window when the finalizer passes its
+/// deregister step over.
 pub(super) async fn watch_steam_game(
     watch: SteamWatch,
     mut cancel_rx: broadcast::Receiver<TeardownReason>,
-    mut handoff: oneshot::Receiver<()>,
+    mut handoff: oneshot::Receiver<Duration>,
 ) {
     let mut cancelled = false;
     // Phase 1: the helper is still running.
-    loop {
+    let appear_timeout = loop {
         tokio::select! {
-            handed = &mut handoff => {
-                if handed.is_err() {
-                    // The finalizer deregistered itself (drop path).
-                    return;
-                }
-                break;
-            }
+            handed = &mut handoff => match handed {
+                Ok(appear_timeout) => break appear_timeout,
+                // The finalizer deregistered itself (drop path).
+                Err(_) => return,
+            },
             received = cancel_rx.recv(), if !cancelled => match received {
                 Ok(reason) => {
                     watch.outcome.record_reason(reason);
@@ -145,12 +165,12 @@ pub(super) async fn watch_steam_game(
                 Err(broadcast::error::RecvError::Closed) => return,
             },
         }
-    }
+    };
 
     // Phase 2: the helper exited and the watcher owns deregistration.
     if !cancelled {
         tokio::select! {
-            () = wait_for_game_exit(&watch) => {}
+            () = wait_for_game_exit(&watch, appear_timeout) => {}
             received = cancel_rx.recv() => {
                 if let Ok(reason) = received {
                     watch.outcome.record_reason(reason);
@@ -169,11 +189,12 @@ pub(super) async fn watch_steam_game(
     );
 }
 
-/// Waits for the game to appear (bounded) and then to stay gone for
-/// [`EXIT_MISS_THRESHOLD`] consecutive probes.
-async fn wait_for_game_exit(watch: &SteamWatch) {
-    let deadline = Instant::now() + APPEAR_TIMEOUT;
-    while !probe(watch).await {
+/// Waits up to `appear_timeout` for the game to appear, then for it to stay
+/// gone for [`EXIT_MISS_THRESHOLD`] consecutive known misses. Unknown probes
+/// before the game appeared only let the appear window run on.
+async fn wait_for_game_exit(watch: &SteamWatch, appear_timeout: Duration) {
+    let deadline = Instant::now() + appear_timeout;
+    while probe(watch).await != Some(true) {
         if Instant::now() >= deadline {
             tracing::info!(
                 session_id = %watch.session_id,
@@ -186,18 +207,24 @@ async fn wait_for_game_exit(watch: &SteamWatch) {
     let mut misses = 0;
     loop {
         tokio::time::sleep(POLL_INTERVAL).await;
-        if probe(watch).await {
-            misses = 0;
-            continue;
-        }
-        misses += 1;
-        if misses >= EXIT_MISS_THRESHOLD {
-            return;
+        match probe(watch).await {
+            Some(true) => misses = 0,
+            Some(false) => {
+                misses += 1;
+                if misses >= EXIT_MISS_THRESHOLD {
+                    return;
+                }
+            }
+            None => tracing::debug!(
+                session_id = %watch.session_id,
+                misses,
+                "steam game probe could not tell; keeping the miss count"
+            ),
         }
     }
 }
 
-async fn probe(watch: &SteamWatch) -> bool {
+async fn probe(watch: &SteamWatch) -> Option<bool> {
     (watch.probe)(watch.exe_name.clone()).await
 }
 

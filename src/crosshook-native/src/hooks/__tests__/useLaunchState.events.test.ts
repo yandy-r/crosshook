@@ -302,4 +302,108 @@ describe('useLaunchState session_id events', () => {
     });
     await waitFor(() => expect(result.current.phase).toBe(LaunchPhase.Idle));
   });
+
+  describe('exit before the launch result is applied', () => {
+    const gameSession = (sessionId: string) =>
+      ({ session_id: sessionId, profile_name: 'Synthetic Quest', session_kind: 'game' }) as const;
+
+    /** Makes `launch_game` resolve with `sessionId` only when the returned gate opens. */
+    function gateLaunchGame(sessionId: string): PromiseWithResolvers<void> {
+      const gate = Promise.withResolvers<void>();
+      const fallback = callCommandMock.getMockImplementation();
+      callCommandMock.mockImplementation(async (name: string, args?: unknown) => {
+        if (name !== 'launch_game') {
+          return fallback?.(name, args);
+        }
+        await gate.promise;
+        return {
+          succeeded: true,
+          message: 'Game launch started.',
+          helper_log_path: HELPER_LOG_PATH,
+          session_id: sessionId,
+          warnings: [],
+        };
+      });
+      return gate;
+    }
+
+    async function renderIdleHook() {
+      const rendered = renderHook(() =>
+        useLaunchState({
+          profileId: 'Synthetic Quest',
+          profileName: 'Synthetic Quest',
+          method: 'proton_run',
+          request: makeLaunchRequest(),
+        })
+      );
+      await waitFor(() => expect(handlers.has('launch-session-changed')).toBe(true));
+      await waitFor(() => expect(callCommandMock).toHaveBeenCalledWith('list_running_sessions', undefined));
+      return rendered;
+    }
+
+    it('dispatches game-stopped when the own session exited before launch_game resolved', async () => {
+      const gate = gateLaunchGame('early-exit-session');
+      const { result } = await renderIdleHook();
+
+      let launching: Promise<void> = Promise.resolve();
+      act(() => {
+        launching = result.current.launchGame();
+      });
+      act(() => {
+        emit('launch-session-changed', { kind: 'started', ...gameSession('early-exit-session'), seq: 1 });
+        emit('launch-session-changed', {
+          kind: 'exited',
+          ...gameSession('early-exit-session'),
+          code: 0,
+          signal: null,
+          seq: 2,
+        });
+      });
+      await act(async () => {
+        gate.resolve();
+        await launching;
+      });
+
+      await waitFor(() => expect(result.current.phase).toBe(LaunchPhase.Idle));
+      expect(result.current.canLaunchGame).toBe(true);
+    });
+
+    it("ignores an earlier launch's exit and keeps an absent, not-exited own session running", async () => {
+      const { result } = await renderIdleHook();
+
+      // First launch: OWN_SESSION_ID starts, then the user resets and relaunches.
+      await act(async () => {
+        await result.current.launchGame();
+      });
+      act(() => {
+        emit('launch-session-changed', { kind: 'started', ...gameSession(OWN_SESSION_ID), seq: 1 });
+      });
+      act(() => {
+        result.current.reset();
+      });
+      gateLaunchGame('replacement-session').resolve();
+      await act(async () => {
+        await result.current.launchGame();
+      });
+      // The replacement's `started` event has not arrived: absent, but not exited.
+      expect(result.current.phase).toBe(LaunchPhase.WaitingForTrainer);
+
+      act(() => {
+        emit('launch-session-changed', {
+          kind: 'exited',
+          ...gameSession(OWN_SESSION_ID),
+          code: 0,
+          signal: null,
+          seq: 2,
+        });
+      });
+      expect(result.current.phase).toBe(LaunchPhase.WaitingForTrainer);
+
+      act(() => {
+        emit('launch-session-changed', { kind: 'started', ...gameSession('replacement-session'), seq: 3 });
+      });
+      await waitFor(() => expect(result.current.isGameRunning).toBe(true));
+      expect(result.current.phase).toBe(LaunchPhase.WaitingForTrainer);
+    });
+  });
 });

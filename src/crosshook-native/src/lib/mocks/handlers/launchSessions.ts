@@ -54,15 +54,16 @@ export function endMockSession(sessionId: string, code: number | null, signal: n
 export function registerLaunchSessions(map: Map<string, Handler>): void {
   // list_running_sessions — snapshot of the mock registry plus its seq.
   map.set('list_running_sessions', async (): Promise<RunningSessionsSnapshot> => {
-    const fixture = getActiveFixture();
-    if (fixture === 'empty') return { sessions: [], seq };
-    if (fixture === 'loading') {
+    if (getActiveFixture() === 'loading') {
       return new Promise<RunningSessionsSnapshot>(() => {
         /* intentionally never resolves */
       });
     }
-    // `error` resolves: a failed snapshot only keeps the previous running set
-    // until the next event retries it, which exercises no meaningful error UX.
+    // `empty` returns the live registry: it starts empty, and any session it
+    // holds was started (and emitted) under the seq reported here, so dropping
+    // it would hide a running game. `error` resolves too: a failed snapshot only
+    // keeps the previous running set until a recovery trigger retries it, which
+    // exercises no meaningful error UX.
     return { sessions: [...sessions.values()], seq };
   });
 
