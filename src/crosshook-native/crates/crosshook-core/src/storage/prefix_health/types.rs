@@ -3,11 +3,24 @@ use serde::{Deserialize, Serialize};
 pub const DEFAULT_STALE_STAGED_TRAINER_DAYS: u64 = 14;
 pub const DEFAULT_LOW_DISK_WARNING_MB: u64 = 2048;
 
+/// Which profile field named a referenced prefix.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PrefixReferenceSource {
+    /// `runtime.prefix_path`: CrossHook-launched prefix. Protects the prefix and
+    /// establishes discovery and trusted cleanup roots.
+    RuntimePrefixPath,
+    /// `steam.compatdata_path`: a Steam-owned prefix. Protect-only: it never
+    /// widens discovery or the roots trusted for deletion.
+    SteamCompatdataPath,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrefixReference {
     pub profile_name: String,
     pub configured_prefix_path: String,
     pub resolved_prefix_path: String,
+    pub source: PrefixReferenceSource,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::constants::{DRIVE_C_RELATIVE, STAGED_TRAINERS_RELATIVE};
-use super::discovery::collect_referenced_profiles;
+use super::discovery::{collect_referenced_profiles, trust_anchor_prefixes};
 use super::types::{
     PrefixCleanupResult, PrefixCleanupSkipped, PrefixCleanupTarget, PrefixCleanupTargetKind,
     PrefixReference,
@@ -108,14 +108,13 @@ fn canonicalize_or_reject(path: &Path, reason: &str) -> Result<PathBuf, CleanupR
 }
 
 /// Trusted roots from the reference inventory: the parent of each
-/// referenced prefix, or the compatdata root (grandparent) when the
-/// referenced prefix ends in `pfx`. Never derived from the request.
-fn canonical_trusted_roots(
-    referenced: &BTreeMap<String, Vec<String>>,
-) -> Result<Vec<PathBuf>, CleanupRejection> {
+/// trust-anchor prefix (`runtime.prefix_path` references only), or the
+/// compatdata root (grandparent) when it ends in `pfx`. Steam compat-data
+/// references never establish trust. Never derived from the request.
+fn canonical_trusted_roots(trust_anchors: &[String]) -> Result<Vec<PathBuf>, CleanupRejection> {
     let mut roots = Vec::new();
     let mut any_derived = false;
-    for key in referenced.keys() {
+    for key in trust_anchors {
         let referenced_path = Path::new(key);
         let derived = if referenced_path.file_name().and_then(|v| v.to_str()) == Some("pfx") {
             referenced_path.parent().and_then(Path::parent)
@@ -148,6 +147,7 @@ fn is_strict_descendant(path: &Path, root: &Path) -> bool {
 /// used to establish trust; an empty inventory authorizes nothing.
 fn authorize_prefix_against_inventory(
     referenced: &BTreeMap<String, Vec<String>>,
+    trust_anchors: &[String],
     canonical_prefix: &Path,
 ) -> Result<(), CleanupRejection> {
     let explicitly_referenced = referenced.keys().any(|key| {
@@ -158,7 +158,7 @@ fn authorize_prefix_against_inventory(
     if explicitly_referenced {
         return Ok(());
     }
-    let trusted_roots = canonical_trusted_roots(referenced)?;
+    let trusted_roots = canonical_trusted_roots(trust_anchors)?;
     if trusted_roots
         .iter()
         .any(|root| is_strict_descendant(canonical_prefix, root))
@@ -176,14 +176,15 @@ pub fn cleanup_prefix_storage(
 ) -> PrefixCleanupResult {
     let mut result = PrefixCleanupResult::default();
     let referenced = collect_referenced_profiles(references);
+    let trust_anchors = trust_anchor_prefixes(references);
 
     for target in targets {
         match target.kind {
             PrefixCleanupTargetKind::OrphanPrefix => {
-                cleanup_orphan_prefix(&referenced, target, &mut result);
+                cleanup_orphan_prefix(&referenced, &trust_anchors, target, &mut result);
             }
             PrefixCleanupTargetKind::StaleStagedTrainer => {
-                cleanup_stale_staged_trainer(&referenced, target, &mut result);
+                cleanup_stale_staged_trainer(&referenced, &trust_anchors, target, &mut result);
             }
         }
     }
@@ -193,6 +194,7 @@ pub fn cleanup_prefix_storage(
 
 fn cleanup_orphan_prefix(
     referenced: &BTreeMap<String, Vec<String>>,
+    trust_anchors: &[String],
     target: &PrefixCleanupTarget,
     result: &mut PrefixCleanupResult,
 ) {
@@ -277,7 +279,7 @@ fn cleanup_orphan_prefix(
         return;
     }
 
-    let trusted_roots = match canonical_trusted_roots(referenced) {
+    let trusted_roots = match canonical_trusted_roots(trust_anchors) {
         Ok(value) => value,
         Err(rejection) => {
             skip(result, target, &rejection.reason);
@@ -312,6 +314,7 @@ fn cleanup_orphan_prefix(
 
 fn cleanup_stale_staged_trainer(
     referenced: &BTreeMap<String, Vec<String>>,
+    trust_anchors: &[String],
     target: &PrefixCleanupTarget,
     result: &mut PrefixCleanupResult,
 ) {
@@ -399,7 +402,9 @@ fn cleanup_stale_staged_trainer(
         );
         return;
     }
-    if let Err(rejection) = authorize_prefix_against_inventory(referenced, &canonical_prefix) {
+    if let Err(rejection) =
+        authorize_prefix_against_inventory(referenced, trust_anchors, &canonical_prefix)
+    {
         skip(result, target, &rejection.reason);
         return;
     }

@@ -14,7 +14,7 @@ pub use references::collect_profile_prefix_references;
 pub use scan::scan_prefix_storage;
 pub use types::{
     LowDiskWarning, PrefixCleanupResult, PrefixCleanupSkipped, PrefixCleanupTarget,
-    PrefixCleanupTargetKind, PrefixReference, PrefixStorageEntry, PrefixStorageScanResult,
-    ProfilePrefixReferences, StaleStagedTrainerEntry, DEFAULT_LOW_DISK_WARNING_MB,
-    DEFAULT_STALE_STAGED_TRAINER_DAYS,
+    PrefixCleanupTargetKind, PrefixReference, PrefixReferenceSource, PrefixStorageEntry,
+    PrefixStorageScanResult, ProfilePrefixReferences, StaleStagedTrainerEntry,
+    DEFAULT_LOW_DISK_WARNING_MB, DEFAULT_STALE_STAGED_TRAINER_DAYS,
 };

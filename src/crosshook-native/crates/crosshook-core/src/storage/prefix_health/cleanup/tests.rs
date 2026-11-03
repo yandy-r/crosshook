@@ -9,6 +9,7 @@ use tempfile::TempDir;
 use super::cleanup_prefix_storage;
 use crate::storage::prefix_health::{
     PrefixCleanupResult, PrefixCleanupTarget, PrefixCleanupTargetKind, PrefixReference,
+    PrefixReferenceSource,
 };
 
 fn reference(name: &str, resolved: &Path) -> PrefixReference {
@@ -16,6 +17,7 @@ fn reference(name: &str, resolved: &Path) -> PrefixReference {
         profile_name: name.to_string(),
         configured_prefix_path: resolved.to_string_lossy().into_owned(),
         resolved_prefix_path: resolved.to_string_lossy().into_owned(),
+        source: PrefixReferenceSource::RuntimePrefixPath,
     }
 }
 

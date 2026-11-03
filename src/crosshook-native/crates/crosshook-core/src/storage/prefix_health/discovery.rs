@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::constants::DRIVE_C_RELATIVE;
-use super::types::PrefixReference;
+use super::types::{PrefixReference, PrefixReferenceSource};
 use super::utils::normalized_path_string;
 
 pub(super) fn collect_referenced_profiles(
@@ -26,6 +26,25 @@ pub(super) fn collect_referenced_profiles(
     }
 
     map
+}
+
+/// Normalized prefixes that may establish discovery and trusted cleanup roots.
+///
+/// Only `runtime.prefix_path` references qualify. Steam compat-data references
+/// are protect-only: trusting them would make every sibling `compatdata/*/pfx`
+/// (Steam-owned prefixes of other games) a cleanup candidate.
+pub(super) fn trust_anchor_prefixes(references: &[PrefixReference]) -> Vec<String> {
+    let mut anchors = BTreeSet::new();
+    for reference in references {
+        if reference.source != PrefixReferenceSource::RuntimePrefixPath {
+            continue;
+        }
+        let key = normalized_path_string(Path::new(&reference.resolved_prefix_path));
+        if !key.is_empty() {
+            anchors.insert(key);
+        }
+    }
+    anchors.into_iter().collect()
 }
 
 pub(super) fn discover_candidate_prefixes(referenced_prefixes: &[String]) -> BTreeSet<String> {
