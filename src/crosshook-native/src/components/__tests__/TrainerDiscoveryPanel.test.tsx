@@ -1,8 +1,10 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { CommunityImportResult } from '@/hooks/useCommunityProfiles';
 import { axe } from '@/test/setup';
 import type { CatalogPage } from '@/types/discovery';
+import { createDefaultProfile } from '@/types/profile';
 import { DEFAULT_APP_SETTINGS } from '@/types/settings';
 import { TrainerDiscoveryPanel } from '../TrainerDiscoveryPanel';
 
@@ -102,6 +104,33 @@ const ELDEN_RING_ENTRY = {
   ],
 };
 
+/** Backend `community_import_profile` result naming the profile actually written. */
+function buildImportResult(profileName: string): CommunityImportResult {
+  const profile = createDefaultProfile();
+  return {
+    profile_name: profileName,
+    source_path: ELDEN_RING_ENTRY.manifestPath,
+    profile_path: `/home/user/.config/crosshook/profiles/${profileName}.toml`,
+    profile,
+    manifest: {
+      schema_version: 1,
+      metadata: {
+        game_name: 'Elden Ring',
+        game_version: '',
+        trainer_name: '',
+        trainer_version: '',
+        proton_version: '',
+        platform_tags: [],
+        compatibility_rating: 'working',
+        author: '',
+        description: '',
+        trainer_sha256: null,
+      },
+      profile,
+    },
+  };
+}
+
 describe('TrainerDiscoveryPanel', () => {
   beforeEach(() => {
     usePreferencesContextMock.mockReturnValue(buildPreferencesState());
@@ -113,7 +142,7 @@ describe('TrainerDiscoveryPanel', () => {
       search: vi.fn().mockResolvedValue(undefined),
     });
     useImportCommunityProfileMock.mockReturnValue({
-      importCommunityProfile: vi.fn().mockResolvedValue(undefined),
+      importCommunityProfile: vi.fn().mockResolvedValue(buildImportResult('elden-ring')),
     });
   });
 
@@ -185,6 +214,22 @@ describe('TrainerDiscoveryPanel', () => {
       expect(screen.getByRole('alert')).toBeInTheDocument();
     });
     expect(importCommunityProfile).toHaveBeenCalledWith('/tmp/tap/elden-ring/community-profile.json');
+  });
+
+  it('names the profile the backend actually wrote in the import notice', async () => {
+    usePreferencesContextMock.mockReturnValue(buildPreferencesState({ discovery_enabled: true }));
+    useCommunityCatalogMock.mockReturnValue(
+      buildCatalogReturn(buildCatalogPage({ entries: [ELDEN_RING_ENTRY], totalCount: 1, tapCount: 1 }))
+    );
+    const importCommunityProfile = vi.fn().mockResolvedValue(buildImportResult('elden-ring-2'));
+    useImportCommunityProfileMock.mockReturnValue({ importCommunityProfile });
+
+    render(<TrainerDiscoveryPanel />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Import Profile' }));
+
+    expect(await screen.findByText('Imported profile "elden-ring-2" for Elden Ring.')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('external section renders independent of facet state', () => {

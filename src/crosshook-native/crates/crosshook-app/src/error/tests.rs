@@ -155,6 +155,19 @@ fn community_exchange_errors_hide_the_manifest_path() {
 }
 
 #[test]
+fn community_import_name_exhaustion_maps_to_conflict() {
+    use crosshook_core::profile::CommunityExchangeError as E;
+    let error = AppError::from(E::AlreadyExists {
+        name: "elden-ring".to_string(),
+    });
+    assert_eq!(error.kind(), AppErrorKind::Conflict);
+    assert_eq!(
+        error.message(),
+        "a profile named 'elden-ring' already exists"
+    );
+}
+
+#[test]
 fn recent_files_io_hides_path() {
     let error = AppError::from(RecentFilesStoreError::Io(IoError::new(
         ErrorKind::PermissionDenied,

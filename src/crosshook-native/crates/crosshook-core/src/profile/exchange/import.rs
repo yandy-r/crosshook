@@ -1,5 +1,5 @@
 use super::super::community_schema::CommunityProfileManifest;
-use super::super::ProfileStore;
+use super::super::{ProfileStore, ProfileStoreError};
 use super::error::CommunityExchangeError;
 use super::types::{CommunityImportPreview, CommunityImportResult};
 use super::utils::{derive_import_name, hydrate_imported_profile};
@@ -8,15 +8,26 @@ use serde_json::Value;
 use std::fs;
 use std::path::Path;
 
+/// Highest `-N` suffix tried before an import gives up on finding a free name.
+const MAX_UNIQUE_NAME_SUFFIX: u32 = 1000;
+
+/// Imports the community manifest at `json_path` as a new profile in `profiles_dir`.
+///
+/// The profile is saved under the name derived from the manifest, or under the first free
+/// `<name>-2` … `<name>-1000` when that name is taken; an existing profile is never
+/// overwritten. [`CommunityImportResult::profile_name`] reports the name actually used.
+///
+/// # Errors
+/// Unreadable or invalid manifest, unsupported schema version, every candidate name already
+/// taken (`AlreadyExists`), or a profile write failure.
 pub fn import_community_profile(
     json_path: &Path,
     profiles_dir: &Path,
 ) -> Result<CommunityImportResult, CommunityExchangeError> {
     let preview = preview_community_profile_import(json_path)?;
-    let profile_name = preview.profile_name.clone();
-    let manifest = preview.manifest.clone();
-    let mut profile = preview.profile.clone();
-    if let Some(ref h) = manifest.metadata.trainer_sha256 {
+    let manifest = preview.manifest;
+    let mut profile = preview.profile;
+    if let Some(h) = &manifest.metadata.trainer_sha256 {
         let t = h.trim();
         if !t.is_empty() {
             profile.trainer.community_trainer_sha256 = t.to_string();
@@ -24,15 +35,32 @@ pub fn import_community_profile(
     }
 
     let store = ProfileStore::with_base_path(profiles_dir.to_path_buf());
+    let profile_name = unique_profile_name(&store, &preview.profile_name)?;
     store.save(&profile_name, &profile)?;
 
     Ok(CommunityImportResult {
-        profile_name: profile_name.clone(),
-        source_path: json_path.to_path_buf(),
         profile_path: profiles_dir.join(format!("{profile_name}.toml")),
+        profile_name,
+        source_path: json_path.to_path_buf(),
         profile,
         manifest,
     })
+}
+
+/// Returns `base` when nothing occupies its file (a dangling symlink counts as taken), else the
+/// first free `<base>-N`.
+fn unique_profile_name(store: &ProfileStore, base: &str) -> Result<String, ProfileStoreError> {
+    let base = ProfileStore::validate_profile_name(base)?;
+    if !store.name_taken(&base) {
+        return Ok(base);
+    }
+    for suffix in 2..=MAX_UNIQUE_NAME_SUFFIX {
+        let candidate = ProfileStore::validate_profile_name(&format!("{base}-{suffix}"))?;
+        if !store.name_taken(&candidate) {
+            return Ok(candidate);
+        }
+    }
+    Err(ProfileStoreError::AlreadyExists(base))
 }
 
 pub fn preview_community_profile_import(

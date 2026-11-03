@@ -161,6 +161,7 @@ impl From<crosshook_core::profile::CommunityExchangeError> for AppError {
                 },
                 error.to_string(),
             ),
+            E::AlreadyExists { .. } => Self::new(AppErrorKind::Conflict, error.to_string()),
             E::ProfileStore { message } => Self::new(AppErrorKind::Io, message),
         }
     }

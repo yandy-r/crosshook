@@ -214,6 +214,59 @@ async fn legacy_import_records_import_revision_and_publishes_trimmed_name() {
 }
 
 #[tokio::test]
+async fn community_import_twice_keeps_the_first_profile_and_publishes_the_suffixed_name() {
+    let mut harness = Harness::new(Metadata::Enabled);
+    let path = community_manifest(&harness, "", "");
+    let first = harness
+        .writer
+        .import_community(path.clone())
+        .await
+        .unwrap()
+        .into_output();
+    assert_eq!(harness.next_event().await, imported(&["community-game"]));
+    let before = fs::read(&first.profile_path).unwrap();
+
+    let second = harness
+        .writer
+        .import_community(path)
+        .await
+        .unwrap()
+        .into_output();
+
+    assert_eq!(second.profile_name, "community-game-2");
+    assert_eq!(fs::read(&first.profile_path).unwrap(), before);
+    assert_eq!(
+        harness.profiles.list().unwrap(),
+        ["community-game", "community-game-2"]
+    );
+    assert_eq!(harness.next_event().await, imported(&["community-game-2"]));
+    assert_eq!(harness.next_event().await, None);
+}
+
+#[tokio::test]
+async fn legacy_import_over_an_existing_profile_is_a_conflict_without_event() {
+    let mut harness = Harness::new(Metadata::Enabled);
+    harness
+        .writer
+        .save("Old Game".to_string(), steam_profile(&home(&harness)))
+        .await
+        .unwrap();
+    assert!(harness.next_event().await.is_some());
+    let existing_path = harness.profiles.base_path.join("Old Game.toml");
+    let before = fs::read(&existing_path).unwrap();
+    let legacy_dir = harness.root.path().join("legacy");
+    fs::create_dir_all(&legacy_dir).unwrap();
+    let path = legacy_dir.join("Old Game.profile");
+    fs::write(&path, "GamePath=C:\\Games\\old.exe\nLaunchMethod=native\n").unwrap();
+
+    let error = harness.writer.import_legacy(path).await.unwrap_err();
+
+    assert_eq!(error.kind(), AppErrorKind::Conflict);
+    assert_eq!(fs::read(&existing_path).unwrap(), before);
+    assert_eq!(harness.next_event().await, None);
+}
+
+#[tokio::test]
 async fn duplicate_records_copy_revision_lineage_and_event() {
     let mut harness = Harness::new(Metadata::Enabled);
     harness

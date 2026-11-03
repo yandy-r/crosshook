@@ -22,6 +22,10 @@ pub enum CommunityExchangeError {
         version: u32,
         supported: u32,
     },
+    /// No free profile name was left for the import (`<name>` and every `<name>-N` are taken).
+    AlreadyExists {
+        name: String,
+    },
     ProfileStore {
         message: String,
     },
@@ -49,6 +53,7 @@ impl Display for CommunityExchangeError {
                     "unsupported community profile schema version {version}; supported version is {supported}"
                 )
             }
+            Self::AlreadyExists { name } => write!(f, "a profile named '{name}' already exists"),
             Self::ProfileStore { message } => write!(f, "{message}"),
         }
     }
@@ -58,8 +63,11 @@ impl Error for CommunityExchangeError {}
 
 impl From<ProfileStoreError> for CommunityExchangeError {
     fn from(value: ProfileStoreError) -> Self {
-        Self::ProfileStore {
-            message: value.to_string(),
+        match value {
+            ProfileStoreError::AlreadyExists(name) => Self::AlreadyExists { name },
+            other => Self::ProfileStore {
+                message: other.to_string(),
+            },
         }
     }
 }

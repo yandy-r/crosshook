@@ -222,6 +222,13 @@ impl ProfileStore {
         Ok(())
     }
 
+    /// Converts the legacy `.profile` at `legacy_path` and saves it under its file stem.
+    ///
+    /// # Errors
+    /// - `ProfileStoreError::InvalidName` if the file stem is not a valid profile name.
+    /// - `ProfileStoreError::AlreadyExists` if a profile of that name exists; it is left
+    ///   untouched (import never overwrites).
+    /// - `ProfileStoreError::Io` or `ProfileStoreError::TomlSer` on read/write failure.
     pub fn import_legacy(&self, legacy_path: &Path) -> Result<GameProfile, ProfileStoreError> {
         let profile_name = legacy_path
             .file_stem()
@@ -229,6 +236,9 @@ impl ProfileStore {
             .ok_or_else(|| ProfileStoreError::InvalidName(legacy_path.display().to_string()))?;
 
         let profile_name = validate_name(profile_name)?;
+        if self.name_taken(&profile_name) {
+            return Err(ProfileStoreError::AlreadyExists(profile_name));
+        }
         let legacy_profile = legacy::load(
             legacy_path.parent().unwrap_or_else(|| Path::new("")),
             &profile_name,
@@ -329,11 +339,19 @@ impl ProfileStore {
         Ok(self.base_path.join(format!("{validated_name}.toml")))
     }
 
-    /// Returns whether a profile TOML already exists for `name`.
+    /// Returns whether a profile TOML already exists for `name` (follows symlinks).
     pub fn profile_exists(&self, name: &str) -> bool {
         match self.profile_path(name) {
             Ok(path) => path.exists(),
             Err(_) => false,
         }
+    }
+
+    /// Returns whether anything occupies `<name>.toml`, including a dangling symlink, so a
+    /// create-only write (import) never replaces it. Invalid names count as not taken; the
+    /// subsequent save rejects them.
+    pub(crate) fn name_taken(&self, name: &str) -> bool {
+        self.profile_path(name)
+            .is_ok_and(|path| fs::symlink_metadata(path).is_ok())
     }
 }

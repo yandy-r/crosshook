@@ -337,7 +337,7 @@ crosshook status --json
 # List all saved profiles
 crosshook profile list
 
-# Import a legacy .profile file
+# Import a legacy .profile file (named after the file; refuses to overwrite an existing profile of that name)
 crosshook profile import --legacy-path ~/.config/crosshook-old/elden-ring.profile
 
 # Export a profile as a portable community JSON file

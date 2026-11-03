@@ -107,8 +107,8 @@ export function TrainerDiscoveryPanel({ initialQuery = '' }: TrainerDiscoveryPan
       setImportNotice(null);
 
       try {
-        await importCommunityProfile(entry.manifestPath);
-        setImportNotice(`Imported profile for ${entry.gameName ?? entry.relativePath}.`);
+        const result = await importCommunityProfile(entry.manifestPath);
+        setImportNotice(`Imported profile "${result.profile_name}" for ${entry.gameName ?? entry.relativePath}.`);
       } catch (err) {
         setImportError(err instanceof Error ? err.message : String(err));
       } finally {

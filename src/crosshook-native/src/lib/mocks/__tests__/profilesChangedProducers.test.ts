@@ -99,4 +99,24 @@ describe('mock profiles-changed producers', () => {
     });
     expectPayloads(payloads, [{ reason: { kind: 'imported' }, names: [result.profile_name] }]);
   });
+
+  it('community import twice keeps the first profile and returns a suffixed name', async () => {
+    const path = '/mock/taps/community-profiles/synthetic-quest/community.json';
+    const first = await mockCallCommand<{ profile_name: string }>('community_import_profile', { path });
+    const second = await mockCallCommand<{ profile_name: string }>('community_import_profile', { path });
+
+    expect(first.profile_name).toBe('synthetic-quest');
+    expect(second.profile_name).toBe('synthetic-quest-2');
+    expectPayloads(payloads, [
+      { reason: { kind: 'imported' }, names: ['synthetic-quest'] },
+      { reason: { kind: 'imported' }, names: ['synthetic-quest-2'] },
+    ]);
+  });
+
+  it('legacy import refuses an existing profile name without emitting', async () => {
+    await expect(mockCallCommand('profile_import_legacy', { path: `/legacy/${ALPHA}.profile` })).rejects.toThrow(
+      `a profile named '${ALPHA}' already exists`
+    );
+    expect(payloads).toEqual([]);
+  });
 });

@@ -15,6 +15,9 @@ pub use types::{CommunityExportResult, CommunityImportPreview, CommunityImportRe
 pub use validation::validate_manifest_value;
 
 #[cfg(test)]
+mod import_names_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::profile::community_schema::COMMUNITY_PROFILE_SCHEMA_VERSION;

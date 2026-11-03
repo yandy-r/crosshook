@@ -36,14 +36,17 @@ impl ProfileWriter {
             .await
     }
 
-    /// Imports the community profile manifest at `path` (overwriting a
-    /// profile of the derived name) and seeds its display-only version
-    /// snapshot from the manifest metadata. The caller has already checked
-    /// that `path` is allowed. Publishes `Imported` with the profile name.
+    /// Imports the community profile manifest at `path` as a new profile and
+    /// seeds its display-only version snapshot from the manifest metadata.
+    /// The profile takes the derived name, or the first free `<name>-N` when
+    /// that name is taken, so an existing profile is never overwritten; the
+    /// collision check runs under the writer lock (D3). The caller has
+    /// already checked that `path` is allowed. Publishes `Imported` with the
+    /// name actually written ([`CommunityImportResult::profile_name`]).
     ///
     /// # Errors
-    /// Unreadable or invalid manifest, unsupported schema version, or a
-    /// profile write failure; nothing is published in those cases.
+    /// Unreadable or invalid manifest, unsupported schema version, no free
+    /// name, or a profile write failure; nothing is published in those cases.
     pub async fn import_community(
         &self,
         path: PathBuf,
