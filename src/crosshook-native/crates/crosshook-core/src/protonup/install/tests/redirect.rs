@@ -123,6 +123,57 @@ async fn download_redirect_to_off_allowlist_host_is_refused() {
     assert!(!compat_dir.join(version).exists());
 }
 
+/// An `https` hop to a host outside the allowlist reaches the host check
+/// (the loopback cases above are refused on scheme) and is refused before
+/// any connection is made.
+#[tokio::test]
+async fn download_redirect_to_off_allowlist_https_host_is_refused() {
+    let version = "GE-Proton9-redir-https";
+    let archive_name = format!("{version}.tar.gz");
+    let archive = minimal_ge_proton_tar_gz(version);
+
+    let trusted = MockServer::start().await;
+    let archive_route = format!("/{archive_name}");
+    let sidecar_route = format!("/{archive_name}.sha512sum");
+
+    mount_get(
+        &trusted,
+        &archive_route,
+        redirect_to(&format!("https://untrusted.invalid{archive_route}")),
+    )
+    .await;
+    mount_get(
+        &trusted,
+        &sidecar_route,
+        sha512_sidecar(&archive, &archive_name),
+    )
+    .await;
+
+    let temp = tempfile::tempdir().expect("temp dir");
+    let compat_dir = compat_dir_in(&temp);
+    let result = run_install(
+        &compat_dir,
+        version,
+        &format!("{}{archive_route}", trusted.uri()),
+        &format!("{}{sidecar_route}", trusted.uri()),
+    )
+    .await;
+
+    assert!(!result.success, "install must fail: {result:?}");
+    assert_eq!(
+        result.error_kind,
+        Some(ProtonUpInstallErrorKind::NetworkError)
+    );
+    let message = result.error_message.unwrap_or_default();
+    assert!(
+        message.contains("redirect to an untrusted host was refused"),
+        "the redirect policy must refuse the hop: {message}"
+    );
+    assert!(!message.contains("untrusted.invalid"));
+    assert!(!compat_dir.join(format!(".tmp.{archive_name}")).exists());
+    assert!(!compat_dir.join(version).exists());
+}
+
 #[tokio::test]
 async fn checksum_redirect_to_off_allowlist_host_is_refused() {
     let version = "GE-Proton9-redir-sum";

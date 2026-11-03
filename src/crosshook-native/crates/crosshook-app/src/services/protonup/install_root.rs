@@ -127,6 +127,11 @@ fn trusted_candidates(roots: &dyn ProtonRootSource, steam: &[PathBuf]) -> Vec<Tr
         .into_iter()
         .flat_map(|root| usable_install_roots(roots, root))
     {
+        // The installer receives the root as a string; non-UTF-8 roots are
+        // excluded so listing, default selection and authorization agree.
+        if candidate.path.to_str().is_none() {
+            continue;
+        }
         let Some(normalized) = normalize(&candidate.path) else {
             continue;
         };
