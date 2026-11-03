@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc cbfe1e639c94ab8b2396bf49e7d31df5fd31d77cdb3e6a6b615b27d98ecfd0cc # shrinks to cards = [ProfileCard { name: "A", game_name: "", steam_app_id: "0", is_favorite: false }], query = "", filter = Installed, sort = Recent, running = []
+cc 21aa772c80667658c2c13ea48bc761203ea336e5216e03bc37980a37fa6e0ffb # shrinks to cards = [ProfileCard { name: "A", game_name: "a", steam_app_id: "", is_favorite: false }, ProfileCard { name: "a", game_name: "", steam_app_id: "", is_favorite: false }], query = "", filter = All

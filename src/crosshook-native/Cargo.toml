@@ -3,6 +3,7 @@ members = [
     "crates/crosshook-app",
     "crates/crosshook-core",
     "crates/crosshook-cli",
+    "crates/crosshook-view-model",
     "src-tauri",
 ]
 resolver = "2"
