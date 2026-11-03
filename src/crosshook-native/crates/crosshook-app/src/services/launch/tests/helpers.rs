@@ -1,5 +1,6 @@
 //! Shared harness: tempdir stores, a service wired to a scripted
-//! [`FakeSpawner`], hermetic launch requests, and an event collector.
+//! [`FakeSpawner`], hermetic launch requests, an event collector, and
+//! direct [`SessionContext`] builders for finalizer-guard tests.
 //!
 //! Every helper here is used by at least one slice.
 
@@ -8,28 +9,38 @@ use std::ffi::OsString;
 use std::fs;
 use std::io;
 use std::os::unix::fs::PermissionsExt;
+use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
+use std::process::{ExitStatus, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use crosshook_core::launch::{
-    LaunchRequest, RuntimeLaunchConfig, SteamLaunchConfig, METHOD_PROTON_RUN,
+    LaunchHookExecutionContext, LaunchRequest, LaunchSessionRegistry, RuntimeLaunchConfig,
+    SessionId, SessionKind, SteamLaunchConfig, WatchdogOutcome, METHOD_PROTON_RUN,
     METHOD_STEAM_APPLAUNCH,
 };
-use crosshook_core::metadata::MetadataStore;
-use crosshook_core::profile::{ProfileStore, TrainerLoadingMode};
+use crosshook_core::metadata::{
+    ConfigRevisionSource, MetadataStore, SyncSource, MAX_CONFIG_REVISIONS_PER_PROFILE,
+};
+use crosshook_core::profile::{GameProfile, ProfileStore, TrainerLoadingMode};
 use crosshook_core::runtime_helpers::HelperRoots;
 use crosshook_core::settings::{SettingsStore, UmuPreference};
 use tempfile::TempDir;
 use tokio::process::{Child, Command};
 
+use super::super::types::SessionContext;
 use super::super::{
-    HelperSource, LaunchEnv, LaunchEvent, LaunchService, LaunchSession, ProcessSpawner,
+    HelperSource, LaunchEnv, LaunchEvent, LaunchEvents, LaunchService, LaunchSession,
+    ProcessSpawner,
 };
+use crate::events::EventBus;
 
 /// How long [`Harness::collect`] waits for `Exited`.
 const COLLECT_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Profile name every [`session_context`] guard session runs under.
+pub(super) const GUARD_PROFILE: &str = "finalizer-profile";
 
 /// Metadata store flavor for a [`Harness`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -205,6 +216,8 @@ pub(super) struct Harness {
     pub(super) metadata: MetadataStore,
     pub(super) spawner: Arc<FakeSpawner>,
     pub(super) service: LaunchService,
+    /// The app bus the service publishes session changes on.
+    pub(super) events: EventBus,
 }
 
 impl Harness {
@@ -229,20 +242,26 @@ impl Harness {
             write_file(&helper_dir.join(name), "#!/bin/sh\nexit 0\n", 0o755);
         }
 
+        let events = EventBus::default();
         let spawner = Arc::new(FakeSpawner::new());
-        let service =
-            LaunchService::new(profiles.clone(), settings.clone(), metadata.clone(), None)
-                .with_spawner(spawner.clone())
-                .with_env(LaunchEnv {
-                    is_flatpak: false,
-                    inside_gamescope_session: false,
-                })
-                .with_helper_source(HelperSource::Roots(HelperRoots {
-                    flatpak_resources: Some(helper_dir),
-                    exe_dir: None,
-                    dev_dir: None,
-                }))
-                .with_log_dir(log_dir.clone());
+        let service = LaunchService::new(
+            profiles.clone(),
+            settings.clone(),
+            metadata.clone(),
+            events.clone(),
+            None,
+        )
+        .with_spawner(spawner.clone())
+        .with_env(LaunchEnv {
+            is_flatpak: false,
+            inside_gamescope_session: false,
+        })
+        .with_helper_source(HelperSource::Roots(HelperRoots {
+            flatpak_resources: Some(helper_dir),
+            exe_dir: None,
+            dev_dir: None,
+        }))
+        .with_log_dir(log_dir.clone());
 
         Self {
             root,
@@ -252,6 +271,7 @@ impl Harness {
             metadata,
             spawner,
             service,
+            events,
         }
     }
 
@@ -351,4 +371,127 @@ fn write_file(path: &Path, body: &str, mode: u32) {
 
 fn path_string(path: &Path) -> String {
     path.to_string_lossy().into_owned()
+}
+
+/// The session kind, method, history row and watchdog outcome of one
+/// [`session_context`] guard session.
+pub(super) struct LaunchCase {
+    pub(super) kind: SessionKind,
+    pub(super) method: &'static str,
+    pub(super) operation_id: Option<String>,
+    pub(super) outcome: WatchdogOutcome,
+}
+
+impl LaunchCase {
+    pub(super) fn new(
+        kind: SessionKind,
+        method: &'static str,
+        operation_id: impl Into<String>,
+    ) -> Self {
+        Self {
+            kind,
+            method,
+            operation_id: Some(operation_id.into()),
+            outcome: WatchdogOutcome::new(),
+        }
+    }
+}
+
+fn seed_profile(metadata: &MetadataStore, name: &str) -> String {
+    metadata
+        .observe_profile_write(
+            name,
+            &GameProfile::default(),
+            Path::new("/tmp/finalizer-profile.toml"),
+            SyncSource::AppWrite,
+            None,
+        )
+        .unwrap();
+    metadata.lookup_profile_id(name).unwrap().unwrap()
+}
+
+fn seed_revision(metadata: &MetadataStore, profile_id: &str) {
+    metadata
+        .insert_config_revision(
+            profile_id,
+            GUARD_PROFILE,
+            ConfigRevisionSource::ManualSave,
+            "hash-1",
+            "toml = true",
+            None,
+            MAX_CONFIG_REVISIONS_PER_PROFILE,
+        )
+        .unwrap()
+        .unwrap();
+}
+
+/// A metadata-enabled harness with [`GUARD_PROFILE`] seeded (one config
+/// revision) and a started history row. Returns the harness, profile id and
+/// operation id.
+pub(super) fn seeded(method: &str) -> (Harness, String, String) {
+    let harness = Harness::new(Metadata::Enabled);
+    let profile_id = seed_profile(&harness.metadata, GUARD_PROFILE);
+    seed_revision(&harness.metadata, &profile_id);
+    let operation_id = harness
+        .metadata
+        .record_launch_started(Some(GUARD_PROFILE), method, None)
+        .unwrap();
+    (harness, profile_id, operation_id)
+}
+
+/// A [`SessionContext`] for a guard session under [`GUARD_PROFILE`] with an
+/// empty log, no hooks, no portal and no Steam handoff.
+pub(super) fn session_context(
+    harness: &Harness,
+    registry: Arc<LaunchSessionRegistry>,
+    session_id: SessionId,
+    spec: &LaunchCase,
+) -> SessionContext {
+    let log_path = harness.root.path().join("launch.log");
+    fs::write(&log_path, "").unwrap();
+    SessionContext {
+        session_id,
+        kind: spec.kind,
+        method: spec.method,
+        profile_name: Some(GUARD_PROFILE.to_string()),
+        steam_app_id: String::new(),
+        steam_client_path: String::new(),
+        trainer_host_path: None,
+        log_path,
+        operation_id: spec.operation_id.clone(),
+        watchdog_outcome: spec.outcome.clone(),
+        coexistence: Vec::new(),
+        post_exit_hooks: Vec::new(),
+        hook_context: LaunchHookExecutionContext::default(),
+        portal_guard: None,
+        metadata: harness.metadata.clone(),
+        registry,
+        deregister_handoff: None,
+    }
+}
+
+/// An exit status with exit code `code` and no signal.
+pub(super) fn exit_code(code: i32) -> ExitStatus {
+    ExitStatus::from_raw(code << 8)
+}
+
+/// Drains a guard's event stream until `Exited` (inclusive), in order.
+///
+/// # Panics
+/// When `Exited` does not arrive within 5 s or the stream ends without it.
+pub(super) async fn collect_until_exited(events: &mut LaunchEvents) -> Vec<LaunchEvent> {
+    let drain = async {
+        let mut out = Vec::new();
+        while let Some(event) = events.recv().await {
+            let exited = matches!(event, LaunchEvent::Exited { .. });
+            out.push(event);
+            if exited {
+                return out;
+            }
+        }
+        panic!("event stream ended without Exited: {out:?}");
+    };
+    tokio::time::timeout(Duration::from_secs(5), drain)
+        .await
+        .expect("Exited within 5s")
 }

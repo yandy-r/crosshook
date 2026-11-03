@@ -70,7 +70,7 @@ const baseHandlerOverrides = {
     blocking_reasons: [],
     checked_at: '2026-04-23T12:00:00.000Z',
   }),
-  check_game_running: async () => false,
+  list_running_sessions: async () => ({ sessions: [], seq: 0 }),
   check_gamescope_session: async () => false,
   get_optimization_catalog: async () => null,
   get_command_argument_catalog: async () => makeCommandArgumentCatalogPayload(),

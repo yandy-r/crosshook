@@ -21,7 +21,7 @@ Paths are relative to `src/crosshook-native/`. Research: `research-backend.md`, 
 
 - Today `steam_applaunch` game sessions are deregistered when `steam-launch-helper.sh` exits (~30 s), while the game keeps running. The spec requires exit from watchdog detection.
 - New cancel consumer for `kind == Game && method == steam_applaunch && !trainer_only`: a watcher that owns deregistration. The finalizer keeps `launch-complete`, cascade, hooks and portal steps unchanged but **hands off** its deregister step to the watcher. `Drop` still deregisters if the handoff never happened (explicit, tested).
-- Watcher: wait for the game exe to appear (timeout 90 s, mirrors `DEFAULT_GAME_TIMEOUT_SECONDS`), then poll every 2 s until it disappears, then `deregister_with_exit(id, None, None)`. Never appeared → deregister at timeout. `UserRequest` (reset) or closed cancel channel → deregister immediately.
+- Watcher: hand-off happens only when the helper exited 0 with no signal (a failed helper deregisters at once with its real code/signal). Then wait for the game exe to appear (generous appear timeout so shader pre-caching and updates don't end the session early), poll every 2 s until it disappears, then `deregister_with_exit(id, None, None)`. Never appeared → deregister at timeout. `UserRequest` (reset) or closed cancel channel → deregister immediately.
 - Probe is injected (`Arc<dyn Fn(&str) -> bool + Send + Sync>`, production = `is_process_running` via `run_blocking`/`spawn_blocking`). Tests use paused tokio time; no real sleeps.
 - Never signals or kills anything. No cascade at real game exit (the existing cascade at helper exit is unchanged) — adding one would newly kill Flatpak Steam trainer trees.
 - Idle wakeups stay 0: the watcher only exists while a Steam game session is registered.
@@ -60,9 +60,9 @@ Snapshot command `list_running_sessions` (replaces `list_running_profiles`, whic
 
 ## D5 — Classic frontend: one module-level store, zero timers
 
-- New `src/hooks/runningSessionsStore.ts` (module singleton, ref-counted): first consumer **awaits** `subscribeEvent('launch-session-changed')`, then calls `list_running_sessions`; events received before the snapshot resolves are buffered and applied only if `seq > snapshot.seq`; afterwards events with `seq <= snapshot.seq` are dropped; `resync` re-fetches and replaces; snapshot failure clears state; last consumer unsubscribes.
+- New `src/hooks/runningSessionsStore.ts` (module singleton, ref-counted): first consumer **awaits** `subscribeEvent('launch-session-changed')`, then calls `list_running_sessions`; events received before the snapshot resolves are buffered and applied only if `seq > snapshot.seq`; afterwards events with `seq <= snapshot.seq` are dropped; `resync` re-fetches and replaces; a failed snapshot keeps the previous state and the next event retries it (no timers); last consumer unsubscribes.
 - Exposed via `useSyncExternalStore`. `useRunningProfiles()` keeps its name/shape (`Set` of game profile names, anonymous and trainer sessions excluded), so AppShell/LibraryPage do not change and no render harness needs a provider.
-- `useLaunchState`: delete the `check_game_running` interval. `isGameRunning` = the store contains the launch's own game `session_id` (from `LaunchResult`). `game-stopped` dispatches when that session's `exited` event is applied. `check_game_running` stays as a Tauri command and mock for on-demand use only.
+- `useLaunchState`: delete the `check_game_running` interval. `isGameRunning` = the store contains the launch's own game `session_id` (from `LaunchResult`) **or** any game session for the current trimmed profile name (prevents a double launch after profile switch, reset or reload). `game-stopped` dispatches when the tracked session (or, untracked, the profile's game session) exits after being observed. `check_game_running` stays as a Tauri command and mock for on-demand use only.
 - Accepted behavior change: a game started outside CrossHook is no longer detected by a 3 s poll (follow-up issue).
 
 ## D6 — Mocks

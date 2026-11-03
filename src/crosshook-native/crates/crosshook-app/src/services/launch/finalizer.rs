@@ -1,11 +1,16 @@
 //! Drop-safe session finalizer (`SessionGuard`) and the D5 step order.
 //!
 //! [`SessionGuard::finish`] publishes diagnostics and the trainer injection
-//! wrap-up before `Exited`, then cascades, runs post-exit hooks, deregisters,
-//! and unregisters the portal. If the session task panics or is dropped
-//! first, [`Drop`] still runs the teardown steps that had not finished
-//! (`Exited`, cascade, hooks, deregister, portal). Earlier steps are not
-//! replayed, and `Exited` is published at most once.
+//! wrap-up before `Exited`, then cascades, runs post-exit hooks, deregisters
+//! (with the child's exit code and signal), and unregisters the portal. A
+//! Steam game session whose helper exited successfully hands its deregister
+//! step to the Steam game watch instead, because the game outlives the
+//! helper child; a failed helper (non-zero code, a signal, or no status)
+//! deregisters here with its real status. If the session task panics or is
+//! dropped first, [`Drop`] still runs the teardown steps that had not
+//! finished (`Exited`, cascade, hooks, deregister without an exit status,
+//! portal). Earlier steps are not replayed, and `Exited` is published at
+//! most once.
 
 use std::os::unix::process::ExitStatusExt;
 use std::panic::AssertUnwindSafe;
@@ -75,7 +80,7 @@ impl SessionGuard {
         self.publish_exited(exit_code, signal);
         self.cascade();
         self.run_hooks().await;
-        self.deregister();
+        self.deregister(exit_code, signal);
         self.unregister_portal().await;
     }
 
@@ -233,12 +238,30 @@ impl SessionGuard {
         }
     }
 
-    fn deregister(&mut self) {
+    /// Removes the session with its exit status, or passes the step to the
+    /// Steam game watch when the helper exited successfully (code 0, no
+    /// signal). A failed helper never started the game, so it deregisters
+    /// here with its real status; dropping the handoff sender ends the
+    /// watch. A refused handoff (the watch already finished) also falls back
+    /// to deregistering here.
+    fn deregister(&mut self, code: Option<i32>, signal: Option<i32>) {
         if self.deregistered {
             return;
         }
-        self.ctx.registry.deregister(self.ctx.session_id);
         self.deregistered = true;
+        let handoff = self.ctx.deregister_handoff.take();
+        if code == Some(0) && signal.is_none() {
+            if let Some(handoff) = handoff {
+                if handoff.send(()).is_ok() {
+                    return;
+                }
+            }
+        } else {
+            drop(handoff);
+        }
+        self.ctx
+            .registry
+            .deregister_with_exit(self.ctx.session_id, code, signal);
     }
 
     async fn unregister_portal(&mut self) {
@@ -348,6 +371,6 @@ fn cascade_linked_children(registry: &Arc<LaunchSessionRegistry>, session_id: Se
 
 /// Registry locks panic on poison. Teardown must not turn that into an abort
 /// while the session task is already unwinding.
-fn catch_registry(work: impl FnOnce()) {
+pub(super) fn catch_registry(work: impl FnOnce()) {
     let _ = std::panic::catch_unwind(AssertUnwindSafe(work));
 }

@@ -1,6 +1,7 @@
 mod commands;
 mod env_policy;
 mod fatal;
+mod session_bridge;
 mod signals;
 mod startup_bridge;
 
@@ -125,7 +126,7 @@ pub fn run() {
             commands::launch::check_gamescope_session,
             commands::launch::launch_platform_status,
             commands::launch::check_game_running,
-            commands::launch::list_running_profiles,
+            commands::launch::list_running_sessions,
             commands::launch::list_launch_history_for_profile,
             commands::mods::list_profile_mods,
             commands::mods::add_profile_mod,

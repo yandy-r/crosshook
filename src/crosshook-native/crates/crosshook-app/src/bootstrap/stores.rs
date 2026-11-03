@@ -129,7 +129,7 @@ impl Services {
                 stores.settings.clone(),
                 stores.profiles.base_path.clone(),
             ),
-            ui_settings: UiSettingsService::new(stores.settings.clone(), events, runtime),
+            ui_settings: UiSettingsService::new(stores.settings.clone(), events.clone(), runtime),
             recent_files: RecentFilesService::new(
                 stores.settings.clone(),
                 stores.recent_files.clone(),
@@ -183,6 +183,7 @@ impl Services {
                 stores.profiles.clone(),
                 stores.settings.clone(),
                 stores.metadata.clone(),
+                events,
                 Some(background.clone()),
             ),
             storage: StorageService::new(

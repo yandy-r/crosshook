@@ -1,3 +1,4 @@
+use crate::session_bridge::{self, LaunchSessionChanged};
 use crosshook_app::bootstrap::{
     JobSnapshotKind, JobState, StartupHandle, StartupJobKind, StartupJobs,
 };
@@ -166,14 +167,27 @@ fn is_bridged(event: &AppEvent) -> bool {
     )
 }
 
-/// Bridges retained terminal outcomes, Classic's legacy success events and
-/// profile change notifications. Holds only a startup handle and receiver,
+/// The `launch-session-changed` payload `event` produces, if any: session
+/// starts and exits map one to one, and a bus lag becomes `{"kind":"resync"}`
+/// because the dropped session changes are unknown (the UI re-fetches
+/// `list_running_sessions`). The bridge loop calls this for every bridged
+/// event before its per-event match, so no match arm can drop it.
+fn session_payload(event: &AppEvent) -> Option<LaunchSessionChanged> {
+    LaunchSessionChanged::from_event(event)
+}
+
+/// Bridges retained terminal outcomes, Classic's legacy success events,
+/// profile change notifications and running-session changes. Holds only a
+/// startup handle and receiver,
 /// never an application clone.
 pub(crate) fn spawn(handle: AppHandle, startup: StartupHandle, mut rx: EventReceiver) {
     tauri::async_runtime::spawn(async move {
         while let Some(event) = rx.recv().await {
             if !is_bridged(&event) {
                 continue;
+            }
+            if let Some(payload) = session_payload(&event) {
+                session_bridge::emit(&handle, payload);
             }
             match event {
                 AppEvent::StartupJobFinished { job } => {
@@ -192,6 +206,7 @@ pub(crate) fn spawn(handle: AppHandle, startup: StartupHandle, mut rx: EventRece
                 AppEvent::UiSettingsPersistFailed { message } => {
                     emit_ui_settings_persist_failed(&handle, message);
                 }
+                // Session changes were emitted above via `session_payload`.
                 // Named scan-completion events never reach this arm set: see
                 // `is_bridged`.
                 // AppEvent is non-exhaustive; future unrelated events need no bridge.

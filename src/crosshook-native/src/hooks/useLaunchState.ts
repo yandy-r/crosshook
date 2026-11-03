@@ -14,6 +14,8 @@ import type {
   OfflineReadinessReport,
 } from '../types';
 import { isDiagnosticReport, isLaunchValidationIssue, LaunchPhase } from '../types';
+import type { RunningSession } from '../types/launch-sessions';
+import { useRunningSessions } from './runningSessionsStore';
 
 type LaunchState = {
   phase: LaunchPhase;
@@ -143,9 +145,32 @@ async function validateLaunchRequest(request: LaunchRequest): Promise<LaunchVali
   }
 }
 
+/** True when the registry holds a game session for the saved profile `profileName` (already trimmed). */
+function hasProfileGameSession(sessions: ReadonlyMap<string, RunningSession>, profileName: string): boolean {
+  if (!profileName) {
+    return false;
+  }
+  for (const session of sessions.values()) {
+    if (session.session_kind === 'game' && session.profile_name === profileName) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function useLaunchState({ profileId, profileName, method, request }: UseLaunchStateArgs) {
   const [state, dispatch] = useReducer(reducer, initialState);
-  const [isGameRunning, setIsGameRunning] = useState(false);
+  /** Registry id of this hook's own game launch (`LaunchResult.session_id`); `null` when none is tracked. */
+  const [gameSessionId, setGameSessionId] = useState<string | null>(null);
+  const runningSessions = useRunningSessions();
+  // The own session covers unsaved/anonymous launches; the profile match keeps a
+  // game CrossHook already started visible after a profile switch, reset or
+  // reload, when the hook no longer tracks its session id (prevents a double launch).
+  const ownGameRunning = gameSessionId !== null && runningSessions.has(gameSessionId);
+  const profileGameRunning = hasProfileGameSession(runningSessions, profileName.trim());
+  const isGameRunning = ownGameRunning || profileGameRunning;
+  /** Drives `game-stopped`: the own session when tracked, else the profile's game session. */
+  const trackedGameRunning = gameSessionId !== null ? ownGameRunning : profileGameRunning;
   const [offlineReadiness, setOfflineReadiness] = useState<OfflineReadinessReport | null>(null);
   const [offlineReadinessLoading, setOfflineReadinessLoading] = useState(false);
   const [offlineReadinessError, setOfflineReadinessError] = useState<string | null>(null);
@@ -168,7 +193,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
     activeHelperLogPathRef.current = null;
     observedGameProcessRef.current = false;
     dispatch({ type: 'reset' });
-    setIsGameRunning(false);
+    setGameSessionId(null);
     setOfflineReadiness(null);
     setOfflineReadinessError(null);
     setLaunchPathWarnings([]);
@@ -221,7 +246,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
       return;
     }
 
-    if (isGameRunning) {
+    if (trackedGameRunning) {
       observedGameProcessRef.current = true;
       return;
     }
@@ -230,36 +255,10 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
     if (sessionCanEnd && observedGameProcessRef.current) {
       observedGameProcessRef.current = false;
       dispatch({ type: 'game-stopped' });
+      // The own session is gone; fall back to the profile match from here on.
+      setGameSessionId(null);
     }
-  }, [isGameRunning, state.phase]);
-
-  useEffect(() => {
-    const gamePath = request?.game_path?.trim() ?? '';
-    const exeName = gamePath ? (gamePath.split(/[\\/]/).pop() ?? '') : '';
-
-    if (!exeName) {
-      setIsGameRunning(false);
-      return;
-    }
-
-    let cancelled = false;
-    const check = () => {
-      void callCommand<boolean>('check_game_running', { exeName })
-        .then((running) => {
-          if (!cancelled) setIsGameRunning(running);
-        })
-        .catch(() => {
-          // IPC failure — keep previous state; next tick will retry.
-        });
-    };
-
-    check();
-    const intervalId = window.setInterval(check, 3000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-    };
-  }, [request?.game_path]);
+  }, [trackedGameRunning, state.phase]);
 
   useEffect(() => {
     let active = true;
@@ -302,6 +301,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
     const launchRequest = applyLaunchPhase(request, LaunchPhase.GameLaunching);
     activeHelperLogPathRef.current = null;
     observedGameProcessRef.current = false;
+    setGameSessionId(null);
     dispatch({ type: 'game-start' });
     setLaunchPathWarnings([]);
 
@@ -332,6 +332,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
         return;
       }
       setLaunchPathWarnings(result.warnings ?? []);
+      setGameSessionId(result.session_id);
       activeHelperLogPathRef.current = result.helper_log_path;
       dispatch({
         type: 'game-success',
@@ -490,7 +491,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
     // cleared (see launchGenerationRef).
     launchGenerationRef.current += 1;
     dispatch({ type: 'reset' });
-    setIsGameRunning(false);
+    setGameSessionId(null);
     observedGameProcessRef.current = false;
     setOfflineReadiness(null);
     setOfflineReadinessError(null);

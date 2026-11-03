@@ -12,6 +12,7 @@ import type { LaunchHistoryEntry } from '../../../types/library';
 import { getActiveFixture } from '../../fixture';
 import { emitMockEvent } from '../eventBus';
 import { getStore } from '../store';
+import { endMockSession, startMockSession } from './launchSessions';
 import { mockCommandArgumentCatalogEntries } from './system';
 import type { Handler } from './types';
 
@@ -22,7 +23,6 @@ import type { Handler } from './types';
 let lastLaunchHelperLogPath = '/mock/logs/game-launch-9999001.log';
 let lastTrainerHelperLogPath = '/mock/logs/trainer-launch-9999001.log';
 const runningGames: Set<string> = new Set();
-const runningProfiles: Set<string> = new Set();
 const pendingLaunchTimers = new Set<number>();
 
 // ---------------------------------------------------------------------------
@@ -181,11 +181,12 @@ function buildMockSteamLaunchOptionsPrefix(
 // Synthetic data helpers
 // ---------------------------------------------------------------------------
 
-function makeLaunchResult(message: string, logSuffix: string): LaunchResult {
+function makeLaunchResult(message: string, logSuffix: string, sessionId: string): LaunchResult {
   return {
     succeeded: true,
     message,
     helper_log_path: `/mock/logs/${logSuffix}.log`,
+    session_id: sessionId,
     warnings: [],
   };
 }
@@ -294,8 +295,8 @@ function scheduleLaunchLogSequence(
   helperLogPath: string,
   delayBetweenMs: number,
   afterLogsDelayMs: number,
-  profileName: string | undefined,
-  sessionId: string
+  sessionId: string,
+  endSessionOnComplete: boolean
 ): void {
   logLines.forEach((line, index) => {
     scheduleLaunchTimeout(
@@ -314,9 +315,12 @@ function scheduleLaunchLogSequence(
 
   const completeDelay = diagnosticDelay + 200;
   scheduleLaunchTimeout(() => {
-    const trimmed = profileName?.trim();
-    if (trimmed) {
-      runningProfiles.delete(trimmed);
+    // Trainer child exit: the registry drops the session before `launch-complete`.
+    // Game sessions outlive helper completion (like the backend's Steam game
+    // watcher) and end via `launch_reset_sessions`, `_mock_set_profile_running`
+    // or the mock reset, so the waiting-for-trainer state stays usable.
+    if (endSessionOnComplete) {
+      endMockSession(sessionId, 0, null);
     }
     emitMockEvent('launch-complete', { code: 0, signal: null, session_id: sessionId });
   }, completeDelay);
@@ -447,16 +451,10 @@ export function registerLaunch(map: Map<string, Handler>): void {
       '[mock] Game window detected. Launch sequence complete.',
     ];
 
-    scheduleLaunchLogSequence(
-      gameLogLines,
-      helperLogPath,
-      150,
-      300,
-      request.profile_name,
-      `mock-game-session-${steamAppId}`
-    );
+    const sessionId = startMockSession(request.profile_name, 'game', `mock-game-session-${steamAppId}`);
+    scheduleLaunchLogSequence(gameLogLines, helperLogPath, 150, 300, sessionId, false);
 
-    return makeLaunchResult('Game launch started.', logSuffix);
+    return makeLaunchResult('Game launch started.', logSuffix, sessionId);
   });
 
   // -------------------------------------------------------------------------
@@ -480,11 +478,11 @@ export function registerLaunch(map: Map<string, Handler>): void {
       '[mock] Trainer attached successfully. Cheat engine active.',
     ];
 
-    const sessionId = `mock-trainer-session-${steamAppId}`;
+    const sessionId = startMockSession(request.profile_name, 'trainer', `mock-trainer-session-${steamAppId}`);
     scheduleTrainerInjectionLogSequence(request, sessionId);
-    scheduleLaunchLogSequence(trainerLogLines, helperLogPath, 200, 250, request.profile_name, sessionId);
+    scheduleLaunchLogSequence(trainerLogLines, helperLogPath, 200, 250, sessionId, true);
 
-    return makeLaunchResult('Trainer launch started.', logSuffix);
+    return makeLaunchResult('Trainer launch started.', logSuffix, sessionId);
   });
 
   // -------------------------------------------------------------------------
@@ -726,40 +724,21 @@ export function registerLaunch(map: Map<string, Handler>): void {
   });
 
   // -------------------------------------------------------------------------
-  // check_game_running — returns false in browser dev mode (no real /proc)
+  // check_game_running — on-demand /proc probe; dev tests seed it via
+  // `_mock_set_game_running` (browser dev mode has no real /proc)
   // -------------------------------------------------------------------------
   map.set('check_game_running', async (args): Promise<boolean> => {
     const fixture = getActiveFixture();
     if (fixture === 'empty') return false;
     if (fixture === 'loading') return neverResolving<boolean>();
-    // `error` is allowed to resolve here — this is a polled status read and
-    // throwing on every poll would flood the console without meaningful UX.
+    // `error` is allowed to resolve here — this is a status read with no
+    // meaningful error UX.
     const { exeName } = args as { exeName: string };
     return runningGames.has(exeName.trim());
   });
 
-  // -------------------------------------------------------------------------
-  // list_running_profiles — returns profile names marked running in dev tests
-  // -------------------------------------------------------------------------
-  map.set('list_running_profiles', async (): Promise<string[]> => {
-    const fixture = getActiveFixture();
-    if (fixture === 'empty') return [];
-    if (fixture === 'loading') return neverResolving<string[]>();
-    // `error` is allowed to resolve here — this is a polled status read and
-    // throwing on every poll would flood the console without meaningful UX.
-    return [...runningProfiles].sort();
-  });
-
-  // -------------------------------------------------------------------------
-  // launch_reset_sessions — no backend session registry in browser dev mode
-  // -------------------------------------------------------------------------
-  map.set('launch_reset_sessions', async (): Promise<number> => {
-    const fixture = getActiveFixture();
-    if (fixture === 'loading') return neverResolving<number>();
-    // `empty` and `error` both resolve 0 — reset is best-effort by contract
-    // and no backend sessions ever exist in browser dev mode.
-    return 0;
-  });
+  // list_running_sessions, launch_reset_sessions and _mock_set_profile_running
+  // live in handlers/launchSessions.ts with the mock session registry.
 
   // -------------------------------------------------------------------------
   // check_gamescope_session — always false in browser dev mode
@@ -815,16 +794,6 @@ export function registerLaunch(map: Map<string, Handler>): void {
     return null;
   });
 
-  map.set('_mock_set_profile_running', async (args): Promise<null> => {
-    const { profileName, running } = args as { profileName: string; running: boolean };
-    if (running) {
-      runningProfiles.add(profileName.trim());
-    } else {
-      runningProfiles.delete(profileName.trim());
-    }
-    return null;
-  });
-
   map.set('_mock_get_last_launch_log_path', async (): Promise<string> => {
     return lastLaunchHelperLogPath;
   });
@@ -838,7 +807,6 @@ export function resetLaunchMockState(): void {
   lastLaunchHelperLogPath = '/mock/logs/game-launch-9999001.log';
   lastTrainerHelperLogPath = '/mock/logs/trainer-launch-9999001.log';
   runningGames.clear();
-  runningProfiles.clear();
   for (const timerId of pendingLaunchTimers) {
     window.clearTimeout(timerId);
   }

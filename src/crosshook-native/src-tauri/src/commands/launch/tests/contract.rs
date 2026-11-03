@@ -1,7 +1,7 @@
 use crate::commands::launch::{
     build_steam_launch_options_command, check_game_running, check_gamescope_session, launch_game,
     launch_platform_status, launch_reset_sessions, launch_trainer, list_launch_history_for_profile,
-    list_running_profiles, preview_launch, validate_launch,
+    list_running_sessions, preview_launch, validate_launch,
 };
 
 #[test]
@@ -17,6 +17,6 @@ fn command_names_match_expected_ipc_contract() {
     let _ = check_gamescope_session;
     let _ = launch_platform_status;
     let _ = check_game_running;
-    let _ = list_running_profiles;
+    let _ = list_running_sessions;
     let _ = list_launch_history_for_profile;
 }

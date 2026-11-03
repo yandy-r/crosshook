@@ -145,6 +145,8 @@ export interface LaunchResult {
   succeeded: boolean;
   message: string;
   helper_log_path: string;
+  /** Registry id of the launched session; matches `launch-session-changed` payloads. */
+  session_id: string;
   /** Advisory launch warnings (e.g. low offline readiness); launch still proceeds. */
   warnings?: LaunchValidationIssue[];
 }

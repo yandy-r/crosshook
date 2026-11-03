@@ -230,33 +230,160 @@ fn sessions_for_profile_returns_most_recent_first() {
     assert_eq!(games[1], first_game_id);
 }
 
-#[test]
-fn active_profile_keys_returns_sorted_deduped_profiles() {
-    let registry = LaunchSessionRegistry::new();
-    let (_b_game, _b_game_rx) = registry.register(SessionKind::Game, "profile-b");
-    let (_a_game, _a_game_rx) = registry.register(SessionKind::Game, "profile-a");
-    let (_a_trainer, _a_trainer_rx) = registry.register(SessionKind::Trainer, "profile-a");
-    let (_b_trainer, _b_trainer_rx) = registry.register(SessionKind::Trainer, "profile-b");
-
-    assert_eq!(
-        registry.active_profile_keys(None),
-        vec!["profile-a".to_string(), "profile-b".to_string()]
-    );
+/// Observer that records every change it sees, in call order.
+fn recording_registry() -> (
+    LaunchSessionRegistry,
+    std::sync::Arc<std::sync::Mutex<Vec<SessionChange>>>,
+) {
+    let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let sink = std::sync::Arc::clone(&seen);
+    let registry = LaunchSessionRegistry::with_observer(std::sync::Arc::new(move |change| {
+        sink.lock().unwrap().push(change.clone());
+    }));
+    (registry, seen)
 }
 
 #[test]
-fn active_profile_keys_filters_to_games() {
-    let registry = LaunchSessionRegistry::new();
-    let (_trainer_only, _trainer_only_rx) = registry.register(SessionKind::Trainer, "trainer-only");
-    let (_b_game, _b_game_rx) = registry.register(SessionKind::Game, "profile-b");
-    let (_a_trainer, _a_trainer_rx) = registry.register(SessionKind::Trainer, "profile-a");
-    let (_a_game, _a_game_rx) = registry.register(SessionKind::Game, "profile-a");
-    let (_a_second_game, _a_second_game_rx) = registry.register(SessionKind::Game, "profile-a");
+fn exited_is_emitted_exactly_once_and_only_on_actual_removal() {
+    let (registry, seen) = recording_registry();
+    let (id, _rx) = registry.register(SessionKind::Game, "profile-a");
 
-    assert_eq!(
-        registry.active_profile_keys(Some(SessionKind::Game)),
-        vec!["profile-a".to_string(), "profile-b".to_string()]
+    assert!(registry.deregister_with_exit(id, Some(3), None));
+    assert!(!registry.deregister_with_exit(id, Some(4), None));
+    registry.deregister(id);
+    assert!(!registry.deregister_with_exit(SessionId::new(), None, Some(9)));
+
+    let seen = seen.lock().unwrap();
+    assert_eq!(seen.len(), 2, "one Started, one Exited: {seen:?}");
+    match &seen[1] {
+        SessionChange::Exited {
+            info, code, signal, ..
+        } => {
+            assert_eq!(info.session_id, id);
+            assert_eq!((*code, *signal), (Some(3), None), "first removal wins");
+        }
+        other @ SessionChange::Started { .. } => panic!("expected Exited, got {other:?}"),
+    }
+    let (_, seq) = registry.snapshot();
+    assert_eq!(seq, 2, "no-op removals do not bump seq");
+}
+
+#[test]
+fn observer_sees_every_change_in_strict_seq_order() {
+    let (registry, seen) = recording_registry();
+    let (game, _game_rx) = registry.register(SessionKind::Game, "profile-a");
+    let (trainer, _trainer_rx, parent) = registry.register_and_link_to_parent_of_kind(
+        SessionKind::Trainer,
+        "profile-a",
+        SessionKind::Game,
     );
+    assert_eq!(parent, Some(game));
+    // Linking and cancelling change no membership: no event, no seq bump.
+    registry.cancel_linked_children(game, TeardownReason::LinkedSessionExit);
+    registry.deregister(game);
+    registry.deregister(trainer);
+
+    let seen = seen.lock().unwrap();
+    let seqs: Vec<u64> = seen.iter().map(SessionChange::seq).collect();
+    assert_eq!(seqs, vec![1, 2, 3, 4]);
+    assert!(matches!(&seen[1], SessionChange::Started { info, .. }
+        if info.session_id == trainer && info.parent == Some(game)));
+    assert!(matches!(&seen[2], SessionChange::Exited { info, .. } if info.session_id == game));
+}
+
+#[test]
+fn snapshot_lists_sessions_oldest_first_with_the_current_seq() {
+    let registry = LaunchSessionRegistry::new();
+    assert_eq!(registry.snapshot(), (Vec::new(), 0));
+    let (first, _rx1) = registry.register(SessionKind::Game, "profile-a");
+    std::thread::sleep(std::time::Duration::from_millis(2));
+    let anonymous = super::super::ANONYMOUS_PROFILE_KEY;
+    let (second, _rx2) = registry.register(SessionKind::Trainer, anonymous);
+    registry.deregister(first);
+
+    let (sessions, seq) = registry.snapshot();
+    assert_eq!(seq, 3);
+    assert_eq!(
+        sessions,
+        vec![SessionInfo {
+            session_id: second,
+            kind: SessionKind::Trainer,
+            profile_key: anonymous.to_string(),
+            parent: None,
+        }]
+    );
+}
+
+/// Four writers register/deregister while a reader snapshots concurrently.
+/// Because `seq` is bumped and the observer called inside the mutation's
+/// critical section, the observed stream is gap-free and ordered, and every
+/// snapshot `(S, seq)` plus the changes with `seq > S` reproduces the final
+/// state: no change is both in the snapshot and replayed, none is lost.
+#[test]
+fn concurrent_mutations_keep_snapshot_and_stream_consistent() {
+    use std::collections::BTreeSet;
+    use std::sync::{Arc, Barrier};
+
+    let (registry, seen) = recording_registry();
+    let registry = Arc::new(registry);
+    let barrier = Arc::new(Barrier::new(5));
+    let snapshots = Arc::new(std::sync::Mutex::new(Vec::new()));
+
+    let workers: Vec<_> = (0..4)
+        .map(|worker| {
+            let registry = Arc::clone(&registry);
+            let barrier = Arc::clone(&barrier);
+            std::thread::spawn(move || {
+                barrier.wait();
+                for round in 0..200 {
+                    let (id, _rx) = registry.register(SessionKind::Game, format!("w{worker}"));
+                    if round % 3 != 0 {
+                        registry.deregister(id);
+                    }
+                }
+            })
+        })
+        .collect();
+    let reader = {
+        let registry = Arc::clone(&registry);
+        let barrier = Arc::clone(&barrier);
+        let snapshots = Arc::clone(&snapshots);
+        std::thread::spawn(move || {
+            barrier.wait();
+            for _ in 0..200 {
+                snapshots.lock().unwrap().push(registry.snapshot());
+            }
+        })
+    };
+    for worker in workers {
+        worker.join().unwrap();
+    }
+    reader.join().unwrap();
+
+    let seen = seen.lock().unwrap();
+    let seqs: Vec<u64> = seen.iter().map(SessionChange::seq).collect();
+    assert_eq!(seqs, (1..=seen.len() as u64).collect::<Vec<_>>());
+    let (final_sessions, final_seq) = registry.snapshot();
+    assert_eq!(final_seq, seen.len() as u64);
+    let expected: BTreeSet<String> = final_sessions
+        .iter()
+        .map(|info| info.session_id.to_string())
+        .collect();
+
+    for (sessions, seq) in snapshots.lock().unwrap().iter() {
+        let mut state: BTreeSet<String> = sessions
+            .iter()
+            .map(|info| info.session_id.to_string())
+            .collect();
+        for change in seen.iter().filter(|change| change.seq() > *seq) {
+            let id = change.info().session_id.to_string();
+            match change {
+                SessionChange::Started { .. } => assert!(state.insert(id), "double start"),
+                SessionChange::Exited { .. } => assert!(state.remove(&id), "exit unknown"),
+            }
+        }
+        assert_eq!(state, expected, "snapshot at seq {seq} + stream diverged");
+    }
 }
 
 #[tokio::test]

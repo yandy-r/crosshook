@@ -245,11 +245,14 @@ describe('LibraryPage', () => {
     });
   });
 
-  it('filters to running profiles from the runtime read hook', async () => {
+  it('filters to running profiles from the launch-session snapshot', async () => {
     renderLibraryHarness(
       {
         handlerOverrides: {
-          list_running_profiles: async () => ['Test Game Alpha'],
+          list_running_sessions: async () => ({
+            sessions: [{ session_id: 'alpha-game', profile_name: 'Test Game Alpha', session_kind: 'game' }],
+            seq: 1,
+          }),
         },
       },
       undefined,

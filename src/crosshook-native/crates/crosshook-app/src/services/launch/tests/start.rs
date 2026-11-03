@@ -59,8 +59,8 @@ async fn invalid_requests_fail_before_any_side_effect() {
         assert!(error.events.is_empty());
         assert!(harness
             .service
-            .registry
-            .active_profile_keys(None)
+            .running_sessions_snapshot()
+            .sessions
             .is_empty());
         assert!(harness.spawner.captured().is_empty());
         assert!(harness
@@ -93,8 +93,8 @@ async fn spawn_failures_deregister_without_history_and_replay_trainer_injections
 
         assert!(harness
             .service
-            .registry
-            .active_profile_keys(None)
+            .running_sessions_snapshot()
+            .sessions
             .is_empty());
         assert!(harness
             .service

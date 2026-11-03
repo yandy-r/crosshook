@@ -11,129 +11,20 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crosshook_core::launch::{
-    LaunchHookExecutionContext, LaunchSessionRegistry, SessionId, SessionKind, TeardownReason,
-    WatchdogOutcome, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
+    LaunchSessionRegistry, SessionKind, TeardownReason, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };
-use crosshook_core::metadata::{
-    ConfigRevisionSource, LaunchHistoryEntry, MetadataStore, SyncSource,
-    MAX_CONFIG_REVISIONS_PER_PROFILE,
-};
-use crosshook_core::profile::GameProfile;
+use crosshook_core::metadata::{LaunchHistoryEntry, MetadataStore};
 
 use super::super::finalizer::SessionGuard;
 use super::super::types::{
     EventPublisher, InjectionLevel, InjectionSource, LaunchEvent, SessionContext,
 };
-use super::helpers::{Harness, Metadata};
+use super::helpers::{
+    collect_until_exited as collect, exit_code, seeded, session_context, Harness, LaunchCase,
+    Metadata, GUARD_PROFILE as PROFILE,
+};
 
-const PROFILE: &str = "finalizer-profile";
 const COLLECT_TIMEOUT: Duration = Duration::from_secs(5);
-
-struct LaunchCase {
-    kind: SessionKind,
-    method: &'static str,
-    operation_id: Option<String>,
-    outcome: WatchdogOutcome,
-}
-
-impl LaunchCase {
-    fn new(kind: SessionKind, method: &'static str, operation_id: impl Into<String>) -> Self {
-        Self {
-            kind,
-            method,
-            operation_id: Some(operation_id.into()),
-            outcome: WatchdogOutcome::new(),
-        }
-    }
-}
-
-fn seed_profile(metadata: &MetadataStore, name: &str) -> String {
-    metadata
-        .observe_profile_write(
-            name,
-            &GameProfile::default(),
-            std::path::Path::new("/tmp/finalizer-profile.toml"),
-            SyncSource::AppWrite,
-            None,
-        )
-        .unwrap();
-    metadata.lookup_profile_id(name).unwrap().unwrap()
-}
-
-fn seed_revision(metadata: &MetadataStore, profile_id: &str) {
-    metadata
-        .insert_config_revision(
-            profile_id,
-            PROFILE,
-            ConfigRevisionSource::ManualSave,
-            "hash-1",
-            "toml = true",
-            None,
-            MAX_CONFIG_REVISIONS_PER_PROFILE,
-        )
-        .unwrap()
-        .unwrap();
-}
-
-fn seeded(method: &str) -> (Harness, String, String) {
-    let harness = Harness::new(Metadata::Enabled);
-    let profile_id = seed_profile(&harness.metadata, PROFILE);
-    seed_revision(&harness.metadata, &profile_id);
-    let operation_id = harness
-        .metadata
-        .record_launch_started(Some(PROFILE), method, None)
-        .unwrap();
-    (harness, profile_id, operation_id)
-}
-
-fn session_context(
-    harness: &Harness,
-    registry: Arc<LaunchSessionRegistry>,
-    session_id: SessionId,
-    spec: &LaunchCase,
-) -> SessionContext {
-    let log_path = harness.root.path().join("launch.log");
-    std::fs::write(&log_path, "").unwrap();
-    SessionContext {
-        session_id,
-        kind: spec.kind,
-        method: spec.method,
-        profile_name: Some(PROFILE.to_string()),
-        steam_app_id: String::new(),
-        steam_client_path: String::new(),
-        trainer_host_path: None,
-        log_path,
-        operation_id: spec.operation_id.clone(),
-        watchdog_outcome: spec.outcome.clone(),
-        coexistence: Vec::new(),
-        post_exit_hooks: Vec::new(),
-        hook_context: LaunchHookExecutionContext::default(),
-        portal_guard: None,
-        metadata: harness.metadata.clone(),
-        registry,
-    }
-}
-
-fn exit_code(code: i32) -> ExitStatus {
-    ExitStatus::from_raw(code << 8)
-}
-
-async fn collect(events: &mut super::super::LaunchEvents) -> Vec<LaunchEvent> {
-    let drain = async {
-        let mut out = Vec::new();
-        while let Some(event) = events.recv().await {
-            let exited = matches!(event, LaunchEvent::Exited { .. });
-            out.push(event);
-            if exited {
-                return out;
-            }
-        }
-        panic!("event stream ended without Exited: {out:?}");
-    };
-    tokio::time::timeout(COLLECT_TIMEOUT, drain)
-        .await
-        .expect("Exited within 5s")
-}
 
 async fn finish(harness: &Harness, spec: LaunchCase, status: ExitStatus) -> Vec<LaunchEvent> {
     let registry = Arc::new(LaunchSessionRegistry::new());

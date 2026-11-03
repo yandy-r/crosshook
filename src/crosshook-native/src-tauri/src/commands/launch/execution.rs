@@ -9,6 +9,7 @@ use super::shared::LaunchResult;
 /// Hands a started session to the relay and builds the IPC result.
 fn started(app: AppHandle, session: LaunchSession, message: &str) -> LaunchResult {
     let LaunchSession {
+        id,
         log_path,
         warnings,
         events,
@@ -18,6 +19,7 @@ fn started(app: AppHandle, session: LaunchSession, message: &str) -> LaunchResul
     LaunchResult {
         succeeded: true,
         message: message.to_string(),
+        session_id: id.to_string(),
         helper_log_path: log_path.to_string_lossy().into_owned(),
         warnings,
     }

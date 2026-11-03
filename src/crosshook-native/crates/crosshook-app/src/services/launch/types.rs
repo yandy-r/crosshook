@@ -20,8 +20,8 @@ use crosshook_core::metadata::MetadataStore;
 use crosshook_core::platform;
 use crosshook_core::platform::portals::gamemode::GameModeRegistration;
 use crosshook_core::profile::LaunchHook;
-use tokio::sync::broadcast;
 use tokio::sync::broadcast::error::{RecvError, TryRecvError};
+use tokio::sync::{broadcast, oneshot};
 
 use crate::log_tail::LogBatch;
 use crate::AppError;
@@ -351,4 +351,7 @@ pub(super) struct SessionContext {
     pub portal_guard: Option<GameModeRegistration>,
     pub metadata: MetadataStore,
     pub registry: Arc<LaunchSessionRegistry>,
+    /// Set for Steam game sessions: the finalizer passes its deregister step
+    /// to the Steam game watch through this sender instead of deregistering.
+    pub deregister_handoff: Option<oneshot::Sender<()>>,
 }

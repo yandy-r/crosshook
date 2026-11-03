@@ -1,5 +1,6 @@
 {
   "succeeded": true,
   "message": "Trainer launch started.",
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
   "helper_log_path": "/tmp/crosshook-logs/trainer-x.log"
 }

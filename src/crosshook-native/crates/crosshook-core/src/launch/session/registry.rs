@@ -6,16 +6,28 @@
 //! registry never inspects, kills, or reaches into another session's PIDs.
 
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
 
 use tokio::sync::broadcast;
 
-use super::types::{LinkError, SessionEntry, SessionId, SessionKind, TeardownReason};
+use super::types::{
+    LinkError, SessionChange, SessionEntry, SessionId, SessionInfo, SessionKind, SessionObserver,
+    TeardownReason,
+};
 
 /// In-memory registry of active launch sessions. Safe to share across tasks:
 /// all mutation happens under a short-lived `Mutex` lock, and teardown
 /// broadcasts are sent with the lock released so watchdog receivers do not
 /// block the registry.
+///
+/// **Change sequence**: every insert and every actual removal bumps a
+/// monotonic `seq` in the same critical section as the mutation, then calls
+/// the optional [`SessionObserver`] while the lock is still held. Observers
+/// therefore see changes in strict `seq` order, and
+/// [`Self::snapshot`] returns a `(sessions, seq)` pair that is consistent
+/// with that stream: a change with `seq <= snapshot_seq` is already in the
+/// snapshot, a change with `seq > snapshot_seq` is not. Observers must not
+/// block and must never call back into the registry.
 ///
 /// **Poison policy**: every method calls `.expect("launch session registry
 /// poisoned")` when locking. The registry has no recoverable degraded state
@@ -25,12 +37,43 @@ use super::types::{LinkError, SessionEntry, SessionId, SessionKind, TeardownReas
 /// state. Treat poison as an unrecoverable invariant violation.
 #[derive(Default)]
 pub struct LaunchSessionRegistry {
-    inner: Mutex<HashMap<SessionId, SessionEntry>>,
+    inner: Mutex<State>,
+    observer: Option<SessionObserver>,
+}
+
+#[derive(Default)]
+struct State {
+    sessions: HashMap<SessionId, SessionEntry>,
+    seq: u64,
 }
 
 impl LaunchSessionRegistry {
+    /// Observer-less registry. Membership changes still bump `seq`.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Registry that reports every membership change to `observer` (see the
+    /// type-level docs for the ordering and re-entrancy contract).
+    pub fn with_observer(observer: SessionObserver) -> Self {
+        Self {
+            inner: Mutex::default(),
+            observer: Some(observer),
+        }
+    }
+
+    fn lock(&self) -> MutexGuard<'_, State> {
+        self.inner.lock().expect("launch session registry poisoned")
+    }
+
+    /// Bump `seq` and notify the observer. Must be called with `state`
+    /// still locked, right after the mutation it describes.
+    fn record(&self, state: &mut State, change: impl FnOnce(u64) -> SessionChange) {
+        state.seq += 1;
+        let change = change(state.seq);
+        if let Some(observer) = &self.observer {
+            observer(&change);
+        }
     }
 
     /// Register a new launch session. Returns the session id plus a receiver
@@ -44,16 +87,55 @@ impl LaunchSessionRegistry {
     ) -> (SessionId, broadcast::Receiver<TeardownReason>) {
         let (entry, rx) = SessionEntry::new(kind, profile_key.into());
         let id = entry.id;
-        let mut guard = self.inner.lock().expect("launch session registry poisoned");
-        guard.insert(id, entry);
+        let info = entry.info();
+        let mut state = self.lock();
+        state.sessions.insert(id, entry);
+        self.record(&mut state, |seq| SessionChange::Started { info, seq });
         (id, rx)
     }
 
-    /// Remove a session. Idempotent — double-deregister is a no-op so the
-    /// stream finalizer and watchdog can both safely call it.
+    /// Remove a session without an exit status. Idempotent — see
+    /// [`Self::deregister_with_exit`].
     pub fn deregister(&self, id: SessionId) {
-        let mut guard = self.inner.lock().expect("launch session registry poisoned");
-        guard.remove(&id);
+        self.deregister_with_exit(id, None, None);
+    }
+
+    /// Remove a session, recording the child's exit `code` / `signal` when
+    /// known. Returns `true` — and emits exactly one
+    /// [`SessionChange::Exited`] — only when the entry was actually removed;
+    /// removing an unknown or already-removed id is a silent no-op, so the
+    /// stream finalizer, its `Drop` fallback and the spawn-failure path can
+    /// all call it safely.
+    pub fn deregister_with_exit(
+        &self,
+        id: SessionId,
+        code: Option<i32>,
+        signal: Option<i32>,
+    ) -> bool {
+        let mut state = self.lock();
+        let Some(entry) = state.sessions.remove(&id) else {
+            return false;
+        };
+        let info = entry.info();
+        self.record(&mut state, |seq| SessionChange::Exited {
+            info,
+            code,
+            signal,
+            seq,
+        });
+        true
+    }
+
+    /// Every active session plus the `seq` of the last change they reflect,
+    /// read under one lock acquisition. Sessions are ordered oldest first.
+    pub fn snapshot(&self) -> (Vec<SessionInfo>, u64) {
+        let state = self.lock();
+        let mut entries: Vec<&SessionEntry> = state.sessions.values().collect();
+        entries.sort_by_key(|entry| entry.registered_at);
+        (
+            entries.into_iter().map(SessionEntry::info).collect(),
+            state.seq,
+        )
     }
 
     /// Attach a trainer session to its parent game session so a later
@@ -65,7 +147,8 @@ impl LaunchSessionRegistry {
         child_id: SessionId,
         parent_id: SessionId,
     ) -> Result<(), LinkError> {
-        let mut guard = self.inner.lock().expect("launch session registry poisoned");
+        let mut state = self.lock();
+        let guard = &mut state.sessions;
 
         let (parent_kind, parent_profile) = {
             let parent = guard.get(&parent_id).ok_or(LinkError::ParentNotFound)?;
@@ -95,7 +178,8 @@ impl LaunchSessionRegistry {
         profile_key: &str,
         kind_filter: Option<SessionKind>,
     ) -> Vec<SessionId> {
-        let guard = self.inner.lock().expect("launch session registry poisoned");
+        let state = self.lock();
+        let guard = &state.sessions;
         let mut matches: Vec<&SessionEntry> = guard
             .values()
             .filter(|entry| entry.profile_key == profile_key)
@@ -104,23 +188,6 @@ impl LaunchSessionRegistry {
         // Most-recent first: sort by negation (reverse-sort of registered_at).
         matches.sort_by_key(|entry| std::cmp::Reverse(entry.registered_at));
         matches.into_iter().map(|entry| entry.id).collect()
-    }
-
-    /// List active profile keys, optionally filtered by session kind.
-    /// Results are sorted and de-duplicated for deterministic read-only UI
-    /// consumers.
-    pub fn active_profile_keys(&self, kind_filter: Option<SessionKind>) -> Vec<String> {
-        let mut profile_keys: Vec<String> = {
-            let guard = self.inner.lock().expect("launch session registry poisoned");
-            guard
-                .values()
-                .filter(|entry| kind_filter.is_none_or(|kind| entry.kind == kind))
-                .map(|entry| entry.profile_key.clone())
-                .collect()
-        };
-        profile_keys.sort();
-        profile_keys.dedup();
-        profile_keys
     }
 
     /// Atomically register a new session and, if a compatible parent exists
@@ -152,7 +219,8 @@ impl LaunchSessionRegistry {
         let profile_key = profile_key.into();
         let (mut entry, rx) = SessionEntry::new(kind, profile_key.clone());
         let child_id = entry.id;
-        let mut guard = self.inner.lock().expect("launch session registry poisoned");
+        let mut state = self.lock();
+        let guard = &mut state.sessions;
 
         // Only allow trainer → game links, mirroring link_to_parent's validation.
         let link_is_legal = kind == SessionKind::Trainer && parent_kind == SessionKind::Game;
@@ -175,7 +243,9 @@ impl LaunchSessionRegistry {
             entry.parent = Some(parent);
         }
 
+        let info = entry.info();
         guard.insert(child_id, entry);
+        self.record(&mut state, |seq| SessionChange::Started { info, seq });
         (child_id, rx, parent_id)
     }
 
@@ -187,7 +257,8 @@ impl LaunchSessionRegistry {
     /// cannot block registry mutation.
     pub fn cancel_linked_children(&self, parent_id: SessionId, reason: TeardownReason) -> usize {
         let senders: Vec<broadcast::Sender<TeardownReason>> = {
-            let guard = self.inner.lock().expect("launch session registry poisoned");
+            let state = self.lock();
+            let guard = &state.sessions;
             guard
                 .values()
                 .filter(|entry| entry.parent == Some(parent_id))
@@ -210,7 +281,8 @@ impl LaunchSessionRegistry {
     /// paths. Returns `true` if the session was registered.
     pub fn cancel_session(&self, id: SessionId, reason: TeardownReason) -> bool {
         let sender = {
-            let guard = self.inner.lock().expect("launch session registry poisoned");
+            let state = self.lock();
+            let guard = &state.sessions;
             guard.get(&id).map(|entry| entry.cancel_tx.clone())
         };
         if let Some(sender) = sender {
@@ -239,10 +311,7 @@ impl LaunchSessionRegistry {
 
     #[cfg(test)]
     pub(crate) fn len(&self) -> usize {
-        self.inner
-            .lock()
-            .expect("launch session registry poisoned")
-            .len()
+        self.lock().sessions.len()
     }
 }
 
