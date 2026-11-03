@@ -8,6 +8,7 @@ use tokio_util::sync::CancellationToken;
 use crate::protonup::progress::{Phase, ProgressEmitter};
 
 use super::errors::{map_io_err, network_err, InstallError};
+use super::validation::validate_release_url;
 
 /// Stream the URL into `dest_path`, returning the SHA-512 and SHA-256 digests.
 /// Emits `Phase::Downloading` progress every `EMIT_INTERVAL_BYTES`.
@@ -15,6 +16,48 @@ const EMIT_INTERVAL_BYTES: u64 = 256 * 1024;
 
 /// Hard ceiling for checksum sidecar / manifest response bodies (1 MiB).
 const MAX_CHECKSUM_BYTES: u64 = 1024 * 1024;
+
+/// Maximum number of redirect hops followed for a single release request.
+const MAX_REDIRECTS: usize = 10;
+
+const UNTRUSTED_REDIRECT_MESSAGE: &str = "redirect to an untrusted host was refused";
+
+/// Build the HTTP client used for release archive and checksum downloads.
+///
+/// Every redirect hop is checked with [`validate_release_url`], so the
+/// release host allowlist applies to the final URL as well as the initial one.
+pub(super) fn release_client() -> Result<reqwest::Client, InstallError> {
+    let policy = reqwest::redirect::Policy::custom(|attempt| {
+        if attempt.previous().len() > MAX_REDIRECTS {
+            attempt.error("too many redirects")
+        } else if validate_release_url(attempt.url().as_str()).is_err() {
+            attempt.error(UNTRUSTED_REDIRECT_MESSAGE)
+        } else {
+            attempt.follow()
+        }
+    });
+
+    reqwest::Client::builder()
+        .redirect(policy)
+        .build()
+        .map_err(|error| network_err(format!("failed to build HTTP client: {error}")))
+}
+
+/// Map a request `send()` failure into a network error. Redirect failures
+/// report only the policy's fixed reason, never the redirect target URL.
+fn request_err(response_label: &str, url: &str, error: &reqwest::Error) -> InstallError {
+    if error.is_redirect() {
+        let reason = std::error::Error::source(error)
+            .map_or_else(|| "redirect refused".to_string(), ToString::to_string);
+        network_err(format!(
+            "{response_label} request failed for {url}: {reason}"
+        ))
+    } else {
+        network_err(format!(
+            "{response_label} request failed for {url}: {error}"
+        ))
+    }
+}
 
 pub(super) async fn download_to_file(
     client: &reqwest::Client,
@@ -28,7 +71,7 @@ pub(super) async fn download_to_file(
         .get(url)
         .send()
         .await
-        .map_err(|error| network_err(format!("request failed for {url}: {error}")))?;
+        .map_err(|error| request_err("download", url, &error))?;
 
     if !response.status().is_success() {
         return Err(network_err(format!(
@@ -181,11 +224,11 @@ async fn fetch_limited_text_body(
     url: &str,
     response_label: &str,
 ) -> Result<String, InstallError> {
-    let response = client.get(url).send().await.map_err(|error| {
-        network_err(format!(
-            "{response_label} request failed for {url}: {error}"
-        ))
-    })?;
+    let response = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|error| request_err(response_label, url, &error))?;
 
     if !response.status().is_success() {
         return Err(network_err(format!(

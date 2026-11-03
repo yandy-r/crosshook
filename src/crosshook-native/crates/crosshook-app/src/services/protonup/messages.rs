@@ -17,6 +17,10 @@ pub const MSG_OP_NOT_FOUND: &str = "install operation was not found";
 pub const MSG_INSTALL_FAILED: &str = "Proton install failed";
 pub const MSG_INSTALL_CANCELLED: &str = "Proton install cancelled";
 pub const MSG_INSTALL_IN_PROGRESS: &str = "this Proton version is already being installed";
+pub const MSG_INSTALL_ROOT_UNTRUSTED: &str =
+    "install destination is not a known Proton install root";
+pub const MSG_NO_WRITABLE_INSTALL_ROOT: &str =
+    "no writable Proton install root found; install Steam first";
 pub const MSG_SETTINGS_UNREADABLE: &str = "settings could not be read";
 pub const UNINSTALL_SYSTEM: &str = "refusing to delete a system path";
 pub const UNINSTALL_OUTSIDE: &str = "path is not inside a known Proton install root";
@@ -83,7 +87,7 @@ pub fn install_error_result(error: &InstallError) -> ProtonUpInstallResult {
         ),
         InstallError::NoWritableInstallRoot => (
             ProtonUpInstallErrorKind::InvalidPath,
-            "no writable Proton install root found; install Steam first",
+            MSG_NO_WRITABLE_INSTALL_ROOT,
         ),
         InstallError::Cancelled => (ProtonUpInstallErrorKind::Cancelled, "install cancelled"),
         InstallError::Unknown(_) => (ProtonUpInstallErrorKind::Unknown, "install failed"),

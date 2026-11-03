@@ -9,7 +9,9 @@ use crate::protonup::providers::{self, ChecksumKind};
 use crate::protonup::{ProtonUpAvailableVersion, ProtonUpInstallRequest, ProtonUpInstallResult};
 
 use super::archive::{best_effort_cleanup, extract_archive, peek_archive};
-use super::download::{download_to_file, fetch_sha256_manifest, fetch_sha512_sidecar, hex_encode};
+use super::download::{
+    download_to_file, fetch_sha256_manifest, fetch_sha512_sidecar, hex_encode, release_client,
+};
 use super::errors::InstallError;
 use super::validation::{
     validate_archive_filename, validate_install_destination, validate_release_url,
@@ -71,7 +73,7 @@ pub async fn install_version_with_progress(
         .to_string();
     validate_archive_filename(&archive_filename)?;
     let temp_path = dest_dir.join(format!(".tmp.{archive_filename}"));
-    let client = reqwest::Client::new();
+    let client = release_client()?;
 
     if cancellation_requested(cancel.as_ref()) {
         return cancel_with_cleanup(&temp_path, None, em, None);

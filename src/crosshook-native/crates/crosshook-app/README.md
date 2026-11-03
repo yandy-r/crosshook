@@ -367,6 +367,24 @@ the `protonup:install:progress` event payload are unchanged.
   the same `NotFound` text (`install operation was not found`) without reaching
   the job registry's cancel path; IPC maps that result to `false`, and own
   active cancellation to `true`.
+- **Install root authority.** After the offline check, both install entry
+  points bind `target_root` to backend-resolved roots before any job starts.
+  The trusted candidates are the install roots derived from every
+  backend-discovered Steam root plus the home-relative defaults, excluding
+  `invalid-path` candidates. A non-empty target (leading `~` expanded; it must
+  be absolute and have no `..`) must canonically equal a trusted candidate.
+  A missing path resolves through its deepest existing ancestor. The
+  installer then receives the candidate's own spelling. An empty target picks
+  core's default among the trusted candidates. A mismatch returns
+  `install destination is not a known Proton install root`, and having no
+  writable default returns the existing no-writable-root text. Legacy
+  `install_version` reports these as `success:false` with `InvalidPath`;
+  `start_install` returns `Validation { field: "target_root" }`.
+  `resolve_install_roots` lists exactly this trusted set; its
+  `steam_client_install_path` argument is not consulted, so a caller's Steam
+  path never adds a listed root. Release and checksum downloads revalidate
+  every redirect hop against the release-host allowlist (at most 10 hops) and
+  report a fixed reason that does not include the redirect target.
 - **Uninstall authority.** `ProtonRootSource` supplies backend-discovered Steam
   roots and derived install candidates; its production implementation starts
   from `SteamService::default_client_install_path()` and core Steam discovery,

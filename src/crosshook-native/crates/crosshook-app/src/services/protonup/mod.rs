@@ -13,6 +13,7 @@ mod cancel;
 mod catalog;
 mod identity;
 mod install;
+mod install_root;
 mod messages;
 mod owners;
 mod progress;

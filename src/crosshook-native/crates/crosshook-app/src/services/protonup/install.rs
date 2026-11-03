@@ -36,13 +36,14 @@ impl ProtonUpService {
     /// synchronous entry point; no progress, not cancellable).
     ///
     /// Every failure is reported in the returned result with a fixed,
-    /// path-free message; the installed entry is always the catalog's.
+    /// path-free message; the installed entry is always the catalog's and
+    /// the destination is always a backend-resolved install root.
     ///
     /// # Errors
-    /// Reserved for service-level failures; none occur today.
+    /// Task failures while resolving the install root.
     pub async fn install_version(
         &self,
-        request: ProtonUpInstallRequest,
+        mut request: ProtonUpInstallRequest,
     ) -> Result<ProtonUpInstallResult, AppError> {
         let flags = self.flags().await;
         if let Some(text) = flags.network_block() {
@@ -50,6 +51,18 @@ impl ProtonUpService {
                 ProtonUpInstallErrorKind::NetworkError,
                 text.to_string(),
             ));
+        }
+        match self
+            .authorize_install_root(request.target_root.clone())
+            .await?
+        {
+            Ok(root) => request.target_root = root,
+            Err(text) => {
+                return Ok(failure_result(
+                    ProtonUpInstallErrorKind::InvalidPath,
+                    text.to_string(),
+                ));
+            }
         }
         let catalog = self
             .catalog
@@ -113,23 +126,30 @@ impl ProtonUpService {
     ///
     /// `version` must be exactly the catalog's entry (download URL, checksum
     /// URL and checksum kind); the job installs the catalog entry, never
-    /// `version`. Nothing is started or registered when any check fails.
+    /// `version`, into a backend-resolved install root. Nothing is started
+    /// or registered when any check fails.
     ///
     /// # Errors
     /// - `Unavailable` in offline mode, or when the job could not start.
+    /// - `Validation` (field `target_root`) when the destination is not a
+    ///   backend-resolved install root, or none is writable.
     /// - `Validation` (field `version`) when the request is not in the
     ///   catalog or `version` differs from the catalog entry.
     /// - `Conflict` when the same provider version is already installing.
     pub async fn start_install(
         &self,
         owner: InstallOwner,
-        request: ProtonUpInstallRequest,
+        mut request: ProtonUpInstallRequest,
         version: ProtonUpAvailableVersion,
     ) -> Result<ProtonInstallStart, AppError> {
         let flags = self.flags().await;
         if let Some(text) = flags.network_block() {
             return Err(AppError::new(AppErrorKind::Unavailable, text));
         }
+        request.target_root = self
+            .authorize_install_root(request.target_root.clone())
+            .await?
+            .map_err(|text| AppError::validation("target_root", text))?;
         let catalog = self
             .catalog
             .versions(&request.provider, false, flags.include_prereleases)
