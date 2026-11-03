@@ -46,13 +46,13 @@ displayed = filter(searched, filterKey) then sort(sortBy)       // :126-145
      field values are not trimmed. Input order is kept.
 2. **Filter** (`LibraryPage.tsx:127-140`). It starts from a copy (`[...searched]`), so the input is
    never mutated.
-   | key                | predicate                                                                                                                                                                  | in toolbar?                                                                         |
+   | key | predicate | in toolbar? |
    | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-   | `all`              | none (falls to `default`)                                                                                                                                                  | yes (`LibraryToolbar.tsx:10`)                                                       |
-   | `favorites`        | `p.isFavorite`                                                                                                                                                             | yes                                                                                 |
-   | `installed`        | `Boolean(p.steamAppId && p.steamAppId !== '0')`. This means "has a Steam/art app id", not "installed". `"00"` and `"0 "` pass (the backend trims, so `"0 "` never occurs). | yes                                                                                 |
-   | `recentlyLaunched` | **none: falls to `default`, same as `all`**                                                                                                                                | **no** (`LibraryToolbar.tsx:3` comment: kept in the union only for persisted state) |
-   | `currentlyRunning` | `runningProfiles.has(p.name)`. The match is exact and case-sensitive.                                                                                                      | yes, labelled "Running"                                                             |
+   | `all` | none (falls to `default`) | yes (`LibraryToolbar.tsx:10`) |
+   | `favorites` | `p.isFavorite` | yes |
+   | `installed` | `Boolean(p.steamAppId && p.steamAppId !== '0')`. This means "has a Steam/art app id", not "installed". `"00"` and `"0 "` pass (the backend trims, so `"0 "` never occurs). | yes |
+   | `recentlyLaunched` | **none: falls to `default`, same as `all`** | **no** (`LibraryToolbar.tsx:3` comment: kept in the union only for persisted state) |
+   | `currentlyRunning` | `runningProfiles.has(p.name)`. The match is exact and case-sensitive. | yes, labelled "Running" |
 3. **Sort** (`LibraryPage.tsx:141-143`):
    - Only `name` does anything: `list.sort((a,b) => (a.gameName || a.name).localeCompare(b.gameName || b.name))`.
    - `recent` (the **default**, `LibraryPage.tsx:76`), `lastPlayed` and `playtime` are **no-ops**,
