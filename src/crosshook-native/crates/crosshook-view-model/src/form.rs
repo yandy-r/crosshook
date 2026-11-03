@@ -199,7 +199,8 @@ impl<T: FormModel> Form<T> {
     }
 
     /// Maps one service error onto the form and ends any in-flight attempt
-    /// (its late result is then ignored).
+    /// (its late result is then ignored). Use it for the result of a submit;
+    /// for errors from other calls (such as a load) use [`Form::show_error`].
     ///
     /// - `Validation { field }` naming a field of the form: that field's
     ///   error (and the field is touched so it shows); `Failed`.
@@ -211,12 +212,23 @@ impl<T: FormModel> Form<T> {
     /// Every non-cancelled error replaces the previous field and form errors.
     pub fn apply_errors(&mut self, error: &ServiceError) {
         self.submitted = None;
+        self.submit = if self.show_error(error) {
+            SubmitState::Failed
+        } else {
+            SubmitState::Idle
+        };
+    }
+
+    /// Shows one service error with the [`Form::apply_errors`] mapping
+    /// without touching the submit cycle: the submit state, the submitted
+    /// snapshot and the id are kept, so an in-flight attempt still finishes
+    /// with its own result. `Cancelled` shows nothing and changes nothing.
+    ///
+    /// Returns whether an error is shown (`false` only for `Cancelled`).
+    pub fn show_error(&mut self, error: &ServiceError) -> bool {
         // Exhaustive on purpose: a new kind must decide where it shows.
         let known_field = match error.kind {
-            ServiceErrorKind::Cancelled => {
-                self.submit = SubmitState::Idle;
-                return;
-            }
+            ServiceErrorKind::Cancelled => return false,
             ServiceErrorKind::Validation { field } => {
                 T::FIELDS.iter().copied().find(|&f| T::field_id(f) == field)
             }
@@ -228,7 +240,6 @@ impl<T: FormModel> Form<T> {
         };
         self.field_errors.clear();
         self.form_error = None;
-        self.submit = SubmitState::Failed;
         match known_field {
             Some(field) => {
                 self.field_errors.insert(field, error.message.clone());
@@ -241,6 +252,7 @@ impl<T: FormModel> Form<T> {
                 });
             }
         }
+        true
     }
 
     /// Replaces baseline and value with `value` (an external reload), clears

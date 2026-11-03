@@ -21,6 +21,12 @@ pub mod testing;
 pub use error::{ServiceError, ServiceErrorKind};
 pub use form::{Form, FormError, FormModel, SubmitId, SubmitState};
 
+/// Compiles and runs the `rust` code blocks of the crate `README.md` as
+/// doctests (`cargo test --doc`), so the examples cannot drift.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+pub struct ReadmeDoctests;
+
 /// A screen's state machine: applies one intent and returns the effects the
 /// UI bridge must execute, in order.
 ///

@@ -160,8 +160,9 @@ fn parse_recent_files_limit(text: &str) -> Option<u32> {
 pub enum SettingsIntent {
     /// Settings (re)loaded from the backend; resets the form to them.
     Loaded(SettingsFields),
-    /// Loading the settings failed. The error is shown on the form like a
-    /// save error (see [`Form::apply_errors`]); the values are kept.
+    /// Loading the settings failed. The error is shown on the form with the
+    /// save-error mapping (see [`Form::show_error`]); the values, the submit
+    /// state and any save in flight are kept. `Cancelled` shows nothing.
     LoadFailed(ServiceError),
     /// Profiles directory input changed.
     EditProfilesDirectory(String),
@@ -220,7 +221,9 @@ impl ViewModel for SettingsViewModel {
 
     fn reduce(&mut self, intent: SettingsIntent) -> Vec<SettingsEffect> {
         match intent {
-            SettingsIntent::LoadFailed(error) => self.form.apply_errors(&error),
+            SettingsIntent::LoadFailed(error) => {
+                self.form.show_error(&error);
+            }
             SettingsIntent::Loaded(fields) => self.form.reset(fields),
             SettingsIntent::EditProfilesDirectory(text) => {
                 self.form.edit(SettingsField::ProfilesDirectory, |v| {

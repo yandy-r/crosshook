@@ -393,7 +393,7 @@ fn load_failure_puts_the_profiles_directory_error_on_its_field() {
     );
     assert!(form.is_touched(SettingsField::ProfilesDirectory));
     assert_eq!(form.form_error(), None);
-    assert_eq!(form.submit_state(), SubmitState::Failed);
+    assert_eq!(form.submit_state(), SubmitState::Idle);
     assert_eq!(form.value(), &loaded());
 }
 
@@ -411,6 +411,48 @@ fn load_failure_without_a_field_shows_a_banner() {
             message: "settings file unreadable".to_owned(),
         })
     );
+}
+
+#[test]
+fn load_failure_during_submit_keeps_the_save_in_flight() {
+    let mut vm = vm();
+    let id = submit_directory(&mut vm, "/a");
+    let error = ServiceError::validation("profiles_directory", "Directory is not usable.");
+
+    let vm = Script::new(vm)
+        .step(SettingsIntent::LoadFailed(error), [])
+        .assert_state(|vm| {
+            let form = vm.form();
+            assert_eq!(form.submit_state(), SubmitState::Submitting(id));
+            assert_eq!(
+                form.error(SettingsField::ProfilesDirectory),
+                Some("Directory is not usable.")
+            );
+        })
+        .step(SettingsIntent::Submit, [])
+        .step(finished(id, Ok(())), [])
+        .into_inner();
+
+    let form = vm.form();
+    assert_eq!(form.submit_state(), SubmitState::Succeeded);
+    assert_eq!(form.baseline().profiles_directory, "/a");
+    assert!(!form.is_form_dirty());
+}
+
+#[test]
+fn cancelled_load_during_submit_allows_no_second_save() {
+    let mut vm = vm();
+    let id = submit_directory(&mut vm, "/a");
+    let error = ServiceError::new(ServiceErrorKind::Cancelled, "cancelled");
+
+    Script::new(vm)
+        .step(SettingsIntent::LoadFailed(error), [])
+        .step(SettingsIntent::Submit, [])
+        .assert_state(|vm| {
+            assert_eq!(vm.form().submit_state(), SubmitState::Submitting(id));
+            assert_eq!(vm.form().form_error(), None);
+        })
+        .into_inner();
 }
 
 #[test]

@@ -5,7 +5,7 @@ use super::{
 };
 use crate::testing::fixtures::{card, exited, running, started, synced};
 use crate::testing::Script;
-use crate::{ServiceError, ViewModel};
+use crate::{ServiceError, ServiceErrorKind, ViewModel};
 
 fn snapshot(token: u64, sessions: Vec<RunningSession>, seq: u64) -> Intent {
     Intent::RunningSnapshot {
@@ -534,5 +534,27 @@ fn a_reload_during_a_save_keeps_the_pending_value() {
             shows_favorite(vm, "alpha", false);
             shows_favorite(vm, "beta", false);
         })
+        .into_inner();
+}
+
+#[test]
+fn a_reload_during_a_save_confirms_the_loaded_value() {
+    Script::new(loaded(plain(&["alpha"])))
+        .step(toggle("alpha"), [set("alpha", true)])
+        // The store already holds `true` (written elsewhere, or by this save
+        // before its reply was lost).
+        .step(
+            Intent::ProfilesLoaded(Ok(vec![card("alpha").favorite().build()])),
+            [],
+        )
+        .step(
+            saved(
+                "alpha",
+                true,
+                Err(ServiceError::new(ServiceErrorKind::Io, "disk full")),
+            ),
+            [],
+        )
+        .assert_state(|vm| shows_favorite(vm, "alpha", true))
         .into_inner();
 }

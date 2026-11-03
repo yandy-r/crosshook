@@ -277,10 +277,13 @@ impl ViewModel for LibraryViewModel {
     fn reduce(&mut self, intent: LibraryIntent) -> Vec<LibraryEffect> {
         match intent {
             LibraryIntent::ProfilesLoaded(Ok(mut cards)) => {
-                // A load may predate saves still in flight: show their latest
-                // request. Profiles with nothing pending take the loaded value.
+                // The load reports the stored value: it becomes the confirmed
+                // one a failed save falls back to. It may predate saves still
+                // in flight, so those cards show their latest request.
+                // Profiles with nothing pending take the loaded value.
                 for card in &mut cards {
-                    if let Some(pending) = self.pending_favorites.get(&card.name) {
+                    if let Some(pending) = self.pending_favorites.get_mut(&card.name) {
+                        pending.confirmed = card.is_favorite;
                         card.is_favorite = pending.latest;
                     }
                 }

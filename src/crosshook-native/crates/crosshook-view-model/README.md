@@ -132,7 +132,8 @@ result back through `finish_submit(id, result)`.
 
 ### Error mapping
 
-`apply_errors` (also used by `finish_submit`) maps one `ServiceError`:
+`apply_errors` (also used by `finish_submit`) maps one `ServiceError` and ends
+any in-flight attempt:
 
 | `ServiceErrorKind`                                      | Shown as                              | State    |
 | ------------------------------------------------------- | ------------------------------------- | -------- |
@@ -145,6 +146,12 @@ Every non-cancelled error replaces the previous field and form errors.
 Messages are already sanitized by `crosshook-app`; the crate never calls
 `sanitize_message`. The `match` is exhaustive, so a new kind must decide where
 it shows.
+
+`show_error` shows an error from a call other than the submit (such as a
+load) with the same mapping, but leaves the submit cycle alone: the submit
+state, the submitted snapshot and the id are kept, so a save in flight still
+finishes with its own result and a second `begin_submit` is still refused.
+`Cancelled` shows nothing and changes nothing.
 
 ## Library example
 
@@ -182,8 +189,9 @@ and sort always runs last.
   and sets `load_error`), the latest requested value and the number of saves
   in flight. While saves are in flight the card shows the latest request; once
   none are, it shows the confirmed value. A `ProfilesLoaded` taken while saves
-  are in flight keeps their latest request on those cards; other cards take
-  the loaded value. Replies may arrive in any order.
+  are in flight makes the loaded value the confirmed one of those profiles
+  (what a failed save falls back to) but keeps their latest request on the
+  cards; other cards take the loaded value. Replies may arrive in any order.
 - **Currently Playing count**: distinct profile names with a live **game**
   session. Trainer and anonymous (unsaved) sessions do not count, and the
   count is not intersected with loaded profiles (React parity). The UI hides
@@ -290,10 +298,11 @@ of each kind:
 `Submit` emits `SettingsEffect::Save { id, request }`, where
 `SettingsSaveRequest` carries the parsed values; the bridge answers with
 `SaveFinished { id, result }`. `Loaded(fields)` resets the form after an
-external reload. `LoadFailed(error)` shows a failed load on the form with the
-error mapping below: `SettingsService::load` reports a profiles directory it
-cannot resolve as `Validation { field: "profiles_directory" }`, which lands on
-that field. `LogFilter::parse` reads the stored `log_filter` string (trimmed;
+external reload. `LoadFailed(error)` shows a failed load on the form with
+`Form::show_error`, so a save in flight is not affected: `SettingsService::load`
+reports a profiles directory it cannot resolve as
+`Validation { field: "profiles_directory" }`, which lands on that field.
+`LogFilter::parse` reads the stored `log_filter` string (trimmed;
 the lowercase `as_str` names; empty means `Info`, the backend default). Other
 backend values, such as directives like `crosshook=debug`, return `None`: the
 example select cannot represent them.
@@ -331,12 +340,13 @@ assert_eq!(request.recent_files_limit, 25);
 vm.reduce(SettingsIntent::SaveFinished { id: *id, result: Ok(()) });
 assert_eq!(vm.form().submit_state(), SubmitState::Succeeded);
 
-// A later load cannot resolve the directory: the error lands on that field.
+// A later load cannot resolve the directory: the error lands on that field
+// and the submit state is left alone.
 vm.reduce(SettingsIntent::LoadFailed(ServiceError::validation(
     "profiles_directory",
     "Directory not found.",
 )));
-assert_eq!(vm.form().submit_state(), SubmitState::Failed);
+assert_eq!(vm.form().submit_state(), SubmitState::Succeeded);
 assert_eq!(
     vm.form().error(SettingsField::ProfilesDirectory),
     Some("Directory not found.")
