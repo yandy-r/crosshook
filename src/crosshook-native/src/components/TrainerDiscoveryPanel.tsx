@@ -100,19 +100,31 @@ export function TrainerDiscoveryPanel({ initialQuery = '' }: TrainerDiscoveryPan
     setPendingConsent(false);
   }, []);
 
+  // Overlapping imports from different cards: only the latest request may
+  // update the notice/error or clear the importing state.
+  const importRequestRef = useRef(0);
+
   const handleImport = useCallback(
     async (entry: CatalogEntry) => {
+      const request = ++importRequestRef.current;
+      const isCurrent = () => request === importRequestRef.current;
       setImportingKey(catalogEntryKey(entry));
       setImportError(null);
       setImportNotice(null);
 
       try {
         const result = await importCommunityProfile(entry.manifestPath);
-        setImportNotice(`Imported profile "${result.profile_name}" for ${entry.gameName ?? entry.relativePath}.`);
+        if (isCurrent()) {
+          setImportNotice(`Imported profile "${result.profile_name}" for ${entry.gameName ?? entry.relativePath}.`);
+        }
       } catch (err) {
-        setImportError(err instanceof Error ? err.message : String(err));
+        if (isCurrent()) {
+          setImportError(err instanceof Error ? err.message : String(err));
+        }
       } finally {
-        setImportingKey(null);
+        if (isCurrent()) {
+          setImportingKey(null);
+        }
       }
     },
     [importCommunityProfile]

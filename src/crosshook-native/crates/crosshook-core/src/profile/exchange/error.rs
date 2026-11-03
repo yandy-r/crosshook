@@ -22,9 +22,15 @@ pub enum CommunityExchangeError {
         version: u32,
         supported: u32,
     },
-    /// No free profile name was left for the import (`<name>` and every `<name>-N` are taken).
+    /// A profile store write found the target name already taken.
     AlreadyExists {
         name: String,
+    },
+    /// No free profile name was left for the import: `<base>` and every
+    /// `<base>-2` … `<base>-<max_suffix>` are taken.
+    NoFreeName {
+        base: String,
+        max_suffix: u32,
     },
     ProfileStore {
         message: String,
@@ -54,6 +60,10 @@ impl Display for CommunityExchangeError {
                 )
             }
             Self::AlreadyExists { name } => write!(f, "a profile named '{name}' already exists"),
+            Self::NoFreeName { base, max_suffix } => write!(
+                f,
+                "no free profile name for '{base}' (tried up to '{base}-{max_suffix}')"
+            ),
             Self::ProfileStore { message } => write!(f, "{message}"),
         }
     }

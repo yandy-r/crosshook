@@ -155,14 +155,23 @@ fn community_exchange_errors_hide_the_manifest_path() {
 }
 
 #[test]
-fn community_import_name_exhaustion_maps_to_conflict() {
+fn community_import_name_errors_map_to_conflict() {
     use crosshook_core::profile::CommunityExchangeError as E;
-    let error = AppError::from(E::AlreadyExists {
+    let exhausted = AppError::from(E::NoFreeName {
+        base: "elden-ring".to_string(),
+        max_suffix: 1000,
+    });
+    assert_eq!(exhausted.kind(), AppErrorKind::Conflict);
+    assert_eq!(
+        exhausted.message(),
+        "no free profile name for 'elden-ring' (tried up to 'elden-ring-1000')"
+    );
+    let taken = AppError::from(E::AlreadyExists {
         name: "elden-ring".to_string(),
     });
-    assert_eq!(error.kind(), AppErrorKind::Conflict);
+    assert_eq!(taken.kind(), AppErrorKind::Conflict);
     assert_eq!(
-        error.message(),
+        taken.message(),
         "a profile named 'elden-ring' already exists"
     );
 }

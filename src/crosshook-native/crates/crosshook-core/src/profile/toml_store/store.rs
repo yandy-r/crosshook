@@ -354,4 +354,27 @@ impl ProfileStore {
         self.profile_path(name)
             .is_ok_and(|path| fs::symlink_metadata(path).is_ok())
     }
+
+    /// Returns the validated `base` when nothing occupies it ([`name_taken`](Self::name_taken)),
+    /// else the first free `<base>-2` … `<base>-<max_suffix>`; `None` when all are taken.
+    ///
+    /// # Errors
+    /// `ProfileStoreError::InvalidName` if `base` or a suffixed candidate is not a valid name.
+    pub(crate) fn first_free_name(
+        &self,
+        base: &str,
+        max_suffix: u32,
+    ) -> Result<Option<String>, ProfileStoreError> {
+        let base = validate_name(base)?;
+        if !self.name_taken(&base) {
+            return Ok(Some(base));
+        }
+        for suffix in 2..=max_suffix {
+            let candidate = validate_name(&format!("{base}-{suffix}"))?;
+            if !self.name_taken(&candidate) {
+                return Ok(Some(candidate));
+            }
+        }
+        Ok(None)
+    }
 }

@@ -1,5 +1,5 @@
 use super::super::community_schema::CommunityProfileManifest;
-use super::super::{ProfileStore, ProfileStoreError};
+use super::super::ProfileStore;
 use super::error::CommunityExchangeError;
 use super::types::{CommunityImportPreview, CommunityImportResult};
 use super::utils::{derive_import_name, hydrate_imported_profile};
@@ -19,7 +19,7 @@ const MAX_UNIQUE_NAME_SUFFIX: u32 = 1000;
 ///
 /// # Errors
 /// Unreadable or invalid manifest, unsupported schema version, every candidate name already
-/// taken (`AlreadyExists`), or a profile write failure.
+/// taken (`NoFreeName`), or a profile write failure.
 pub fn import_community_profile(
     json_path: &Path,
     profiles_dir: &Path,
@@ -48,19 +48,14 @@ pub fn import_community_profile(
 }
 
 /// Returns `base` when nothing occupies its file (a dangling symlink counts as taken), else the
-/// first free `<base>-N`.
-fn unique_profile_name(store: &ProfileStore, base: &str) -> Result<String, ProfileStoreError> {
-    let base = ProfileStore::validate_profile_name(base)?;
-    if !store.name_taken(&base) {
-        return Ok(base);
-    }
-    for suffix in 2..=MAX_UNIQUE_NAME_SUFFIX {
-        let candidate = ProfileStore::validate_profile_name(&format!("{base}-{suffix}"))?;
-        if !store.name_taken(&candidate) {
-            return Ok(candidate);
-        }
-    }
-    Err(ProfileStoreError::AlreadyExists(base))
+/// first free `<base>-N`; `NoFreeName` when every candidate is taken.
+fn unique_profile_name(store: &ProfileStore, base: &str) -> Result<String, CommunityExchangeError> {
+    store
+        .first_free_name(base, MAX_UNIQUE_NAME_SUFFIX)?
+        .ok_or_else(|| CommunityExchangeError::NoFreeName {
+            base: base.to_string(),
+            max_suffix: MAX_UNIQUE_NAME_SUFFIX,
+        })
 }
 
 pub fn preview_community_profile_import(

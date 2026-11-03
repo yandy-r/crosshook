@@ -65,7 +65,7 @@ fn community_import_treats_a_dangling_symlink_as_taken() {
 }
 
 #[test]
-fn community_import_fails_with_already_exists_when_every_name_is_taken() {
+fn community_import_fails_with_no_free_name_when_every_name_is_taken() {
     let temp_dir = tempdir().unwrap();
     let manifest = write_manifest(temp_dir.path());
     let import_dir = temp_dir.path().join("imported");
@@ -79,9 +79,14 @@ fn community_import_fails_with_already_exists_when_every_name_is_taken() {
 
     assert_eq!(
         error,
-        CommunityExchangeError::AlreadyExists {
-            name: "elden-ring".to_string()
+        CommunityExchangeError::NoFreeName {
+            base: "elden-ring".to_string(),
+            max_suffix: 1000,
         }
+    );
+    assert_eq!(
+        error.to_string(),
+        "no free profile name for 'elden-ring' (tried up to 'elden-ring-1000')"
     );
     assert!(!import_dir.join("elden-ring-1001.toml").exists());
     assert_eq!(

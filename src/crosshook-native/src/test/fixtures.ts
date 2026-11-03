@@ -1,3 +1,4 @@
+import type { CommunityImportResult } from '@/hooks/useCommunityProfiles';
 import type { ProfileHealthReport } from '@/types/health';
 import type {
   GamescopeDecisionPreview,
@@ -318,6 +319,34 @@ export function makeUmuDecisionPreview(overrides: Partial<UmuDecisionPreview> = 
     reason: 'using umu-run at /usr/bin/umu-run',
     csv_coverage: 'found',
     gameid_resolution: null,
+    ...overrides,
+  };
+}
+
+/** Backend `community_import_profile` result; `profile_name` is the name actually written. */
+export function makeCommunityImportResult(overrides: Partial<CommunityImportResult> = {}): CommunityImportResult {
+  const profile = createDefaultProfile();
+  return {
+    profile_name: 'elden-ring',
+    source_path: '/tmp/tap/elden-ring/community-profile.json',
+    profile_path: '/home/user/.config/crosshook/profiles/elden-ring.toml',
+    profile,
+    manifest: {
+      schema_version: 1,
+      metadata: {
+        game_name: 'Elden Ring',
+        game_version: '',
+        trainer_name: '',
+        trainer_version: '',
+        proton_version: '',
+        platform_tags: [],
+        compatibility_rating: 'working',
+        author: '',
+        description: '',
+        trainer_sha256: null,
+      },
+      profile,
+    },
     ...overrides,
   };
 }

@@ -224,7 +224,10 @@ async fn community_import_twice_keeps_the_first_profile_and_publishes_the_suffix
         .unwrap()
         .into_output();
     assert_eq!(harness.next_event().await, imported(&["community-game"]));
-    let before = fs::read(&first.profile_path).unwrap();
+    // A user edit the second import must not clobber (the pre-fix code
+    // rewrote the file with the manifest profile).
+    let edited = b"# user edits\n[game]\nname = \"My Edited Game\"\n";
+    fs::write(&first.profile_path, edited).unwrap();
 
     let second = harness
         .writer
@@ -234,7 +237,7 @@ async fn community_import_twice_keeps_the_first_profile_and_publishes_the_suffix
         .into_output();
 
     assert_eq!(second.profile_name, "community-game-2");
-    assert_eq!(fs::read(&first.profile_path).unwrap(), before);
+    assert_eq!(fs::read(&first.profile_path).unwrap(), edited);
     assert_eq!(
         harness.profiles.list().unwrap(),
         ["community-game", "community-game-2"]

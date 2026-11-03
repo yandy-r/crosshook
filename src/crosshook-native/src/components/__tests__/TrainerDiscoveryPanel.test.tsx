@@ -1,10 +1,10 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CommunityImportResult } from '@/hooks/useCommunityProfiles';
+import { makeCommunityImportResult } from '@/test/fixtures';
 import { axe } from '@/test/setup';
 import type { CatalogPage } from '@/types/discovery';
-import { createDefaultProfile } from '@/types/profile';
 import { DEFAULT_APP_SETTINGS } from '@/types/settings';
 import { TrainerDiscoveryPanel } from '../TrainerDiscoveryPanel';
 
@@ -104,33 +104,6 @@ const ELDEN_RING_ENTRY = {
   ],
 };
 
-/** Backend `community_import_profile` result naming the profile actually written. */
-function buildImportResult(profileName: string): CommunityImportResult {
-  const profile = createDefaultProfile();
-  return {
-    profile_name: profileName,
-    source_path: ELDEN_RING_ENTRY.manifestPath,
-    profile_path: `/home/user/.config/crosshook/profiles/${profileName}.toml`,
-    profile,
-    manifest: {
-      schema_version: 1,
-      metadata: {
-        game_name: 'Elden Ring',
-        game_version: '',
-        trainer_name: '',
-        trainer_version: '',
-        proton_version: '',
-        platform_tags: [],
-        compatibility_rating: 'working',
-        author: '',
-        description: '',
-        trainer_sha256: null,
-      },
-      profile,
-    },
-  };
-}
-
 describe('TrainerDiscoveryPanel', () => {
   beforeEach(() => {
     usePreferencesContextMock.mockReturnValue(buildPreferencesState());
@@ -142,7 +115,7 @@ describe('TrainerDiscoveryPanel', () => {
       search: vi.fn().mockResolvedValue(undefined),
     });
     useImportCommunityProfileMock.mockReturnValue({
-      importCommunityProfile: vi.fn().mockResolvedValue(buildImportResult('elden-ring')),
+      importCommunityProfile: vi.fn().mockResolvedValue(makeCommunityImportResult()),
     });
   });
 
@@ -221,7 +194,9 @@ describe('TrainerDiscoveryPanel', () => {
     useCommunityCatalogMock.mockReturnValue(
       buildCatalogReturn(buildCatalogPage({ entries: [ELDEN_RING_ENTRY], totalCount: 1, tapCount: 1 }))
     );
-    const importCommunityProfile = vi.fn().mockResolvedValue(buildImportResult('elden-ring-2'));
+    const importCommunityProfile = vi
+      .fn()
+      .mockResolvedValue(makeCommunityImportResult({ profile_name: 'elden-ring-2' }));
     useImportCommunityProfileMock.mockReturnValue({ importCommunityProfile });
 
     render(<TrainerDiscoveryPanel />);
@@ -230,6 +205,45 @@ describe('TrainerDiscoveryPanel', () => {
 
     expect(await screen.findByText('Imported profile "elden-ring-2" for Elden Ring.')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('keeps the notice of the latest import when an earlier overlapping import finishes last', async () => {
+    const hadesEntry = {
+      ...ELDEN_RING_ENTRY,
+      id: 2,
+      relativePath: 'hades/community-profile.json',
+      manifestPath: '/tmp/tap/hades/community-profile.json',
+      gameName: 'Hades',
+    };
+    usePreferencesContextMock.mockReturnValue(buildPreferencesState({ discovery_enabled: true }));
+    useCommunityCatalogMock.mockReturnValue(
+      buildCatalogReturn(buildCatalogPage({ entries: [ELDEN_RING_ENTRY, hadesEntry], totalCount: 2, tapCount: 1 }))
+    );
+    const eldenGate = Promise.withResolvers<CommunityImportResult>();
+    const hadesGate = Promise.withResolvers<CommunityImportResult>();
+    const importCommunityProfile = vi.fn((path: string) =>
+      path === hadesEntry.manifestPath ? hadesGate.promise : eldenGate.promise
+    );
+    useImportCommunityProfileMock.mockReturnValue({ importCommunityProfile });
+
+    render(<TrainerDiscoveryPanel />);
+    const [eldenButton, hadesButton] = screen.getAllByRole('button', { name: 'Import Profile' });
+    await userEvent.click(eldenButton);
+    await userEvent.click(hadesButton);
+    expect(importCommunityProfile).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      hadesGate.resolve(makeCommunityImportResult({ profile_name: 'hades' }));
+    });
+    await act(async () => {
+      eldenGate.resolve(makeCommunityImportResult({ profile_name: 'elden-ring' }));
+    });
+
+    expect(screen.getByText('Imported profile "hades" for Hades.')).toBeInTheDocument();
+    expect(screen.queryByText(/Imported profile "elden-ring"/)).not.toBeInTheDocument();
+    for (const button of screen.getAllByRole('button', { name: 'Import Profile' })) {
+      expect(button).toBeEnabled();
+    }
   });
 
   it('external section renders independent of facet state', () => {
