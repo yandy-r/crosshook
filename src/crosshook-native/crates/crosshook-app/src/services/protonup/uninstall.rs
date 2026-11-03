@@ -20,14 +20,12 @@ use crosshook_core::protonup::uninstall::{
     execute_uninstall_for_path, plan_uninstall as core_plan_uninstall, UninstallError,
 };
 
+use super::install_root::usable_install_roots;
 use super::messages::{uninstall_error_text, UNINSTALL_NOT_FOUND, UNINSTALL_OUTSIDE};
 use super::seams::ProtonRootSource;
 use super::{ProtonUninstallPlanResponse, ProtonUninstallResponse, ProtonUpService};
 use crate::error::AppError;
 use crate::services::run_blocking;
-
-/// `InstallRootCandidate::reason` token for a root whose path is unusable.
-const INVALID_PATH_REASON: &str = "invalid-path";
 
 /// Which core operation follows a successful containment check.
 #[derive(Clone, Copy)]
@@ -140,10 +138,7 @@ fn uninstall_blocking(
         return Err(UNINSTALL_OUTSIDE);
     }
     let steam = select_steam_root(trusted, caller_steam_path);
-    let candidates: Vec<PathBuf> = roots
-        .install_roots(steam.as_deref())
-        .into_iter()
-        .filter(|candidate| candidate.reason.as_deref() != Some(INVALID_PATH_REASON))
+    let candidates: Vec<PathBuf> = usable_install_roots(roots, steam.as_deref())
         .map(|candidate| candidate.path)
         .collect();
     let tool = canonical_parent_join(tool, &candidates)?;

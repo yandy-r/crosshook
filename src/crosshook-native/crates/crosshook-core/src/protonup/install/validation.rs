@@ -105,6 +105,8 @@ pub(super) fn validate_archive_filename(archive_filename: &str) -> Result<(), In
 ///   - `api.github.com`           — REST API
 ///   - `objects.githubusercontent.com`         — uploaded release assets
 ///   - `github-releases.githubusercontent.com` — CDN redirect target for assets
+///   - `release-assets.githubusercontent.com`  — current redirect target for
+///     release asset downloads
 ///
 /// In test builds, `http://127.0.0.1` and `http://localhost` are also accepted
 /// so that wiremock-backed unit tests can exercise the install flow end-to-end
@@ -115,6 +117,7 @@ pub(super) fn validate_release_url(url: &str) -> Result<(), InstallError> {
         "api.github.com",
         "objects.githubusercontent.com",
         "github-releases.githubusercontent.com",
+        "release-assets.githubusercontent.com",
     ];
 
     let parsed = reqwest::Url::parse(url).map_err(|error| {

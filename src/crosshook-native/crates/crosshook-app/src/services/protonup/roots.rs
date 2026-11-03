@@ -1,8 +1,5 @@
 //! Install root listing and the community-version suggestion.
 
-use std::path::PathBuf;
-use std::sync::Arc;
-
 use crosshook_core::protonup::install_root::InstallRootCandidate;
 use crosshook_core::protonup::matching::match_community_version;
 use crosshook_core::protonup::ProtonUpSuggestion;
@@ -15,22 +12,19 @@ use crate::AppError;
 impl ProtonUpService {
     /// Candidate `compatibilitytools.d` install roots, including writability.
     ///
-    /// `steam_client_install_path` derives one extra candidate; `None` relies
-    /// on the home-relative defaults. This is a listing only: the result
-    /// never authorizes a deletion.
+    /// The result is exactly the trusted set an install accepts: the roots
+    /// derived from every backend-discovered Steam root plus the
+    /// home-relative defaults. `_steam_client_install_path` is not consulted;
+    /// a caller-supplied Steam path never adds a root. This is a listing
+    /// only: the result never authorizes a deletion.
     ///
     /// # Errors
     /// Task failures only.
     pub async fn resolve_install_roots(
         &self,
-        steam_client_install_path: Option<String>,
+        _steam_client_install_path: Option<String>,
     ) -> Result<Vec<InstallRootCandidate>, AppError> {
-        let roots = Arc::clone(&self.roots);
-        run_blocking(move || {
-            let steam_root = steam_client_install_path.map(PathBuf::from);
-            Ok(roots.install_roots(steam_root.as_deref()))
-        })
-        .await
+        self.trusted_install_roots().await
     }
 
     /// Compares a community profile's Proton requirement with the installed

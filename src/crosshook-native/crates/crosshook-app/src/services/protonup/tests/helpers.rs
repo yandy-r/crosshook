@@ -88,10 +88,12 @@ pub(super) enum Mode {
     Gated(Arc<Notify>),
 }
 
-/// Installer fake recording every catalog entry it was asked to install.
+/// Installer fake recording every request and catalog entry it was asked to
+/// install. Like core, `force` removes `<target_root>/<version>` first.
 pub(super) struct FakeInstaller {
     pub calls: AtomicUsize,
     pub seen: Mutex<Vec<ProtonUpAvailableVersion>>,
+    pub requests: Mutex<Vec<ProtonUpInstallRequest>>,
     mode: Mode,
     tmp: PathBuf,
 }
@@ -101,9 +103,20 @@ impl FakeInstaller {
         Self {
             calls: AtomicUsize::new(0),
             seen: Mutex::new(Vec::new()),
+            requests: Mutex::new(Vec::new()),
             mode,
             tmp,
         }
+    }
+
+    /// `target_root` of every request received so far.
+    pub(super) fn target_roots(&self) -> Vec<String> {
+        self.requests
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .iter()
+            .map(|request| request.target_root.clone())
+            .collect()
     }
 }
 
@@ -125,7 +138,7 @@ fn success_result(tmp: &Path) -> ProtonUpInstallResult {
 impl ProtonInstaller for FakeInstaller {
     fn install<'a>(
         &'a self,
-        _request: &'a ProtonUpInstallRequest,
+        request: &'a ProtonUpInstallRequest,
         version: &'a ProtonUpAvailableVersion,
         emitter: Option<ProgressEmitter>,
         cancel: Option<CancellationToken>,
@@ -135,6 +148,17 @@ impl ProtonInstaller for FakeInstaller {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .push(version.clone());
+        self.requests
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(request.clone());
+        let target = Path::new(request.target_root.trim());
+        if request.force && target.is_absolute() {
+            let existing = target.join(&version.version);
+            if existing.exists() {
+                fs::remove_dir_all(&existing).unwrap();
+            }
+        }
         Box::pin(async move {
             match &self.mode {
                 Mode::Succeed => {

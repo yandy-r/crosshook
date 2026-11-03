@@ -111,6 +111,10 @@ fn validate_release_url_accepts_known_github_hosts() {
         "https://github-releases.githubusercontent.com/GE-Proton9-21.tar.gz"
     )
     .is_ok());
+    assert!(validate_release_url(
+        "https://release-assets.githubusercontent.com/github-production-release-asset/GE-Proton9-21.tar.gz"
+    )
+    .is_ok());
 }
 
 #[test]
