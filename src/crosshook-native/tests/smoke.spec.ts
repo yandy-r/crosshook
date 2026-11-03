@@ -254,7 +254,9 @@ test.describe('library sidebar quick filters', () => {
       page.locator('.crosshook-library-toolbar').getByRole('button', { name: 'Favorites', exact: true })
     ).toHaveAttribute('aria-pressed', 'true');
 
-    const currentlyPlaying = sidebar.getByRole('button', { name: 'Currently Playing', exact: true });
+    // The seeded session is pushed via `launch-session-changed`, so the badge
+    // shows the running count without any polling delay.
+    const currentlyPlaying = sidebar.getByRole('button', { name: 'Currently Playing 1', exact: true });
     await expect(currentlyPlaying).toBeVisible();
     await currentlyPlaying.click();
     await expect(page.getByRole('button', { name: 'Running', exact: true })).toHaveAttribute('aria-pressed', 'true');

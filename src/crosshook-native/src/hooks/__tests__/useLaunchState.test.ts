@@ -41,8 +41,8 @@ function mockCommands(overrides: Record<string, () => Promise<unknown>> = {}): v
     switch (name) {
       case 'check_offline_readiness':
         return readinessReport;
-      case 'check_game_running':
-        return false;
+      case 'list_running_sessions':
+        return { sessions: [], seq: 0 };
       case 'validate_launch':
         return null;
       case 'launch_game':
@@ -50,6 +50,7 @@ function mockCommands(overrides: Record<string, () => Promise<unknown>> = {}): v
           succeeded: true,
           message: 'Game launch started.',
           helper_log_path: '/tmp/game.log',
+          session_id: 'game-session-1',
           warnings: [],
         };
       case 'launch_reset_sessions':
@@ -143,6 +144,7 @@ describe('useLaunchState resetLaunchSession', () => {
         succeeded: true,
         message: 'Game launch started.',
         helper_log_path: '/tmp/game.log',
+        session_id: 'game-session-1',
         warnings: [],
       });
       await launchGamePromise;
@@ -151,5 +153,16 @@ describe('useLaunchState resetLaunchSession', () => {
     // The reset invalidated launchGame's generation — its late success must
     // not resurrect WaitingForTrainer/SessionActive.
     expect(result.current.phase).toBe(LaunchPhase.Idle);
+  });
+
+  it('neither probes check_game_running nor schedules timers on mount', async () => {
+    vi.useFakeTimers();
+    renderLaunchState();
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(vi.getTimerCount()).toBe(0);
+    expect(callCommandMock).not.toHaveBeenCalledWith('check_game_running', expect.anything());
   });
 });

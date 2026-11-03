@@ -1,5 +1,6 @@
 //! Bounded in-process event fan-out.
 
+use crosshook_core::launch::{SessionId, SessionKind};
 use tokio::sync::broadcast::{self, error::RecvError};
 
 use crate::error::AppError;
@@ -108,6 +109,38 @@ pub enum AppEvent {
         scanned: u32,
         /// Profiles whose game or trainer version changed since the snapshot.
         mismatches: u32,
+    },
+    /// A launch session entered the session registry. `seq` is the registry
+    /// change sequence (strictly increasing in bus order), comparable with
+    /// the `seq` of [`LaunchService::running_sessions_snapshot`](crate::services::launch::LaunchService::running_sessions_snapshot).
+    SessionStarted {
+        /// Registry id of the session.
+        session_id: SessionId,
+        /// Trimmed profile name; `None` for unsaved (anonymous) launches.
+        profile_name: Option<String>,
+        /// Game or trainer.
+        kind: SessionKind,
+        /// Registry change sequence.
+        seq: u64,
+    },
+    /// A launch session left the session registry. Published exactly once
+    /// per session. `code` / `signal` are the child's exit status when known;
+    /// both are `None` after a spawn failure, a dropped finalizer, a
+    /// `start_game` future cancelled before the session task existed, or a
+    /// Steam game exit observed by the process watch.
+    SessionExited {
+        /// Registry id of the session.
+        session_id: SessionId,
+        /// Trimmed profile name; `None` for unsaved (anonymous) launches.
+        profile_name: Option<String>,
+        /// Game or trainer.
+        kind: SessionKind,
+        /// Exit code, when the child exited normally.
+        code: Option<i32>,
+        /// Terminating signal, when the child was killed by one.
+        signal: Option<i32>,
+        /// Registry change sequence.
+        seq: u64,
     },
 }
 

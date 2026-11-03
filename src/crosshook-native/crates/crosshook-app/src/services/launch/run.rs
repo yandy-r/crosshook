@@ -14,12 +14,13 @@ use crosshook_core::launch::{
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::LaunchHook;
 use tokio::process::{Child, Command};
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, oneshot};
 
-use super::finalizer::SessionGuard;
+use super::finalizer::{catch_registry, SessionGuard};
 use super::gamescope::{choose_cancel_consumer, spawn_cancel_consumer};
 use super::portal::try_register_gamemode_portal_for_launch;
 use super::prepare::Prepared;
+use super::steam_watch::{steam_game_exe, watch_steam_game, SteamWatch};
 use super::streaming::stream_session;
 use super::types::{
     EventPublisher, InjectionLevel, InjectionLogData, InjectionSource, SessionContext,
@@ -37,6 +38,10 @@ impl LaunchService {
     /// The session is registered before spawn and removed again when spawn
     /// fails, without a history row. The portal guard is dropped on those
     /// early failures. The stream task starts before the cancel consumer.
+    /// Until the session task's guard owns the session, a
+    /// [`RegistrationGuard`] deregisters it if this future is dropped (for
+    /// example at the history-row await), so every registered session still
+    /// gets one `SessionExited`.
     ///
     /// # Errors
     /// Hook-context preparation or process spawn failed. A trainer spawn
@@ -73,6 +78,13 @@ impl LaunchService {
         let watchdog_outcome = WatchdogOutcome::new();
         let profile_key = session_profile_key_for_name(request.profile_name.as_deref());
         let (session_id, cancel_rx) = register_session(&self.registry, kind, profile_key);
+        // Subscribed now, so it sees every cancel the consumer below sees.
+        let pending_cancels = cancel_rx.resubscribe();
+        let registration = RegistrationGuard {
+            registry: &self.registry,
+            session_id,
+            armed: true,
+        };
 
         // Subscribed before spawn, so a presenter cannot miss the first event.
         let (publisher, mut events) = EventPublisher::channel(session_id);
@@ -131,6 +143,17 @@ impl LaunchService {
         )
         .await;
 
+        // A Steam game outlives its helper child: the watch owns the cancel
+        // channel and the deregister step (D3).
+        let steam_exe = steam_game_exe(&request, kind, execution_method);
+        let (deregister_handoff, handoff_rx) = match steam_exe {
+            Some(_) => {
+                let (tx, rx) = oneshot::channel();
+                (Some(tx), Some(rx))
+            }
+            None => (None, None),
+        };
+
         let ctx = SessionContext {
             session_id,
             kind,
@@ -148,18 +171,36 @@ impl LaunchService {
             portal_guard,
             metadata: self.metadata.clone(),
             registry: self.registry.clone(),
+            deregister_handoff,
+            pending_cancels: Some(pending_cancels),
         };
 
         // Stream first, then the cancel consumer (I-29). Neither path kills.
+        // The session task's guard owns deregistration from here on.
+        registration.disarm();
         drop(spawn_session_task(ctx, child, publisher));
-        let consumer = choose_cancel_consumer(&gamescope, &request, kind, child_pid);
-        spawn_cancel_consumer(
-            consumer,
-            session_id,
-            watchdog_outcome,
-            cancel_rx,
-            self.background.clone(),
-        );
+        match (steam_exe, handoff_rx) {
+            (Some(exe_name), Some(handoff)) => {
+                let watch = SteamWatch {
+                    session_id,
+                    exe_name,
+                    registry: self.registry.clone(),
+                    outcome: watchdog_outcome,
+                    probe: self.probe.clone(),
+                };
+                tokio::spawn(watch_steam_game(watch, cancel_rx, handoff));
+            }
+            _ => {
+                let consumer = choose_cancel_consumer(&gamescope, &request, kind, child_pid);
+                spawn_cancel_consumer(
+                    consumer,
+                    session_id,
+                    watchdog_outcome,
+                    cancel_rx,
+                    self.background.clone(),
+                );
+            }
+        }
 
         Ok(LaunchSession {
             id: session_id,
@@ -222,7 +263,7 @@ fn fail_spawn(
             false,
         );
     }
-    registry.deregister(session_id);
+    registry.deregister_with_exit(session_id, None, None);
     let message = match kind {
         SessionKind::Game => format!("failed to launch helper: {error}"),
         SessionKind::Trainer => {
@@ -300,6 +341,31 @@ fn non_empty_trimmed(path: &str) -> Option<String> {
         None
     } else {
         Some(path.to_string())
+    }
+}
+
+/// Deregisters a just-registered session (no exit status) when dropped while
+/// armed: `run_session` returned early or its future was cancelled before
+/// the session task's [`SessionGuard`] took over. Spawn failure deregisters
+/// explicitly first, so this drop is then a silent no-op.
+struct RegistrationGuard<'a> {
+    registry: &'a LaunchSessionRegistry,
+    session_id: SessionId,
+    armed: bool,
+}
+
+impl RegistrationGuard<'_> {
+    /// Hands deregistration over to the session task's guard.
+    fn disarm(mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for RegistrationGuard<'_> {
+    fn drop(&mut self) {
+        if self.armed {
+            catch_registry(|| self.registry.deregister(self.session_id));
+        }
     }
 }
 

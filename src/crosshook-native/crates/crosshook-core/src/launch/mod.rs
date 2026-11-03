@@ -61,12 +61,13 @@ pub use request::{
 pub use runtime_helpers::{launch_platform_capabilities, LaunchPlatformCapabilities};
 pub use session::{
     drain_cancel_into_outcome, session_profile_key_for_name, LaunchSessionRegistry, LinkError,
-    SessionId, SessionKind, TeardownReason, WatchdogOutcome, ANONYMOUS_PROFILE_KEY,
+    SessionChange, SessionId, SessionInfo, SessionKind, SessionObserver, TeardownReason,
+    WatchdogOutcome, ANONYMOUS_PROFILE_KEY,
 };
 pub use trainer_hash::{
     collect_trainer_hash_launch_warnings, launch_issues_from_trainer_hash_outcome,
 };
-pub use watchdog::{gamescope_watchdog, is_process_running};
+pub use watchdog::{gamescope_watchdog, is_process_running, probe_process_running};
 
 /// Resolves the trainer gamescope config from a game config and an optional trainer override.
 ///

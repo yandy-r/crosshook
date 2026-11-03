@@ -122,6 +122,70 @@ impl SessionEntry {
     }
 }
 
+impl SessionEntry {
+    pub(super) fn info(&self) -> SessionInfo {
+        SessionInfo {
+            session_id: self.id,
+            kind: self.kind,
+            profile_key: self.profile_key.clone(),
+            parent: self.parent,
+        }
+    }
+}
+
+/// Public, read-only view of one registered session. Returned by
+/// [`snapshot`][super::registry::LaunchSessionRegistry::snapshot] and carried
+/// by every [`SessionChange`]. `profile_key` is the registry key: the trimmed
+/// profile name, or [`ANONYMOUS_PROFILE_KEY`][super::ANONYMOUS_PROFILE_KEY]
+/// for unsaved launches.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SessionInfo {
+    pub session_id: SessionId,
+    pub kind: SessionKind,
+    pub profile_key: String,
+    pub parent: Option<SessionId>,
+}
+
+/// One registry membership change. `seq` is assigned in the same critical
+/// section as the mutation, so it is strictly increasing across all changes
+/// and comparable with the `seq` returned by
+/// [`snapshot`][super::registry::LaunchSessionRegistry::snapshot]: a change
+/// with `seq <= snapshot_seq` is already reflected in that snapshot.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SessionChange {
+    /// A session was inserted (`register` / `register_and_link_to_parent_of_kind`).
+    Started { info: SessionInfo, seq: u64 },
+    /// A session was actually removed. Emitted at most once per session.
+    /// `code` / `signal` come from the child's exit status when known.
+    Exited {
+        info: SessionInfo,
+        code: Option<i32>,
+        signal: Option<i32>,
+        seq: u64,
+    },
+}
+
+impl SessionChange {
+    pub fn info(&self) -> &SessionInfo {
+        match self {
+            Self::Started { info, .. } | Self::Exited { info, .. } => info,
+        }
+    }
+
+    pub fn seq(&self) -> u64 {
+        match self {
+            Self::Started { seq, .. } | Self::Exited { seq, .. } => *seq,
+        }
+    }
+}
+
+/// Callback invoked for every [`SessionChange`] **while the registry lock is
+/// held**, so observers see changes in `seq` order. Contract: the observer
+/// must not block and must never call back into the registry (it would
+/// deadlock). Publishing to a non-blocking broadcast channel is the intended
+/// use.
+pub type SessionObserver = Arc<dyn Fn(&SessionChange) + Send + Sync>;
+
 /// Error cases for linking a trainer session to its parent game session.
 #[derive(Debug, Eq, PartialEq)]
 pub enum LinkError {

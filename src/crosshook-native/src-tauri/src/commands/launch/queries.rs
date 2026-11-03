@@ -9,6 +9,8 @@ use crosshook_core::metadata::LaunchHistoryEntry;
 use crosshook_core::profile::GamescopeConfig;
 use tauri::State;
 
+use crate::session_bridge::RunningSessionsDto;
+
 #[tauri::command]
 pub fn validate_launch(
     request: LaunchRequest,
@@ -79,9 +81,12 @@ pub fn check_game_running(exe_name: String) -> bool {
     crosshook_core::launch::is_process_running(name)
 }
 
+/// Every registered launch session plus the registry `seq` it reflects. The
+/// UI subscribes to `launch-session-changed` first, then applies only events
+/// with a greater `seq`.
 #[tauri::command]
-pub fn list_running_profiles(service: State<'_, LaunchService>) -> Vec<String> {
-    service.running_profiles()
+pub fn list_running_sessions(service: State<'_, LaunchService>) -> RunningSessionsDto {
+    service.running_sessions_snapshot().into()
 }
 
 /// Recent launch rows for a profile (newest first), from `launch_operations` — no `diagnostic_json`.

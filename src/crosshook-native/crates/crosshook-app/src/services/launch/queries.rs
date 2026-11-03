@@ -1,18 +1,17 @@
-//! Read-only launch commands, session reset and running-profile queries
-//! (Task 2.6).
+//! Read-only launch commands and session reset (Task 2.6).
 //!
 //! Everything here is either pure ([`LaunchService::validate`],
 //! [`LaunchService::steam_launch_options_command`]) or in-memory
-//! ([`LaunchService::reset_sessions`], [`LaunchService::running_profiles`]) and
-//! therefore synchronous (S7). [`LaunchService::preview`] and
-//! [`LaunchService::launch_history`] touch the stores; store I/O runs through
-//! [`run_blocking`].
+//! ([`LaunchService::reset_sessions`]) and therefore synchronous (S7).
+//! [`LaunchService::preview`] and [`LaunchService::launch_history`] touch the
+//! stores; store I/O runs through [`run_blocking`]. The running-session
+//! snapshot lives in `sessions`.
 
 use std::collections::BTreeMap;
 
 use crosshook_core::launch::{
     self, build_launch_preview, escape_steam_token, resolve_command_arguments_for_method,
-    session_profile_key_for_name, LaunchPreview, LaunchRequest, LaunchValidationIssue, SessionKind,
+    session_profile_key_for_name, LaunchPreview, LaunchRequest, LaunchValidationIssue,
     TeardownReason, METHOD_STEAM_APPLAUNCH,
 };
 use crosshook_core::metadata::{LaunchHistoryEntry, MetadataStore, MAX_HISTORY_LIST_LIMIT};
@@ -165,11 +164,5 @@ impl LaunchService {
         let profile_key = session_profile_key_for_name(Some(profile_name));
         self.registry
             .cancel_sessions_for_profile(&profile_key, TeardownReason::UserRequest)
-    }
-
-    /// Profile keys with an active game session, in registration order.
-    #[must_use]
-    pub fn running_profiles(&self) -> Vec<String> {
-        self.registry.active_profile_keys(Some(SessionKind::Game))
     }
 }

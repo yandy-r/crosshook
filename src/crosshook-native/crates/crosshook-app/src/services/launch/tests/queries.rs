@@ -1,6 +1,6 @@
 //! Read-only query tests (Task 2.6): history guards (I-61), key consistency
-//! between `reset_sessions` and `running_profiles`, preview's mod-coexistence
-//! scope (I-16) and UMU enrichment.
+//! between `reset_sessions` and the running-session snapshot, preview's
+//! mod-coexistence scope (I-16) and UMU enrichment.
 
 use crosshook_core::launch::{
     session_profile_key_for_name, SessionKind, TeardownReason, METHOD_STEAM_APPLAUNCH,
@@ -122,8 +122,22 @@ async fn launch_history_scopes_rows_to_the_profile() {
     assert_eq!(rows[0].launch_method, "native");
 }
 
+/// Game profile names of the running-session snapshot, sorted.
+fn running_games(harness: &Harness) -> Vec<Option<String>> {
+    let mut names: Vec<Option<String>> = harness
+        .service
+        .running_sessions_snapshot()
+        .sessions
+        .into_iter()
+        .filter(|session| session.kind == SessionKind::Game)
+        .map(|session| session.profile_name)
+        .collect();
+    names.sort();
+    names
+}
+
 #[test]
-fn running_profiles_lists_only_game_sessions_by_key() {
+fn running_snapshot_lists_sessions_with_kind_and_profile_name() {
     let harness = Harness::new(Metadata::Enabled);
     let registry = harness.service.registry();
     let key_a = session_profile_key_for_name(Some("running-a"));
@@ -131,14 +145,14 @@ fn running_profiles_lists_only_game_sessions_by_key() {
     let (game_id, _rx_a) = registry.register(SessionKind::Game, key_a.clone());
     let (_trainer_id, _rx_b) = registry.register(SessionKind::Trainer, key_b.clone());
 
-    assert_eq!(
-        harness.service.running_profiles(),
-        vec![key_a],
-        "trainer sessions are not listed"
-    );
+    let snapshot = harness.service.running_sessions_snapshot();
+    assert_eq!(snapshot.seq, 2);
+    assert_eq!(snapshot.sessions.len(), 2, "trainers are listed too");
+    assert_eq!(running_games(&harness), vec![Some(key_a)]);
 
     registry.deregister(game_id);
-    assert!(harness.service.running_profiles().is_empty());
+    assert!(running_games(&harness).is_empty());
+    assert_eq!(harness.service.running_sessions_snapshot().seq, 3);
 }
 
 #[test]
@@ -170,10 +184,10 @@ fn reset_sessions_cancels_every_session_of_the_profile_and_returns_the_count() {
     );
     // The reset signals but does not remove sessions; they stay listed until
     // their stream tasks deregister (deregistration is a finalizer concern).
-    let running = harness.service.running_profiles();
+    let running = harness.service.running_sessions_snapshot().sessions;
     assert_eq!(
         running.len(),
-        2,
+        3,
         "signalled sessions remain registered until they exit: {running:?}"
     );
 }
@@ -186,13 +200,12 @@ fn reset_and_running_share_the_anonymous_key_for_blank_names() {
     assert_eq!(anonymous, session_profile_key_for_name(Some("")));
     assert_eq!(anonymous, session_profile_key_for_name(Some("   ")));
 
-    let (_game_id, mut rx) = registry.register(SessionKind::Game, anonymous.clone());
+    let (_game_id, mut rx) = registry.register(SessionKind::Game, anonymous);
     assert_eq!(
-        harness.service.running_profiles(),
-        vec![anonymous],
-        "a blank-named session lists under the anonymous key"
+        running_games(&harness),
+        vec![None],
+        "a blank-named session lists without a profile name"
     );
-
     assert_eq!(
         harness.service.reset_sessions(""),
         1,

@@ -29,19 +29,29 @@ pub(super) struct ShutdownTarget {
 
 /// Checks whether a process whose name matches `exe_name` is currently running.
 ///
+/// Same as [`probe_process_running`], but an unknown result (a failed host
+/// `ps` query under Flatpak) reads as "not running".
+pub fn is_process_running(exe_name: &str) -> bool {
+    probe_process_running(exe_name).unwrap_or(false)
+}
+
+/// Whether a process whose name matches `exe_name` is currently running, or
+/// `None` when that is unknown.
+///
 /// Scans `/proc/<pid>/comm` for exact matches, handling both the original name
 /// (e.g. `game.exe`) and the name without the `.exe` suffix (`game`).
 /// When `comm` is exactly 15 characters (the Linux `TASK_COMM_LEN` truncation
 /// boundary), falls back to `/proc/<pid>/cmdline` for the full argv\[0\] basename.
-/// Under Flatpak, prefers the host `ps` view when available because the sandbox
-/// PID namespace may hide the real game process.
-pub fn is_process_running(exe_name: &str) -> bool {
+/// Under Flatpak, also checks the host `ps` view because the sandbox PID
+/// namespace may hide the real game process; when the sandbox has no match
+/// and the host `ps` query fails to spawn or exits non-zero, the answer is
+/// `None` rather than `Some(false)`.
+pub fn probe_process_running(exe_name: &str) -> Option<bool> {
     let candidates = process::process_name_candidates(exe_name);
     if candidates.is_empty() {
-        return false;
+        return Some(false);
     }
 
-    let mut sandbox_match = false;
     if let Ok(proc_dir) = fs::read_dir("/proc") {
         for entry in proc_dir.flatten() {
             let dir_name = entry.file_name();
@@ -52,22 +62,15 @@ pub fn is_process_running(exe_name: &str) -> bool {
             }
 
             if process::process_path_matches_candidates(&entry.path(), &candidates) {
-                sandbox_match = true;
-                break;
+                return Some(true);
             }
         }
     }
 
-    let host_probe = if is_flatpak() {
-        Some(host::probe_host_processes(&candidates))
-    } else {
-        None
-    };
-
-    sandbox_match
-        || host_probe
-            .as_ref()
-            .is_some_and(host::HostProcessProbe::has_match)
+    if !is_flatpak() {
+        return Some(false);
+    }
+    host::probe_host_processes(&candidates).map(|probe| probe.has_match())
 }
 
 #[cfg(test)]

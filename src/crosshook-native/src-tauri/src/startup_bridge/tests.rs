@@ -235,7 +235,79 @@ fn named_scan_completion_events_are_not_bridged() {
         AppEvent::UiSettingsPersistFailed {
             message: "x".into(),
         },
+        AppEvent::SessionStarted {
+            session_id: serde_json::from_value(json!("550e8400-e29b-41d4-a716-446655440000"))
+                .unwrap(),
+            profile_name: None,
+            kind: crosshook_core::launch::SessionKind::Game,
+            seq: 1,
+        },
     ] {
         assert!(is_bridged(&event), "{event:?} must stay bridged");
     }
+}
+
+/// The bridge loop emits `launch-session-changed` for every bridged event
+/// `session_payload` maps: starts and exits carry their wire payload and a
+/// bus lag becomes the resync marker; unrelated events emit nothing.
+#[test]
+fn session_events_and_resync_map_to_launch_session_changed_payloads() {
+    let id = "550e8400-e29b-41d4-a716-446655440000";
+    let session_id: crosshook_core::launch::SessionId = serde_json::from_value(json!(id)).unwrap();
+    let mapped = |event: AppEvent| -> Option<Value> {
+        assert!(is_bridged(&event), "{event:?} must reach the bridge loop");
+        session_payload(&event).map(|payload| serde_json::to_value(payload).unwrap())
+    };
+
+    assert_eq!(
+        mapped(AppEvent::SessionStarted {
+            session_id,
+            profile_name: Some("Alpha".into()),
+            kind: crosshook_core::launch::SessionKind::Game,
+            seq: 1,
+        }),
+        Some(json!({
+            "kind": "started",
+            "session_id": id,
+            "profile_name": "Alpha",
+            "session_kind": "game",
+            "seq": 1,
+        }))
+    );
+    assert_eq!(
+        mapped(AppEvent::SessionExited {
+            session_id,
+            profile_name: None,
+            kind: crosshook_core::launch::SessionKind::Trainer,
+            code: Some(1),
+            signal: None,
+            seq: 2,
+        }),
+        Some(json!({
+            "kind": "exited",
+            "session_id": id,
+            "profile_name": null,
+            "session_kind": "trainer",
+            "code": 1,
+            "signal": null,
+            "seq": 2,
+        }))
+    );
+    assert_eq!(
+        mapped(AppEvent::Resync { missed: 4 }),
+        Some(json!({ "kind": "resync" }))
+    );
+    assert_eq!(
+        mapped(AppEvent::StartupJobFinished {
+            job: StartupJobKind::HealthBatch,
+        }),
+        None
+    );
+    assert_eq!(
+        mapped(AppEvent::ProfilesChanged {
+            reason: ProfileChangeReason::Saved,
+            names: vec![],
+        }),
+        None
+    );
 }

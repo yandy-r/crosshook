@@ -5,6 +5,7 @@ export * from './health';
 export * from './injection';
 export * from './install';
 export * from './launch';
+export * from './launch-sessions';
 export * from './launcher';
 export * from './library';
 export * from './metadata';

@@ -9,8 +9,9 @@
 //! Module ownership (one file per slice, each under 500 lines):
 //! `gamescope` predicate and watchdog choice, `warnings`/`portal`/`diagnostics`
 //! helpers, `streaming` stdio tee, `snapshot` post-exit effects, `finalizer`
-//! drop-safe wrap-up, `queries` read-only commands, `prepare`/`run` shared
-//! start path, `game`/`trainer` builder dispatch.
+//! drop-safe wrap-up, `queries` read-only commands, `sessions` running-session
+//! events and snapshot, `steam_watch` Steam game exit watch, `prepare`/`run`
+//! shared start path, `game`/`trainer` builder dispatch.
 
 mod diagnostics;
 mod finalizer;
@@ -20,8 +21,10 @@ mod portal;
 mod prepare;
 mod queries;
 mod run;
+mod sessions;
 mod snapshot;
 mod spawner;
+mod steam_watch;
 mod streaming;
 mod trainer;
 mod types;
@@ -40,10 +43,14 @@ use crosshook_core::runtime_helpers::{self, HelperRoots, RuntimeHelper};
 use crosshook_core::settings::SettingsStore;
 
 use super::BackgroundGrantHolder;
+use crate::events::EventBus;
 use crate::{AppError, AppErrorKind};
+use sessions::session_observer;
+use steam_watch::{default_probe, ProcessProbe};
 
 pub use diagnostics::read_log_tail;
 pub use gamescope::{execution_method, gamescope_required, pid_capture_required};
+pub use sessions::{RunningSession, RunningSessions};
 pub use spawner::{ProcessSpawner, TokioSpawner};
 pub use streaming::stream_child_log;
 pub use types::{
@@ -73,6 +80,8 @@ pub struct LaunchService {
     settings: SettingsStore,
     metadata: MetadataStore,
     registry: Arc<LaunchSessionRegistry>,
+    /// Game-executable probe of the Steam game watch (test seam).
+    probe: ProcessProbe,
     background: Option<Arc<BackgroundGrantHolder>>,
     spawner: Arc<dyn ProcessSpawner>,
     helpers: HelperSource,
@@ -84,27 +93,41 @@ pub struct LaunchService {
 }
 
 impl LaunchService {
-    /// Builds the service over the shared stores. `background` is the
-    /// Background-portal grant holder the gamescope watchdog waits on, if any.
-    /// Production defaults: [`TokioSpawner`], detected helper roots and a
-    /// detected [`LaunchEnv`].
+    /// Builds the service over the shared stores. `events` is the app bus
+    /// that receives [`AppEvent::SessionStarted`](crate::AppEvent::SessionStarted)
+    /// / [`AppEvent::SessionExited`](crate::AppEvent::SessionExited) for every
+    /// registry change. `background` is the Background-portal grant holder the
+    /// gamescope watchdog waits on, if any. Production defaults:
+    /// [`TokioSpawner`], detected helper roots and a detected [`LaunchEnv`].
     pub fn new(
         profiles: ProfileStore,
         settings: SettingsStore,
         metadata: MetadataStore,
+        events: EventBus,
         background: Option<Arc<BackgroundGrantHolder>>,
     ) -> Self {
         Self {
             profiles,
             settings,
             metadata,
-            registry: Arc::new(LaunchSessionRegistry::new()),
+            registry: Arc::new(LaunchSessionRegistry::with_observer(session_observer(
+                events,
+            ))),
+            probe: default_probe(),
             background,
             spawner: Arc::new(TokioSpawner),
             helpers: HelperSource::Detect,
             env: None,
             log_dir: PathBuf::from(crate::jobs::LOG_DIR),
         }
+    }
+
+    /// Replaces the Steam game watch's process probe (test seam).
+    #[cfg(test)]
+    #[must_use]
+    pub(super) fn with_probe(mut self, probe: ProcessProbe) -> Self {
+        self.probe = probe;
+        self
     }
 
     /// Replaces where session logs are created (test seam). Production stays

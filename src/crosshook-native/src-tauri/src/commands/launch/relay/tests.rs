@@ -30,11 +30,12 @@ fn session() -> (crosshook_core::launch::SessionId, String) {
 }
 
 #[test]
-fn launch_result_unchanged_matches_fixture() {
-    // LaunchResult gains no session_id (S9); its wire shape is frozen.
+fn launch_result_matches_fixture() {
+    // `session_id` correlates the launch with `launch-session-changed`.
     let result = crate::commands::launch::shared::LaunchResult {
         succeeded: true,
         message: "Trainer launch started.".to_string(),
+        session_id: "550e8400-e29b-41d4-a716-446655440000".to_string(),
         helper_log_path: "/tmp/crosshook-logs/trainer-x.log".to_string(),
         warnings: Vec::new(),
     };

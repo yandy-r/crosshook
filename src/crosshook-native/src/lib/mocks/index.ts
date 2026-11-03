@@ -19,6 +19,7 @@ import { registerHealth, resetHealthMockState } from './handlers/health';
 import { registerInstall, resetInstallMockState } from './handlers/install';
 import { resetLaunchMockState } from './handlers/launch';
 import { registerLauncher } from './handlers/launcher';
+import { registerLaunchSessions, resetLaunchSessionsMockState } from './handlers/launchSessions';
 import { registerLibrary } from './handlers/library';
 import { registerLutris } from './handlers/lutris';
 import { registerMods, resetModsMockState } from './handlers/mods';
@@ -48,6 +49,7 @@ export function registerMocks(): Map<string, Handler> {
 
   // Phase 2 domain handlers
   registerLaunch(map);
+  registerLaunchSessions(map);
   registerInstall(map);
   registerUpdate(map);
   registerHealth(map);
@@ -83,6 +85,7 @@ export function resetMockEnvironment(): void {
   resetHealthMockState();
   resetInstallMockState();
   resetLaunchMockState();
+  resetLaunchSessionsMockState();
   resetModsMockState();
   resetOnboardingMockState();
   resetPrefixDepsMockState();

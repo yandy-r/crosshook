@@ -22,6 +22,10 @@ lib/mocks/
 │   ├── startup.ts    — get_startup_report (auto-load, onboarding, job states)
 │   ├── profile.ts    — profile_* lifecycle + mutations + config history
 │   ├── launch.ts     — launch_*, preview/validate, gamescope session probe
+│   ├── launchSessions.ts — mock session registry: list_running_sessions,
+│   │                      launch_reset_sessions, launch-session-changed events
+│   │                      (game sessions outlive helper completion and end on
+│   │                      reset; trainer sessions end at completion)
 │   ├── install.ts    — install_game and install-* event sequence
 │   ├── update.ts     — update_game, cancel_update, update-log + update-complete events
 │   ├── health.ts     — batch_validate_profiles, version status, snapshot cache
@@ -47,7 +51,7 @@ lib/mocks/
 ```
 
 **Total commands registered**: 163 IPC commands (169 `map.set` entries under
-`handlers/`, minus 6 dev-only `_mock_*` helpers) through 21 `register*` calls
+`handlers/`, minus 6 dev-only `_mock_*` helpers) through 22 `register*` calls
 in `index.ts`. `./scripts/check-mock-coverage.sh` reports no missing or
 orphaned handlers against the Rust `#[tauri::command]` surface.
 `ipc.ts` dynamically imports `./mocks` and calls `registerMocks()` when running in

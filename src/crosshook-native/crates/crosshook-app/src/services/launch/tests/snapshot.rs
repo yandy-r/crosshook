@@ -76,6 +76,8 @@ fn make_ctx(
         portal_guard: None,
         metadata: harness.metadata.clone(),
         registry,
+        deregister_handoff: None,
+        pending_cancels: None,
     }
 }
 

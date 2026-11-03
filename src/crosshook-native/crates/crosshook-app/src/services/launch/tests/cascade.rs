@@ -15,6 +15,21 @@ use super::super::{InjectionLevel, InjectionSource, LaunchEvent, LaunchSession};
 use super::helpers::{Harness, Metadata, Script};
 
 const TEARDOWN_MESSAGE: &str = "Trainer session teardown was recorded.";
+
+/// Profile names with a running game session, sorted.
+fn running_game_profiles(harness: &Harness) -> Vec<String> {
+    let mut names: Vec<String> = harness
+        .service
+        .running_sessions_snapshot()
+        .sessions
+        .into_iter()
+        .filter(|session| session.kind == SessionKind::Game)
+        .filter_map(|session| session.profile_name)
+        .collect();
+    names.sort();
+    names.dedup();
+    names
+}
 const POLL_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// A session whose fake child blocks until its release file appears.
@@ -210,7 +225,7 @@ async fn game_exit_cascades_to_linked_trainer_only_and_siblings_survive() {
         assert!(is_registered(&harness, key, blocked.id()));
     }
     assert_eq!(
-        harness.service.running_profiles(),
+        running_game_profiles(&harness),
         vec![key_a.clone(), key_b.clone()]
     );
 
@@ -233,7 +248,7 @@ async fn game_exit_cascades_to_linked_trainer_only_and_siblings_survive() {
 
     assert!(!is_registered(&harness, &key_a, g1_id), "G1 deregistered");
     assert_eq!(
-        harness.service.running_profiles(),
+        running_game_profiles(&harness),
         vec![key_b.clone()],
         "only profile B still has a running game"
     );
