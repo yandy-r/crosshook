@@ -6,7 +6,7 @@ use std::path::Path;
 
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::ProfileStore;
-use crosshook_core::settings::SettingsStore;
+use crosshook_core::settings::{RecentFilesStore, SettingsStore};
 use tempfile::tempdir;
 
 use super::{DiagnosticAttachment, DiagnosticsRequest, DiagnosticsService};
@@ -16,6 +16,7 @@ fn service(root: &Path) -> DiagnosticsService {
     DiagnosticsService::new(
         ProfileStore::with_base_path(root.join("profiles")),
         SettingsStore::with_base_path(root.join("settings")),
+        RecentFilesStore::with_path(root.join("data").join("recent.toml")),
         MetadataStore::disabled(),
     )
 }

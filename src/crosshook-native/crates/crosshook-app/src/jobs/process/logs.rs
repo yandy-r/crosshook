@@ -97,7 +97,11 @@ fn create_unique_log(dir: &Path, stem: &str) -> Result<(PathBuf, File), String> 
 /// owned by the effective user and strips its group and other bits. The
 /// checks and the `chmod` use one `O_NOFOLLOW` handle, so a symlink swapped
 /// in at `dir` is refused rather than followed.
-fn secure_log_dir(dir: &Path) -> io::Result<()> {
+///
+/// # Errors
+/// The I/O error when `dir` cannot be created or opened, or is a symlink,
+/// not a directory, or owned by another user.
+pub fn secure_log_dir(dir: &Path) -> io::Result<()> {
     secure_log_dir_owned_by(dir, nix::unistd::geteuid().as_raw())
 }
 

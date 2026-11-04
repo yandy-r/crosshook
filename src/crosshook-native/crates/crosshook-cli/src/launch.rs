@@ -6,6 +6,7 @@ use std::process::Stdio;
 use crate::args::{GlobalOptions, LaunchCommand};
 use crate::cli_error::CliError;
 use crate::store::profile_store;
+use crosshook_app::jobs::secure_log_dir;
 use crosshook_app::log_tail::LogBatch;
 use crosshook_app::services::launch::{read_log_tail, stream_child_log};
 use crosshook_core::launch::diagnostics::MAX_LOG_TAIL_BYTES;
@@ -102,8 +103,7 @@ pub(crate) async fn launch_profile(
     let method = request.method.as_str();
 
     if let Some(parent) = log_path.parent() {
-        tokio::fs::create_dir_all(parent)
-            .await
+        secure_log_dir(parent)
             .map_err(|e| CliError::LaunchFailure(format!("failed to create log directory: {e}")))?;
     }
 

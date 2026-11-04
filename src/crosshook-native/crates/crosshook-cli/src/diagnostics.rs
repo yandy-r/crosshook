@@ -3,7 +3,7 @@ use crate::cli_error::CliError;
 use crate::store::profile_store;
 use crosshook_core::export::diagnostics::DiagnosticBundleOptions;
 use crosshook_core::metadata::{MetadataStatus, MetadataStore};
-use crosshook_core::settings::SettingsStore;
+use crosshook_core::settings::{RecentFilesStore, SettingsStore};
 
 pub(crate) fn handle_diagnostics_command(
     args: DiagnosticsArgs,
@@ -33,6 +33,7 @@ pub(crate) fn handle_diagnostics_command(
                 metadata_status,
                 metadata_backup_files,
                 extra_files: Vec::new(),
+                recent_files_path: RecentFilesStore::try_new().ok().map(|store| store.path),
             };
 
             let result = crosshook_core::export::export_diagnostic_bundle(
