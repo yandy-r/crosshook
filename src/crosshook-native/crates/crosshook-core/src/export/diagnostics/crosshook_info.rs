@@ -1,6 +1,7 @@
 use crate::settings::SettingsStore;
 
 use super::redact_home_paths;
+use super::url_credentials::strip_url_userinfo;
 
 pub(super) fn collect_crosshook_info(settings_store: &SettingsStore, redact_paths: bool) -> String {
     let mut lines = Vec::new();
@@ -24,10 +25,11 @@ pub(super) fn collect_crosshook_info(settings_store: &SettingsStore, redact_path
             lines.push(format!("last_used_profile: {}", data.last_used_profile));
             lines.push(format!("community_taps: {}", data.community_taps.len()));
             for tap in &data.community_taps {
+                let url = strip_url_userinfo(&tap.url);
                 let url = if redact_paths {
-                    redact_home_paths(&tap.url)
+                    redact_home_paths(&url)
                 } else {
-                    tap.url.clone()
+                    url.into_owned()
                 };
                 lines.push(format!("  - {url}"));
             }

@@ -137,6 +137,7 @@ impl Services {
             diagnostics: DiagnosticsService::new(
                 stores.profiles.clone(),
                 stores.settings.clone(),
+                stores.recent_files.clone(),
                 stores.metadata.clone(),
             ),
             health: HealthService::new(

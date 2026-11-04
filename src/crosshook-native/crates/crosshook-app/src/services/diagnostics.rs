@@ -8,7 +8,7 @@ use crosshook_core::export::{
 };
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::ProfileStore;
-use crosshook_core::settings::SettingsStore;
+use crosshook_core::settings::{RecentFilesStore, SettingsStore};
 
 use super::run_blocking;
 use crate::presenter::{sanitize_display_path_with_home, sanitize_message};
@@ -53,6 +53,7 @@ pub struct DiagnosticsExport {
 pub struct DiagnosticsService {
     profile_store: ProfileStore,
     settings_store: SettingsStore,
+    recent_files_store: RecentFilesStore,
     metadata_store: MetadataStore,
     /// Home directory redacted from [`DiagnosticsExport::display_path`];
     /// read from `HOME` at construction.
@@ -64,11 +65,13 @@ impl DiagnosticsService {
     pub fn new(
         profile_store: ProfileStore,
         settings_store: SettingsStore,
+        recent_files_store: RecentFilesStore,
         metadata_store: MetadataStore,
     ) -> Self {
         Self {
             profile_store,
             settings_store,
+            recent_files_store,
             metadata_store,
             display_home: std::env::var_os("HOME").map(PathBuf::from),
         }
@@ -115,6 +118,7 @@ impl DiagnosticsService {
                 metadata_status: Some(service.metadata_store.status()),
                 metadata_backup_files: service.metadata_store.backup_files(),
                 extra_files,
+                recent_files_path: Some(service.recent_files_store.path.clone()),
             };
             let result = export_diagnostic_bundle(
                 &service.profile_store,

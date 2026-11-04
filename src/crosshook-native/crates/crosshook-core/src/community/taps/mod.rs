@@ -19,6 +19,7 @@ pub use types::{
     CommunityTapWorkspace,
 };
 pub use utils::directory_size_bytes;
+pub(crate) use utils::slugify;
 pub use validation::is_valid_git_sha;
 
 use super::index;

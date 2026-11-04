@@ -3,12 +3,14 @@
 
 mod crosshook_info;
 mod health;
+mod launch_logs;
 mod logs;
 mod metadata_status;
 mod profiles;
 mod secrets;
 mod steam_diagnostics;
 mod system_info;
+mod url_credentials;
 
 use std::env;
 use std::error::Error;
@@ -29,10 +31,11 @@ use crate::settings::SettingsStore;
 
 use self::crosshook_info::collect_crosshook_info;
 use self::health::collect_health_summary;
-use self::logs::{collect_app_logs, collect_launch_logs};
+use self::launch_logs::collect_launch_logs;
+use self::logs::collect_app_logs;
 use self::metadata_status::collect_metadata_status;
 use self::profiles::{collect_profiles, collect_settings};
-use self::secrets::SecretScrubber;
+use self::secrets::{settings_secrets, SecretScrubber};
 use self::steam_diagnostics::collect_steam_diagnostics;
 use self::system_info::collect_system_info;
 
@@ -53,6 +56,9 @@ pub struct DiagnosticBundleOptions {
     /// [`DIAGNOSTIC_BUNDLE_EXTRA_FILES_DIR`] subdirectory. Each name must pass
     /// [`is_valid_bundle_file_name`]; contents are archived verbatim.
     pub extra_files: Vec<DiagnosticBundleFile>,
+    /// Recent-files TOML path. When `Some`, that file is never exported as a
+    /// profile if it sits in the profiles directory, like the settings file.
+    pub recent_files_path: Option<PathBuf>,
 }
 
 /// Bundle subdirectory holding [`DiagnosticBundleOptions::extra_files`].
@@ -168,13 +174,26 @@ pub fn export_diagnostic_bundle(
     })?;
 
     // Read settings once so the scrubber and the bundled copy see the same contents.
-    let settings_content = fs::read_to_string(settings_store.settings_path()).ok();
+    let settings_path = settings_store.settings_path();
+    let settings_content = fs::read_to_string(&settings_path).ok();
 
+    // Profiles are collected first: the scrubber needs their masked values
+    // before any entry that could echo them (health summary, logs) is written.
+    let excluded_profile_paths: Vec<PathBuf> = std::iter::once(settings_path)
+        .chain(options.recent_files_path.clone())
+        .collect();
+    let profiles = collect_profiles(profile_store, &excluded_profile_paths, options.redact_paths);
+
+    let scrubber = SecretScrubber::new(
+        settings_secrets(settings_content.as_deref().unwrap_or(""))
+            .into_iter()
+            .chain(profiles.secrets.iter().cloned()),
+    );
     let encoder = GzEncoder::new(archive_file, Compression::default());
     let mut bundle = BundleWriter {
         tar: Builder::new(encoder),
         prefix,
-        scrubber: SecretScrubber::from_settings_content(settings_content.as_deref().unwrap_or("")),
+        scrubber,
     };
 
     // -- Collect and add each section --
@@ -185,7 +204,7 @@ pub fn export_diagnostic_bundle(
     let crosshook_info = collect_crosshook_info(settings_store, options.redact_paths);
     bundle.append_text("crosshook-info.txt", &crosshook_info)?;
 
-    let health_summary = collect_health_summary(profile_store);
+    let health_summary = collect_health_summary(profile_store, &profiles, &bundle.scrubber);
     bundle.append_text("health-summary.json", &health_summary)?;
 
     if let Some(status) = &options.metadata_status {
@@ -201,8 +220,7 @@ pub fn export_diagnostic_bundle(
     let settings_text = collect_settings(settings_content.as_deref(), options.redact_paths);
     bundle.append_text("settings.toml", &settings_text)?;
 
-    let profiles = collect_profiles(profile_store, options.redact_paths);
-    for (name, content) in &profiles {
+    for (name, content) in &profiles.entries {
         bundle.append_text(&format!("profiles/{name}.toml"), content)?;
     }
 
@@ -212,8 +230,8 @@ pub fn export_diagnostic_bundle(
     }
 
     let launch_logs = collect_launch_logs();
-    for (filename, data) in &launch_logs {
-        bundle.append_bytes(&format!("logs/launch/{filename}"), data)?;
+    for (entry_path, data) in &launch_logs {
+        bundle.append_bytes(entry_path, data)?;
     }
 
     let log_file_count = app_logs.len() + launch_logs.len();
@@ -240,7 +258,7 @@ pub fn export_diagnostic_bundle(
         archive_path: archive_path.to_string_lossy().into_owned(),
         summary: DiagnosticBundleSummary {
             crosshook_version: env!("CARGO_PKG_VERSION").to_string(),
-            profile_count: profiles.len(),
+            profile_count: profiles.entries.len(),
             log_file_count,
             proton_install_count,
             generated_at: Utc::now().to_rfc3339(),
@@ -294,233 +312,6 @@ impl<W: io::Write> BundleWriter<W> {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::fs;
-    use std::path::Path;
-
-    use tempfile::tempdir;
-
-    use super::*;
-    use crate::profile::ProfileStore;
-    use crate::settings::SettingsStore;
-
-    #[test]
-    fn redact_home_paths_replaces_home_directory() {
-        let home = env::var("HOME").unwrap();
-        let text = format!("path = \"{home}/games/elden-ring.exe\"");
-        let redacted = redact_home_paths(&text);
-        assert!(redacted.contains("~/games/elden-ring.exe"));
-        assert!(!redacted.contains(&home));
-    }
-
-    #[test]
-    fn redact_home_paths_preserves_text_without_home() {
-        let text = "path = \"/opt/games/elden-ring.exe\"";
-        let redacted = redact_home_paths(text);
-        assert_eq!(redacted, text);
-    }
-
-    #[test]
-    fn diagnostic_bundle_error_display_formats_correctly() {
-        let err = DiagnosticBundleError::Archive("test error".to_string());
-        assert_eq!(err.to_string(), "archive error: test error");
-
-        let err = DiagnosticBundleError::ProfileStore("store error".to_string());
-        assert_eq!(err.to_string(), "profile store error: store error");
-
-        let err = DiagnosticBundleError::Io {
-            action: "create",
-            path: PathBuf::from("/tmp/test"),
-            source: io::Error::new(io::ErrorKind::PermissionDenied, "denied"),
-        };
-        assert!(err.to_string().contains("create"));
-        assert!(err.to_string().contains("/tmp/test"));
-    }
-
-    #[test]
-    fn export_diagnostic_bundle_produces_valid_archive() {
-        let temp = tempdir().unwrap();
-        let profiles_dir = temp.path().join("profiles");
-        let settings_dir = temp.path().join("settings");
-        let output_dir = temp.path().join("output");
-        fs::create_dir_all(&profiles_dir).unwrap();
-        fs::create_dir_all(&settings_dir).unwrap();
-        fs::create_dir_all(&output_dir).unwrap();
-
-        fs::write(
-            profiles_dir.join("test-game.toml"),
-            "[game]\nname = \"Test Game\"\nexecutable_path = \"/games/test.exe\"\n",
-        )
-        .unwrap();
-
-        let profile_store = ProfileStore::with_base_path(profiles_dir);
-        let settings_store = SettingsStore::with_base_path(settings_dir);
-        let options = DiagnosticBundleOptions {
-            redact_paths: false,
-            output_dir: Some(output_dir),
-            metadata_status: Some(MetadataStatus::Ok),
-            metadata_backup_files: Vec::new(),
-            extra_files: vec![DiagnosticBundleFile {
-                name: "ui.log".to_string(),
-                contents: b"hello".to_vec(),
-            }],
-        };
-
-        let result = export_diagnostic_bundle(&profile_store, &settings_store, &options).unwrap();
-
-        // Verify the archive file exists.
-        assert!(Path::new(&result.archive_path).exists());
-        assert!(result.archive_path.ends_with(".tar.gz"));
-        assert_eq!(result.summary.profile_count, 1);
-        assert!(result
-            .summary
-            .crosshook_version
-            .contains(env!("CARGO_PKG_VERSION")));
-
-        // Decompress and verify archive contents.
-        let archive_file = File::open(&result.archive_path).unwrap();
-        let decoder = flate2::read::GzDecoder::new(archive_file);
-        let mut archive = tar::Archive::new(decoder);
-        let entry_paths: Vec<String> = archive
-            .entries()
-            .unwrap()
-            .filter_map(|entry| {
-                let entry = entry.ok()?;
-                Some(entry.path().ok()?.to_string_lossy().into_owned())
-            })
-            .collect();
-
-        // Check that essential files are present.
-        assert!(entry_paths.iter().any(|p| p.ends_with("system-info.txt")));
-        assert!(entry_paths
-            .iter()
-            .any(|p| p.ends_with("crosshook-info.txt")));
-        assert!(entry_paths
-            .iter()
-            .any(|p| p.ends_with("health-summary.json")));
-        assert!(entry_paths
-            .iter()
-            .any(|p| p.ends_with("metadata-status.json")));
-        assert!(entry_paths
-            .iter()
-            .any(|p| p.ends_with("steam-diagnostics.txt")));
-        assert!(entry_paths
-            .iter()
-            .any(|p| p.ends_with("proton-installs.json")));
-        assert!(entry_paths.iter().any(|p| p.ends_with("settings.toml")));
-        assert!(entry_paths
-            .iter()
-            .any(|p| p.contains("profiles/test-game.toml")));
-        assert!(entry_paths.iter().any(|p| p.ends_with("/app/ui.log")));
-    }
-
-    const TEST_KEY: &str = "sgdb-test-key-0123456789abcdef";
-
-    /// Exports a bundle with `settings` as settings.toml and returns `(path, text)` entries.
-    fn export_entries(
-        settings: &str,
-        redact_paths: bool,
-        extra_files: Vec<DiagnosticBundleFile>,
-    ) -> Vec<(String, String)> {
-        let temp = tempdir().unwrap();
-        let settings_dir = temp.path().join("settings");
-        fs::create_dir_all(&settings_dir).unwrap();
-        let settings_store = SettingsStore::with_base_path(settings_dir);
-        fs::write(settings_store.settings_path(), settings).unwrap();
-        let profile_store = ProfileStore::with_base_path(temp.path().join("profiles"));
-        let options = DiagnosticBundleOptions {
-            redact_paths,
-            output_dir: Some(temp.path().join("output")),
-            metadata_status: Some(MetadataStatus::Ok),
-            extra_files,
-            ..Default::default()
-        };
-
-        let result = export_diagnostic_bundle(&profile_store, &settings_store, &options).unwrap();
-
-        let decoder = flate2::read::GzDecoder::new(File::open(&result.archive_path).unwrap());
-        let mut archive = tar::Archive::new(decoder);
-        archive
-            .entries()
-            .unwrap()
-            .map(|entry| {
-                let mut entry = entry.unwrap();
-                let path = entry.path().unwrap().to_string_lossy().into_owned();
-                let mut contents = Vec::new();
-                io::Read::read_to_end(&mut entry, &mut contents).unwrap();
-                (path, String::from_utf8_lossy(&contents).into_owned())
-            })
-            .collect()
-    }
-
-    fn assert_no_key(entries: &[(String, String)]) {
-        for (path, text) in entries {
-            assert!(
-                !text.contains(TEST_KEY),
-                "{path} leaks the SteamGridDB API key"
-            );
-        }
-    }
-
-    #[test]
-    fn export_diagnostic_bundle_redacts_steamgriddb_api_key_in_settings() {
-        let settings =
-            format!("last_used_profile = \"daily\"\nsteamgriddb_api_key = \"{TEST_KEY}\"\n");
-        for redact_paths in [false, true] {
-            let entries = export_entries(&settings, redact_paths, Vec::new());
-            assert_no_key(&entries);
-            let (_, text) = entries
-                .iter()
-                .find(|(path, _)| path.ends_with("/settings.toml"))
-                .expect("settings.toml entry");
-            assert!(text.contains("steamgriddb_api_key = \"<redacted>\""));
-            assert!(text.contains("last_used_profile = \"daily\""));
-        }
-    }
-
-    #[test]
-    fn export_diagnostic_bundle_scrubs_key_from_malformed_settings_and_other_entries() {
-        // Unquoted value: the TOML parse error would otherwise quote this line.
-        let settings = format!("steamgriddb_api_key = {TEST_KEY}\n");
-        let extra_files = vec![DiagnosticBundleFile {
-            name: "ui.log".to_string(),
-            contents: format!("request failed for key {TEST_KEY}").into_bytes(),
-        }];
-
-        let entries = export_entries(&settings, false, extra_files);
-
-        assert_no_key(&entries);
-        let (_, ui_log) = entries
-            .iter()
-            .find(|(path, _)| path.ends_with("/app/ui.log"))
-            .expect("ui.log entry");
-        assert_eq!(ui_log, "request failed for key <redacted>");
-    }
-
-    #[test]
-    fn bundle_file_name_validation_rejects_unsafe_names() {
-        for bad in ["", ".", "..", "a/b", "a\\b", "../x", "nul\0"] {
-            assert!(!is_valid_bundle_file_name(bad), "{bad:?} must be rejected");
-        }
-        assert!(is_valid_bundle_file_name("ui.log"));
-        assert!(is_valid_bundle_file_name("..hidden"));
-    }
-
-    #[test]
-    fn export_rejects_invalid_extra_file_name_without_writing() {
-        let temp = tempdir().unwrap();
-        let output_dir = temp.path().join("output");
-        let options = DiagnosticBundleOptions {
-            output_dir: Some(output_dir.clone()),
-            extra_files: vec![DiagnosticBundleFile {
-                name: "../escape".to_string(),
-                contents: Vec::new(),
-            }],
-            ..Default::default()
-        };
-        let profile_store = ProfileStore::with_base_path(temp.path().join("profiles"));
-        let settings_store = SettingsStore::with_base_path(temp.path().join("settings"));
-        assert!(export_diagnostic_bundle(&profile_store, &settings_store, &options).is_err());
-        assert!(!output_dir.exists());
-    }
-}
+mod leak_tests;
+#[cfg(test)]
+mod tests;
