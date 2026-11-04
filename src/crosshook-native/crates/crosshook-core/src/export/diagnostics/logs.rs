@@ -94,12 +94,20 @@ fn read_file_tail_bytes(path: &Path, max_bytes: u64) -> Option<Vec<u8>> {
     let metadata = file.metadata().ok()?;
     let size = metadata.len();
 
-    if size > max_bytes {
+    let truncated = size > max_bytes;
+    if truncated {
         file.seek(SeekFrom::End(-(max_bytes as i64))).ok()?;
     }
 
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer).ok()?;
+    // Start a truncated tail at a line boundary: a cut-off first line could hold a
+    // fragment of a secret that the bundle scrubber cannot recognise.
+    if truncated {
+        if let Some(newline) = buffer.iter().position(|&byte| byte == b'\n') {
+            buffer.drain(..=newline);
+        }
+    }
     Some(buffer)
 }
 
@@ -161,5 +169,18 @@ mod tests {
 
         let tail = read_file_tail_bytes(&path, MAX_LOG_FILE_BYTES).unwrap();
         assert_eq!(tail.len(), MAX_LOG_FILE_BYTES as usize);
+    }
+
+    #[test]
+    fn read_file_tail_bytes_starts_truncated_tail_at_line_boundary() {
+        let temp = tempdir().unwrap();
+        let path = temp.path().join("large.log");
+        let mut data = vec![b'x'; 2_000_000];
+        data.extend_from_slice(b"\nlast line\n");
+        fs::write(&path, &data).unwrap();
+
+        let tail = read_file_tail_bytes(&path, MAX_LOG_FILE_BYTES).unwrap();
+
+        assert_eq!(tail, b"last line\n");
     }
 }

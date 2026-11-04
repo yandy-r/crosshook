@@ -167,11 +167,14 @@ pub fn export_diagnostic_bundle(
         source,
     })?;
 
+    // Read settings once so the scrubber and the bundled copy see the same contents.
+    let settings_content = fs::read_to_string(settings_store.settings_path()).ok();
+
     let encoder = GzEncoder::new(archive_file, Compression::default());
     let mut bundle = BundleWriter {
         tar: Builder::new(encoder),
         prefix,
-        scrubber: SecretScrubber::from_settings(settings_store),
+        scrubber: SecretScrubber::from_settings_content(settings_content.as_deref().unwrap_or("")),
     };
 
     // -- Collect and add each section --
@@ -195,7 +198,7 @@ pub fn export_diagnostic_bundle(
     bundle.append_text("steam-diagnostics.txt", &steam_diag_text)?;
     bundle.append_text("proton-installs.json", &proton_installs_json)?;
 
-    let settings_text = collect_settings(settings_store, options.redact_paths);
+    let settings_text = collect_settings(settings_content.as_deref(), options.redact_paths);
     bundle.append_text("settings.toml", &settings_text)?;
 
     let profiles = collect_profiles(profile_store, options.redact_paths);
@@ -285,7 +288,7 @@ impl<W: io::Write> BundleWriter<W> {
         header.set_cksum();
 
         self.tar
-            .append_data(&mut header, &full_path, data.as_slice())
+            .append_data(&mut header, &full_path, data.as_ref())
             .map_err(|error| DiagnosticBundleError::Archive(error.to_string()))
     }
 }

@@ -709,6 +709,7 @@ dependencies = [
  "getrandom 0.4.2",
  "hmac",
  "infer",
+ "memchr",
  "nix",
  "quick-xml 0.40.1",
  "reqwest",
