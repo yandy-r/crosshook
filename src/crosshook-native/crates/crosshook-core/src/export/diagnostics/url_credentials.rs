@@ -87,13 +87,18 @@ fn credential(userinfo: &str) -> &str {
         .map_or(userinfo, |(_, password)| password)
 }
 
-/// Strings to scrub for one userinfo: `userinfo@` as a whole and its
-/// credential, each also in percent-decoded form when that differs.
+/// Strings to scrub for one userinfo: `userinfo@` as a whole, its credential,
+/// and its user name when a password follows it, each also in
+/// percent-decoded form when that differs.
 pub(super) fn userinfo_secrets(userinfo: &str) -> Vec<String> {
-    let mut secrets = vec![format!("{userinfo}@"), credential(userinfo).to_string()];
-    if let Some(decoded) = percent_decode(userinfo) {
-        secrets.push(format!("{decoded}@"));
-        secrets.push(credential(&decoded).to_string());
+    let mut secrets = Vec::new();
+    let decoded = percent_decode(userinfo);
+    for form in std::iter::once(userinfo).chain(decoded.as_deref()) {
+        secrets.push(format!("{form}@"));
+        secrets.push(credential(form).to_string());
+        if let Some((user, _)) = form.split_once(':') {
+            secrets.push(user.to_string());
+        }
     }
     secrets
 }
@@ -190,12 +195,22 @@ mod tests {
     }
 
     #[test]
-    fn userinfo_secrets_cover_whole_userinfo_credential_and_decoded_forms() {
-        assert_eq!(userinfo_secrets("user:pass"), ["user:pass@", "pass"]);
+    fn userinfo_secrets_cover_whole_userinfo_credential_user_and_decoded_forms() {
+        assert_eq!(
+            userinfo_secrets("user:pass"),
+            ["user:pass@", "pass", "user"]
+        );
         assert_eq!(userinfo_secrets("token"), ["token@", "token"]);
         assert_eq!(
-            userinfo_secrets("u:p%40ss%zz"),
-            ["u:p%40ss%zz@", "p%40ss%zz", "u:p@ss%zz@", "p@ss%zz"]
+            userinfo_secrets("u%41:p%40ss%zz"),
+            [
+                "u%41:p%40ss%zz@",
+                "p%40ss%zz",
+                "u%41",
+                "uA:p@ss%zz@",
+                "p@ss%zz",
+                "uA"
+            ]
         );
     }
 

@@ -197,15 +197,66 @@ fn health_summary_hides_env_secrets_of_profiles_that_fail_to_load() {
                 "short.toml",
                 "[launch.custom_env_vars]\nDB_PASSWORD = 7654321\n",
             ),
+            // The parse error points at the line holding the secret.
+            (
+                "triple.toml",
+                "[launch.custom_env_vars]\nAPI_TOKEN = \"\"\"tripleSecret0123\"\"\" x\n",
+            ),
+            (
+                "escaped.toml",
+                "[launch.custom_env_vars]\nAPI_TOKEN = \"esc\\\"apedSecret0123\" x\n",
+            ),
         ],
         "",
     );
 
-    for secret in ["inlineSecret0123", "arraySecret0123", "7654321"] {
+    for secret in [
+        "inlineSecret0123",
+        "arraySecret0123",
+        "7654321",
+        "tripleSecret0123",
+        "apedSecret0123",
+    ] {
         assert_absent(&entries, secret);
     }
+    let health: serde_json::Value =
+        serde_json::from_str(entry(&entries, "/health-summary.json")).unwrap();
+    let messages: Vec<&str> = health["profiles"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|report| report["issues"][0]["message"].as_str().unwrap())
+        .collect();
+    assert_eq!(messages.len(), 5, "{health}");
+    for message in messages {
+        assert!(
+            message.starts_with("Profile could not be loaded: TOML parse error at line "),
+            "{message}"
+        );
+        assert!(!message.contains('\n'), "{message}");
+    }
+}
+
+#[test]
+fn short_profile_secrets_do_not_mangle_health_messages() {
+    let entries = export_profiles(
+        &[(
+            "short.toml",
+            "[game]\nname = \"Game 1\"\nexecutable_path = \"/games/v1.1/game1.exe\"\n\
+             [launch.custom_env_vars]\nDB_PASSWORD = \"1\"\nSDL_KEYBOARD_GRAB = \"1\"\n",
+        )],
+        "",
+    );
+
     let health = entry(&entries, "/health-summary.json");
-    assert!(health.contains("<redacted>"), "{health}");
+    assert!(health.contains("/games/v1.1/game1.exe"), "{health}");
+    assert!(!health.contains("<redacted>"), "{health}");
+    let profile = entry(&entries, "/profiles/short.toml");
+    assert!(
+        profile.contains("DB_PASSWORD = \"<redacted>\""),
+        "{profile}"
+    );
+    assert!(profile.contains("SDL_KEYBOARD_GRAB = \"1\""), "{profile}");
 }
 
 #[test]

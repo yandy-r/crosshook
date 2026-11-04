@@ -20,9 +20,8 @@ const UNPARSEABLE_PROFILE: &str = "(profile file could not be parsed; contents o
 pub(super) struct CollectedProfiles {
     /// `(name, sanitized TOML)` pairs.
     pub(super) entries: Vec<(String, String)>,
-    /// `(name, credential values removed from that profile)`, for the bundle
-    /// scrubber and the per-profile health-summary pass.
-    pub(super) secrets: Vec<(String, Vec<String>)>,
+    /// Credential values removed from any profile, for the bundle scrubber.
+    pub(super) secrets: Vec<String>,
     /// Names skipped because they are the settings or recent-files TOML.
     pub(super) excluded_names: Vec<String>,
 }
@@ -53,11 +52,7 @@ pub(super) fn collect_profiles(
         let Ok(content) = fs::read_to_string(&path) else {
             continue;
         };
-        let mut secrets = Vec::new();
-        let content = sanitize_profile(&content, &mut secrets);
-        if !secrets.is_empty() {
-            collected.secrets.push((name.clone(), secrets));
-        }
+        let content = sanitize_profile(&content, &mut collected.secrets);
         let content = if redact_paths {
             redact_home_paths(&content)
         } else {
@@ -66,21 +61,6 @@ pub(super) fn collect_profiles(
         collected.entries.push((name, content));
     }
     collected
-}
-
-impl CollectedProfiles {
-    /// Every credential value removed from any profile.
-    pub(super) fn all_secrets(&self) -> impl Iterator<Item = &String> {
-        self.secrets.iter().flat_map(|(_, secrets)| secrets)
-    }
-
-    /// Credential values removed from the profile `name`.
-    pub(super) fn secrets_of(&self, name: &str) -> &[String] {
-        self.secrets
-            .iter()
-            .find(|(profile, _)| profile == name)
-            .map_or(&[], |(_, secrets)| secrets)
-    }
 }
 
 /// `(st_dev, st_ino)` of the file at `path`, following symlinks.

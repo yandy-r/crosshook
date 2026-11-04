@@ -56,8 +56,8 @@ pub struct DiagnosticBundleOptions {
     /// [`DIAGNOSTIC_BUNDLE_EXTRA_FILES_DIR`] subdirectory. Each name must pass
     /// [`is_valid_bundle_file_name`]; contents are archived verbatim.
     pub extra_files: Vec<DiagnosticBundleFile>,
-    /// Recent-files TOML path. Like the settings file, it is never exported as
-    /// a profile when it sits in the profiles directory.
+    /// Recent-files TOML path. When `Some`, that file is never exported as a
+    /// profile if it sits in the profiles directory, like the settings file.
     pub recent_files_path: Option<PathBuf>,
 }
 
@@ -187,7 +187,7 @@ pub fn export_diagnostic_bundle(
     let scrubber = SecretScrubber::new(
         settings_secrets(settings_content.as_deref().unwrap_or(""))
             .into_iter()
-            .chain(profiles.all_secrets().cloned()),
+            .chain(profiles.secrets.iter().cloned()),
     );
     let encoder = GzEncoder::new(archive_file, Compression::default());
     let mut bundle = BundleWriter {

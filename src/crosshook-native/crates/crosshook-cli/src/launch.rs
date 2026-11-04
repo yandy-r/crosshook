@@ -259,8 +259,15 @@ fn validate_explicit_helper(helper: &Path) -> Result<(), CliError> {
 }
 
 fn launch_log_dir() -> PathBuf {
-    std::env::var_os("XDG_RUNTIME_DIR")
+    launch_log_dir_for(std::env::var_os("XDG_RUNTIME_DIR"))
+}
+
+/// Launch log directory under `runtime_dir`, or under `/tmp` when it is unset,
+/// empty, or relative (the diagnostic bundle collector applies the same rule).
+fn launch_log_dir_for(runtime_dir: Option<std::ffi::OsString>) -> PathBuf {
+    runtime_dir
         .map(PathBuf::from)
+        .filter(|dir| dir.is_absolute())
         .unwrap_or_else(|| PathBuf::from("/tmp"))
         .join("crosshook-logs")
 }
@@ -346,6 +353,20 @@ mod tests {
         assert_eq!(
             output_loss_notice(&LogBatch::Lines(vec!["x".into()]), Path::new("/tmp/l.log")),
             None
+        );
+    }
+
+    #[test]
+    fn launch_log_dir_falls_back_to_tmp_without_absolute_runtime_dir() {
+        for runtime_dir in [None, Some("".into()), Some("relative/run".into())] {
+            assert_eq!(
+                launch_log_dir_for(runtime_dir),
+                Path::new("/tmp/crosshook-logs")
+            );
+        }
+        assert_eq!(
+            launch_log_dir_for(Some("/run/user/1000".into())),
+            Path::new("/run/user/1000/crosshook-logs")
         );
     }
 }

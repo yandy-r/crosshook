@@ -320,7 +320,7 @@ Access the Health Dashboard from the main navigation tabs.
 
 If you run into issues, CrossHook can generate a diagnostic bundle containing system information, application state, and relevant logs. Use this when reporting bugs or troubleshooting launch problems. The export is available from the Settings panel.
 
-Before writing the bundle, CrossHook removes credentials it can recognize: the SteamGridDB API key, usernames and passwords inside URLs (such as community tap URLs), and the values of custom environment variables whose names contain `KEY`, `TOKEN`, `SECRET`, `PASSWORD`, or `PASSWD`. Launch logs are included only when you own them and their log directory cannot be written by other users. This covers both the app's `/tmp/crosshook-logs` and the CLI's `$XDG_RUNTIME_DIR/crosshook-logs`.
+Before writing the bundle, CrossHook removes credentials it can recognize: the SteamGridDB API key, usernames and passwords inside URLs (such as community tap URLs), and the values of custom environment variables whose names contain `TOKEN`, `SECRET`, `PASSWORD`, or `PASSWD`, or have `KEY` as a whole `_`-separated word (`API_KEY` and `KEY_FILE` are masked; `HOTKEY` and `SDL_KEYBOARD_GRAB` are not). Launch logs are included only when you own them and their log directory cannot be written by other users. This covers both the app's `/tmp/crosshook-logs` and the CLI's `$XDG_RUNTIME_DIR/crosshook-logs`.
 
 ## Using the CLI
 

@@ -24,7 +24,12 @@ const ENV_VAR_TABLE: &str = "custom_env_vars";
 /// case-insensitive) are treated as credentials. `PASSWD` is the common
 /// abbreviation of `PASSWORD`; broader parts such as `AUTH` are left out
 /// because they also match ordinary names (`AUTHOR`).
-const SECRET_ENV_NAME_PARTS: &[&str] = &["KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD"];
+const SECRET_ENV_NAME_PARTS: &[&str] = &["TOKEN", "SECRET", "PASSWORD", "PASSWD"];
+
+/// Environment variable names with one of these as a whole `_`-separated
+/// word (ASCII case-insensitive) are treated as credentials: `API_KEY` and
+/// `KEY_FILE` are, while `HOTKEY` and `SDL_KEYBOARD_GRAB` are not.
+const SECRET_ENV_NAME_WORDS: &[&str] = &["KEY"];
 
 /// Marker written in place of a redacted credential value.
 pub(super) const REDACTED_MARKER: &str = "<redacted>";
@@ -47,6 +52,9 @@ pub(super) fn redact_secret_settings(settings: &mut toml::Table) {
 pub(super) fn is_secret_env_name(name: &str) -> bool {
     let name = name.to_ascii_uppercase();
     SECRET_ENV_NAME_PARTS.iter().any(|part| name.contains(part))
+        || name
+            .split('_')
+            .any(|word| SECRET_ENV_NAME_WORDS.contains(&word))
 }
 
 /// Redacts secret-named entries of every `custom_env_vars` table at any depth
@@ -166,22 +174,9 @@ impl SecretScrubber {
     /// Builds a free-text scrubber for `values`, ignoring those shorter than
     /// [`MIN_SCRUB_LEN`].
     pub(super) fn new(values: impl IntoIterator<Item = String>) -> Self {
-        Self::with_exact(values, std::iter::empty())
-    }
-
-    /// Like [`SecretScrubber::new`], but also replaces every non-empty `exact`
-    /// value whatever its length. For text known to quote parsed field
-    /// values, such as profile load errors: there a short credential is
-    /// still a credential, and over-redacting a diagnostic message only
-    /// costs readability.
-    pub(super) fn with_exact(
-        values: impl IntoIterator<Item = String>,
-        exact: impl IntoIterator<Item = String>,
-    ) -> Self {
         let mut values: Vec<String> = values
             .into_iter()
             .filter(|value| value.len() >= MIN_SCRUB_LEN)
-            .chain(exact.into_iter().filter(|value| !value.is_empty()))
             .collect();
         values.sort_by(|a, b| {
             Reverse(a.len())
@@ -245,33 +240,113 @@ pub(super) fn scan_secret_lines(
     values
 }
 
-/// Takes a quoted value up to its closing quote (or the line end when
-/// unterminated), or an unquoted value up to whitespace or a comment, and
-/// also its prefix before an inline-table `,` or `}`.
+/// Values of one raw TOML value text: each element of an array, the body of
+/// a quoted string, or an unquoted value (see [`push_value`]).
 fn extract_values(raw: &str) -> Vec<String> {
-    let values = match raw.chars().next() {
-        Some(quote @ ('"' | '\'')) => {
-            let rest = &raw[1..];
-            vec![rest.find(quote).map_or(rest, |end| &rest[..end])]
-        }
-        _ => {
-            let value = raw
-                .split(|c: char| c.is_whitespace() || c == '#')
-                .next()
-                .unwrap_or("");
-            let inline = value.split([',', '}']).next().unwrap_or("");
-            if inline == value {
-                vec![value]
-            } else {
-                vec![value, inline]
-            }
-        }
-    };
+    let mut values = Vec::new();
+    match raw.strip_prefix('[') {
+        Some(items) => push_array_values(items, &mut values),
+        None => push_value(raw, &mut values),
+    }
+    values.retain(|value| !value.is_empty());
     values
+}
+
+/// Pushes every element of the array whose text follows its opening `[`, up
+/// to the closing `]`, a comment, or the line end.
+fn push_array_values(mut rest: &str, values: &mut Vec<String>) {
+    loop {
+        rest = rest.trim_start_matches(|c: char| c.is_whitespace() || c == ',' || c == '[');
+        if rest.is_empty() || rest.starts_with([']', '}', '#']) {
+            return;
+        }
+        rest = match split_quoted(rest) {
+            Some((spellings, tail)) => {
+                values.extend(spellings);
+                tail
+            }
+            None => {
+                let end = rest
+                    .find(|c: char| c.is_whitespace() || matches!(c, ',' | ']' | '}' | '#'))
+                    .unwrap_or(rest.len());
+                values.push(rest[..end].to_string());
+                &rest[end..]
+            }
+        };
+    }
+}
+
+/// Pushes a quoted value's body, or an unquoted value up to whitespace or a
+/// comment and also its prefix before an inline-table `,` or `}`.
+fn push_value(raw: &str, values: &mut Vec<String>) {
+    if let Some((spellings, _)) = split_quoted(raw) {
+        values.extend(spellings);
+        return;
+    }
+    let value = raw
+        .split(|c: char| c.is_whitespace() || c == '#')
+        .next()
+        .unwrap_or("");
+    values.push(value.to_string());
+    let inline = value.split([',', '}']).next().unwrap_or("");
+    if inline != value {
+        values.push(inline.to_string());
+    }
+}
+
+/// Splits a quoted string (basic or literal, single- or multi-line) off the
+/// front of `text`: returns its body up to the closing delimiter (or the line
+/// end when unterminated), followed by the body with `\"` and `\\` resolved
+/// when that differs, and the text after the delimiter. `None` when `text`
+/// does not start with a quote.
+fn split_quoted(text: &str) -> Option<(Vec<String>, &str)> {
+    let delimiter = ["\"\"\"", "'''", "\"", "'"]
         .into_iter()
-        .filter(|value| !value.is_empty())
-        .map(str::to_string)
-        .collect()
+        .find(|delimiter| text.starts_with(delimiter))?;
+    let body = &text[delimiter.len()..];
+    let basic = delimiter.starts_with('"');
+    let mut end = 0;
+    while end < body.len() && !body[end..].starts_with(delimiter) {
+        // A basic string's `\` escapes the next character, which cannot close it.
+        let step = if basic && body[end..].starts_with('\\') {
+            1 + body[end + 1..].chars().next().map_or(0, char::len_utf8)
+        } else {
+            body[end..].chars().next().map_or(1, char::len_utf8)
+        };
+        end += step;
+    }
+    let (body, tail) = body.split_at(end.min(body.len()));
+    let tail = tail.get(delimiter.len()..).unwrap_or("");
+    let mut spellings = vec![body.to_string()];
+    if basic {
+        spellings.extend(unescape_quotes(body));
+    }
+    Some((spellings, tail))
+}
+
+/// `body` with the `\"` and `\\` escapes resolved; `None` when unchanged.
+/// Other escapes are kept verbatim.
+fn unescape_quotes(body: &str) -> Option<String> {
+    if !body.contains('\\') {
+        return None;
+    }
+    let mut out = String::with_capacity(body.len());
+    let mut chars = body.chars();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some(escaped @ ('"' | '\\')) => out.push(escaped),
+            Some(other) => {
+                out.push('\\');
+                out.push(other);
+            }
+            None => out.push('\\'),
+        }
+    }
+    (out != body).then_some(out)
 }
 
 /// Replaces every match of `finder` in `haystack`; `None` when there is none.

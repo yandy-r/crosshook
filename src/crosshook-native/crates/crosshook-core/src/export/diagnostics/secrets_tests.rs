@@ -93,19 +93,57 @@ fn settings_secrets_include_tap_url_userinfo() {
 }
 
 #[test]
-fn secret_env_names_match_case_insensitive_parts() {
+fn secret_env_names_match_key_as_a_word_and_other_parts_anywhere() {
     for name in [
+        "API_KEY",
+        "KEY_FILE",
+        "STEAM_API_KEY",
+        "key",
         "API_TOKEN",
         "my_password",
-        "SteamApiKey",
         "CLIENT_SECRET",
         "DB_PASSWD",
+        "GITHUBTOKEN",
     ] {
         assert!(is_secret_env_name(name), "{name}");
     }
-    for name in ["DXVK_ASYNC", "PROTON_LOG", "AUTHOR", "WINEDEBUG"] {
+    for name in [
+        "SDL_KEYBOARD_GRAB",
+        "HOTKEY",
+        "KEYMAP",
+        "DXVK_ASYNC",
+        "PROTON_LOG",
+        "AUTHOR",
+        "WINEDEBUG",
+    ] {
         assert!(!is_secret_env_name(name), "{name}");
     }
+}
+
+fn scan(line: &str) -> Vec<String> {
+    scan_secret_lines(line, |key| key == "K")
+}
+
+#[test]
+fn line_scan_reads_multiline_string_openers_and_escapes() {
+    assert_eq!(scan("K = \"\"\"triple secret\"\"\" x"), ["triple secret"]);
+    assert_eq!(scan("K = \"\"\"unterminated"), ["unterminated"]);
+    assert_eq!(scan("K = '''lit'eral''' x"), ["lit'eral"]);
+    assert_eq!(
+        scan("K = \"es\\\"cape\\\\d\" x"),
+        ["es\\\"cape\\\\d", "es\"cape\\d"]
+    );
+    assert_eq!(scan("K = 'no\\escape' x"), ["no\\escape"]);
+}
+
+#[test]
+fn line_scan_splits_array_elements() {
+    assert_eq!(
+        scan("K = [ \"first\", 'sec ond', bare , \"q\\\"x\" ] # c"),
+        ["first", "sec ond", "bare", "q\\\"x", "q\"x"]
+    );
+    assert_eq!(scan("K = [one,two]"), ["one", "two"]);
+    assert_eq!(scan("x = { K = val, other = 1 }"), ["val,", "val"]);
 }
 
 #[test]
