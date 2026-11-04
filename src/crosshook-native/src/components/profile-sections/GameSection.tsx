@@ -32,8 +32,10 @@ export function GameSection({ profile, onUpdateProfile, launchMethod }: GameSect
           onBrowse={async () => {
             const path =
               launchMethod === 'native'
-                ? await chooseFile('Select Linux Game Executable')
-                : await chooseFile('Select Game Executable', [{ name: 'Windows Executable', extensions: ['exe'] }]);
+                ? await chooseFile('Select Linux Game Executable', 'host')
+                : await chooseFile('Select Game Executable', 'host', [
+                    { name: 'Windows Executable', extensions: ['exe'] },
+                  ]);
 
             if (path) {
               onUpdateProfile((current) => updateGameExecutablePath(current, path));

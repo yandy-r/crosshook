@@ -70,7 +70,7 @@ export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps
       setImportExplainerOpen(true);
       return;
     }
-    const path = await chooseFile('Import collection preset', [
+    const path = await chooseFile('Import collection preset', 'sandbox', [
       { name: 'CrossHook collection preset', extensions: ['toml'] },
     ]);
     if (path === null) {

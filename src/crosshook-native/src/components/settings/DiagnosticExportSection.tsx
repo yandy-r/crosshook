@@ -15,7 +15,7 @@ export function DiagnosticExportSection() {
   const [error, setError] = useState<string | null>(null);
 
   async function handleBrowse() {
-    const selected = await chooseDirectory('Choose export location');
+    const selected = await chooseDirectory('Choose export location', 'sandbox');
     if (selected) {
       setCustomDir(selected);
     }

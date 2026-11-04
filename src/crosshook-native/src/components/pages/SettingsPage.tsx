@@ -29,7 +29,7 @@ export function SettingsPage() {
   );
 
   const handleBrowseProfilesDirectory = useCallback(async () => {
-    const dir = await chooseDirectory('Select profiles directory');
+    const dir = await chooseDirectory('Select profiles directory', 'sandbox');
     if (dir?.trim()) {
       await persistSettings({ profiles_directory: dir.trim() });
     }

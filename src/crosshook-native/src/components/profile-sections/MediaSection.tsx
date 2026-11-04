@@ -51,7 +51,7 @@ export function MediaSection({ profile, onUpdateProfile, launchMethod }: MediaSe
 
   const handleBrowse = async (artType: ArtSlotType) => {
     const fieldKey = FIELD_KEY_MAP[artType];
-    const path = await chooseFile(`Select ${SLOT_CONFIG[artType].label} Art`, [
+    const path = await chooseFile(`Select ${SLOT_CONFIG[artType].label} Art`, 'sandbox', [
       { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] },
     ]);
     if (!path) return;
@@ -150,7 +150,7 @@ export function MediaSection({ profile, onUpdateProfile, launchMethod }: MediaSe
               placeholder="/path/to/icon.png"
               browseLabel="Browse"
               onBrowse={async () => {
-                const path = await chooseFile('Select Launcher Icon', [
+                const path = await chooseFile('Select Launcher Icon', 'host', [
                   { name: 'Images', extensions: ['png', 'jpg', 'jpeg'] },
                 ]);
                 if (path) {

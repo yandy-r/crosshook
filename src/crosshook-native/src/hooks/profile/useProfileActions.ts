@@ -191,7 +191,7 @@ export function useProfileActions({ setPendingLauncherReExport }: UseProfileActi
     setCommunityExportError(null);
     setCommunityExportSuccess(null);
 
-    const outputPath = await chooseSaveFile('Export community profile', {
+    const outputPath = await chooseSaveFile('Export community profile', 'sandbox', {
       defaultPath: suggestedCommunityExportFilename(nameOnDisk),
       filters: [{ name: 'JSON', extensions: ['json'] }],
     });

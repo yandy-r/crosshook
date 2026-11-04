@@ -10,7 +10,9 @@ use crate::settings::expand_path_with_tilde;
 
 use super::parse::{LutrisGameConfig, LutrisGameSection, LutrisSystemSection, LutrisWineSection};
 use super::paths::PgaGame;
-use super::runner::{classify_runner, resolve_runner_path, RunnerKind, RunnerResolution};
+use super::runner::{
+    classify_runner, resolve_runner_path, runner_host_path, RunnerKind, RunnerResolution,
+};
 
 #[derive(Debug, Clone)]
 pub struct MappedLutrisInput {
@@ -75,7 +77,7 @@ pub fn map_lutris_to_profile(input: MappedLutrisInput) -> LutrisMapResult {
     let proton_path = match wine.and_then(|w| w.version.as_deref()) {
         Some(version) if !version.trim().is_empty() => {
             match resolve_runner_path(&input.lutris_root, version) {
-                RunnerResolution::Installed(path) => path.display().to_string(),
+                RunnerResolution::Installed(path) => runner_host_path(&path),
                 RunnerResolution::Missing(version) => {
                     warnings.push(format!(
                         "Referenced runner '{version}' is not installed under Lutris runners/wine/."

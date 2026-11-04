@@ -54,7 +54,7 @@ export function ProtonPathField(props: {
             type="button"
             className="crosshook-button crosshook-button--secondary"
             onClick={async () => {
-              const path = await chooseFile('Select Proton Executable');
+              const path = await chooseFile('Select Proton Executable', 'host');
               if (path) {
                 props.onChange(path);
               }

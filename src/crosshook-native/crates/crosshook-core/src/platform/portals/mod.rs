@@ -10,6 +10,11 @@
 //! - [`background`] — `org.freedesktop.portal.Background.RequestBackground`
 //!   to keep CrossHook running (and its `gamescope_watchdog` alive) while
 //!   the window is minimized during long game sessions.
+//! - `documents` — `org.freedesktop.portal.Documents.GetHostPaths` (crate
+//!   internal) mapping a document-portal pick (`/run/user/<uid>/doc/…` or
+//!   `/run/flatpak/doc/…`) back to its host path when the
+//!   `user.document-portal.host-path` xattr is missing. Read-only, no
+//!   permission prompt, 2 s timeout.
 //!
 //! Pure decision helpers (`resolve_backend`, `background_supported`) are
 //! unit-testable; the D-Bus entry points (`portal_available`,
@@ -17,4 +22,5 @@
 //! requiring a live session bus.
 
 pub mod background;
+pub(crate) mod documents;
 pub mod gamemode;

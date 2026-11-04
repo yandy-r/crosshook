@@ -100,7 +100,7 @@ export function RuntimeSection({
               placeholder="/home/user/.local/share/Steam/steamapps/compatdata/1245620"
               browseLabel="Browse"
               onBrowse={async () => {
-                const path = await chooseDirectory('Select Steam Prefix Directory');
+                const path = await chooseDirectory('Select Steam Prefix Directory', 'host');
 
                 if (path) {
                   onUpdateProfile((current) => ({
@@ -130,7 +130,7 @@ export function RuntimeSection({
             error={null}
             installsError={protonInstallsError}
             onBrowse={async () => {
-              const path = await chooseFile('Select Proton Executable');
+              const path = await chooseFile('Select Proton Executable', 'host');
 
               if (path) {
                 onUpdateProfile((current) => ({
@@ -188,7 +188,7 @@ export function RuntimeSection({
               placeholder="/path/to/prefix"
               browseLabel="Browse"
               onBrowse={async () => {
-                const path = await chooseDirectory('Select Proton Prefix Directory');
+                const path = await chooseDirectory('Select Proton Prefix Directory', 'host');
 
                 if (path) {
                   onUpdateProfile((current) => ({
@@ -257,7 +257,7 @@ export function RuntimeSection({
                 placeholder="Optional override"
                 browseLabel="Browse"
                 onBrowse={async () => {
-                  const path = await chooseDirectory('Select Working Directory');
+                  const path = await chooseDirectory('Select Working Directory', 'host');
 
                   if (path) {
                     onUpdateProfile((current) => ({
@@ -328,7 +328,7 @@ export function RuntimeSection({
             error={null}
             installsError={protonInstallsError}
             onBrowse={async () => {
-              const path = await chooseFile('Select Proton Executable');
+              const path = await chooseFile('Select Proton Executable', 'host');
 
               if (path) {
                 onUpdateProfile((current) => ({
@@ -358,7 +358,7 @@ export function RuntimeSection({
               placeholder="Optional override"
               browseLabel="Browse"
               onBrowse={async () => {
-                const path = await chooseDirectory('Select Working Directory');
+                const path = await chooseDirectory('Select Working Directory', 'host');
 
                 if (path) {
                   onUpdateProfile((current) => ({
