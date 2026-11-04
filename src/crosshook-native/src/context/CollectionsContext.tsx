@@ -299,7 +299,7 @@ function useCollectionsState(): UseCollectionsResult {
     ): Promise<'cancelled' | { ok: true } | { ok: false; error: string }> => {
       const path =
         options?.outputPathOverride ??
-        (await chooseSaveFile('Export collection preset', {
+        (await chooseSaveFile('Export collection preset', 'sandbox', {
           defaultPath: 'collection.crosshook-collection.toml',
           filters: [{ name: 'CrossHook collection preset', extensions: ['toml'] }],
         }));

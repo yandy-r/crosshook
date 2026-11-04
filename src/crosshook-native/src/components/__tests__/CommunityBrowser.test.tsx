@@ -2,11 +2,16 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CommunityTapSubscription, UseCommunityProfilesResult } from '@/hooks/useCommunityProfiles';
+import { chooseFile } from '@/utils/dialog';
 import { CommunityBrowser } from '../CommunityBrowser';
 
 interface TapManagementMockProps {
   onSync: () => void;
   onRemoveTap: (tap: CommunityTapSubscription) => void;
+}
+
+interface ProfilesSectionMockProps {
+  onImportFromFile: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -39,16 +44,26 @@ vi.mock('@/components/community/CommunityTapManagementSection', () => ({
 }));
 
 vi.mock('@/components/community/CommunityProfilesSection', () => ({
-  CommunityProfilesSection: () => <div>Profiles Section</div>,
+  CommunityProfilesSection: ({ onImportFromFile }: ProfilesSectionMockProps) => (
+    <div>
+      Profiles Section
+      <button type="button" onClick={onImportFromFile}>
+        Import profile file now
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock('@/components/CommunityImportWizardModal', () => ({
   default: () => null,
 }));
 
-vi.mock('@/lib/plugin-stubs/dialog', () => ({
-  open: vi.fn().mockResolvedValue(null),
+vi.mock('@/utils/dialog', () => ({
+  chooseDirectory: vi.fn().mockResolvedValue(null),
+  chooseFile: vi.fn().mockResolvedValue(null),
 }));
+
+const chooseFileMock = vi.mocked(chooseFile);
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -164,7 +179,25 @@ describe('CommunityBrowser', () => {
     render(<CommunityBrowser />);
 
     expect(screen.getByText(/Tap Management Section/)).toBeInTheDocument();
-    expect(screen.getByText('Profiles Section')).toBeInTheDocument();
+    expect(screen.getByText(/Profiles Section/)).toBeInTheDocument();
+  });
+
+  // D6: community profile JSON is read by CrossHook inside the sandbox, so the pick is sandbox-use.
+  it('picks a community profile file as sandbox-use and prepares the import from it', async () => {
+    const portalPath = '/run/user/1000/doc/abc123/profile.json';
+    const state = buildCommunityState();
+    useCommunityProfilesMock.mockReturnValue(state);
+    chooseFileMock.mockResolvedValueOnce(portalPath);
+    render(<CommunityBrowser />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Import profile file now' }));
+
+    await waitFor(() => {
+      expect(state.prepareCommunityImport).toHaveBeenCalledWith(portalPath);
+    });
+    expect(chooseFileMock).toHaveBeenCalledWith('Select Community Profile JSON', 'sandbox', [
+      { name: 'JSON', extensions: ['json'] },
+    ]);
   });
 
   // Mutations refresh the catalog so Browse stays in sync with the backend order

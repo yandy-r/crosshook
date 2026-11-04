@@ -65,7 +65,7 @@ export function PrefixDependenciesSection({ settings, onPersistSettings }: Prefi
             className="crosshook-button crosshook-button--secondary"
             onClick={() => {
               void (async () => {
-                const path = await chooseFile('Select winetricks or protontricks binary');
+                const path = await chooseFile('Select winetricks or protontricks binary', 'host');
                 if (path) void onPersistSettings({ protontricks_binary_path: path });
               })();
             }}

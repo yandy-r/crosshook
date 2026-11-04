@@ -32,7 +32,8 @@ crosshook-core/src/platform/
 └── portals/
     ├── mod.rs          (module root, documents scope and lists sub-portals)
     ├── gamemode.rs     (this ADR — §GameMode)
-    └── background.rs   (this ADR — §Background)
+    ├── background.rs   (this ADR — §Background)
+    └── documents.rs    (this ADR — §Documents, added for YAN-855)
 ```
 
 The former `platform.rs` moved into `platform/mod.rs` unchanged, which
@@ -225,6 +226,20 @@ This integrates cleanly with `crosshook-core/src/onboarding/capability.rs::check
 ### Error handling
 
 `BackgroundError::NotSandboxed` is the "I was called on native" sentinel; the setup closure treats it as a benign skip. `BackgroundError::PortalDenied` degrades to the `Degraded` capability state and logs once. `BackgroundError::DBusProtocol` is logged at `warn!` and retried at most once per process lifetime (the setup task may re-call after initial failure if a subsequent launch observes missing state).
+
+---
+
+## § Documents portal contract
+
+Added for YAN-855 (picked host path resolution). A file or folder picked through the native dialog can come back as a document-portal path: `/run/user/<uid>/doc/<doc_id>/<entry>[/rest]`, or `/run/flatpak/doc/<doc_id>/<entry>[/rest]` (the mount Flatpak binds into every sandbox, which newer xdg-desktop-portal releases return). Host-executed processes cannot open those paths.
+
+- **Interface**: `org.freedesktop.portal.Documents` at `/org/freedesktop/portal/documents`, method `GetHostPaths(as doc_ids) -> a{say}`. This needs interface version 5, which ships with xdg-desktop-portal 1.19 (as does the `user.document-portal.host-path` xattr).
+- **Owner**: `platform/portals/documents.rs` holds the crate-internal `DocumentsPortal` trait and the session-bus `ZbusDocumentsPortal`. Path parsing and validation stay in `platform/picked_path.rs`; the shared document-portal path parser lives in `platform/detect.rs`.
+- **Read-only, no prompt**: `GetHostPaths` only looks up documents the app already holds. It grants nothing and never shows a permission dialog.
+- **Order**: the `user.document-portal.host-path` xattr is read first (on a blocking thread, 1 s timeout). The portal is asked only when the xattr is missing or invalid.
+- **Nested entries**: xdg-desktop-portal 1.19.0–1.19.2 report the exported entry's host path in the xattr of every inode inside a directory export. For a pick below the entry (`rest` non-empty), the xattr value is used as-is only when it already ends with the `rest` components (component-wise `Path::ends_with`); otherwise `rest` is appended to it. `GetHostPaths` always returns the entry's path, so `rest` is always appended to its reply. `normalize_flatpak_host_path` applies the same xattr rule.
+- **Timeout**: the whole round trip (connect, proxy, call) is bounded by 2 s, so a hung portal cannot freeze a pick.
+- **Errors**: failures map to typed `HostPathError` variants. A failed or timed-out call is `DocumentPortalUnavailable` and is logged at `warn!` with the document id only (no full path). A reply without the document id is `UnresolvedDocumentPortalPath`. A reply that is not an absolute, NUL-free UTF-8 path (after stripping one trailing NUL) is `InvalidPortalReply`. A host-use pick is never returned as a sandbox-only path.
 
 ---
 

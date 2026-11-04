@@ -12,6 +12,7 @@ mod dirs;
 mod env;
 mod gateway;
 mod host_fs;
+mod picked_path;
 mod steam_deck;
 #[doc(hidden)]
 pub mod trace;
@@ -30,6 +31,9 @@ pub use host_fs::{
     normalized_path_exists_on_host, normalized_path_is_dir, normalized_path_is_dir_on_host,
     normalized_path_is_executable_file, normalized_path_is_executable_file_on_host,
     normalized_path_is_file, normalized_path_is_file_on_host,
+};
+pub use picked_path::{
+    resolve_picked_host_path_default, resolve_picked_sandbox_path, HostPathError, PickedPathUse,
 };
 pub use steam_deck::is_steam_deck;
 pub use xdg::override_xdg_for_flatpak_host_access;

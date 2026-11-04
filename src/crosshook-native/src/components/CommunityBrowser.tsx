@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { open } from '@/lib/plugin-stubs/dialog';
 import { useCommunityCatalog } from '../hooks/useCommunityCatalog';
 import {
   type CommunityImportPreview,
@@ -9,7 +8,7 @@ import {
 } from '../hooks/useCommunityProfiles';
 import { type LutrisImportEntry, type LutrisImportPreview, useLutrisImport } from '../hooks/useLutrisImport';
 import type { CatalogEntry, CatalogFacets } from '../types/discovery';
-import { chooseDirectory } from '../utils/dialog';
+import { chooseDirectory, chooseFile } from '../utils/dialog';
 import CommunityImportWizardModal from './CommunityImportWizardModal';
 import { CommunityProfilesSection } from './community/CommunityProfilesSection';
 import { CommunityTapManagementSection } from './community/CommunityTapManagementSection';
@@ -29,21 +28,6 @@ const EMPTY_CATALOG_FACETS: CatalogFacets = {
   compatibilityBands: [],
   taps: [],
 };
-
-async function chooseCommunityProfileImport(): Promise<string | null> {
-  const result = await open({
-    directory: false,
-    multiple: false,
-    title: 'Select Community Profile JSON',
-    filters: [{ name: 'JSON', extensions: ['json'] }],
-  });
-
-  if (Array.isArray(result)) {
-    return result[0] ?? null;
-  }
-
-  return result ?? null;
-}
 
 export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRECTORY, state }: CommunityBrowserProps) {
   const [tapUrl, setTapUrl] = useState('');
@@ -123,7 +107,7 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
 
   async function handleImportFromFile() {
     setNotice(null);
-    const path = await chooseCommunityProfileImport();
+    const path = await chooseFile('Select Community Profile JSON', 'sandbox', [{ name: 'JSON', extensions: ['json'] }]);
     if (!path) {
       return;
     }
@@ -146,7 +130,7 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
       let preview = await prepareLutrisImport();
 
       if (!preview.lutris_root) {
-        const directory = await chooseDirectory('Select Lutris config directory');
+        const directory = await chooseDirectory('Select Lutris config directory', 'sandbox');
         if (!directory) {
           return;
         }

@@ -17,6 +17,7 @@ import type {
   PrefixStorageHistoryResponse,
   PrefixStorageScanResult,
 } from '../../../types/prefix-storage';
+import type { PickedPathUse } from '../../../utils/dialog';
 import type { OptimizationCatalogPayload, OptimizationEntry } from '../../../utils/optimization-catalog';
 import { getActiveFixture } from '../../fixture';
 import { getActiveToggles } from '../../toggles';
@@ -662,8 +663,12 @@ export function registerSystem(map: Map<string, Handler>): void {
   // --- path normalization ---
 
   map.set('normalize_host_path', async (args): Promise<string> => {
-    const { path } = args as { path: string };
-    // In dev mode, just return the path as-is (no Flatpak normalization needed)
+    const { path, pathUse } = args as { path: string; pathUse: PickedPathUse };
+    // Mirror the real command's Serde rejection of an unknown `pathUse` variant.
+    if (pathUse !== 'host' && pathUse !== 'sandbox') {
+      throw new Error(`[dev-mock] invalid pathUse: ${String(pathUse)}`);
+    }
+    // Browser dev mode has no Flatpak sandbox or document portal: return the path unchanged for either pathUse.
     return path;
   });
 }

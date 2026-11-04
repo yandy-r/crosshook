@@ -82,7 +82,7 @@ export function TrainerSection({
             placeholder="/path/to/trainer.exe"
             browseLabel="Browse"
             onBrowse={async () => {
-              const path = await chooseFile('Select Trainer Executable', [
+              const path = await chooseFile('Select Trainer Executable', 'host', [
                 { name: 'Windows Executable', extensions: ['exe'] },
               ]);
 

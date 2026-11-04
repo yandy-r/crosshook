@@ -37,8 +37,8 @@ export function InstallField(props: {
             onClick={async () => {
               const path =
                 props.browseMode === 'directory'
-                  ? await chooseDirectory(props.browseTitle ?? `Select ${props.label}`)
-                  : await chooseFile(props.browseTitle ?? `Select ${props.label}`, props.browseFilters);
+                  ? await chooseDirectory(props.browseTitle ?? `Select ${props.label}`, 'host')
+                  : await chooseFile(props.browseTitle ?? `Select ${props.label}`, 'host', props.browseFilters);
 
               if (path) {
                 props.onChange(path);
