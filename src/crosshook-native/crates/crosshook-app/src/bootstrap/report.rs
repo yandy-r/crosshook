@@ -89,6 +89,10 @@ pub struct DegradedStores {
     pub settings_unreadable: bool,
     /// Whether the log-file subscriber could not be installed.
     pub logging_unavailable: bool,
+    /// Whether neither the single-instance lock nor the session-bus name
+    /// guards this process (no usable runtime dir and no session bus), so a
+    /// second CrossHook could start alongside it.
+    pub instance_unguarded: bool,
 }
 
 /// Coarse state of one startup job, independent of its payload.

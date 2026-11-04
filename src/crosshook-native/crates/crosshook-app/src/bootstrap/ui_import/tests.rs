@@ -11,9 +11,10 @@ use rusqlite::{params, Connection};
 use tempfile::{tempdir, TempDir};
 
 use crate::bootstrap::{
-    BootstrapOptions, BootstrapStep, FlatpakMode, LoggingMode, PreRuntime, StepLog, StepOutcome,
-    StoreRoots, UmuRefresh,
+    BootstrapOptions, BootstrapStep, FlatpakMode, InstanceBus, LoggingMode, PreRuntime, StepLog,
+    StepOutcome, StoreRoots, UmuRefresh,
 };
+use crate::instance_lock::InstanceLockState;
 use crate::App;
 
 fn store_in(base: &std::path::Path) -> SettingsStore {
@@ -226,6 +227,7 @@ async fn bootstrap_explicit_roots_keeps_view_mode_none_and_step_list_unchanged()
         steps: steps_log,
         mode: FlatpakMode::Native,
         migration: None,
+        instance: InstanceLockState::Unavailable("test"),
     };
     let opts = BootstrapOptions::new()
         .with_runtime_handle(tokio::runtime::Handle::current())
@@ -235,6 +237,9 @@ async fn bootstrap_explicit_roots_keeps_view_mode_none_and_step_list_unchanged()
         })
         .with_logging(LoggingMode::Skip)
         .with_umu_refresh(UmuRefresh::Skip {
+            reason: "ui_import test",
+        })
+        .with_instance_bus(InstanceBus::Skip {
             reason: "ui_import test",
         });
 
@@ -254,11 +259,13 @@ async fn bootstrap_explicit_roots_keeps_view_mode_none_and_step_list_unchanged()
     assert_eq!(
         steps,
         vec![
+            BootstrapStep::InstanceLock,
             BootstrapStep::FlatpakGate,
             BootstrapStep::FlatpakMigration,
             BootstrapStep::LegacyAppIdMigration,
             BootstrapStep::EnvPolicy,
             BootstrapStep::Runtime,
+            BootstrapStep::InstanceBus,
             BootstrapStep::SettingsStore,
             BootstrapStep::Logging,
             BootstrapStep::DevelopmentScripts,

@@ -5,6 +5,8 @@
 //! order (externally preloaded libraries may already own threads; see
 //! [`pre_runtime`]):
 //!
+//! 0. Single-instance lock (contention returns
+//!    [`BootstrapError::AlreadyRunning`] before any migration)
 //! 1. Flatpak gate (+ XDG override in host-XDG shared mode)
 //! 2. First-run Flatpak migration (isolated mode only)
 //! 3. Legacy Tauri app-id migration
@@ -15,6 +17,8 @@
 //! everywhere. The returned [`PreRuntime`] token is consumed by
 //! `App::bootstrap`, which makes skipping Phase A a compile error.
 
+use std::ffi::OsStr;
+
 use serde::Serialize;
 
 use super::env_policy::{EnvPolicy, PreRuntimeEnv};
@@ -22,6 +26,7 @@ use super::error::BootstrapError;
 use super::host::{PreRuntimeHost, SystemHost};
 use super::report::FlatpakMigrationReport;
 use super::steps::{BootstrapStep, StepLog, StepOutcome};
+use crate::instance_lock::{InstanceLockAttempt, InstanceLockState, HANDOFF_ENV, HANDOFF_WAIT};
 use crosshook_core::platform::trace;
 
 /// Options for Phase A. `#[non_exhaustive]` so later options can be added
@@ -69,6 +74,7 @@ pub struct PreRuntime {
     pub(crate) steps: StepLog,
     pub(crate) mode: FlatpakMode,
     pub(crate) migration: Option<FlatpakMigrationReport>,
+    pub(crate) instance: InstanceLockState,
 }
 
 impl PreRuntime {
@@ -87,22 +93,35 @@ impl PreRuntime {
         self.migration.as_ref()
     }
 
+    /// Whether Phase A holds the single-instance lock.
+    pub fn holds_instance_lock(&self) -> bool {
+        matches!(self.instance, InstanceLockState::Held(_))
+    }
+
     /// Splits the token into the parts Phase B continues with.
-    pub(crate) fn into_parts(self) -> (StepLog, FlatpakMode, Option<FlatpakMigrationReport>) {
-        (self.steps, self.mode, self.migration)
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        StepLog,
+        FlatpakMode,
+        Option<FlatpakMigrationReport>,
+        InstanceLockState,
+    ) {
+        (self.steps, self.mode, self.migration, self.instance)
     }
 }
 
 /// Runs Phase A with the production system host.
 ///
-/// Phase A never refuses to start. When the process already has more than one
+/// Phase A refuses to start only when another CrossHook instance holds the
+/// single-instance lock: that returns [`BootstrapError::AlreadyRunning`]
+/// before the Flatpak gate or any migration runs, and the shell then
+/// activates the running instance. When the process already has more than one
 /// thread at entry (for example threads created by `LD_PRELOAD` libraries such
 /// as the Steam overlay), the condition is logged and the environment step is
 /// recorded as [`StepOutcome::Degraded`]; every step still runs, matching the
 /// behavior before the ordering contract existed. Migration failures are
 /// best-effort: logged, recorded as degraded, and never returned as `Err`.
-/// The `Result` return type is kept so future fatal pre-runtime failures do
-/// not change the signature.
 pub fn pre_runtime(opts: PreRuntimeOptions) -> Result<PreRuntime, BootstrapError> {
     let mut host = SystemHost::new();
     run_pre_runtime(opts, &mut host)
@@ -122,7 +141,8 @@ pub fn pre_runtime_with_host(
 #[cfg(feature = "test-seams")]
 #[doc(hidden)]
 /// Test seam: deliberately runs Phase A steps out of order
-/// (legacy app-id → gate → Flatpak migration → env policy). The shared
+/// (instance lock → legacy app-id → gate → Flatpak migration → env policy;
+/// the lock stays first). The shared
 /// order checker and the trace assertions must report this as a violation;
 /// used by the `bootstrap_ordering` harness to prove the checks are real.
 pub fn pre_runtime_misordered_with_host(
@@ -137,20 +157,18 @@ fn run_pre_runtime(
     host: &mut dyn PreRuntimeHost,
 ) -> Result<PreRuntime, BootstrapError> {
     let multi_threaded = note_entry_threads(host);
-
-    // SEAM(M1-12): instance lock acquires here (step 0)
-
     let mut log = StepLog::new();
-    // Production order: 1 -> 2 -> 3 -> 4. Swapping these calls must
+    // Production order: 0 -> 1 -> 2 -> 3 -> 4. Swapping these calls must
     // fail the unit order tests and the ordering harness.
+    let instance = step_instance_lock(host, &mut log)?;
     let mode = step_flatpak_gate(host, &mut log);
     let migration = step_flatpak_migration(host, mode, &mut log);
     step_legacy_app_id(host, &mut log);
     step_env_policy(opts.env_policy.as_deref(), host, multi_threaded, &mut log);
-    finish_pre_runtime(log, mode, migration)
+    finish_pre_runtime(log, mode, migration, instance)
 }
 
-/// Deliberate harness order: 3 -> 1 -> 2 -> 4. Compiled only for the
+/// Deliberate harness order: 0 -> 3 -> 1 -> 2 -> 4. Compiled only for the
 /// ordering seam; production startup has no misordered path.
 #[cfg(feature = "test-seams")]
 fn run_pre_runtime_misordered(
@@ -159,11 +177,12 @@ fn run_pre_runtime_misordered(
 ) -> Result<PreRuntime, BootstrapError> {
     let multi_threaded = note_entry_threads(host);
     let mut log = StepLog::new();
+    let instance = step_instance_lock(host, &mut log)?;
     step_legacy_app_id(host, &mut log);
     let mode = step_flatpak_gate(host, &mut log);
     let migration = step_flatpak_migration(host, mode, &mut log);
     step_env_policy(opts.env_policy.as_deref(), host, multi_threaded, &mut log);
-    finish_pre_runtime(log, mode, migration)
+    finish_pre_runtime(log, mode, migration, instance)
 }
 
 fn note_entry_threads(host: &mut dyn PreRuntimeHost) -> bool {
@@ -197,13 +216,57 @@ fn finish_pre_runtime(
     steps: StepLog,
     mode: FlatpakMode,
     migration: Option<FlatpakMigrationReport>,
+    instance: InstanceLockState,
 ) -> Result<PreRuntime, BootstrapError> {
     trace::mark("pre:done");
     Ok(PreRuntime {
         steps,
         mode,
         migration,
+        instance,
     })
+}
+
+/// Step 0: the single-instance lock, before the gate and every migration.
+/// A handed-off launch (`CROSSHOOK_INSTANCE_HANDOFF=1`) waits up to
+/// `HANDOFF_WAIT` for the previous owner to exit; the variable is removed
+/// (traced) so games never inherit it. Like the env-policy mutations, that
+/// removal still happens after a multi-threaded entry; only the env-policy
+/// step records the `Degraded("multi-threaded at entry")` outcome.
+fn step_instance_lock(
+    host: &mut dyn PreRuntimeHost,
+    log: &mut StepLog,
+) -> Result<InstanceLockState, BootstrapError> {
+    trace::mark("instance_lock:begin");
+    let handoff = host
+        .env_var(OsStr::new(HANDOFF_ENV))
+        .is_some_and(|value| value == "1");
+    if handoff {
+        PreRuntimeEnv::new(host).remove(HANDOFF_ENV);
+    }
+    let (state, outcome) = match host.acquire_instance_lock(handoff.then_some(HANDOFF_WAIT)) {
+        InstanceLockAttempt::Acquired(lock) => (InstanceLockState::Held(lock), StepOutcome::Ran),
+        InstanceLockAttempt::Contended => {
+            trace::mark("instance_lock:end");
+            return Err(BootstrapError::AlreadyRunning);
+        }
+        InstanceLockAttempt::Unavailable(reason) => {
+            tracing::warn!(
+                reason,
+                "instance lock unavailable; relying on the session bus"
+            );
+            eprintln!(
+                "CrossHook: instance lock unavailable ({reason}); relying on the session bus"
+            );
+            (
+                InstanceLockState::Unavailable(reason),
+                StepOutcome::Degraded(reason),
+            )
+        }
+    };
+    log.push(BootstrapStep::InstanceLock, outcome);
+    trace::mark("instance_lock:end");
+    Ok(state)
 }
 
 fn step_flatpak_gate(host: &mut dyn PreRuntimeHost, log: &mut StepLog) -> FlatpakMode {

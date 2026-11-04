@@ -11,6 +11,7 @@ mod app;
 pub mod bootstrap;
 mod error;
 mod events;
+pub mod instance_lock;
 pub mod jobs;
 pub mod log_tail;
 pub mod presenter;

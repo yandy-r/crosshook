@@ -351,19 +351,30 @@
   line-height: 1.4;
 }
 
-/* App-level metadata store status banner (AppShell). */
-/* Compound selector beats theme.css `.crosshook-warning-banner` regardless of import order. */
-.crosshook-warning-banner.crosshook-metadata-status-banner {
+/* App-level degraded-state banners (AppShell): metadata store status, single-instance guard. */
+/* The stack owns positioning so concurrent banners queue instead of overlapping. */
+.crosshook-app-banner-stack {
   position: fixed;
   top: 12px;
   left: 50%;
   transform: translateX(-50%);
-  /* Above app content (max 40, focus.css) but below every modal layer (1000+), so it never covers modal controls. */
+  /* Above app content (max 40, focus.css) but below modal layer (1000+), so it never covers modal controls. */
   z-index: 900;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(720px, calc(100vw - 32px));
+  /* The empty stack must not block clicks on content beneath it. */
+  pointer-events: none;
+}
+
+/* Compound selectors beat theme.css `.crosshook-warning-banner` regardless of import order. */
+.crosshook-warning-banner.crosshook-metadata-status-banner,
+.crosshook-warning-banner.crosshook-instance-guard-banner {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  width: min(720px, calc(100vw - 32px));
+  pointer-events: auto;
   /* Opaque base keeps text readable over content; warning tint layered on top keeps the warning look. */
   background:
     linear-gradient(rgba(245, 158, 11, 0.12), rgba(245, 158, 11, 0.12)),
@@ -372,18 +383,21 @@
   font-size: 0.875rem;
 }
 
-.crosshook-metadata-status-banner > span {
+.crosshook-metadata-status-banner > span,
+.crosshook-instance-guard-banner > span {
   flex: 1;
   overflow-wrap: anywhere;
 }
 
-.crosshook-metadata-status-banner .crosshook-rename-toast-dismiss {
+.crosshook-metadata-status-banner .crosshook-rename-toast-dismiss,
+.crosshook-instance-guard-banner .crosshook-rename-toast-dismiss {
   flex: none;
   color: inherit;
   border-radius: var(--crosshook-radius-md);
 }
 
-.crosshook-metadata-status-banner .crosshook-rename-toast-dismiss:focus-visible {
+.crosshook-metadata-status-banner .crosshook-rename-toast-dismiss:focus-visible,
+.crosshook-instance-guard-banner .crosshook-rename-toast-dismiss:focus-visible {
   outline: 2px solid var(--crosshook-color-accent-strong);
   outline-offset: 2px;
 }

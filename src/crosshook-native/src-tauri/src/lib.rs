@@ -1,3 +1,4 @@
+mod activation;
 mod commands;
 mod env_policy;
 mod fatal;
@@ -8,7 +9,8 @@ mod startup_bridge;
 pub use crosshook_app::services::{BackgroundGrantHolder, BackgroundProtectionState};
 
 use crosshook_app::bootstrap::{
-    pre_runtime, BootstrapOptions, PreRuntimeOptions, PrefixJournalRecovery, UmuRefresh,
+    pre_runtime, BootstrapError, BootstrapOptions, PreRuntimeOptions, PrefixJournalRecovery,
+    UmuRefresh,
 };
 use crosshook_app::App;
 
@@ -18,6 +20,7 @@ pub fn run() {
     let pre =
         match pre_runtime(PreRuntimeOptions::new().with_env_policy(env_policy::WebKitEnvPolicy)) {
             Ok(pre) => pre,
+            Err(BootstrapError::AlreadyRunning) => activation::exit_second_instance(),
             Err(error) => fatal::show_and_exit(context, error),
         };
     let bench = commands::bench::bench_enabled();
@@ -39,6 +42,7 @@ pub fn run() {
         });
     let (core, _) = match App::bootstrap(pre, options) {
         Ok(result) => result,
+        Err(BootstrapError::AlreadyRunning) => activation::exit_second_instance(),
         Err(error) => fatal::show_and_exit(context, error),
     };
     let startup_events = core.subscribe();
@@ -46,6 +50,7 @@ pub fn run() {
     let services = core.services();
     let ui_settings = services.ui_settings.clone();
     let app_owner = core.app().clone();
+    let instance_owner = core.clone();
     tauri::Builder::default()
         .manage(stores.settings.clone())
         .manage(stores.profiles.clone())
@@ -82,6 +87,9 @@ pub fn run() {
         .manage(services.prefix_deps.clone())
         .manage(core.clone())
         .setup(move |app| {
+            // Delivers any activation that arrived before the window existed.
+            core.instance()
+                .set_activation_handler(activation::TauriActivation::new(app.handle().clone()));
             startup_bridge::spawn(app.handle().clone(), core.startup(), startup_events);
             // SIGINT/SIGTERM/SIGHUP take the normal exit path below.
             signals::exit_on_termination(app.handle().clone());
@@ -263,6 +271,14 @@ pub fn run() {
         .build(context)
         .expect("error while building CrossHook Native")
         .run(move |_app, event| {
+            // Give up the bus name on `Exit` (it cannot be prevented, unlike
+            // `ExitRequested`) and before the bounded shutdown below, so a
+            // relaunch meanwhile is told CrossHook is shutting down instead of
+            // activating a window that is gone. Bounded to 500 ms; the lock
+            // stays held until the process ends.
+            if let tauri::RunEvent::Exit = event {
+                tauri::async_runtime::block_on(instance_owner.instance().release_bus_name());
+            }
             // `Exit` fires once on every exit path (after `ExitRequested`,
             // including a termination signal, see `signals`), right before
             // tao ends the process with `process::exit`: `App`'s drop never

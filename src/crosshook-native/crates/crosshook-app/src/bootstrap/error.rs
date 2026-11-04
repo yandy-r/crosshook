@@ -42,6 +42,11 @@ pub enum BootstrapError {
     /// The application runtime could not be created.
     #[error("application runtime unavailable: {0}")]
     Runtime(AppError),
+    /// Another CrossHook instance holds the single-instance lock or bus
+    /// name. Shells activate that instance and exit instead of showing the
+    /// fatal-error dialog.
+    #[error("another CrossHook instance is already running")]
+    AlreadyRunning,
 }
 
 impl BootstrapError {

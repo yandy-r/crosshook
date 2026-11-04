@@ -34,6 +34,8 @@ export interface DegradedStores {
   metadata_error: string | null;
   settings_unreadable: boolean;
   logging_unavailable: boolean;
+  /** Neither the instance lock nor the session-bus name guards this process (frozen per process). */
+  instance_unguarded: boolean;
 }
 
 /** Same payload as the `offline-readiness-scan-complete` event. */

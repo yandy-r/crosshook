@@ -4,10 +4,12 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 use super::{
-    catalogs, reconcile, scans, stores, ui_import, BootstrapError, BootstrapOptions, BootstrapStep,
-    DegradedStores, FlatpakStartup, JobState, LoggingMode, PreRuntime, RuntimeChoice, Services,
-    StartupHandle, StartupJobs, StartupReport, StepLog, StepOutcome, StoreRoots, Stores,
+    catalogs, instance, reconcile, scans, stores, ui_import, BootstrapError, BootstrapOptions,
+    BootstrapStep, DegradedStores, FlatpakStartup, JobState, LoggingMode, PreRuntime,
+    RuntimeChoice, Services, StartupHandle, StartupJobs, StartupReport, StepLog, StepOutcome,
+    StoreRoots, Stores,
 };
+use crate::instance_lock::{ActivationRelay, InstanceGuard};
 use crate::App;
 use crosshook_core::logging::{self, LoggingError};
 use crosshook_core::metadata::MetadataStatus;
@@ -22,6 +24,7 @@ struct BootstrapData {
     services: Services,
     startup: StartupHandle,
     steps: StepLog,
+    instance: InstanceGuard,
 }
 
 /// An [`App`] whose stores, services and startup state were initialized by
@@ -68,6 +71,11 @@ impl BootstrappedApp {
     pub fn bootstrap_steps(&self) -> &StepLog {
         &self.data.steps
     }
+
+    /// Process-lifetime single-instance guard (lock, bus name, activation).
+    pub fn instance(&self) -> &InstanceGuard {
+        &self.data.instance
+    }
 }
 
 impl Deref for BootstrappedApp {
@@ -89,16 +97,21 @@ impl App {
         pre: PreRuntime,
         opts: BootstrapOptions,
     ) -> Result<(BootstrappedApp, StartupReport), BootstrapError> {
-        let (mut steps, mode, migration) = pre.into_parts();
+        let (mut steps, mode, migration, lock) = pre.into_parts();
         let app = match opts.runtime {
             RuntimeChoice::Owned => App::new().map_err(BootstrapError::Runtime)?,
             RuntimeChoice::Handle(handle) => App::with_handle(handle),
         };
         steps.push(BootstrapStep::Runtime, StepOutcome::Ran);
+        let relay = Arc::new(ActivationRelay::new(app.runtime_handle()));
+        let bus =
+            instance::instance_bus_step(&app, opts.instance_bus, Arc::clone(&relay), &mut steps)?;
+        let instance_unguarded = instance::unguarded(instance::fully_locked(&lock), &steps);
+        let instance = InstanceGuard::new(lock, bus, relay, instance_unguarded);
         let settings_store = stores::init_settings(&opts.store_roots)?;
         let (settings, settings_unreadable) = load_settings_step(&settings_store, &mut steps);
         let logging_unavailable = init_logging_step(opts.logging, &settings, &mut steps);
-        relog_degraded_phase_a(&steps);
+        relog_degraded_before_logging(&steps);
         let local_storage = match &opts.store_roots {
             StoreRoots::Xdg => webkit_local_storage_paths(),
             StoreRoots::Explicit { .. } => Vec::new(),
@@ -127,6 +140,7 @@ impl App {
                 metadata_error,
                 settings_unreadable,
                 logging_unavailable,
+                instance_unguarded,
             },
             StartupJobs {
                 health: JobState::Pending,
@@ -144,6 +158,7 @@ impl App {
                 services,
                 startup: startup.clone(),
                 steps,
+                instance,
             }),
         };
         scans::schedule(
@@ -287,23 +302,25 @@ fn init_metadata_steps(stores: &Stores, settings: &AppSettingsData, steps: &mut 
     steps.push(BootstrapStep::NagSync, StepOutcome::Ran);
 }
 
-/// Re-logs every degraded Phase A step once logging is installed.
+/// Re-logs every degraded step recorded before the logging step once
+/// logging is installed.
 ///
-/// Phase A records those outcomes before the subscriber exists, so the
-/// original `tracing` warnings never reach the log. The step log is the
-/// source.
-fn relog_degraded_phase_a(steps: &StepLog) {
-    for record in steps.records() {
-        if !BootstrapStep::PRE_RUNTIME_ORDER.contains(&record.step) {
-            continue;
-        }
+/// Phase A and the early Phase B steps (runtime, instance bus, settings)
+/// record those outcomes before the subscriber exists, so the original
+/// `tracing` warnings never reach the log. The step log is the source.
+fn relog_degraded_before_logging(steps: &StepLog) {
+    for record in steps
+        .records()
+        .iter()
+        .take_while(|record| record.step != BootstrapStep::Logging)
+    {
         let StepOutcome::Degraded(reason) = record.outcome else {
             continue;
         };
         tracing::warn!(
             step = record.step.name(),
             reason,
-            "pre-runtime step degraded"
+            "startup step degraded before logging"
         );
     }
 }

@@ -25,6 +25,7 @@ fn all_pending_report() -> StartupReport {
             metadata_error: None,
             settings_unreadable: false,
             logging_unavailable: false,
+            instance_unguarded: false,
         },
         jobs: StartupJobs {
             health: JobState::Pending,
@@ -52,7 +53,8 @@ fn all_pending_report_serializes_the_exact_contract_shape() {
                 "metadata": { "state": "ok" },
                 "metadata_error": null,
                 "settings_unreadable": false,
-                "logging_unavailable": false
+                "logging_unavailable": false,
+                "instance_unguarded": false
             },
             "jobs": {
                 "health": { "state": "pending" },
@@ -75,7 +77,8 @@ fn all_pending_report_serializes_to_the_canonical_string() {
          \"onboarding\":{\"show\":false,\"has_profiles\":false},\
          \"flatpak\":{\"mode\":\"native\",\"migration\":null},\
          \"degraded\":{\"metadata\":{\"state\":\"ok\"},\"metadata_error\":null,\
-         \"settings_unreadable\":false,\"logging_unavailable\":false},\
+         \"settings_unreadable\":false,\"logging_unavailable\":false,\
+         \"instance_unguarded\":false},\
          \"jobs\":{\"health\":{\"state\":\"pending\"},\
          \"offline_readiness\":{\"state\":\"pending\"},\
          \"version_scan\":{\"state\":\"pending\"},\
@@ -225,6 +228,7 @@ fn degraded_stores_mirror_the_metadata_status_ipc_shape() {
         metadata_error: Some("metadata schema newer than supported".into()),
         settings_unreadable: true,
         logging_unavailable: false,
+        instance_unguarded: true,
     };
     assert_eq!(
         to_value(&degraded).unwrap(),
@@ -232,7 +236,8 @@ fn degraded_stores_mirror_the_metadata_status_ipc_shape() {
             "metadata": { "state": "newer_schema", "found": 22, "supported": 21 },
             "metadata_error": "metadata schema newer than supported",
             "settings_unreadable": true,
-            "logging_unavailable": false
+            "logging_unavailable": false,
+            "instance_unguarded": true
         })
     );
 }

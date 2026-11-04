@@ -9,6 +9,7 @@ import ConsoleDrawer, { type ConsoleMode } from '@/components/layout/ConsoleDraw
 import ContentArea from '@/components/layout/ContentArea';
 import ControllerPrompts from '@/components/layout/ControllerPrompts';
 import { Inspector } from '@/components/layout/Inspector';
+import { InstanceGuardBanner } from '@/components/layout/InstanceGuardBanner';
 import { MetadataStatusBanner } from '@/components/layout/MetadataStatusBanner';
 import Sidebar, { type AppRoute } from '@/components/layout/Sidebar';
 import { type HeroDetailTabId, isHeroDetailTabId } from '@/components/library/hero-detail-model';
@@ -621,7 +622,10 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
               </button>
             </div>
           ) : null}
-          <MetadataStatusBanner />
+          <div className="crosshook-app-banner-stack">
+            <MetadataStatusBanner />
+            <InstanceGuardBanner />
+          </div>
           {uiSettingsPersistDetail !== null ? (
             <div
               className="crosshook-status-toast crosshook-toast--ui-settings-persist"

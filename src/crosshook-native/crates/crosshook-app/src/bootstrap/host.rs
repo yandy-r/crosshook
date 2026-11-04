@@ -2,8 +2,9 @@
 //! process environment.
 //!
 //! [`PreRuntimeHost`] abstracts every effect `pre_runtime` can perform:
-//! reading the process thread count, Flatpak detection, the XDG override,
-//! the two migrations, and environment-variable access. Production uses
+//! reading the process thread count, the single-instance lock, Flatpak
+//! detection, the XDG override, the two migrations, and environment-variable
+//! access. Production uses
 //! [`SystemHost`]; unit tests use a recording fake, and the
 //! `bootstrap_ordering` integration harness drives the real system host in a
 //! re-executed child process that has no threads of its own.
@@ -13,6 +14,9 @@
 //! they are crate-private.
 
 use std::ffi::{OsStr, OsString};
+use std::time::Duration;
+
+use crate::instance_lock::InstanceLockAttempt;
 
 use super::report::FlatpakMigrationReport;
 
@@ -26,6 +30,11 @@ macro_rules! define_pre_runtime_host {
             /// Current process thread count (`Threads:` in `/proc/self/status`),
             /// or `None` when it cannot be determined.
             fn thread_count(&self) -> Option<u32>;
+
+            /// Takes the single-instance lock (step 0). With `wait`, blocks
+            /// up to that long for the holder to release it (handoff). Must
+            /// not spawn threads.
+            fn acquire_instance_lock(&mut self, wait: Option<Duration>) -> InstanceLockAttempt;
 
             /// Whether the process is running inside a Flatpak sandbox.
             fn is_flatpak(&self) -> bool;

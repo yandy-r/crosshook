@@ -11,7 +11,12 @@ export function registerStartup(map: Map<string, Handler>): void {
     const store = getStore();
     const settings = store.settings;
     const lastUsed = settings.last_used_profile?.trim() ?? '';
-    const { metadataState, showOnboarding, autoLoadProfile: autoLoadToggle } = getActiveToggles();
+    const {
+      metadataState,
+      showOnboarding,
+      autoLoadProfile: autoLoadToggle,
+      showInstanceUnguarded,
+    } = getActiveToggles();
     const configuredAutoLoad = autoLoadToggle ?? (settings.auto_load_last_profile ? lastUsed : '');
     // Resolving an auto-load target needs the demo library (same seeding rule as `profile_list`).
     if (configuredAutoLoad !== '' && getActiveFixture() !== 'empty') seedDemoProfiles();
@@ -39,6 +44,8 @@ export function registerStartup(map: Map<string, Handler>): void {
         metadata_error: metadataState === 'disabled' ? '[dev-mock] metadata database could not be opened' : null,
         settings_unreadable: false,
         logging_unavailable: false,
+        // `?instanceUnguarded=show` previews `InstanceGuardBanner`.
+        instance_unguarded: showInstanceUnguarded,
       },
       jobs: {
         health: { state: 'complete', data: buildMockHealthSummary() },
