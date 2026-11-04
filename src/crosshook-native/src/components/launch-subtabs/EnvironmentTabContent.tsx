@@ -1,7 +1,7 @@
 import * as Tabs from '@radix-ui/react-tabs';
 import type { ReactNode } from 'react';
 import type { GameProfile } from '../../types/profile';
-import type { AcceptSuggestionRequest, ProtonDbRecommendationGroup, ProtonDbSuggestionSet } from '../../types/protondb';
+import type { ProtonDbRecommendationGroup, ProtonDbSuggestionSet, SuggestionAcceptance } from '../../types/protondb';
 import type { PendingProtonDbOverwrite } from '../../utils/protondb';
 import { CustomEnvironmentVariablesSection } from '../CustomEnvironmentVariablesSection';
 import { DashboardPanelSection } from '../layout/DashboardPanelSection';
@@ -30,7 +30,7 @@ interface EnvironmentTabContentProps {
   onCancelProtonDbOverwrite: () => void;
   onUpdateProtonDbResolution: (key: string, resolution: 'keep_current' | 'use_suggestion') => void;
   suggestionSet?: ProtonDbSuggestionSet | null;
-  onAcceptSuggestion?: (request: AcceptSuggestionRequest) => Promise<void>;
+  onAcceptSuggestion?: (acceptance: SuggestionAcceptance) => Promise<void>;
   onDismissSuggestion?: (suggestionKey: string) => void;
   /** Autosave chip — rendered in panel header actions when this tab is active. */
   chipSlot?: ReactNode;

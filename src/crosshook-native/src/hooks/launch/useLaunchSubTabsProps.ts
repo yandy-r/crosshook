@@ -1,8 +1,9 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import type { LaunchSubTabsProps } from '../../components/launch-subtabs/types';
 import { useProfileContext } from '../../context/ProfileContext';
 import { useProfileHealthContext } from '../../context/ProfileHealthContext';
 import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '../../types/profile';
+import type { SuggestionAcceptance } from '../../types/protondb';
 import { useLaunchEnvironmentAutosave } from '../profile/useLaunchEnvironmentAutosave';
 import { useProtonDbApply } from '../profile/useProtonDbApply';
 import { useCommandArgumentCatalog } from '../useCommandArgumentCatalog';
@@ -67,17 +68,30 @@ export function useLaunchSubTabsProps({
 
   const suggestions = useProtonDbSuggestions(resolvedSteamAppId, selectedProfile);
   const { catalog: commandArgumentCatalog } = useCommandArgumentCatalog();
+  // Latest selection, read after the accept IPC resolves so a reload never
+  // targets a profile the user has already navigated away from.
+  const selectedProfileRef = useRef(selectedProfile);
+  selectedProfileRef.current = selectedProfile;
 
   const handleAcceptSuggestion = useCallback(
-    async (request: Parameters<typeof suggestions.acceptSuggestion>[0]): Promise<void> => {
-      const result = await suggestions.acceptSuggestion(request);
+    async (acceptance: SuggestionAcceptance): Promise<void> => {
+      // Accepting writes the profile on disk and then reloads it, which would
+      // silently discard any unsaved edits in the shared draft.
+      if (profileState.dirty) {
+        throw new Error('Save or discard your unsaved profile changes before applying ProtonDB suggestions.');
+      }
+      const requestedProfile = selectedProfile;
+      const result = await suggestions.acceptSuggestion(acceptance);
+      if (selectedProfileRef.current !== requestedProfile) {
+        return;
+      }
       if (result.appliedKeys.length > 0 || result.toggledOptionIds.length > 0) {
-        void profileState.selectProfile(selectedProfile, {
+        void profileState.selectProfile(requestedProfile, {
           collectionId: activeCollectionId ?? undefined,
         });
       }
     },
-    [suggestions.acceptSuggestion, profileState.selectProfile, selectedProfile, activeCollectionId]
+    [suggestions.acceptSuggestion, profileState.dirty, profileState.selectProfile, selectedProfile, activeCollectionId]
   );
 
   // ---------------------------------------------------------------------------

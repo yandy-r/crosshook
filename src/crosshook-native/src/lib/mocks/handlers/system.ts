@@ -544,11 +544,11 @@ export function registerSystem(map: Map<string, Handler>): void {
   });
 
   map.set('discovery_remove_external_source', async (args): Promise<ExternalTrainerSourceSubscription[]> => {
-    const { source_id } = args as { source_id: string };
+    const { sourceId } = args as { sourceId: string };
     const before = externalSources.length;
-    externalSources = externalSources.filter((s) => s.sourceId !== source_id);
+    externalSources = externalSources.filter((s) => s.sourceId !== sourceId);
     if (externalSources.length === before) {
-      throw new Error(`[dev-mock] no source with id "${source_id}" found`);
+      throw new Error(`[dev-mock] no source with id "${sourceId}" found`);
     }
     return structuredClone(externalSources);
   });

@@ -166,18 +166,18 @@ export function registerCommunity(map: Map<string, Handler>): void {
   });
 
   map.set('community_export_profile', async (args): Promise<CommunityExportResult> => {
-    const { profile_name, output_path } = args as { profile_name: string; output_path: string };
-    const trimmed = (profile_name ?? '').trim();
+    const { profileName, outputPath } = args as { profileName: string; outputPath: string };
+    const trimmed = (profileName ?? '').trim();
     if (!trimmed) {
-      throw new Error('[dev-mock] community_export_profile: profile_name is required');
+      throw new Error('[dev-mock] community_export_profile: profileName is required');
     }
     const entry = MOCK_ENTRIES.find((e) => e.manifest.metadata.game_name.toLowerCase() === trimmed.toLowerCase());
     if (!entry) {
-      throw new Error(`[dev-mock] community_export_profile: profile not found: ${profile_name}`);
+      throw new Error(`[dev-mock] community_export_profile: profile not found: ${profileName}`);
     }
     return {
       profile_name: trimmed,
-      output_path: output_path ?? `/mock/export/${trimmed.replace(/\s+/g, '-')}.json`,
+      output_path: outputPath ?? `/mock/export/${trimmed.replace(/\s+/g, '-')}.json`,
       manifest: entry.manifest,
     };
   });

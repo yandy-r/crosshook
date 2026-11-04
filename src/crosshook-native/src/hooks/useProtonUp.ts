@@ -59,7 +59,7 @@ export async function resolveProtonUpProviderForVersion(version: string): Promis
     try {
       const response = await callCommand<ProtonUpCatalogResponse>('protonup_list_available_versions', {
         provider,
-        force_refresh: false,
+        forceRefresh: false,
       });
       if (response.versions.some((v) => v.version === trimmed)) {
         return provider;
@@ -96,7 +96,7 @@ export function useProtonUp(options: UseProtonUpOptions = {}): UseProtonUpResult
       try {
         const response = await callCommand<ProtonUpCatalogResponse>('protonup_list_available_versions', {
           provider: catalogProvider,
-          force_refresh: fetchVersion > 0,
+          forceRefresh: fetchVersion > 0,
         });
 
         if (!active) {

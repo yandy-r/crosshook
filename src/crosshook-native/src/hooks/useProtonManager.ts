@@ -149,7 +149,7 @@ export function useProtonManager(opts: UseProtonManagerOptions = {}): UseProtonM
         const [resolvedProviders, resolvedRoots] = await Promise.all([
           callCommand<ProtonUpProviderDescriptor[]>('protonup_list_providers'),
           callCommand<InstallRootDescriptor[]>('protonup_resolve_install_roots', {
-            steam_client_install_path: steamClientInstallPath.length > 0 ? steamClientInstallPath : undefined,
+            steamClientInstallPath: steamClientInstallPath.length > 0 ? steamClientInstallPath : undefined,
           }),
         ]);
 
@@ -192,7 +192,7 @@ export function useProtonManager(opts: UseProtonManagerOptions = {}): UseProtonM
           ids.map((id) =>
             callCommand<ProtonUpCatalogResponse>('protonup_list_available_versions', {
               provider: id,
-              force_refresh: allFetchVersion > 0,
+              forceRefresh: allFetchVersion > 0,
             }).catch((_err: unknown): ProtonUpCatalogResponse => {
               return {
                 versions: [],

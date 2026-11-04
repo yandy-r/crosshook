@@ -118,7 +118,7 @@ function scheduleInstallEvent(delayMs: number, callback: () => void): void {
 
 export function registerProtonUp(map: Map<string, Handler>): void {
   map.set('protonup_list_available_versions', async (args): Promise<ProtonUpCatalogResponse> => {
-    const { provider } = (args ?? {}) as { provider?: string; force_refresh?: boolean };
+    const { provider } = (args ?? {}) as { provider?: string; forceRefresh?: boolean };
 
     return {
       versions: mockCatalogFor(provider),

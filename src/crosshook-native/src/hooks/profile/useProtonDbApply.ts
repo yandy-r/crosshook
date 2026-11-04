@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { GameProfile } from '../../types/profile';
-import type { AcceptSuggestionRequest, ProtonDbRecommendationGroup } from '../../types/protondb';
+import type { ProtonDbRecommendationGroup, SuggestionAcceptance } from '../../types/protondb';
 import type { OptimizationCatalogPayload } from '../../utils/optimization-catalog';
 import {
   applyProtonDbGroupToProfile,
@@ -12,7 +12,7 @@ export interface UseProtonDbApplyInput {
   profile: GameProfile;
   catalog: OptimizationCatalogPayload | null | undefined;
   onUpdateProfile: (updater: (current: GameProfile) => GameProfile) => void;
-  onAcceptSuggestion?: (request: AcceptSuggestionRequest) => Promise<void>;
+  onAcceptSuggestion?: (acceptance: SuggestionAcceptance) => Promise<void>;
 }
 
 export interface UseProtonDbApplyReturn {
@@ -21,7 +21,7 @@ export interface UseProtonDbApplyReturn {
   statusMessage: string | null;
   applyGroup: (group: ProtonDbRecommendationGroup, overwriteKeys: readonly string[]) => void;
   applyEnvVars: (group: ProtonDbRecommendationGroup) => void;
-  acceptSuggestion: (request: AcceptSuggestionRequest) => Promise<void>;
+  acceptSuggestion: (acceptance: SuggestionAcceptance) => Promise<void>;
   clearOverwrite: () => void;
   updateOverwriteResolution: (next: PendingProtonDbOverwrite | null) => void;
   resetAll: () => void;
@@ -134,9 +134,9 @@ export function useProtonDbApply({
   );
 
   const acceptSuggestion = useCallback(
-    async (request: AcceptSuggestionRequest): Promise<void> => {
+    async (acceptance: SuggestionAcceptance): Promise<void> => {
       if (onAcceptSuggestion) {
-        await onAcceptSuggestion(request);
+        await onAcceptSuggestion(acceptance);
       }
     },
     [onAcceptSuggestion]

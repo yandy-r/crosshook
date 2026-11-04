@@ -106,6 +106,15 @@ export type AcceptSuggestionRequest =
   | { kind: 'catalog'; profileName: string; catalogEntryId: string }
   | { kind: 'env_var'; profileName: string; envKey: string; envValue: string };
 
+/**
+ * The suggestion a user chose to accept, as emitted by the ProtonDB card.
+ * Carries no profile name: the hook that owns the active profile
+ * (`useProtonDbSuggestions`) adds it to build the `AcceptSuggestionRequest`.
+ */
+export type SuggestionAcceptance =
+  | { kind: 'catalog'; catalogEntryId: string }
+  | { kind: 'env_var'; envKey: string; envValue: string };
+
 export interface AcceptSuggestionResult {
   updatedProfile: GameProfile;
   appliedKeys: string[];

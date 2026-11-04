@@ -2,7 +2,7 @@ import type { BundledOptimizationPreset, LaunchAutoSaveStatus, LaunchMethod } fr
 import type { CommandArgumentCatalogPayload, LaunchCommandArguments } from '../../types/launch-command-arguments';
 import type { LaunchOptimizationId } from '../../types/launch-optimizations';
 import type { GameProfile, GamescopeConfig, MangoHudConfig } from '../../types/profile';
-import type { AcceptSuggestionRequest, ProtonDbRecommendationGroup, ProtonDbSuggestionSet } from '../../types/protondb';
+import type { ProtonDbRecommendationGroup, ProtonDbSuggestionSet, SuggestionAcceptance } from '../../types/protondb';
 import type { OptimizationCatalogPayload } from '../../utils/optimization-catalog';
 import type { PendingProtonDbOverwrite } from '../../utils/protondb';
 import type { LaunchOptimizationsPanelStatus } from '../LaunchOptimizationsPanel';
@@ -85,7 +85,7 @@ export interface LaunchSubTabsProps {
   onCancelProtonDbOverwrite: () => void;
   onUpdateProtonDbResolution: (key: string, resolution: 'keep_current' | 'use_suggestion') => void;
   suggestionSet?: ProtonDbSuggestionSet | null;
-  onAcceptSuggestion?: (request: AcceptSuggestionRequest) => Promise<void>;
+  onAcceptSuggestion?: (acceptance: SuggestionAcceptance) => Promise<void>;
   onDismissSuggestion?: (suggestionKey: string) => void;
 
   // Auto-save status indicators

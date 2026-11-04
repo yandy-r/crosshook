@@ -60,7 +60,7 @@ export function ProtonManagerDefaultsSection({
       });
 
     void callCommand<InstallRootDescriptor[]>('protonup_resolve_install_roots', {
-      steam_client_install_path: steamClientInstallPath.length > 0 ? steamClientInstallPath : undefined,
+      steamClientInstallPath: steamClientInstallPath.length > 0 ? steamClientInstallPath : undefined,
     })
       .then((result) => {
         if (!active) return;

@@ -2,7 +2,7 @@ import { useId } from 'react';
 import { useProtonDbApply } from '../hooks/profile/useProtonDbApply';
 import { useProtonDbSuggestions } from '../hooks/useProtonDbSuggestions';
 import type { GameProfile, LaunchMethod } from '../types';
-import type { AcceptSuggestionRequest } from '../types/protondb';
+import type { SuggestionAcceptance } from '../types/protondb';
 import type { VersionCorrelationStatus } from '../types/version';
 import { resolveArtAppId } from '../utils/art';
 import type { OptimizationCatalogPayload } from '../utils/optimization-catalog';
@@ -68,10 +68,15 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
   const profileSelector = 'profileSelector' in props ? props.profileSelector : undefined;
   const profileNamesListId = useId();
   const resolvedAppId = resolveArtAppId(profile);
-  const suggestions = useProtonDbSuggestions(resolvedAppId, profileName);
+  // Accepting persists to the on-disk profile, so only pass a name that exists
+  // there: an unsaved (or mid-rename) draft name would target the wrong file.
+  const suggestions = useProtonDbSuggestions(
+    resolvedAppId,
+    profileExists ? (profileSelector?.selectedProfile ?? profileName) : ''
+  );
 
-  const handleAcceptSuggestion = async (request: AcceptSuggestionRequest): Promise<void> => {
-    const result = await suggestions.acceptSuggestion(request);
+  const handleAcceptSuggestion = async (acceptance: SuggestionAcceptance): Promise<void> => {
+    const result = await suggestions.acceptSuggestion(acceptance);
     onUpdateProfile(() => result.updatedProfile);
   };
 
