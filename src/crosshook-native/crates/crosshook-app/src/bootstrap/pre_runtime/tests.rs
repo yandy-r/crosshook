@@ -1,11 +1,30 @@
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
+use std::time::Duration;
+
+use tempfile::TempDir;
 
 use super::*;
 use crate::bootstrap::host::PreRuntimeHost;
+use crate::instance_lock::{InstanceLock, InstanceLockPaths};
+
+/// How the fake host answers the lock step.
+enum FakeLock {
+    /// Takes a real lock in a private tempdir runtime dir.
+    Acquire(TempDir),
+    Contended,
+    Unavailable(&'static str),
+}
+
+impl Default for FakeLock {
+    fn default() -> Self {
+        Self::Acquire(tempfile::tempdir().expect("tempdir runtime dir"))
+    }
+}
 
 #[derive(Default)]
 struct RecordingHost {
+    lock: FakeLock,
     threads: Option<u32>,
     flatpak: bool,
     opt_in: bool,
@@ -27,6 +46,27 @@ impl RecordingHost {
 impl PreRuntimeHost for RecordingHost {
     fn thread_count(&self) -> Option<u32> {
         self.threads
+    }
+
+    fn acquire_instance_lock(&mut self, wait: Option<Duration>) -> InstanceLockAttempt {
+        self.calls.push(
+            if wait.is_some() {
+                "instance_lock:wait"
+            } else {
+                "instance_lock"
+            }
+            .to_owned(),
+        );
+        match &self.lock {
+            FakeLock::Acquire(dir) => {
+                InstanceLock::try_acquire(&InstanceLockPaths::in_dir(dir.path())).map_or(
+                    InstanceLockAttempt::Unavailable("fake lock failed"),
+                    InstanceLockAttempt::Acquired,
+                )
+            }
+            FakeLock::Contended => InstanceLockAttempt::Contended,
+            FakeLock::Unavailable(reason) => InstanceLockAttempt::Unavailable(reason),
+        }
     }
 
     fn is_flatpak(&self) -> bool {
@@ -112,6 +152,7 @@ fn native_run_records_all_steps_in_order() {
     assert_eq!(
         outcomes_of(&pre),
         vec![
+            StepOutcome::Ran,
             StepOutcome::Skipped("not running under Flatpak"),
             StepOutcome::Skipped("not in Flatpak isolated mode"),
             StepOutcome::Ran,
@@ -119,7 +160,7 @@ fn native_run_records_all_steps_in_order() {
         ]
     );
     assert_eq!(pre.steps().verify_pre_runtime_order(), Ok(()));
-    assert_eq!(host.calls, vec!["legacy_app_id"]);
+    assert_eq!(host.calls, vec!["instance_lock", "legacy_app_id"]);
 }
 
 #[test]
@@ -138,11 +179,15 @@ fn isolated_run_migrates_before_legacy_migration() {
             StepOutcome::Ran,
             StepOutcome::Ran,
             StepOutcome::Ran,
+            StepOutcome::Ran,
             StepOutcome::Skipped("no env policy"),
         ]
     );
     assert_eq!(pre.steps().verify_pre_runtime_order(), Ok(()));
-    assert_eq!(host.calls, vec!["flatpak_migration", "legacy_app_id"]);
+    assert_eq!(
+        host.calls,
+        vec!["instance_lock", "flatpak_migration", "legacy_app_id"]
+    );
 }
 
 #[test]
@@ -159,13 +204,17 @@ fn host_xdg_run_overrides_xdg_and_skips_migration() {
         outcomes_of(&pre),
         vec![
             StepOutcome::Ran,
+            StepOutcome::Ran,
             StepOutcome::Skipped("not in Flatpak isolated mode"),
             StepOutcome::Ran,
             StepOutcome::Skipped("no env policy"),
         ]
     );
     assert_eq!(pre.steps().verify_pre_runtime_order(), Ok(()));
-    assert_eq!(host.calls, vec!["override_xdg", "legacy_app_id"]);
+    assert_eq!(
+        host.calls,
+        vec!["instance_lock", "override_xdg", "legacy_app_id"]
+    );
 }
 
 #[test]
@@ -175,7 +224,7 @@ fn env_policy_runs_last_and_mutates_through_host() {
         .insert(OsString::from("CROSSHOOK_TEST_REMOVE"), OsString::from("x"));
     let opts = PreRuntimeOptions::new().with_env_policy(RecordingPolicy);
     let pre = pre_runtime_with_host(opts, &mut host).expect("policy run");
-    assert_eq!(outcomes_of(&pre)[3], StepOutcome::Ran);
+    assert_eq!(outcomes_of(&pre)[4], StepOutcome::Ran);
     assert_eq!(
         host.env.get(OsStr::new("CROSSHOOK_TEST_SET")),
         Some(&OsString::from("1"))
@@ -184,6 +233,7 @@ fn env_policy_runs_last_and_mutates_through_host() {
     assert_eq!(
         host.calls,
         vec![
+            "instance_lock",
             "flatpak_migration",
             "legacy_app_id",
             "set:CROSSHOOK_TEST_SET",
@@ -201,7 +251,7 @@ fn migration_failure_degrades_instead_of_failing() {
     let pre = pre_runtime_with_host(PreRuntimeOptions::new(), &mut host)
         .expect("migration failure is not fatal");
     assert_eq!(
-        outcomes_of(&pre)[1],
+        outcomes_of(&pre)[2],
         StepOutcome::Degraded("flatpak migration failed")
     );
     let migration = pre.migration().expect("degraded report");
@@ -227,6 +277,7 @@ fn multithreaded_entry_degrades_env_step_but_runs_everything() {
             StepOutcome::Ran,
             StepOutcome::Ran,
             StepOutcome::Ran,
+            StepOutcome::Ran,
             StepOutcome::Degraded("multi-threaded at entry"),
         ]
     );
@@ -234,6 +285,7 @@ fn multithreaded_entry_degrades_env_step_but_runs_everything() {
     assert_eq!(
         host.calls,
         vec![
+            "instance_lock",
             "flatpak_migration",
             "legacy_app_id",
             "set:CROSSHOOK_TEST_SET",
@@ -251,10 +303,10 @@ fn multithreaded_entry_without_policy_still_degrades_env_step() {
     let pre = pre_runtime_with_host(PreRuntimeOptions::new(), &mut host)
         .expect("multi-threaded entry is not fatal");
     assert_eq!(
-        outcomes_of(&pre)[3],
+        outcomes_of(&pre)[4],
         StepOutcome::Degraded("multi-threaded at entry")
     );
-    assert_eq!(host.calls, vec!["legacy_app_id"]);
+    assert_eq!(host.calls, vec!["instance_lock", "legacy_app_id"]);
 }
 
 #[test]
@@ -276,12 +328,89 @@ fn misordered_execution_fails_the_shared_order_checker() {
     assert_eq!(
         steps_of(&pre),
         vec![
+            BootstrapStep::InstanceLock,
             BootstrapStep::LegacyAppIdMigration,
             BootstrapStep::FlatpakGate,
             BootstrapStep::FlatpakMigration,
             BootstrapStep::EnvPolicy,
         ]
     );
-    assert!(pre.steps().verify_pre_runtime_order().is_err());
-    assert_eq!(host.calls, vec!["legacy_app_id", "flatpak_migration"]);
+    let error = pre.steps().verify_pre_runtime_order().unwrap_err();
+    assert_eq!(error.index, 1);
+    assert_eq!(
+        host.calls,
+        vec!["instance_lock", "legacy_app_id", "flatpak_migration"]
+    );
+}
+
+#[test]
+fn contended_lock_stops_before_any_migration() {
+    let mut host = RecordingHost {
+        lock: FakeLock::Contended,
+        ..RecordingHost::isolated()
+    };
+    let result = pre_runtime_with_host(PreRuntimeOptions::new(), &mut host);
+    assert!(matches!(result, Err(BootstrapError::AlreadyRunning)));
+    assert_eq!(host.calls, vec!["instance_lock"]);
+}
+
+#[test]
+fn unavailable_lock_degrades_and_continues() {
+    let mut host = RecordingHost {
+        lock: FakeLock::Unavailable("runtime dir unavailable"),
+        ..RecordingHost::isolated()
+    };
+    let pre = pre_runtime_with_host(PreRuntimeOptions::new(), &mut host)
+        .expect("an unavailable lock is not fatal");
+    assert!(!pre.holds_instance_lock());
+    assert_eq!(steps_of(&pre), BootstrapStep::PRE_RUNTIME_ORDER);
+    assert_eq!(
+        outcomes_of(&pre)[0],
+        StepOutcome::Degraded("runtime dir unavailable")
+    );
+    assert_eq!(
+        host.calls,
+        vec!["instance_lock", "flatpak_migration", "legacy_app_id"]
+    );
+}
+
+#[test]
+fn acquired_lock_is_carried_in_the_token() {
+    let mut host = RecordingHost {
+        threads: Some(1),
+        ..RecordingHost::default()
+    };
+    let pre = pre_runtime_with_host(PreRuntimeOptions::new(), &mut host).expect("native run");
+    assert!(pre.holds_instance_lock());
+    assert_eq!(outcomes_of(&pre)[0], StepOutcome::Ran);
+}
+
+#[test]
+fn handoff_env_waits_and_is_removed() {
+    let mut host = RecordingHost {
+        threads: Some(1),
+        ..RecordingHost::default()
+    };
+    host.env
+        .insert(OsString::from(HANDOFF_ENV), OsString::from("1"));
+    let pre = pre_runtime_with_host(PreRuntimeOptions::new(), &mut host).expect("handoff run");
+    assert!(pre.holds_instance_lock());
+    assert_eq!(
+        host.calls[..2],
+        ["remove:CROSSHOOK_INSTANCE_HANDOFF", "instance_lock:wait"]
+    );
+    assert!(!host.env.contains_key(OsStr::new(HANDOFF_ENV)));
+}
+
+#[test]
+fn handoff_env_other_than_one_does_not_wait() {
+    let mut host = RecordingHost {
+        threads: Some(1),
+        ..RecordingHost::default()
+    };
+    host.env
+        .insert(OsString::from(HANDOFF_ENV), OsString::from("yes"));
+    pre_runtime_with_host(PreRuntimeOptions::new(), &mut host).expect("plain run");
+    assert_eq!(host.calls[0], "instance_lock");
+    assert!(host.env.contains_key(OsStr::new(HANDOFF_ENV)));
 }

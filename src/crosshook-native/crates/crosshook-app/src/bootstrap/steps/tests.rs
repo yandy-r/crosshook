@@ -12,7 +12,7 @@ fn pre_runtime_log() -> StepLog {
 fn canonical_pre_runtime_order_verifies() {
     let log = pre_runtime_log();
     assert_eq!(log.verify_pre_runtime_order(), Ok(()));
-    assert_eq!(log.len(), 4);
+    assert_eq!(log.len(), 5);
     assert!(!log.is_empty());
 }
 
@@ -36,16 +36,17 @@ fn swapped_steps_fail_verification() {
     log.push(BootstrapStep::EnvPolicy, StepOutcome::Ran);
     let error = log.verify_pre_runtime_order().unwrap_err();
     assert_eq!(error.index, 0);
-    assert_eq!(error.expected, BootstrapStep::FlatpakGate);
+    assert_eq!(error.expected, BootstrapStep::InstanceLock);
     assert_eq!(error.found, Some(BootstrapStep::LegacyAppIdMigration));
 }
 
 #[test]
 fn missing_step_fails_verification() {
     let mut log = StepLog::new();
+    log.push(BootstrapStep::InstanceLock, StepOutcome::Ran);
     log.push(BootstrapStep::FlatpakGate, StepOutcome::Ran);
     let error = log.verify_pre_runtime_order().unwrap_err();
-    assert_eq!(error.index, 1);
+    assert_eq!(error.index, 2);
     assert_eq!(error.expected, BootstrapStep::FlatpakMigration);
     assert_eq!(error.found, None);
 }
@@ -59,4 +60,6 @@ fn record_keeps_step_and_outcome() {
     assert_eq!(record.step, BootstrapStep::FlatpakMigration);
     assert_eq!(record.outcome, StepOutcome::Degraded("migration failed"));
     assert_eq!(BootstrapStep::FlatpakMigration.name(), "flatpak_migration");
+    assert_eq!(BootstrapStep::InstanceLock.name(), "instance_lock");
+    assert_eq!(BootstrapStep::InstanceBus.name(), "instance_bus");
 }

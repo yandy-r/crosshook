@@ -42,6 +42,7 @@ fn fixture(profile_names: &[&str], metadata: MetadataStore) -> Fixture {
             metadata_error: None,
             settings_unreadable: false,
             logging_unavailable: false,
+            instance_unguarded: false,
         },
         StartupJobs {
             health: JobState::Pending,

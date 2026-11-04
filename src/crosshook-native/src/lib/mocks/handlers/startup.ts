@@ -39,6 +39,7 @@ export function registerStartup(map: Map<string, Handler>): void {
         metadata_error: metadataState === 'disabled' ? '[dev-mock] metadata database could not be opened' : null,
         settings_unreadable: false,
         logging_unavailable: false,
+        instance_unguarded: false,
       },
       jobs: {
         health: { state: 'complete', data: buildMockHealthSummary() },

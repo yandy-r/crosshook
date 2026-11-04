@@ -1,10 +1,12 @@
 //! Real subprocess instrumentation checks (each scenario runs in a re-executed child).
 use crosshook_app::bootstrap::{
-    pre_runtime, pre_runtime_misordered_with_host, BootstrapOptions, EnvPolicy, LoggingMode,
-    PreRuntimeEnv, PreRuntimeOptions, SystemHost, UmuRefresh,
+    pre_runtime, pre_runtime_misordered_with_host, BootstrapError, BootstrapOptions, EnvPolicy,
+    InstanceBus, LoggingMode, PreRuntimeEnv, PreRuntimeOptions, SystemHost, UmuRefresh,
 };
+use crosshook_app::instance_lock::{InstanceLock, InstanceLockPaths, HANDOFF_ENV};
 use crosshook_app::App;
 use crosshook_core::platform::trace::{self, TraceEvent};
+use std::os::unix::fs::DirBuilderExt;
 use std::process::Command;
 
 struct Policy;
@@ -15,6 +17,8 @@ impl EnvPolicy for Policy {
     }
 }
 const TEST_NAME: &str = "bootstrap_ordering";
+/// Runtime dir the parent holds the instance lock in (`contended` scenario).
+const ORDERING_RUNTIME_ENV: &str = "CROSSHOOK_ORDERING_RUNTIME";
 
 /// What the libtest-style command line asks this `harness = false` binary to do.
 enum Invocation {
@@ -112,6 +116,11 @@ fn main() {
                 r4.as_ref().err().is_some_and(|e| e.starts_with("R4")),
                 "synthetic R4 trace must be rejected by R4 alone, got {r4:?}"
             );
+            let r6 = r6_rule(&synthetic_r6_violation());
+            assert!(
+                r6.as_ref().err().is_some_and(|e| e.starts_with("R6")),
+                "synthetic R6 trace must be rejected by R6, got {r6:?}"
+            );
             let exe = std::env::current_exe().unwrap();
             for scenario in [
                 "native",
@@ -128,16 +137,51 @@ fn main() {
                     "scenario {scenario} failed"
                 );
             }
+            run_contended(&exe);
             println!("bootstrap ordering: all real-process scenarios passed");
         }
     }
 }
+/// The parent holds the instance lock; a second process must stop at step 0.
+fn run_contended(exe: &std::path::Path) {
+    let runtime = tempfile::tempdir().unwrap();
+    let _held = InstanceLock::try_acquire(&InstanceLockPaths::in_dir(runtime.path()))
+        .expect("parent takes the instance lock");
+    assert!(
+        Command::new(exe)
+            .args(["--scenario", "contended"])
+            .env(ORDERING_RUNTIME_ENV, runtime.path())
+            .status()
+            .unwrap()
+            .success(),
+        "scenario contended failed"
+    );
+}
+
 fn child(scenario: &str) -> Result<(), String> {
     let root = tempfile::tempdir().map_err(|e| e.to_string())?;
     let home = root.path().join("home");
     std::fs::create_dir_all(&home).map_err(|e| e.to_string())?;
+    let runtime = match std::env::var_os(ORDERING_RUNTIME_ENV) {
+        Some(dir) if scenario == "contended" => std::path::PathBuf::from(dir),
+        _ => {
+            let dir = root.path().join("runtime");
+            std::fs::DirBuilder::new()
+                .mode(0o700)
+                .create(&dir)
+                .map_err(|e| e.to_string())?;
+            dir
+        }
+    };
     // SAFETY: harness=false; no runtime or other thread exists in this child.
     unsafe {
+        std::env::set_var("XDG_RUNTIME_DIR", &runtime);
+        // Never reach a real session bus, even if a future option enables it.
+        std::env::set_var(
+            "DBUS_SESSION_BUS_ADDRESS",
+            format!("unix:path={}", root.path().join("no-bus").display()),
+        );
+        std::env::remove_var(HANDOFF_ENV);
         std::env::set_var("HOME", &home);
         for (key, rel) in [
             ("XDG_CONFIG_HOME", "sandbox/config"),
@@ -157,7 +201,7 @@ fn child(scenario: &str) -> Result<(), String> {
         ] {
             std::env::remove_var(key);
         }
-        if scenario != "native" {
+        if scenario != "native" && scenario != "contended" {
             std::env::set_var("FLATPAK_ID", "dev.crosshook.CrossHook");
         }
         if scenario == "flatpak-host-xdg" {
@@ -179,8 +223,14 @@ fn child(scenario: &str) -> Result<(), String> {
         pre_runtime_misordered_with_host(opts, &mut SystemHost::new())
     } else {
         pre_runtime(opts)
+    };
+    if scenario == "contended" {
+        return check_contended(pre.map(|_| ()), &trace::take());
     }
-    .map_err(|e| e.to_string())?;
+    let pre = pre.map_err(|e| e.to_string())?;
+    if !pre.holds_instance_lock() {
+        return Err("instance lock not taken in a private runtime dir".into());
+    }
     if scenario == "flatpak-isolated" && !pre.migration().is_some_and(|m| m.imported_config) {
         return Err("isolated migration did not import settings".into());
     }
@@ -203,6 +253,9 @@ fn child(scenario: &str) -> Result<(), String> {
             .with_logging(LoggingMode::Skip)
             .with_umu_refresh(UmuRefresh::Skip {
                 reason: "ordering test",
+            })
+            .with_instance_bus(InstanceBus::Skip {
+                reason: "ordering test",
             }),
     )
     .map_err(|e| e.to_string())?;
@@ -222,6 +275,42 @@ fn child(scenario: &str) -> Result<(), String> {
     drop(app);
     Ok(())
 }
+/// A contended lock ends Phase A at step 0: no gate, no migration, no
+/// base-directory lookup.
+fn check_contended(
+    result: Result<(), BootstrapError>,
+    events: &[TraceEvent],
+) -> Result<(), String> {
+    match result {
+        Err(BootstrapError::AlreadyRunning) => {}
+        Err(other) => return Err(format!("contended: expected AlreadyRunning, got {other}")),
+        Ok(()) => return Err("contended: Phase A succeeded while the lock was held".into()),
+    }
+    let begin = mark_position(events, "instance_lock:begin")?;
+    let end = mark_position(events, "instance_lock:end")?;
+    if end <= begin {
+        return Err("contended: lock marks out of order".into());
+    }
+    for forbidden in [
+        "gate:begin",
+        "flatpak_migration:begin",
+        "legacy_app_id:begin",
+        "pre:done",
+    ] {
+        if mark_position(events, forbidden).is_ok() {
+            return Err(format!("contended: {forbidden} ran after a contended lock"));
+        }
+    }
+    if events
+        .iter()
+        .any(|e| matches!(e, TraceEvent::BaseDirsLookup { .. }))
+    {
+        return Err("contended: base-directory lookup after a contended lock".into());
+    }
+    println!("contended rejected at step 0 as required");
+    Ok(())
+}
+
 fn mark_position(events: &[TraceEvent], name: &str) -> Result<usize, String> {
     events
         .iter()
@@ -239,6 +328,7 @@ fn check_trace(events: &[TraceEvent]) -> Vec<String> {
         r3_rule(events),
         r4_rule(events),
         r5_rule(events),
+        r6_rule(events),
     ]
     .into_iter()
     .filter_map(Result::err)
@@ -261,6 +351,8 @@ fn r1_rule(events: &[TraceEvent]) -> Result<(), String> {
 fn r2_rule(events: &[TraceEvent]) -> Result<(), String> {
     let mut previous = None;
     for name in [
+        "instance_lock:begin",
+        "instance_lock:end",
         "gate:begin",
         "gate:end",
         "flatpak_migration:begin",
@@ -323,6 +415,42 @@ fn r5_rule(events: &[TraceEvent]) -> Result<(), String> {
         return Err("R5: no real Phase B lookups exercised".into());
     }
     Ok(())
+}
+
+/// R6: the instance lock is taken before any migration and before any
+/// base-directory lookup. Independent of R2: it reads the marks itself.
+fn r6_rule(events: &[TraceEvent]) -> Result<(), String> {
+    let lock = mark_position(events, "instance_lock:end").map_err(|e| format!("R6: {e}"))?;
+    for name in ["flatpak_migration:begin", "legacy_app_id:begin"] {
+        let index = mark_position(events, name).map_err(|e| format!("R6: {e}"))?;
+        if index <= lock {
+            return Err(format!("R6: {name} before the instance lock"));
+        }
+    }
+    if events
+        .iter()
+        .take(lock)
+        .any(|e| matches!(e, TraceEvent::BaseDirsLookup { .. }))
+    {
+        return Err("R6: base-directory lookup before the instance lock".into());
+    }
+    Ok(())
+}
+
+/// Hand-built trace that breaks R6: the lock is taken after the Flatpak
+/// migration started.
+fn synthetic_r6_violation() -> Vec<TraceEvent> {
+    let mark = |name: &str| TraceEvent::Mark(name.to_owned());
+    vec![
+        mark("gate:begin"),
+        mark("gate:end"),
+        mark("flatpak_migration:begin"),
+        mark("instance_lock:begin"),
+        mark("instance_lock:end"),
+        mark("flatpak_migration:end"),
+        mark("legacy_app_id:begin"),
+        mark("legacy_app_id:end"),
+    ]
 }
 
 /// Hand-built trace that breaks only R4: legacy migration looks up base

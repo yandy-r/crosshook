@@ -6,6 +6,9 @@
 //! runtime, Tauri builder, GTK initialization, or thread spawned by CrossHook
 //! itself, in this fixed order:
 //!
+//! 0. Single-instance lock (`instance_lock`); contention returns
+//!    [`BootstrapError::AlreadyRunning`] before the gate or any migration,
+//!    and the shell activates the running instance over D-Bus and exits
 //! 1. Flatpak gate (+ XDG override in host-XDG shared mode)
 //! 2. First-run Flatpak migration (isolated mode only)
 //! 3. Legacy Tauri app-id migration
@@ -13,8 +16,10 @@
 //!
 //! Phase A returns a [`PreRuntime`] token. **Phase B**
 //! (`App::bootstrap`, in `app_bootstrap`) consumes that token, so skipping
-//! Phase A is a compile error. Phase B initializes stores (settings →
-//! logging → remaining stores), catalogs, metadata reconciliation and nag
+//! Phase A is a compile error. Phase B builds the runtime, owns the
+//! session-bus name `dev.crosshook.CrossHook` (a taken name is also
+//! `AlreadyRunning`), then initializes stores (settings → logging →
+//! remaining stores), catalogs, metadata reconciliation and nag
 //! sync, then schedules startup jobs that publish `AppEvent`s; it never
 //! calls `process::exit` — fatal failures are returned as [`BootstrapError`]
 //! for the shell to present.
@@ -31,7 +36,7 @@
 //! Ordering is verified for real, not by construction: under the
 //! `crosshook-core/bootstrap-trace` feature, `platform::trace` records marks
 //! and environment mutations in one process-global log, and the
-//! `bootstrap_ordering` integration harness asserts rules R1–R5 against it
+//! `bootstrap_ordering` integration harness asserts rules R1–R6 against it
 //! (including a deliberately misordered scenario that must fail).
 
 mod app_bootstrap;
@@ -43,6 +48,7 @@ mod error;
 pub mod host;
 #[cfg(not(feature = "test-seams"))]
 mod host;
+mod instance;
 mod options;
 mod pre_runtime;
 mod reconcile;
@@ -58,7 +64,8 @@ pub use app_bootstrap::BootstrappedApp;
 pub use env_policy::{EnvPolicy, PreRuntimeEnv};
 pub use error::{BootstrapError, StoreKind};
 pub use options::{
-    BootstrapOptions, LoggingMode, PrefixJournalRecovery, RuntimeChoice, StoreRoots, UmuRefresh,
+    BootstrapOptions, InstanceBus, LoggingMode, PrefixJournalRecovery, RuntimeChoice, StoreRoots,
+    UmuRefresh,
 };
 pub use pre_runtime::{pre_runtime, FlatpakMode, PreRuntime, PreRuntimeOptions};
 pub use report::{

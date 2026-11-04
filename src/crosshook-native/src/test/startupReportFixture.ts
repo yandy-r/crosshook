@@ -10,6 +10,7 @@ export function makeStartupReport(overrides: Partial<StartupReport> = {}): Start
       metadata_error: null,
       settings_unreadable: false,
       logging_unavailable: false,
+      instance_unguarded: false,
     },
     jobs: {
       health: { state: 'pending' },

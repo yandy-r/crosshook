@@ -12,9 +12,11 @@
 //! the audited startup path.
 
 use std::ffi::{OsStr, OsString};
+use std::time::Duration;
 
 use super::host::{PreRuntimeHost, SystemHost};
 use super::report::FlatpakMigrationReport;
+use crate::instance_lock::{AcquireError, InstanceLock, InstanceLockAttempt, InstanceLockPaths};
 
 /// Shell-supplied hook that adjusts process environment variables pre-runtime.
 ///
@@ -71,6 +73,31 @@ impl<'a> PreRuntimeEnv<'a> {
 impl PreRuntimeHost for SystemHost {
     fn thread_count(&self) -> Option<u32> {
         crosshook_core::platform::trace::thread_count()
+    }
+
+    fn acquire_instance_lock(&mut self, wait: Option<Duration>) -> InstanceLockAttempt {
+        // Read through the environment, never `BaseDirs`: this runs before
+        // the Flatpak gate (trace rule R3).
+        let runtime_dir = std::env::var_os("XDG_RUNTIME_DIR");
+        let paths = match InstanceLockPaths::resolve(runtime_dir.as_deref(), self.is_flatpak()) {
+            Ok(paths) => paths,
+            Err(unavailable) => return InstanceLockAttempt::Unavailable(unavailable.reason()),
+        };
+        let acquired = match wait {
+            Some(timeout) => InstanceLock::acquire_with_wait(&paths, timeout),
+            None => InstanceLock::try_acquire(&paths),
+        };
+        match acquired {
+            Ok(lock) => InstanceLockAttempt::Acquired(lock),
+            Err(AcquireError::Contended) => InstanceLockAttempt::Contended,
+            Err(AcquireError::Unavailable(unavailable, error)) => {
+                if let Some(error) = error {
+                    let detail = crate::presenter::sanitize_message(&error.to_string());
+                    eprintln!("CrossHook: instance lock error: {detail}");
+                }
+                InstanceLockAttempt::Unavailable(unavailable.reason())
+            }
+        }
     }
 
     fn is_flatpak(&self) -> bool {

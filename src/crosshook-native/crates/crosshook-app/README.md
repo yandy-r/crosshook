@@ -32,7 +32,8 @@ run Phase A first; Phase B consumes its token, so skipping Phase A is a
 compile error.
 
 1. **Phase A** — `pre_runtime(PreRuntimeOptions) -> Result<PreRuntime, BootstrapError>`:
-   synchronous, before any Tokio runtime, GTK, or thread spawned by CrossHook. Fixed order: Flatpak gate (+ XDG override in host-XDG shared mode)
+   synchronous, before any Tokio runtime, GTK, or thread spawned by CrossHook. Fixed order: single-instance lock (step 0; see
+   _Single instance_) → Flatpak gate (+ XDG override in host-XDG shared mode)
    → first-run Flatpak migration (isolated mode only) → legacy Tauri app-id
    migration → UI `EnvPolicy` hook. Environment mutation happens only here,
    checked with a `Threads:` read; a multi-threaded entry (for example threads
@@ -41,10 +42,10 @@ compile error.
    still runs. `/proc` unreadable proceeds with a warning. Migration failures are
    best-effort: recorded in the report, never fatal.
 2. **Phase B** — `App::bootstrap(pre, BootstrapOptions) -> Result<(BootstrappedApp, StartupReport), BootstrapError>`:
-   consumes the token and initializes in a fixed order (runtime → settings
-   store → logging → remaining stores → catalogs → metadata reconciliation →
+   consumes the token and initializes in a fixed order (runtime → instance
+   bus name → settings store → logging → remaining stores → catalogs → metadata reconciliation →
    nag sync), then schedules the startup jobs. Fatal failures are typed
-   `BootstrapError`s (`StoreInit`, `Runtime`) — never
+   `BootstrapError`s (`StoreInit`, `Runtime`, `AlreadyRunning`) — never
    `process::exit`. Degraded facilities (metadata DB, unreadable settings,
    logging) continue and are flagged in the report.
 
@@ -54,7 +55,7 @@ Every step of both phases appends one `StepRecord { step, outcome }` to a
 shared `StepLog`, including skipped steps, so one canonical order holds in
 every mode. `PreRuntime::steps()` exposes Phase A's log and
 `BootstrappedApp::bootstrap_steps()` the combined log; `verify_pre_runtime_order()` is
-the shared Phase-A order checker. The full sequence (16 steps) is asserted in
+the shared Phase-A order checker. The full sequence (18 steps) is asserted in
 `tests/bootstrap_report.rs`.
 
 ### Startup report
@@ -84,11 +85,71 @@ The crate feature `test-seams` enables `crosshook-core/bootstrap-trace` and
 exposes `#[doc(hidden)]` seams for tests: the `PreRuntimeHost` trait +
 `pre_runtime_with_host` / `pre_runtime_misordered_with_host` (drive Phase A
 against a fake host, no real environment mutation), and the core `trace` log
-the `tests/bootstrap_ordering.rs` harness asserts ordering rules R1–R5
+the `tests/bootstrap_ordering.rs` harness asserts ordering rules R1–R6
 against (own `main`, re-exec per scenario). Production builds keep the host
-seam crate-private and omit the misordered path. The `cargo tree` normal-edge
+seam crate-private and omit the misordered path. `claim_bus_name_at` and
+`activate_named` (same feature) drive the D-Bus round trip in
+`tests/instance_activation.rs` against a per-process test name. The `cargo tree` normal-edge
 feature checks in CI and `scripts/lint.sh` reject `bootstrap-trace` in shipped builds;
 `verify:no-mocks` separately guards frontend mock code.
+
+### Single instance
+
+`instance_lock` keeps Classic and the native UI from running at the same
+time (they share one app-id and the same stores).
+
+- **Lock (Phase A step 0).** Non-blocking exclusive `flock`s on
+  `$XDG_RUNTIME_DIR/app/dev.crosshook.CrossHook/instance.lock` (the Flatpak
+  app's runtime dir, shared by every sandbox instance) and, for native runs,
+  also `$XDG_RUNTIME_DIR/crosshook/instance.lock`. Native runs take both, so
+  a native and a Flatpak CrossHook exclude each other before any migration;
+  an unusable shared directory only warns in native mode. `$XDG_RUNTIME_DIR`
+  is read through the host seam, never `BaseDirs`. Each directory is created
+  `0700` and must be a real directory owned by the effective user with no
+  group/other write bits; each file is opened
+  `O_RDWR|O_CREAT|O_NOFOLLOW|O_CLOEXEC`, mode `0600`, must be a regular file
+  and is never written. The kernel releases the locks on exit or `kill -9`,
+  so they never go stale, and games never inherit them. Contention on any
+  lock returns `BootstrapError::AlreadyRunning` before the gate or any
+  migration (ordering rule R6). An unset, relative, unsafe or unusable
+  runtime dir degrades the step and startup relies on the bus name.
+- **Bus name (Phase B, right after the runtime).** `dev.crosshook.CrossHook`
+  is owned with `DoNotQueue` (2 s bound) and serves
+  `org.freedesktop.Application.Activate(a{sv})` at
+  `/dev/crosshook/CrossHook`. A taken name is also `AlreadyRunning`. No
+  session bus degrades the step; with no lock either,
+  `degraded.instance_unguarded` is `true` and Classic shows a warning banner.
+  `BootstrapOptions::with_instance_bus(InstanceBus::Skip { .. })` opts out
+  (required when bootstrapping inside a Tokio runtime, such as
+  `#[tokio::test]`). Shells call `InstanceGuard::release_bus_name()` when
+  they start exiting (Classic: `RunEvent::ExitRequested`/`Exit`); the lock
+  stays held until the process ends.
+- **Activation.** A second launch calls
+  `activate_running_instance(ActivationRequest::from_env(), ACTIVATE_TIMEOUT)`
+  (outside any Tokio runtime; inside one it returns `ActivationError::Bus`),
+  forwarding `XDG_ACTIVATION_TOKEN` / `DESKTOP_STARTUP_ID`. If the name has no
+  owner yet it waits for `NameOwnerChanged` within the same 2 s budget. The
+  Classic shell exits 0 on success and 1 otherwise, with one message per
+  error: `TimedOut` (owner did not answer), `NoOwner` or `Rejected` (the
+  instance is shutting down; try again), `Bus` (no usable session bus).
+  Incoming platform data is untrusted: only those two string keys (≤ 512
+  bytes, no control characters) are kept. Requests that arrive before the
+  UI calls `BootstrappedApp::instance().set_activation_handler(..)` are
+  buffered (latest wins). `ActivationHandler::activate` runs on a Tokio
+  worker, marshals to the UI's main thread and returns `ActivationStatus`;
+  `NoWindow` (shutting down) makes `Activate` reply
+  `org.freedesktop.DBus.Error.Failed`.
+- **Handoff.** `InstanceGuard::release_and_handoff(cmd)` spawns `cmd` with
+  `CROSSHOOK_INSTANCE_HANDOFF=1`, then releases the bus name. **The caller
+  must exit right after `Ok`**: the lock stays held until this process
+  exits, so the two never use the stores at the same time, and
+  `handoff_pending()` reports the state. A failed spawn keeps both the lock
+  and the bus name. The new process removes the variable in Phase A and
+  waits up to `HANDOFF_WAIT` (10 s, above Classic's ~8 s worst-case exit:
+  the `[ui]` flush plus `App::DEFAULT_SHUTDOWN_TIMEOUT`) with an inotify
+  `IN_CLOSE` watch and `poll` (no sleeps).
+- **Benches** reuse the real `XDG_RUNTIME_DIR` and session bus: close
+  CrossHook before benching, or the bench run activates it and exits 0.
 
 ## Services
 
@@ -639,7 +700,9 @@ file swapped in at the path is never read.
   unchanged and byte-identical to the pre-service commands.
 - **User-requested export:** the diagnostics `.tar.gz`, written to the chosen
   directory (system temp by default).
-- **Runtime-only:** the Background portal grant and its protection state;
+- **Runtime-only:** the empty `instance.lock` on `$XDG_RUNTIME_DIR` (tmpfs),
+  the `dev.crosshook.CrossHook` bus name, the activation relay and the frozen
+  `degraded.instance_unguarded` flag; the Background portal grant and its protection state;
   job state, handles, and retained job outcomes; launch sessions, their
   event streams and `session_id`s (never persisted); the startup report,
   its step log and job results (served by `get_startup_report`, never
@@ -661,7 +724,8 @@ UI; the diagnostics archive is a regular file the user chose to create.
 ## Dependencies
 
 `crosshook-core`, `tokio` (rt-multi-thread, sync, time, macros, process),
-`tokio-util` (rt), `nix` (process, signal, user), `uuid` (v4), `thiserror`, `serde` (derive),
+`tokio-util` (rt), `futures-core`, `nix` (fs, inotify, poll, process, signal, user), `zbus`
+(tokio; the same version `crosshook-core` uses), `uuid` (v4), `thiserror`, `serde` (derive),
 `serde_json`, `toml`, `tracing`, and `static_assertions`. Dev: `tempfile`,
 `tar`, `flate2`, `tokio` (test-util, macros, rt, io-util).
 `scripts/check-app-deps.sh` guards against UI-toolkit leakage.

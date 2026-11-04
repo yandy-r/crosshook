@@ -23,8 +23,10 @@ fn clears_only_stale_x11_override_in_wayland_session() {
 mod apply {
     use std::collections::HashMap;
     use std::ffi::{OsStr, OsString};
+    use std::time::Duration;
 
     use crosshook_app::bootstrap::{pre_runtime_with_host, PreRuntimeHost, PreRuntimeOptions};
+    use crosshook_app::instance_lock::InstanceLockAttempt;
 
     use super::super::WebKitEnvPolicy;
 
@@ -49,6 +51,9 @@ mod apply {
     impl PreRuntimeHost for FakeHost {
         fn thread_count(&self) -> Option<u32> {
             Some(1)
+        }
+        fn acquire_instance_lock(&mut self, _wait: Option<Duration>) -> InstanceLockAttempt {
+            InstanceLockAttempt::Unavailable("test host")
         }
         fn is_flatpak(&self) -> bool {
             false

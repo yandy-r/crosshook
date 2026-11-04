@@ -27,6 +27,9 @@ tokio = { version = "1", features = ["fs", "io-util", "macros", "process", "sign
 tracing = "0.1"
 nix = { version = "0.31.2", default-features = false, features = ["signal", "time"] }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

@@ -8,6 +8,8 @@
 //! - `LoggingMode::Skip` — the tracing subscriber is once-per-process.
 //! - `UmuRefresh::Skip` — no network in tests.
 //! - `PrefixJournalRecovery::Skip` — no background journal recovery job.
+//! - `InstanceBus::Skip` — no session bus; `block_on` would panic inside the
+//!   test runtime.
 //! - `RuntimeChoice::Handle(Handle::current())` on the current-thread test
 //!   runtime: jobs are spawned but not polled until the first `.await`, so
 //!   subscribing before awaiting makes every `StartupJobFinished` event
@@ -17,12 +19,15 @@ use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::path::Path;
+use std::time::Duration;
 
 use crosshook_app::bootstrap::{
     pre_runtime_with_host, BootstrapError, BootstrapOptions, BootstrapStep, BootstrappedApp,
-    FlatpakMigrationReport, FlatpakMode, JobSnapshotKind, JobState, LoggingMode, PreRuntimeHost,
-    PreRuntimeOptions, PrefixJournalRecovery, StepOutcome, StoreKind, StoreRoots, UmuRefresh,
+    FlatpakMigrationReport, FlatpakMode, InstanceBus, JobSnapshotKind, JobState, LoggingMode,
+    PreRuntimeHost, PreRuntimeOptions, PrefixJournalRecovery, StepOutcome, StoreKind, StoreRoots,
+    UmuRefresh,
 };
+use crosshook_app::instance_lock::InstanceLockAttempt;
 use crosshook_app::{App, AppEvent, StartupJobKind};
 use crosshook_core::metadata::MetadataStatus;
 use crosshook_core::profile::{GameProfile, ProfileStore};
@@ -40,6 +45,10 @@ struct FakeFlatpakHost {
 impl PreRuntimeHost for FakeFlatpakHost {
     fn thread_count(&self) -> Option<u32> {
         Some(1)
+    }
+
+    fn acquire_instance_lock(&mut self, _wait: Option<Duration>) -> InstanceLockAttempt {
+        InstanceLockAttempt::Unavailable("test host")
     }
 
     fn is_flatpak(&self) -> bool {
@@ -103,6 +112,9 @@ fn test_options(dir: &Path) -> BootstrapOptions {
         .with_prefix_journal_recovery(PrefixJournalRecovery::Skip {
             reason: "integration test",
         })
+        .with_instance_bus(InstanceBus::Skip {
+            reason: "integration test",
+        })
 }
 
 fn write_settings(dir: &Path, settings: &AppSettingsData) {
@@ -147,6 +159,10 @@ async fn bootstrap_returns_initial_report_with_flatpak_outcome_and_full_step_log
     assert!(!initial.onboarding.has_profiles);
     assert!(!initial.degraded.settings_unreadable);
     assert!(!initial.degraded.logging_unavailable);
+    // No lock (fake host) but the bus was skipped by choice: still guarded.
+    assert!(!initial.degraded.instance_unguarded);
+    assert!(!app.instance().holds_lock());
+    assert!(!app.instance().owns_bus_name());
     // The umu skip is stored before any poll (it finishes inline during
     // bootstrap); the scheduled jobs are still pending because nothing has
     // been awaited on this current-thread runtime yet.
@@ -163,7 +179,7 @@ async fn bootstrap_returns_initial_report_with_flatpak_outcome_and_full_step_log
     assert_eq!(snapshot.onboarding.show, initial.onboarding.show);
     assert_eq!(snapshot.flatpak.mode, FlatpakMode::Isolated);
 
-    // Full step log: Phase A steps then Phase B steps, canonical order.
+    // Full step log (18): Phase A steps then Phase B steps, canonical order.
     let steps: Vec<BootstrapStep> = app
         .bootstrap_steps()
         .records()
@@ -173,11 +189,13 @@ async fn bootstrap_returns_initial_report_with_flatpak_outcome_and_full_step_log
     assert_eq!(
         steps,
         vec![
+            BootstrapStep::InstanceLock,
             BootstrapStep::FlatpakGate,
             BootstrapStep::FlatpakMigration,
             BootstrapStep::LegacyAppIdMigration,
             BootstrapStep::EnvPolicy,
             BootstrapStep::Runtime,
+            BootstrapStep::InstanceBus,
             BootstrapStep::SettingsStore,
             BootstrapStep::Logging,
             BootstrapStep::DevelopmentScripts,
@@ -524,6 +542,9 @@ async fn config_dir_file_is_typed_store_init_error() {
         })
         .with_logging(LoggingMode::Skip)
         .with_umu_refresh(UmuRefresh::Skip {
+            reason: "integration test",
+        })
+        .with_instance_bus(InstanceBus::Skip {
             reason: "integration test",
         });
 

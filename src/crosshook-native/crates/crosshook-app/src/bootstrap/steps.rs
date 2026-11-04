@@ -8,11 +8,14 @@ use std::fmt;
 
 /// One named bootstrap step, in canonical execution order.
 ///
-/// Phase A steps come first ([`BootstrapStep::FlatpakGate`] through
+/// Phase A steps come first ([`BootstrapStep::InstanceLock`] through
 /// [`BootstrapStep::EnvPolicy`]); Phase B continues the same log.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum BootstrapStep {
+    /// Single-instance lock under `$XDG_RUNTIME_DIR` (step 0, before any
+    /// migration; contention ends startup with `AlreadyRunning`).
+    InstanceLock,
     /// Flatpak gate: decide native / isolated / host-XDG-shared mode and
     /// apply the XDG override when the user opted into shared mode.
     FlatpakGate,
@@ -24,6 +27,9 @@ pub enum BootstrapStep {
     EnvPolicy,
     /// Application runtime construction (Phase B).
     Runtime,
+    /// Session-bus name `dev.crosshook.CrossHook` and the activation
+    /// interface (Phase B, before any store).
+    InstanceBus,
     /// Settings store initialization and load (Phase B).
     SettingsStore,
     /// Logging initialization (Phase B).
@@ -49,8 +55,9 @@ pub enum BootstrapStep {
 }
 
 impl BootstrapStep {
-    /// The four Phase A steps in their canonical order.
-    pub const PRE_RUNTIME_ORDER: [BootstrapStep; 4] = [
+    /// The five Phase A steps in their canonical order.
+    pub const PRE_RUNTIME_ORDER: [BootstrapStep; 5] = [
+        BootstrapStep::InstanceLock,
         BootstrapStep::FlatpakGate,
         BootstrapStep::FlatpakMigration,
         BootstrapStep::LegacyAppIdMigration,
@@ -60,11 +67,13 @@ impl BootstrapStep {
     /// Stable lowercase name used in trace marks and diagnostics.
     pub fn name(self) -> &'static str {
         match self {
+            Self::InstanceLock => "instance_lock",
             Self::FlatpakGate => "gate",
             Self::FlatpakMigration => "flatpak_migration",
             Self::LegacyAppIdMigration => "legacy_app_id",
             Self::EnvPolicy => "env_policy",
             Self::Runtime => "runtime",
+            Self::InstanceBus => "instance_bus",
             Self::SettingsStore => "settings_store",
             Self::Logging => "logging",
             Self::DevelopmentScripts => "development_scripts",

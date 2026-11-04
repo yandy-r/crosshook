@@ -61,6 +61,20 @@ pub enum PrefixJournalRecovery {
     },
 }
 
+/// Policy for owning the single-instance session-bus name.
+#[derive(Debug, Clone, Copy)]
+pub enum InstanceBus {
+    /// Own `dev.crosshook.CrossHook` and serve `Activate` (production).
+    Enabled,
+    /// Do not touch the session bus (recorded as a skipped step). Required
+    /// when `App::bootstrap` runs inside a Tokio runtime context, such as
+    /// `#[tokio::test]`.
+    Skip {
+        /// Why the shell skipped the bus.
+        reason: &'static str,
+    },
+}
+
 /// Phase-B choices. Phase A must finish before any runtime is constructed.
 #[non_exhaustive]
 pub struct BootstrapOptions {
@@ -74,6 +88,8 @@ pub struct BootstrapOptions {
     pub umu_refresh: UmuRefresh,
     /// Startup prefix journal recovery policy.
     pub prefix_journal_recovery: PrefixJournalRecovery,
+    /// Single-instance bus-name policy.
+    pub instance_bus: InstanceBus,
 }
 
 impl BootstrapOptions {
@@ -87,6 +103,7 @@ impl BootstrapOptions {
             },
             umu_refresh: UmuRefresh::Enabled,
             prefix_journal_recovery: PrefixJournalRecovery::Enabled,
+            instance_bus: InstanceBus::Enabled,
         }
     }
 
@@ -117,6 +134,12 @@ impl BootstrapOptions {
     /// Selects startup prefix journal recovery policy.
     pub fn with_prefix_journal_recovery(mut self, recovery: PrefixJournalRecovery) -> Self {
         self.prefix_journal_recovery = recovery;
+        self
+    }
+
+    /// Selects the single-instance bus-name policy.
+    pub fn with_instance_bus(mut self, bus: InstanceBus) -> Self {
+        self.instance_bus = bus;
         self
     }
 }

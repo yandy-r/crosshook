@@ -666,6 +666,7 @@ dependencies = [
  "crosshook-app",
  "crosshook-core",
  "flate2",
+ "futures-core",
  "nix",
  "rusqlite",
  "serde",
@@ -679,6 +680,7 @@ dependencies = [
  "toml 1.1.2+spec-1.1.0",
  "tracing",
  "uuid",
+ "zbus",
 ]
 
 [[package]]
@@ -742,6 +744,7 @@ dependencies = [
  "chrono",
  "crosshook-app",
  "crosshook-core",
+ "gtk",
  "nix",
  "serde",
  "serde_json",
