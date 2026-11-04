@@ -194,15 +194,50 @@ async fn windows_style_and_relative_paths_pass_through_trimmed() {
 #[tokio::test]
 async fn document_portal_path_resolves_via_xattr_without_dbus() {
     for path in [DOC_NESTED, FLATPAK_DOC_NESTED] {
-        let xattr = FakeXattr::returning(Some(b"/home/user/Games//game.exe\0"));
+        let xattr = FakeXattr::returning(Some(b"/home/user/Games//sub/./game.exe\0"));
         let portal = FakePortal::replying(&[("abc123", b"/wrong/path")]);
 
         let resolved = resolve_picked_host_path(&format!(" {path} "), &xattr, &portal).await;
 
-        assert_eq!(resolved, Ok(PathBuf::from("/home/user/Games/game.exe")));
+        assert_eq!(resolved, Ok(PathBuf::from("/home/user/Games/sub/game.exe")));
         assert_eq!(xattr.calls(), vec![path.to_string()]);
         assert!(portal.calls().is_empty(), "portal called for `{path}`");
     }
+}
+
+/// xdg-desktop-portal 1.19.0-1.19.2 report the exported entry's host path in
+/// the xattr of every inode inside a directory export; the remainder below
+/// the entry is appended instead of trusting that value.
+#[tokio::test]
+async fn nested_xattr_reporting_the_exported_entry_appends_remainder() {
+    for path in [DOC_NESTED, FLATPAK_DOC_NESTED] {
+        let xattr = FakeXattr::returning(Some(b"/home/user/Games\0"));
+        let portal = FakePortal::replying(&[("abc123", b"/wrong/path")]);
+
+        let resolved = resolve_picked_host_path(path, &xattr, &portal).await;
+
+        assert_eq!(
+            resolved,
+            Ok(PathBuf::from("/home/user/Games/sub/game.exe")),
+            "for `{path}`"
+        );
+        assert!(portal.calls().is_empty(), "portal called for `{path}`");
+    }
+}
+
+/// The remainder is matched component-wise: a value ending with the same
+/// characters but not the same components still gets the remainder.
+#[tokio::test]
+async fn nested_xattr_suffix_match_is_component_wise() {
+    let xattr = FakeXattr::returning(Some(b"/home/user/Gamessub/game.exe"));
+    let portal = FakePortal::replying(&[("abc123", b"/wrong/path")]);
+
+    let resolved = resolve_picked_host_path(DOC_NESTED, &xattr, &portal).await;
+
+    assert_eq!(
+        resolved,
+        Ok(PathBuf::from("/home/user/Gamessub/game.exe/sub/game.exe"))
+    );
 }
 
 #[tokio::test]
@@ -382,7 +417,7 @@ fn host_path_error_messages_name_the_file_and_the_remedy() {
     assert_eq!(
         unavailable("game.exe").to_string(),
         "CrossHook could not find the real location of \"game.exe\" because the desktop \
-         document portal did not answer (it needs xdg-desktop-portal 1.17 or newer). Update \
+         document portal did not answer (it needs xdg-desktop-portal 1.19 or newer). Update \
          xdg-desktop-portal, or grant CrossHook access to the file's folder (for example with \
          Flatseal) and pick it again."
     );

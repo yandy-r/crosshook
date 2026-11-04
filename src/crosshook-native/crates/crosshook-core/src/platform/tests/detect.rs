@@ -1,12 +1,13 @@
 use std::ffi::{CStr, CString};
 use std::fs;
+use std::path::Path;
 
 use tempfile::tempdir;
 
 use super::super::detect::{
-    document_portal_tail, is_flatpak_with, normalize_flatpak_host_path, parse_document_portal_tail,
-    read_document_portal_host_path_xattr, read_document_portal_host_path_xattr_bytes,
-    DOCUMENT_PORTAL_HOST_PATH_XATTR,
+    document_portal_tail, is_flatpak_with, nested_document_portal_host_path,
+    normalize_flatpak_host_path, parse_document_portal_tail, read_document_portal_host_path_xattr,
+    read_document_portal_host_path_xattr_bytes, DOCUMENT_PORTAL_HOST_PATH_XATTR,
 };
 use super::common::{ScopedEnv, TEST_ENV_KEY};
 
@@ -186,10 +187,34 @@ fn read_document_portal_host_path_xattr_bytes_returns_raw_value() {
         read_document_portal_host_path_xattr_bytes(&path),
         Some(raw_value.to_vec())
     );
-    // The lossy form keeps its old behaviour: whitespace trimmed only up to
-    // the trailing NUL, which `str::trim` does not treat as whitespace.
+    // The lossy form strips one trailing NUL, then trims whitespace.
     assert_eq!(
         read_document_portal_host_path_xattr(&path),
-        Some("/home/user/game.exe \n\0".to_string())
+        Some("/home/user/game.exe".to_string())
+    );
+}
+
+#[test]
+fn nested_document_portal_host_path_appends_rest_only_when_missing() {
+    let rest = ["sub", "game.exe"];
+    // Correct per-inode xattr: already ends with the remainder.
+    assert_eq!(
+        nested_document_portal_host_path(Path::new("/home/user/Games/sub/game.exe"), &rest),
+        Path::new("/home/user/Games/sub/game.exe")
+    );
+    // xdg-desktop-portal 1.19.0-1.19.2: the exported entry's path.
+    assert_eq!(
+        nested_document_portal_host_path(Path::new("/home/user/Games"), &rest),
+        Path::new("/home/user/Games/sub/game.exe")
+    );
+    // Component-wise match, not a string suffix.
+    assert_eq!(
+        nested_document_portal_host_path(Path::new("/home/user/Gamessub/game.exe"), &rest),
+        Path::new("/home/user/Gamessub/game.exe/sub/game.exe")
+    );
+    // A pick of the exported entry itself has no remainder.
+    assert_eq!(
+        nested_document_portal_host_path(Path::new("/home/user/game.exe"), &[]),
+        Path::new("/home/user/game.exe")
     );
 }

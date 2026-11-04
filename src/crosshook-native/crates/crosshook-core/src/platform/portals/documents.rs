@@ -2,7 +2,7 @@
 //!
 //! See `docs/architecture/adr-0002-flatpak-portal-contracts.md` § Documents
 //! portal contract. Only `GetHostPaths` (interface version 5, shipped with
-//! xdg-desktop-portal 1.17) is used: a read-only lookup that never prompts
+//! xdg-desktop-portal 1.19) is used: a read-only lookup that never prompts
 //! the user. Path parsing and validation live in `platform::picked_path`.
 
 use std::collections::HashMap;

@@ -17,9 +17,9 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use super::detect::{
-    document_portal_tail, is_document_portal_path, normalize_flatpak_host_path,
-    parse_document_portal_tail, read_document_portal_host_path_xattr_bytes, DocumentPortalPath,
-    FLATPAK_HOST_ROOT,
+    document_portal_tail, is_document_portal_path, nested_document_portal_host_path,
+    normalize_flatpak_host_path, parse_document_portal_tail,
+    read_document_portal_host_path_xattr_bytes, DocumentPortalPath, FLATPAK_HOST_ROOT,
 };
 use super::portals::documents::{DocumentsPortal, ZbusDocumentsPortal};
 
@@ -80,7 +80,7 @@ impl fmt::Display for HostPathError {
             Self::DocumentPortalUnavailable { file_name } => write!(
                 f,
                 "CrossHook could not find the real location of \"{file_name}\" because the \
-                 desktop document portal did not answer (it needs xdg-desktop-portal 1.17 or \
+                 desktop document portal did not answer (it needs xdg-desktop-portal 1.19 or \
                  newer). Update xdg-desktop-portal, or grant CrossHook access to the file's \
                  folder (for example with Flatseal) and pick it again."
             ),
@@ -218,8 +218,11 @@ fn decode_portal_host_path(raw: &[u8]) -> Option<&str> {
 /// Order: trim → empty is [`HostPathError::Empty`] → `/run/host` is `/` →
 /// `/run/host/…` is stripped → malformed document-portal paths are rejected →
 /// document-portal paths resolve through the `user.document-portal.host-path`
-/// xattr of the full path, then through `GetHostPaths` (appending the
-/// remainder inside an exported directory) → anything else passes through.
+/// xattr of the full path (appending the remainder inside an exported
+/// directory when the value does not already end with it, see
+/// [`nested_document_portal_host_path`]), then through `GetHostPaths`
+/// (appending the remainder inside an exported directory) → anything else
+/// passes through.
 /// Absolute Unix results are lexically cleaned (duplicate slashes and `.`
 /// removed, `..` kept); Windows-style and relative input is returned trimmed.
 ///
@@ -247,7 +250,10 @@ async fn resolve_document_portal_path(
 ) -> Result<PathBuf, HostPathError> {
     if let Some(raw) = xattr.document_portal_host_path(path) {
         match decode_portal_host_path(&raw) {
-            Some(host_path) => return Ok(clean_absolute(host_path)),
+            Some(host_path) => {
+                let host_path = clean_absolute(host_path);
+                return Ok(nested_document_portal_host_path(&host_path, &parsed.rest).into_owned());
+            }
             None => tracing::debug!(
                 doc_id = parsed.doc_id,
                 "document-portal xattr is not a valid host path; asking the portal"
