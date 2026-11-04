@@ -46,7 +46,14 @@ impl SecretScrubber {
         let mut values: Vec<String> = match content.parse::<toml::Table>() {
             Ok(table) => SECRET_SETTINGS_KEYS
                 .iter()
-                .filter_map(|key| table.get(*key)?.as_str().map(str::to_string))
+                .filter_map(|key| {
+                    // Non-string values are scrubbed by their TOML text: typed settings
+                    // loading rejects them, and that error can echo the source line.
+                    table.get(*key).map(|value| match value {
+                        toml::Value::String(text) => text.clone(),
+                        other => other.to_string(),
+                    })
+                })
                 .collect(),
             Err(_) => scan_secret_lines(content),
         };
@@ -177,6 +184,15 @@ mod tests {
             scrubber.scrub(b"no secret here"),
             Cow::Borrowed(_)
         ));
+    }
+
+    #[test]
+    fn non_string_secret_values_are_scrubbed_by_their_toml_text() {
+        let scrubber = SecretScrubber::from_settings_content("steamgriddb_api_key = 123456789012");
+        assert_eq!(
+            scrub_str(&scrubber, "line: steamgriddb_api_key = 123456789012"),
+            "line: steamgriddb_api_key = <redacted>"
+        );
     }
 
     #[test]

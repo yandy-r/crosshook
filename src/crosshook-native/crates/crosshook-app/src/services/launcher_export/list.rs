@@ -193,7 +193,10 @@ fn stale_flags_by_profile_slug(
         .load()
         .map(|settings| settings.umu_preference)
         .unwrap_or_else(|error| {
-            tracing::warn!(%error, "failed to load settings for launcher stale detection");
+            tracing::warn!(
+                error = error.redacted_summary(),
+                "failed to load settings for launcher stale detection"
+            );
             UmuPreference::Auto
         });
 
