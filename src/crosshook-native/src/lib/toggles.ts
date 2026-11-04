@@ -2,8 +2,8 @@
 //
 // Orthogonal debug toggles for browser dev mode (BR-12).
 //
-// Reads `?delay=`, `?errors=`, `?onboarding=`, `?autoload=`, `?metadata=`, and
-// `?steamDeckCaveats=` from `window.location.search` exactly once at module init
+// Reads `?delay=`, `?errors=`, `?onboarding=`, `?autoload=`, `?metadata=`,
+// `?instanceUnguarded=` and `?steamDeckCaveats=` from `window.location.search` exactly once at module init
 // and caches the parsed result in a module-scope const so subsequent calls are O(1).
 //
 // These toggles are independent from the `?fixture=` switcher in `./fixture.ts`
@@ -35,6 +35,8 @@ export interface DebugToggles {
   metadataState: 'ok' | 'newer' | 'disabled';
   /** `?autoload=<profile>`: the mock startup report auto-loads this profile (when it exists). */
   autoLoadProfile: string | null;
+  /** `?instanceUnguarded=show`: the mock startup report sets `degraded.instance_unguarded`. */
+  showInstanceUnguarded: boolean;
 }
 
 function safeReadSearchParams(): URLSearchParams {
@@ -58,7 +60,16 @@ function parseToggles(): DebugToggles {
   const metadataState = rawMetadata === 'newer' || rawMetadata === 'disabled' ? rawMetadata : 'ok';
   const rawAutoLoad = params.get('autoload')?.trim() ?? '';
   const autoLoadProfile = rawAutoLoad === '' ? null : rawAutoLoad;
-  return { delayMs, forceErrors, showOnboarding, showSteamDeckCaveats, metadataState, autoLoadProfile };
+  const showInstanceUnguarded = params.get('instanceUnguarded') === 'show';
+  return {
+    delayMs,
+    forceErrors,
+    showOnboarding,
+    showSteamDeckCaveats,
+    metadataState,
+    autoLoadProfile,
+    showInstanceUnguarded,
+  };
 }
 
 const ACTIVE_TOGGLES: DebugToggles = parseToggles();
@@ -66,7 +77,7 @@ const ACTIVE_TOGGLES: DebugToggles = parseToggles();
 /**
  * Returns the active debug toggles, parsed once at module init from the URL
  * (`?delay=`, `?errors=`, `?onboarding=`, `?autoload=`, `?metadata=`,
- * `?steamDeckCaveats=`). Calls are O(1).
+ * `?instanceUnguarded=`, `?steamDeckCaveats=`). Calls are O(1).
  */
 export function getActiveToggles(): DebugToggles {
   return ACTIVE_TOGGLES;
@@ -85,5 +96,6 @@ export function togglesToChipFragments(toggles: DebugToggles): readonly string[]
   if (toggles.showSteamDeckCaveats) fragments.push('steamDeckCaveats');
   if (toggles.metadataState !== 'ok') fragments.push(`metadata:${toggles.metadataState}`);
   if (toggles.autoLoadProfile !== null) fragments.push('autoload');
+  if (toggles.showInstanceUnguarded) fragments.push('instanceUnguarded');
   return fragments;
 }

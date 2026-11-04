@@ -109,16 +109,21 @@ time (they share one app-id and the same stores).
   group/other write bits; each file is opened
   `O_RDWR|O_CREAT|O_NOFOLLOW|O_CLOEXEC`, mode `0600`, must be a regular file
   and is never written. The kernel releases the locks on exit or `kill -9`,
-  so they never go stale, and games never inherit them. Contention on any
-  lock returns `BootstrapError::AlreadyRunning` before the gate or any
+  so they never go stale, and games never inherit them. After locking, each
+  descriptor's device and inode must still match its path; a file replaced
+  between open and lock is reopened within the same budget. (`flock` cannot
+  see a holder whose file another same-user process unlinked; the bus name
+  covers that case in Phase B.) Contention on any lock returns `BootstrapError::AlreadyRunning` before the gate or any
   migration (ordering rule R6). An unset, relative, unsafe or unusable
   runtime dir degrades the step and startup relies on the bus name.
 - **Bus name (Phase B, right after the runtime).** `dev.crosshook.CrossHook`
   is owned with `DoNotQueue` (2 s bound) and serves
   `org.freedesktop.Application.Activate(a{sv})` at
   `/dev/crosshook/CrossHook`. A taken name is also `AlreadyRunning`. No
-  session bus degrades the step; with no lock either,
-  `degraded.instance_unguarded` is `true` and Classic shows a warning banner.
+  session bus degrades the step; if the locks also do not cover both
+  packagings (no lock, or a native run whose Flatpak-shared lock file was
+  skipped), `degraded.instance_unguarded` is `true` and Classic shows a
+  warning banner.
   `BootstrapOptions::with_instance_bus(InstanceBus::Skip { .. })` opts out
   (required when bootstrapping inside a Tokio runtime, such as
   `#[tokio::test]`). Shells call `InstanceGuard::release_bus_name()` once
@@ -129,19 +134,25 @@ time (they share one app-id and the same stores).
   `activate_running_instance(ActivationRequest::from_env(), ACTIVATE_TIMEOUT)`
   (outside any Tokio runtime; inside one it returns `ActivationError::Bus`),
   forwarding `XDG_ACTIVATION_TOKEN` / `DESKTOP_STARTUP_ID`. If the name has no
-  owner yet it waits for `NameOwnerChanged` within the same 2 s budget. The
-  Classic shell exits 0 on success and 1 otherwise, with one message per
-  error: `TimedOut` (owner did not answer), `NoOwner` (no owner for the
-  whole budget: the instance is starting up or shutting down; try again),
-  `Rejected` (the instance is shutting down; try again), `Bus` (no usable
+  owner yet, or the owner goes away before the call, it waits for
+  `NameOwnerChanged` and retries within the same 2 s budget. The Classic
+  shell exits 0 on success and 1 otherwise, with one message per error:
+  `TimedOut` (owner did not answer), `NoOwner` or `Starting` (the instance
+  is starting up or shutting down; try again), `ShuttingDown`,
+  `RaiseFailed`, `Rejected(detail)` (an unexpected error, for example from a
+  process that is not CrossHook but owns the name), `Bus` (no usable
   session bus).
+  The owner replies only after the UI handled the request. Requests that
+  arrive before the UI calls
+  `BootstrappedApp::instance().set_activation_handler(..)` are buffered
+  (latest wins) and their replies wait up to 1.5 s for it; if startup fails
+  first (the guard is dropped) they are answered "shutting down".
+  `ActivationHandler::activate` runs on the blocking pool, waits (bounded)
+  for the UI's main thread to raise the window and returns
+  `ActivationStatus`; failures reply with the CrossHook-specific D-Bus
+  errors `dev.crosshook.CrossHook.Error.{ShuttingDown,Starting,RaiseFailed}`.
   Incoming platform data is untrusted: only those two string keys (≤ 512
-  bytes, no control characters) are kept. Requests that arrive before the
-  UI calls `BootstrappedApp::instance().set_activation_handler(..)` are
-  buffered (latest wins). `ActivationHandler::activate` runs on a Tokio
-  worker, marshals to the UI's main thread and returns `ActivationStatus`;
-  `NoWindow` (shutting down) makes `Activate` reply
-  `org.freedesktop.DBus.Error.Failed`.
+  bytes, no control characters) are kept.
 - **Handoff.** `InstanceGuard::release_and_handoff(cmd)` spawns `cmd` with
   `CROSSHOOK_INSTANCE_HANDOFF=1`, then releases the bus name. **The caller
   must exit right after `Ok`**: the lock stays held until this process

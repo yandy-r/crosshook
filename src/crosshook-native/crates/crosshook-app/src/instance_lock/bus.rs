@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::Arc;
 use std::time::Duration;
 
 use futures_core::Stream;
@@ -13,6 +13,7 @@ use zbus::fdo::DBusProxy;
 use zbus::names::{BusName, WellKnownName};
 use zbus::zvariant::{OwnedValue, Value};
 
+use super::relay::{ActivationRelay, RelayOutcome};
 use super::{APP_ID, OBJECT_PATH};
 
 const APPLICATION_IFACE: &str = "org.freedesktop.Application";
@@ -84,69 +85,46 @@ impl ActivationRequest {
     }
 }
 
-/// Whether an activation request could be honoured.
+/// What an activation handler did with a request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActivationStatus {
-    /// The window raise was scheduled.
+    /// The main window was raised.
     Activated,
-    /// There is no window to raise (the instance is shutting down); the
-    /// caller gets an `org.freedesktop.DBus.Error.Failed` reply.
+    /// There is no window to raise (the instance is shutting down).
     NoWindow,
+    /// A window exists but raising it failed or was not confirmed in time.
+    RaiseFailed,
 }
 
 /// Implemented by each UI to raise its main window.
 ///
-/// Called on a Tokio worker thread; implementations marshal the work to
-/// their own main thread and return without waiting for it.
+/// Called on a blocking-pool thread. Implementations hand the work to their
+/// own main thread and wait for its result, bounded (well under the 2 s
+/// activation budget), so the second launch is only told "activated" after
+/// the raise happened.
 pub trait ActivationHandler: Send + Sync + 'static {
     /// Un-minimizes, shows and focuses the main window.
     fn activate(&self, request: ActivationRequest) -> ActivationStatus;
 }
 
-/// Reply text for an activation the instance could not honour.
-const NO_WINDOW: &str = "CrossHook is shutting down";
+/// D-Bus error names `Activate` replies with, so the caller can tell them
+/// apart from errors of an unrelated process that owns the name.
+const ERROR_SHUTTING_DOWN: &str = "dev.crosshook.CrossHook.Error.ShuttingDown";
+const ERROR_STARTING: &str = "dev.crosshook.CrossHook.Error.Starting";
+const ERROR_RAISE_FAILED: &str = "dev.crosshook.CrossHook.Error.RaiseFailed";
 
-#[derive(Default)]
-struct RelayState {
-    handler: Option<Arc<dyn ActivationHandler>>,
-    pending: Option<ActivationRequest>,
-}
-
-/// Buffers the latest activation until the UI installs its handler, because
-/// the bus name is owned before any window exists.
-#[derive(Default)]
-pub(crate) struct ActivationRelay {
-    state: Mutex<RelayState>,
-}
-
-impl ActivationRelay {
-    /// Forwards `request` to the handler, or keeps it (latest wins) until one
-    /// is installed (that counts as activated: the window is about to exist).
-    pub(crate) fn deliver(&self, request: ActivationRequest) -> ActivationStatus {
-        let handler = {
-            let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
-            match &state.handler {
-                Some(handler) => Arc::clone(handler),
-                None => {
-                    state.pending = Some(request);
-                    return ActivationStatus::Activated;
-                }
-            }
-        };
-        handler.activate(request)
-    }
-
-    /// Installs the handler and delivers the pending request, if any.
-    pub(crate) fn set_handler(&self, handler: Arc<dyn ActivationHandler>) {
-        let pending = {
-            let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
-            state.handler = Some(Arc::clone(&handler));
-            state.pending.take()
-        };
-        if let Some(request) = pending {
-            let _ = handler.activate(request);
-        }
-    }
+/// `Activate` failures, sent as the error names above.
+#[derive(Debug, zbus::DBusError)]
+#[zbus(prefix = "dev.crosshook.CrossHook.Error")]
+enum ActivateReply {
+    #[zbus(error)]
+    ZBus(zbus::Error),
+    /// No window (exiting), or startup failed before the UI existed.
+    ShuttingDown(String),
+    /// The UI did not finish starting within the reply budget.
+    Starting(String),
+    /// The raise failed.
+    RaiseFailed(String),
 }
 
 struct ApplicationIface {
@@ -155,15 +133,24 @@ struct ApplicationIface {
 
 #[zbus::interface(name = "org.freedesktop.Application")]
 impl ApplicationIface {
-    /// `Activate(a{sv} platform_data)`: raise the main window, or fail when
-    /// there is none (shutting down).
-    fn activate(&self, platform_data: HashMap<String, OwnedValue>) -> zbus::fdo::Result<()> {
-        match self
-            .relay
-            .deliver(ActivationRequest::from_platform_data(&platform_data))
-        {
-            ActivationStatus::Activated => Ok(()),
-            ActivationStatus::NoWindow => Err(zbus::fdo::Error::Failed(NO_WINDOW.to_owned())),
+    /// `Activate(a{sv} platform_data)`: raise the main window. The reply is
+    /// sent only after the UI handled the request (or failed to).
+    async fn activate(
+        &self,
+        platform_data: HashMap<String, OwnedValue>,
+    ) -> Result<(), ActivateReply> {
+        let request = ActivationRequest::from_platform_data(&platform_data);
+        match self.relay.request(request).await {
+            RelayOutcome::Handled(ActivationStatus::Activated) => Ok(()),
+            RelayOutcome::Handled(ActivationStatus::NoWindow) | RelayOutcome::Closed => Err(
+                ActivateReply::ShuttingDown("CrossHook is shutting down".to_owned()),
+            ),
+            RelayOutcome::Handled(ActivationStatus::RaiseFailed) => Err(
+                ActivateReply::RaiseFailed("the window could not be raised".to_owned()),
+            ),
+            RelayOutcome::StillStarting | RelayOutcome::Busy => Err(ActivateReply::Starting(
+                "CrossHook is still starting".to_owned(),
+            )),
         }
     }
 }
@@ -175,7 +162,6 @@ pub struct BusClaim {
 }
 
 impl BusClaim {
-    /// Releases the name and closes the connection.
     /// Releases the name and closes the connection, bounded by
     /// [`RELEASE_TIMEOUT`]; on timeout, dropping the connection gives the
     /// name up anyway.
@@ -237,7 +223,7 @@ pub(crate) async fn claim_bus_name(relay: Arc<ActivationRelay>) -> ClaimOutcome 
 #[cfg(feature = "test-seams")]
 #[doc(hidden)]
 pub async fn claim_bus_name_at(name: &str, handler: impl ActivationHandler) -> ClaimOutcome {
-    let relay = Arc::new(ActivationRelay::default());
+    let relay = Arc::new(ActivationRelay::new(tokio::runtime::Handle::current()));
     relay.set_handler(Arc::new(handler));
     claim_at(name, relay).await
 }
@@ -255,7 +241,17 @@ pub enum ActivationError {
     /// The owner did not answer `Activate` within the budget.
     #[error("timed out")]
     TimedOut,
-    /// The owner answered `Activate` with an error.
+    /// The running CrossHook is shutting down (or failed to start).
+    #[error("the running instance is shutting down")]
+    ShuttingDown,
+    /// The running CrossHook is still starting its UI.
+    #[error("the running instance is still starting")]
+    Starting,
+    /// The running CrossHook could not raise its window.
+    #[error("the running instance could not raise its window")]
+    RaiseFailed,
+    /// The owner answered `Activate` with an unexpected error (for example a
+    /// process that is not CrossHook owns the name).
     #[error("activation rejected: {0}")]
     Rejected(String),
 }
@@ -292,18 +288,29 @@ pub async fn activate_named(
     activate_at(name, request, timeout).await
 }
 
-/// One deadline covers connecting, waiting for an owner and the call. Running
-/// out while no one owns the name is [`ActivationError::NoOwner`]; running
-/// out during the call is [`ActivationError::TimedOut`].
+/// One deadline covers connecting, waiting for an owner and the call.
+/// Running out while no one owns the name is [`ActivationError::NoOwner`];
+/// running out during the call is [`ActivationError::TimedOut`]. If the
+/// owner goes away between the ownership check and the call, the call is
+/// retried once a new owner appears, within the same deadline.
 async fn activate_at(
     name: &str,
     request: ActivationRequest,
     timeout: Duration,
 ) -> Result<(), ActivationError> {
     let deadline = tokio::time::Instant::now() + timeout;
-    let call = tokio::time::timeout_at(deadline, connect_and_wait(name, deadline)).await;
-    let (connection, well_known) = call.unwrap_or(Err(ActivationError::TimedOut))?;
-    tokio::time::timeout_at(deadline, call_activate(&connection, well_known, &request))
+    let attempt = async {
+        let mut session = Session::connect(name).await?;
+        loop {
+            session.wait_for_owner(deadline).await?;
+            match session.call(&request).await {
+                Err(CallError::NoOwner) => continue,
+                Err(CallError::Failed(error)) => return Err(error),
+                Ok(()) => return Ok(()),
+            }
+        }
+    };
+    tokio::time::timeout_at(deadline, attempt)
         .await
         .unwrap_or(Err(ActivationError::TimedOut))
 }
@@ -312,27 +319,59 @@ fn bus(error: zbus::Error) -> ActivationError {
     ActivationError::Bus(sanitized(error))
 }
 
-/// Connects and waits (until `deadline`) for `name` to have an owner.
-async fn connect_and_wait(
-    name: &str,
-    deadline: tokio::time::Instant,
-) -> Result<(zbus::Connection, WellKnownName<'static>), ActivationError> {
-    let well_known = WellKnownName::try_from(name).map_err(|e| bus(e.into()))?;
-    let connection = zbus::Connection::session().await.map_err(bus)?;
-    let dbus = DBusProxy::new(&connection).await.map_err(bus)?;
-    // Subscribe before asking, so an owner appearing in between is not missed.
-    let mut changes = dbus
-        .receive_name_owner_changed_with_args(&[(0, name)])
-        .await
-        .map_err(bus)?;
-    let owned = dbus
-        .name_has_owner(BusName::from(well_known.clone()))
-        .await
-        .map_err(|error| bus(error.into()))?;
-    if !owned {
-        let wait_for_owner = async {
+enum CallError {
+    /// The name had no owner when the call was routed.
+    NoOwner,
+    Failed(ActivationError),
+}
+
+/// A session-bus connection watching `NameOwnerChanged` for one name.
+struct Session<'a> {
+    connection: zbus::Connection,
+    dbus: DBusProxy<'a>,
+    changes: zbus::fdo::NameOwnerChangedStream,
+    name: WellKnownName<'static>,
+}
+
+impl Session<'_> {
+    /// Connects and subscribes before any ownership check, so an owner
+    /// appearing in between is not missed.
+    async fn connect(name: &str) -> Result<Self, ActivationError> {
+        let name = WellKnownName::try_from(name)
+            .map_err(|e| bus(e.into()))?
+            .into_owned();
+        let connection = zbus::Connection::session().await.map_err(bus)?;
+        let dbus = DBusProxy::new(&connection).await.map_err(bus)?;
+        let changes = dbus
+            .receive_name_owner_changed_with_args(&[(0, name.as_str())])
+            .await
+            .map_err(bus)?;
+        Ok(Self {
+            connection,
+            dbus,
+            changes,
+            name,
+        })
+    }
+
+    /// Returns once the name has an owner; [`ActivationError::NoOwner`] if
+    /// none appears before `deadline`.
+    async fn wait_for_owner(
+        &mut self,
+        deadline: tokio::time::Instant,
+    ) -> Result<(), ActivationError> {
+        let owned = self
+            .dbus
+            .name_has_owner(BusName::from(self.name.clone()))
+            .await
+            .map_err(|error| bus(error.into()))?;
+        if owned {
+            return Ok(());
+        }
+        let changes = &mut self.changes;
+        let wait = async {
             loop {
-                let Some(signal) = next(&mut changes).await else {
+                let Some(signal) = next(changes).await else {
                     return Err(ActivationError::Bus("bus connection closed".to_owned()));
                 };
                 let has_owner = signal
@@ -343,34 +382,46 @@ async fn connect_and_wait(
                 }
             }
         };
-        tokio::time::timeout_at(deadline, wait_for_owner)
+        tokio::time::timeout_at(deadline, wait)
             .await
-            .unwrap_or(Err(ActivationError::NoOwner))?;
+            .unwrap_or(Err(ActivationError::NoOwner))
     }
-    Ok((connection, well_known.into_owned()))
+
+    async fn call(&self, request: &ActivationRequest) -> Result<(), CallError> {
+        let reply = self
+            .connection
+            .call_method(
+                Some(self.name.clone()),
+                OBJECT_PATH,
+                Some(APPLICATION_IFACE),
+                "Activate",
+                &(request.platform_data(),),
+            )
+            .await;
+        match reply {
+            Ok(_) => Ok(()),
+            Err(error) => Err(classify(error)),
+        }
+    }
 }
 
-async fn call_activate(
-    connection: &zbus::Connection,
-    well_known: WellKnownName<'static>,
-    request: &ActivationRequest,
-) -> Result<(), ActivationError> {
-    connection
-        .call_method(
-            Some(well_known),
-            OBJECT_PATH,
-            Some(APPLICATION_IFACE),
-            "Activate",
-            &(request.platform_data(),),
-        )
-        .await
-        .map(drop)
-        .map_err(|error| match error {
-            zbus::Error::MethodError(..) | zbus::Error::FDO(_) => {
-                ActivationError::Rejected(sanitized(error))
-            }
-            other => bus(other),
-        })
+/// Maps a failed `Activate` call: our own error names first, then "nobody
+/// owns the name" (retried), then anything else as an opaque rejection.
+fn classify(error: zbus::Error) -> CallError {
+    let zbus::Error::MethodError(name, detail, _) = &error else {
+        return CallError::Failed(bus(error));
+    };
+    let detail = detail.as_deref().map(sanitized).unwrap_or_default();
+    CallError::Failed(match name.as_str() {
+        ERROR_SHUTTING_DOWN => ActivationError::ShuttingDown,
+        ERROR_STARTING => ActivationError::Starting,
+        ERROR_RAISE_FAILED => ActivationError::RaiseFailed,
+        "org.freedesktop.DBus.Error.ServiceUnknown"
+        | "org.freedesktop.DBus.Error.NameHasNoOwner" => {
+            return CallError::NoOwner;
+        }
+        other => ActivationError::Rejected(format!("{other}: {detail}")),
+    })
 }
 
 /// `StreamExt::next` without a `futures-util` dependency.

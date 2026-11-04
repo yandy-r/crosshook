@@ -53,8 +53,8 @@ export function InstanceGuardBanner() {
       aria-label="Single-instance warning"
     >
       <span>
-        CrossHook could not confirm it is the only running copy (no runtime directory or session bus). Avoid opening a
-        second CrossHook window.
+        CrossHook could not confirm it is the only running copy (the instance lock or the session bus was unavailable).
+        Avoid opening a second CrossHook window.
       </span>
       <button
         type="button"

@@ -5,7 +5,9 @@ use std::sync::Arc;
 use tokio::runtime::{Handle, RuntimeFlavor};
 
 use super::{BootstrapError, BootstrapStep, InstanceBus, StepLog, StepOutcome};
-use crate::instance_lock::{claim_bus_name, ActivationRelay, BusClaim, ClaimOutcome};
+use crate::instance_lock::{
+    claim_bus_name, ActivationRelay, BusClaim, ClaimOutcome, InstanceLockState,
+};
 use crate::App;
 
 const BUS_UNAVAILABLE: &str = "session bus unavailable";
@@ -51,10 +53,21 @@ pub(super) fn instance_bus_step(
     Ok(claim)
 }
 
-/// Whether nothing guards this process: Phase A has no lock and the bus step
-/// degraded. A skipped bus (explicit shell choice) counts as guarded.
-pub(super) fn unguarded(holds_lock: bool, steps: &StepLog) -> bool {
-    !holds_lock
+/// Whether the held locks exclude both packagings: a native lock whose
+/// Flatpak-shared file was skipped does not keep a Flatpak CrossHook out.
+pub(super) fn fully_locked(lock: &InstanceLockState) -> bool {
+    match lock {
+        InstanceLockState::Held(held) => held.covers_flatpak(),
+        InstanceLockState::Unavailable(_) => false,
+    }
+}
+
+/// Whether this process is not fully guarded: the locks do not cover both
+/// packagings (no lock, or a native lock whose Flatpak-shared file was
+/// skipped) and the bus step degraded. A skipped bus (explicit shell choice)
+/// counts as guarded.
+pub(super) fn unguarded(fully_locked: bool, steps: &StepLog) -> bool {
+    !fully_locked
         && steps.records().iter().any(|record| {
             record.step == BootstrapStep::InstanceBus
                 && matches!(record.outcome, StepOutcome::Degraded(_))
@@ -84,6 +97,35 @@ mod tests {
     }
 
     #[test]
+    fn partial_native_lock_is_not_fully_locked() {
+        use crate::instance_lock::{InstanceLock, InstanceLockPaths};
+        use std::os::unix::fs::PermissionsExt;
+
+        let runtime = tempfile::tempdir().unwrap();
+        let paths = InstanceLockPaths::in_dir(runtime.path());
+        let full = InstanceLock::try_acquire(&paths).unwrap();
+        assert!(fully_locked(&InstanceLockState::Held(full)));
+        assert!(!fully_locked(&InstanceLockState::Unavailable("test")));
+
+        let other = tempfile::tempdir().unwrap();
+        let partial_paths = InstanceLockPaths::in_dir(other.path());
+        let shared_dir = partial_paths
+            .shared_file()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_owned();
+        std::fs::create_dir_all(&shared_dir).unwrap();
+        std::fs::set_permissions(&shared_dir, std::fs::Permissions::from_mode(0o777)).unwrap();
+        let partial = InstanceLock::try_acquire(&partial_paths).unwrap();
+        let state = InstanceLockState::Held(partial);
+        assert!(!fully_locked(&state));
+        // Partial lock + degraded bus: the report warns.
+        let degraded = log_with_bus(StepOutcome::Degraded(BUS_UNAVAILABLE));
+        assert!(unguarded(fully_locked(&state), &degraded));
+    }
+
+    #[test]
     fn skip_records_reason_without_touching_the_bus() {
         let app = App::new().expect("owned runtime");
         let mut steps = StepLog::new();
@@ -92,7 +134,7 @@ mod tests {
             InstanceBus::Skip {
                 reason: "unit test",
             },
-            Arc::default(),
+            Arc::new(ActivationRelay::new(app.runtime_handle())),
             &mut steps,
         )
         .expect("skip never fails");
@@ -107,7 +149,8 @@ mod tests {
     async fn enabled_inside_a_runtime_degrades_instead_of_panicking() {
         let app = App::with_handle(Handle::current());
         let mut steps = StepLog::new();
-        let claim = instance_bus_step(&app, InstanceBus::Enabled, Arc::default(), &mut steps)
+        let relay = Arc::new(ActivationRelay::new(app.runtime_handle()));
+        let claim = instance_bus_step(&app, InstanceBus::Enabled, relay, &mut steps)
             .expect("degrades, never fails");
         assert!(claim.is_none());
         assert_eq!(

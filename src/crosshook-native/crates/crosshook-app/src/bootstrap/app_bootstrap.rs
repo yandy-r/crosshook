@@ -9,7 +9,7 @@ use super::{
     RuntimeChoice, Services, StartupHandle, StartupJobs, StartupReport, StepLog, StepOutcome,
     StoreRoots, Stores,
 };
-use crate::instance_lock::{ActivationRelay, InstanceGuard, InstanceLockState};
+use crate::instance_lock::{ActivationRelay, InstanceGuard};
 use crate::App;
 use crosshook_core::logging::{self, LoggingError};
 use crosshook_core::metadata::MetadataStatus;
@@ -103,11 +103,10 @@ impl App {
             RuntimeChoice::Handle(handle) => App::with_handle(handle),
         };
         steps.push(BootstrapStep::Runtime, StepOutcome::Ran);
-        let relay = Arc::new(ActivationRelay::default());
+        let relay = Arc::new(ActivationRelay::new(app.runtime_handle()));
         let bus =
             instance::instance_bus_step(&app, opts.instance_bus, Arc::clone(&relay), &mut steps)?;
-        let holds_lock = matches!(lock, InstanceLockState::Held(_));
-        let instance_unguarded = instance::unguarded(holds_lock, &steps);
+        let instance_unguarded = instance::unguarded(instance::fully_locked(&lock), &steps);
         let instance = InstanceGuard::new(lock, bus, relay, instance_unguarded);
         let settings_store = stores::init_settings(&opts.store_roots)?;
         let (settings, settings_unreadable) = load_settings_step(&settings_store, &mut steps);

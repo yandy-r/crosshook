@@ -2,11 +2,12 @@ use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::os::unix::fs::{symlink, PermissionsExt};
 use std::process::Command;
-use std::sync::{Arc, Mutex as StdMutex};
+use std::sync::Arc;
 
 use tempfile::tempdir;
 use zbus::zvariant::{OwnedValue, Value};
 
+use super::file::{attempt, open_all};
 use super::*;
 
 fn mode_of(path: &Path) -> u32 {
@@ -223,6 +224,72 @@ fn wait_with_unsafe_shared_dir_and_held_primary_is_contended() {
     ));
 }
 
+/// A lock file replaced at its path while another process holds the old
+/// inode: the holder's lock is invisible at the path, but a new acquire must
+/// lock the file the path names, not a stale descriptor. Simulated in-process:
+/// open (stale), replace the file, then lock — the identity check must
+/// notice and reopen.
+#[test]
+fn replaced_lock_file_is_reopened_not_locked_stale() {
+    let runtime = tempdir().unwrap();
+    let paths = InstanceLockPaths::in_dir(runtime.path());
+    let opened = open_all(&paths).unwrap();
+    std::fs::remove_file(paths.file()).unwrap();
+    std::fs::write(paths.file(), b"").unwrap();
+    std::fs::set_permissions(paths.file(), std::fs::Permissions::from_mode(0o600)).unwrap();
+    assert!(
+        matches!(attempt(&opened), file::Attempt::Stale),
+        "a replaced file must not count as locked"
+    );
+    drop(opened);
+    // A holder of the replacement now blocks a fresh acquire.
+    let holder = InstanceLock::try_acquire(&paths).expect("lock the current file");
+    assert_contended(InstanceLock::try_acquire(&paths));
+    assert_contended(InstanceLock::acquire_with_wait(
+        &paths,
+        Duration::from_millis(100),
+    ));
+    drop(holder);
+}
+
+/// The original holder keeps its (now unlinked) primary inode locked and
+/// the file is recreated: a new launch must not succeed against the fresh
+/// inode, because the holder still holds the Flatpak-shared lock too.
+#[test]
+fn recreated_primary_while_held_does_not_let_a_second_launch_in() {
+    let runtime = tempdir().unwrap();
+    let paths = InstanceLockPaths::in_dir(runtime.path());
+    let holder = InstanceLock::try_acquire(&paths).unwrap();
+    std::fs::remove_file(paths.file()).unwrap();
+    std::fs::write(paths.file(), b"").unwrap();
+    std::fs::set_permissions(paths.file(), std::fs::Permissions::from_mode(0o600)).unwrap();
+    assert_contended(InstanceLock::try_acquire(&paths));
+    assert_contended(InstanceLock::acquire_with_wait(
+        &paths,
+        Duration::from_millis(100),
+    ));
+    drop(holder);
+    acquire_soon(&paths, "free once the holder exits");
+}
+
+#[test]
+fn covers_flatpak_reflects_the_shared_lock() {
+    let runtime = tempdir().unwrap();
+    let native = InstanceLockPaths::in_dir(runtime.path());
+    assert!(InstanceLock::try_acquire(&native).unwrap().covers_flatpak());
+    let flatpak = InstanceLockPaths::resolve(Some(runtime.path().as_os_str()), true).unwrap();
+    let other = tempdir().unwrap();
+    let flatpak_other = InstanceLockPaths::resolve(Some(other.path().as_os_str()), true).unwrap();
+    assert!(InstanceLock::try_acquire(&flatpak_other)
+        .unwrap()
+        .covers_flatpak());
+    drop(flatpak);
+    let shared_dir = native.shared_file().unwrap().parent().unwrap().to_owned();
+    std::fs::set_permissions(&shared_dir, std::fs::Permissions::from_mode(0o777)).unwrap();
+    let partial = InstanceLock::try_acquire(&native).expect("primary only");
+    assert!(!partial.covers_flatpak());
+}
+
 #[test]
 fn wait_on_free_lock_acquires_immediately() {
     let runtime = tempdir().unwrap();
@@ -230,78 +297,18 @@ fn wait_on_free_lock_acquires_immediately() {
     InstanceLock::acquire_with_wait(&paths, Duration::ZERO).expect("free lock");
 }
 
-#[derive(Default)]
-struct Recorder(StdMutex<Vec<ActivationRequest>>);
-
-impl ActivationHandler for Arc<Recorder> {
-    fn activate(&self, request: ActivationRequest) -> ActivationStatus {
-        self.0.lock().unwrap().push(request);
-        ActivationStatus::Activated
-    }
-}
-
-struct NoWindow;
-
-impl ActivationHandler for NoWindow {
-    fn activate(&self, _request: ActivationRequest) -> ActivationStatus {
-        ActivationStatus::NoWindow
-    }
-}
-
-fn request(token: &str) -> ActivationRequest {
-    ActivationRequest {
-        activation_token: Some(token.to_owned()),
-        desktop_startup_id: None,
-    }
-}
-
-#[test]
-fn relay_delivers_pending_once_then_direct() {
-    let relay = ActivationRelay::default();
-    relay.deliver(request("early"));
-    let recorder = Arc::new(Recorder::default());
-    relay.set_handler(Arc::new(Arc::clone(&recorder)));
-    assert_eq!(relay.deliver(request("late")), ActivationStatus::Activated);
-    assert_eq!(
-        *recorder.0.lock().unwrap(),
-        vec![request("early"), request("late")]
-    );
-}
-
-#[test]
-fn relay_reports_a_missing_window() {
-    let relay = ActivationRelay::default();
-    assert_eq!(
-        relay.deliver(request("queued")),
-        ActivationStatus::Activated
-    );
-    relay.set_handler(Arc::new(NoWindow));
-    assert_eq!(relay.deliver(request("x")), ActivationStatus::NoWindow);
-}
-
-#[test]
-fn relay_keeps_only_latest_pending() {
-    let relay = ActivationRelay::default();
-    relay.deliver(request("first"));
-    relay.deliver(request("second"));
-    let recorder = Arc::new(Recorder::default());
-    relay.set_handler(Arc::new(Arc::clone(&recorder)));
-    assert_eq!(*recorder.0.lock().unwrap(), vec![request("second")]);
+fn relay() -> Arc<ActivationRelay> {
+    Arc::new(ActivationRelay::new(tokio::runtime::Handle::current()))
 }
 
 fn held_guard(runtime: &Path) -> InstanceGuard {
     let lock = InstanceLock::try_acquire(&InstanceLockPaths::in_dir(runtime)).unwrap();
-    InstanceGuard::new(InstanceLockState::Held(lock), None, Arc::default(), false)
+    InstanceGuard::new(InstanceLockState::Held(lock), None, relay(), false)
 }
 
 #[tokio::test]
 async fn guard_handoff_without_lock_is_not_held() {
-    let guard = InstanceGuard::new(
-        InstanceLockState::Unavailable("test"),
-        None,
-        Arc::default(),
-        true,
-    );
+    let guard = InstanceGuard::new(InstanceLockState::Unavailable("test"), None, relay(), true);
     let result = guard.release_and_handoff(Command::new("true")).await;
     assert!(matches!(result, Err(HandoffError::NotHeld)), "{result:?}");
     assert!(!guard.handoff_pending());
@@ -372,24 +379,6 @@ async fn guard_handoff_keeps_the_lock_until_exit() {
     assert!(!guard.owns_bus_name());
     let paths = InstanceLockPaths::in_dir(runtime.path());
     assert_contended(InstanceLock::try_acquire(&paths));
-}
-
-#[test]
-fn guard_installs_handler_through_relay() {
-    let relay = Arc::new(ActivationRelay::default());
-    relay.deliver(request("queued"));
-    let guard = InstanceGuard::new(
-        InstanceLockState::Unavailable("test"),
-        None,
-        Arc::clone(&relay),
-        true,
-    );
-    assert!(!guard.holds_lock());
-    assert!(!guard.owns_bus_name());
-    assert!(guard.is_unguarded());
-    let recorder = Arc::new(Recorder::default());
-    guard.set_activation_handler(Arc::clone(&recorder));
-    assert_eq!(*recorder.0.lock().unwrap(), vec![request("queued")]);
 }
 
 fn owned(value: Value<'_>) -> OwnedValue {

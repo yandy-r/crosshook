@@ -6,23 +6,20 @@
 //! are empty, runtime-only and released by the kernel on process death.
 
 use std::ffi::OsStr;
-use std::fs::{DirBuilder, File, OpenOptions, TryLockError};
+use std::fs::File;
 use std::io;
-use std::os::fd::AsFd;
-use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::time::{Duration, Instant};
 
-use nix::errno::Errno;
-use nix::fcntl::OFlag;
-use nix::poll::{PollFd, PollFlags, PollTimeout};
-use nix::sys::inotify::{AddWatchFlags, InitFlags, Inotify};
-use nix::sys::stat::Mode;
-
 mod bus;
+mod file;
 mod guard;
+mod relay;
 
+use file::{attempt, open_all, watch_closes, Attempt, OpenedLock};
+
+pub(crate) use bus::claim_bus_name;
 #[cfg(feature = "test-seams")]
 #[doc(hidden)]
 pub use bus::{activate_named, claim_bus_name_at};
@@ -30,8 +27,8 @@ pub use bus::{
     activate_running_instance, ActivationError, ActivationHandler, ActivationRequest,
     ActivationStatus, BusClaim, ClaimOutcome,
 };
-pub(crate) use bus::{claim_bus_name, ActivationRelay};
 pub use guard::{HandoffError, InstanceGuard};
+pub(crate) use relay::ActivationRelay;
 
 /// Application id: the session-bus name and the Flatpak runtime directory.
 pub const APP_ID: &str = "dev.crosshook.CrossHook";
@@ -164,14 +161,6 @@ pub enum AcquireError {
     Unavailable(LockUnavailable, Option<io::Error>),
 }
 
-fn io_error(error: impl Into<io::Error>) -> AcquireError {
-    AcquireError::Unavailable(LockUnavailable::Io, Some(error.into()))
-}
-
-fn unsafe_dir(error: Option<io::Error>) -> AcquireError {
-    AcquireError::Unavailable(LockUnavailable::RuntimeDirUnsafe, error)
-}
-
 /// Held exclusive `flock`s on the instance lock files. Dropping it closes the
 /// descriptors, which releases the locks; process exit does the same. The
 /// descriptors are close-on-exec, so spawned games never inherit them.
@@ -179,49 +168,71 @@ fn unsafe_dir(error: Option<io::Error>) -> AcquireError {
 pub struct InstanceLock {
     _files: Vec<File>,
     paths: InstanceLockPaths,
+    covers_shared: bool,
 }
+
+/// Fresh opens after a lock file was replaced at its path, per acquire.
+const MAX_REOPENS: u32 = 8;
 
 impl InstanceLock {
     /// Takes the lock without blocking.
     pub fn try_acquire(paths: &InstanceLockPaths) -> Result<Self, AcquireError> {
-        let opened = open_all(paths)?;
-        lock_all(&opened)?;
-        Ok(Self::held(opened, paths))
+        for _ in 0..MAX_REOPENS {
+            let opened = open_all(paths)?;
+            match attempt(&opened) {
+                Attempt::Locked => return Ok(Self::held(opened, paths)),
+                Attempt::Contended => return Err(AcquireError::Contended),
+                Attempt::Failed(error) => return Err(error),
+                Attempt::Stale => {}
+            }
+        }
+        Err(stale_error())
     }
 
     /// Takes the lock, waiting up to `timeout` for the holder to close it.
     ///
     /// Tries once; on contention it watches every lock file it actually
     /// opened for `IN_CLOSE` and loops try → `poll` with a deadline (no
-    /// sleeps, no threads). It fails closed: once the lock is known to be
-    /// held, an inotify failure is [`AcquireError::Contended`], never
-    /// `Unavailable`, so a handed-off launch cannot start beside a live
-    /// holder.
+    /// sleeps, no threads). A file replaced at its path is reopened within
+    /// the same deadline. It fails closed: once the lock is known to be
+    /// held, any later failure (watch, wait, lock error) is
+    /// [`AcquireError::Contended`], never `Unavailable`, so a handed-off
+    /// launch cannot start beside a live holder.
     pub fn acquire_with_wait(
         paths: &InstanceLockPaths,
         timeout: Duration,
     ) -> Result<Self, AcquireError> {
         let deadline = Instant::now().checked_add(timeout);
-        let opened = open_all(paths)?;
-        match lock_all(&opened) {
-            Ok(()) => return Ok(Self::held(opened, paths)),
-            Err(AcquireError::Contended) => {}
-            Err(error) => return Err(error),
-        }
-        let inotify = match watch_closes(&opened) {
-            Ok(inotify) => inotify,
-            Err(error) => {
-                tracing::warn!(%error, "instance lock wait unavailable; treating the lock as held");
-                return Err(AcquireError::Contended);
-            }
-        };
-        // The watch is armed now; the loop's first try covers a close that
-        // happened between the first try and the watch.
+        let mut contended = false;
+        let mut reopens = 0;
+        let mut opened = open_all(paths)?;
+        let mut watch = None;
         loop {
-            match lock_all(&opened) {
-                Ok(()) => return Ok(Self::held(opened, paths)),
-                Err(AcquireError::Contended) => {}
-                Err(error) => return Err(error),
+            match attempt(&opened) {
+                Attempt::Locked => return Ok(Self::held(opened, paths)),
+                Attempt::Contended => contended = true,
+                Attempt::Failed(_) if contended => {
+                    tracing::warn!("instance lock retry failed; treating the lock as held");
+                    return Err(AcquireError::Contended);
+                }
+                Attempt::Failed(error) => return Err(error),
+                Attempt::Stale => {
+                    reopens += 1;
+                    if reopens > MAX_REOPENS {
+                        return Err(if contended {
+                            AcquireError::Contended
+                        } else {
+                            stale_error()
+                        });
+                    }
+                    opened = match open_all(paths) {
+                        Ok(fresh) => fresh,
+                        Err(_) if contended => return Err(AcquireError::Contended),
+                        Err(error) => return Err(error),
+                    };
+                    watch = None;
+                    continue;
+                }
             }
             let remaining = match deadline {
                 Some(deadline) => deadline.saturating_duration_since(Instant::now()),
@@ -230,13 +241,23 @@ impl InstanceLock {
             if remaining.is_zero() {
                 return Err(AcquireError::Contended);
             }
-            // Still held: a broken wait must not turn into "lock unavailable".
-            if let Err(error) = wait_for_close(&inotify, remaining) {
-                tracing::warn!(
-                    ?error,
-                    "instance lock wait failed; treating the lock as held"
-                );
-                return Err(AcquireError::Contended);
+            if watch.is_none() {
+                // Armed after a contended try; the next try covers a close
+                // that happened in between.
+                match watch_closes(&opened) {
+                    Ok(inotify) => watch = Some(inotify),
+                    Err(error) => {
+                        tracing::warn!(%error, "instance lock wait unavailable; treating the lock as held");
+                        return Err(AcquireError::Contended);
+                    }
+                }
+                continue;
+            }
+            if let Some(inotify) = &watch {
+                if let Err(error) = file::wait_for_close(inotify, remaining) {
+                    tracing::warn!(%error, "instance lock wait failed; treating the lock as held");
+                    return Err(AcquireError::Contended);
+                }
             }
         }
     }
@@ -254,145 +275,25 @@ impl InstanceLock {
         &self.paths
     }
 
+    /// Whether this lock also covers the Flatpak app's lock file, so a
+    /// Flatpak CrossHook is excluded without the session bus. False in
+    /// native mode when the shared directory was unusable.
+    pub fn covers_flatpak(&self) -> bool {
+        self.covers_shared
+    }
+
     fn held(opened: Vec<OpenedLock>, paths: &InstanceLockPaths) -> Self {
+        let covers_shared = paths.shared.is_none() || opened.len() > 1;
         Self {
             _files: opened.into_iter().map(|lock| lock.file).collect(),
             paths: paths.clone(),
+            covers_shared,
         }
     }
 }
 
-/// One opened lock file and the path it was opened at (for the watch).
-struct OpenedLock {
-    file: File,
-    path: PathBuf,
-}
-
-/// Opens every lock file: the primary must open; the native run's shared
-/// file is skipped with a warning when its directory is unusable.
-fn open_all(paths: &InstanceLockPaths) -> Result<Vec<OpenedLock>, AcquireError> {
-    let opened = |location: &LockLocation, file| OpenedLock {
-        file,
-        path: location.file.clone(),
-    };
-    let mut files = vec![opened(&paths.primary, open_lock_file(&paths.primary)?)];
-    if let Some(shared) = &paths.shared {
-        match open_lock_file(shared) {
-            Ok(file) => files.push(opened(shared, file)),
-            Err(AcquireError::Unavailable(unavailable, error)) => {
-                let detail =
-                    error.map(|error| crate::presenter::sanitize_message(&error.to_string()));
-                tracing::warn!(
-                    reason = unavailable.reason(),
-                    ?detail,
-                    "shared instance lock skipped"
-                );
-                eprintln!(
-                    "CrossHook: shared instance lock skipped ({}); a Flatpak CrossHook is only excluded by the session bus",
-                    unavailable.reason()
-                );
-            }
-            Err(error @ AcquireError::Contended) => return Err(error),
-        }
-    }
-    Ok(files)
-}
-
-/// Locks every file or none: on contention or error the locks taken in this
-/// attempt are released again.
-fn lock_all(files: &[OpenedLock]) -> Result<(), AcquireError> {
-    for (index, lock) in files.iter().enumerate() {
-        let error = match lock.file.try_lock() {
-            Ok(()) => continue,
-            Err(TryLockError::WouldBlock) => AcquireError::Contended,
-            Err(TryLockError::Error(error)) => io_error(error),
-        };
-        for taken in files.iter().take(index) {
-            if let Err(unlock) = taken.file.unlock() {
-                tracing::warn!(error = %unlock, "could not release a partial instance lock");
-            }
-        }
-        return Err(error);
-    }
-    Ok(())
-}
-
-/// Watches every opened lock file for `IN_CLOSE`.
-fn watch_closes(opened: &[OpenedLock]) -> nix::Result<Inotify> {
-    let inotify = Inotify::init(InitFlags::IN_CLOEXEC | InitFlags::IN_NONBLOCK)?;
-    for lock in opened {
-        inotify.add_watch(
-            &lock.path,
-            AddWatchFlags::IN_CLOSE | AddWatchFlags::IN_DONT_FOLLOW,
-        )?;
-    }
-    Ok(inotify)
-}
-
-/// Opens (creating `0700`) the lock dir; rejects symlinks, foreign owners and group/other write.
-fn open_private_dir(location: &LockLocation) -> Result<File, AcquireError> {
-    match DirBuilder::new()
-        .mode(0o700)
-        .recursive(location.create_parents)
-        .create(&location.dir)
-    {
-        Ok(()) => {}
-        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
-        Err(error) => return Err(io_error(error)),
-    }
-    let dir = OpenOptions::new()
-        .read(true)
-        .custom_flags((OFlag::O_DIRECTORY | OFlag::O_NOFOLLOW).bits())
-        .open(&location.dir)
-        .map_err(
-            |error| match Errno::from_raw(error.raw_os_error().unwrap_or(0)) {
-                Errno::ELOOP | Errno::ENOTDIR => unsafe_dir(Some(error)),
-                _ => io_error(error),
-            },
-        )?;
-    let meta = dir.metadata().map_err(io_error)?;
-    let private =
-        meta.is_dir() && meta.uid() == nix::unistd::geteuid().as_raw() && meta.mode() & 0o022 == 0;
-    if !private {
-        return Err(unsafe_dir(None));
-    }
-    Ok(dir)
-}
-
-fn open_lock_file(location: &LockLocation) -> Result<File, AcquireError> {
-    let dir = open_private_dir(location)?;
-    let fd = nix::fcntl::openat(
-        dir.as_fd(),
-        LOCK_FILE,
-        OFlag::O_RDWR | OFlag::O_CREAT | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
-        Mode::S_IRUSR | Mode::S_IWUSR,
-    )
-    .map_err(io_error)?;
-    let file = File::from(fd);
-    if !file.metadata().map_err(io_error)?.file_type().is_file() {
-        return Err(io_error(io::Error::other(
-            "instance lock is not a regular file",
-        )));
-    }
-    Ok(file)
-}
-
-/// Waits for an `IN_CLOSE` on a lock file or `remaining`, then drains events.
-fn wait_for_close(inotify: &Inotify, remaining: Duration) -> Result<(), AcquireError> {
-    let millis = remaining.as_nanos().div_ceil(1_000_000);
-    let timeout = PollTimeout::try_from(millis).unwrap_or(PollTimeout::MAX);
-    let mut fds = [PollFd::new(inotify.as_fd(), PollFlags::POLLIN)];
-    match nix::poll::poll(&mut fds, timeout) {
-        Ok(_) | Err(Errno::EINTR) => {}
-        Err(error) => return Err(io_error(error)),
-    }
-    loop {
-        match inotify.read_events() {
-            Ok(events) if !events.is_empty() => {}
-            Ok(_) | Err(Errno::EAGAIN) => return Ok(()),
-            Err(error) => return Err(io_error(error)),
-        }
-    }
+fn stale_error() -> AcquireError {
+    file::io_error(io::Error::other("instance lock file keeps being replaced"))
 }
 
 /// Outcome of the Phase A lock attempt (host seam).

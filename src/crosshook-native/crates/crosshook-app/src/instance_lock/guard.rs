@@ -118,4 +118,12 @@ impl InstanceGuard {
     }
 }
 
+impl Drop for InstanceGuard {
+    /// Startup failed (or the process is tearing down): callers waiting for
+    /// the UI are answered "shutting down" instead of "activated".
+    fn drop(&mut self) {
+        self.relay.close();
+    }
+}
+
 static_assertions::assert_impl_all!(InstanceGuard: Send, Sync);

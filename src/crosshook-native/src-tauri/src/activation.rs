@@ -8,9 +8,15 @@ use crosshook_app::instance_lock::{
     activate_running_instance, ActivationError, ActivationHandler, ActivationRequest,
     ActivationStatus, ACTIVATE_TIMEOUT,
 };
+use std::sync::mpsc;
+use std::time::Duration;
+
 use tauri::{AppHandle, Manager};
 
 const MAIN_WINDOW: &str = "main";
+/// How long the handler waits for the main thread to confirm the raise; well
+/// inside the 2 s activation budget of the second launch.
+const RAISE_CONFIRM_TIMEOUT: Duration = Duration::from_secs(1);
 
 /// Raises the Classic main window on activation requests.
 pub(crate) struct TauriActivation(AppHandle);
@@ -22,6 +28,9 @@ impl TauriActivation {
 }
 
 impl ActivationHandler for TauriActivation {
+    /// Runs the raise on the main thread and waits (bounded by
+    /// [`RAISE_CONFIRM_TIMEOUT`]) for its result, so the second launch is told
+    /// "activated" only after the window was shown and focused.
     fn activate(&self, request: ActivationRequest) -> ActivationStatus {
         // No window means the app is closing: tell the caller instead of
         // reporting a raise that cannot happen.
@@ -29,44 +38,57 @@ impl ActivationHandler for TauriActivation {
             tracing::info!("activation refused: the main window is gone (shutting down)");
             return ActivationStatus::NoWindow;
         }
+        let (sender, receiver) = mpsc::sync_channel(1);
         let handle = self.0.clone();
         let scheduled = self.0.run_on_main_thread(move || {
-            let Some(window) = handle.get_webview_window(MAIN_WINDOW) else {
-                tracing::warn!("activation requested before the main window exists");
-                return;
-            };
-            if let Err(error) = window.unminimize().and_then(|()| window.show()) {
-                tracing::warn!(%error, "could not show the main window on activation");
-            }
-            // tao's `set_focus` presents with GDK_CURRENT_TIME and no token;
-            // the launcher's token must reach GTK via `set_startup_id`, which
-            // calls xdg_activation_v1_activate on Wayland and ends startup
-            // notification on X11.
-            #[cfg(target_os = "linux")]
-            if let Some(id) = request.startup_id() {
-                match window.gtk_window() {
-                    Ok(gtk_window) => {
-                        use gtk::prelude::GtkWindowExt;
-                        gtk_window.set_startup_id(id);
-                    }
-                    Err(error) => tracing::warn!(%error, "no GTK window for activation token"),
-                }
-            }
-            #[cfg(not(target_os = "linux"))]
-            let _ = &request;
-            if let Err(error) = window.set_focus() {
-                tracing::warn!(%error, "could not focus the main window on activation");
-            }
-            tracing::info!("activated by a second CrossHook launch");
+            let _ = sender.send(raise_main_window(&handle, &request));
         });
-        match scheduled {
-            Ok(()) => ActivationStatus::Activated,
-            Err(error) => {
-                tracing::warn!(%error, "could not schedule window activation");
-                ActivationStatus::NoWindow
+        if let Err(error) = scheduled {
+            tracing::warn!(%error, "could not schedule window activation");
+            return ActivationStatus::NoWindow;
+        }
+        match receiver.recv_timeout(RAISE_CONFIRM_TIMEOUT) {
+            Ok(status) => status,
+            Err(_) => {
+                tracing::warn!("window activation was not confirmed in time");
+                ActivationStatus::RaiseFailed
             }
         }
     }
+}
+
+/// Un-minimizes, shows and focuses the main window (main thread only).
+fn raise_main_window(handle: &AppHandle, request: &ActivationRequest) -> ActivationStatus {
+    let Some(window) = handle.get_webview_window(MAIN_WINDOW) else {
+        tracing::info!("activation refused: the main window is gone (shutting down)");
+        return ActivationStatus::NoWindow;
+    };
+    if let Err(error) = window.unminimize().and_then(|()| window.show()) {
+        tracing::warn!(%error, "could not show the main window on activation");
+        return ActivationStatus::RaiseFailed;
+    }
+    // tao's `set_focus` presents with GDK_CURRENT_TIME and no token; the
+    // launcher's token must reach GTK via `set_startup_id`, which calls
+    // xdg_activation_v1_activate on Wayland and ends startup notification on
+    // X11.
+    #[cfg(target_os = "linux")]
+    if let Some(id) = request.startup_id() {
+        match window.gtk_window() {
+            Ok(gtk_window) => {
+                use gtk::prelude::GtkWindowExt;
+                gtk_window.set_startup_id(id);
+            }
+            Err(error) => tracing::warn!(%error, "no GTK window for activation token"),
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    let _ = request;
+    if let Err(error) = window.set_focus() {
+        tracing::warn!(%error, "could not focus the main window on activation");
+        return ActivationStatus::RaiseFailed;
+    }
+    tracing::info!("activated by a second CrossHook launch");
+    ActivationStatus::Activated
 }
 
 /// Second launch: activates the running instance and exits 0, or prints why
@@ -86,24 +108,30 @@ pub(crate) fn exit_second_instance() -> ! {
 
 /// What a failed second launch tells the user.
 fn failure_message(error: &ActivationError) -> String {
+    const RETRY: &str = "close it or end the process and try again.";
     match error {
         ActivationError::TimedOut => format!(
-            "CrossHook is already running but did not respond within {} s; \
-             close it or end the process and try again.",
+            "CrossHook is already running but did not respond within {} s; {RETRY}",
             ACTIVATE_TIMEOUT.as_secs()
         ),
-        ActivationError::Rejected(_) => {
+        ActivationError::ShuttingDown => {
             "The existing CrossHook is shutting down; try again in a few seconds.".to_owned()
         }
         // The name is claimed after the lock, so no owner also covers a first
         // start that is still migrating.
-        ActivationError::NoOwner => {
+        ActivationError::NoOwner | ActivationError::Starting => {
             "The existing CrossHook is starting up or shutting down; try again in a few seconds."
                 .to_owned()
         }
+        ActivationError::RaiseFailed => {
+            "CrossHook is already running but could not bring its window to the front.".to_owned()
+        }
+        ActivationError::Rejected(detail) => format!(
+            "CrossHook is already running but the activation request was rejected ({detail}); {RETRY}"
+        ),
         ActivationError::Bus(detail) => format!(
             "CrossHook is already running but could not be reached over the session bus \
-             ({detail}); close it or end the process and try again."
+             ({detail}); {RETRY}"
         ),
     }
 }

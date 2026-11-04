@@ -31,6 +31,20 @@ impl ActivationHandler for Shared {
     }
 }
 
+/// A process that is not CrossHook but owns the name and implements the
+/// interface with its own error.
+struct Foreign;
+
+#[zbus::interface(name = "org.freedesktop.Application")]
+impl Foreign {
+    fn activate(
+        &self,
+        _platform_data: std::collections::HashMap<String, zbus::zvariant::OwnedValue>,
+    ) -> zbus::fdo::Result<()> {
+        Err(zbus::fdo::Error::Failed("not CrossHook".to_owned()))
+    }
+}
+
 /// An instance whose window is gone (shutting down).
 struct Closing;
 
@@ -125,9 +139,53 @@ async fn activation_round_trip_over_the_session_bus() {
     };
     let result = activate_named(&closing, token("x"), Duration::from_secs(2)).await;
     assert!(
-        matches!(&result, Err(ActivationError::Rejected(message)) if message.contains("shutting down")),
+        matches!(result, Err(ActivationError::ShuttingDown)),
         "{result:?}"
     );
+
+    // 6b. An unrelated process owns the name and answers with its own error:
+    // reported as a rejection with detail, not as a shutdown.
+    let foreign = format!("{name}.foreign");
+    let _foreign = zbus::connection::Builder::session()
+        .unwrap()
+        .serve_at("/dev/crosshook/CrossHook", Foreign)
+        .unwrap()
+        .name(foreign.as_str())
+        .unwrap()
+        .build()
+        .await
+        .expect("foreign owner");
+    let result = activate_named(&foreign, token("x"), Duration::from_secs(2)).await;
+    assert!(
+        matches!(&result, Err(ActivationError::Rejected(detail)) if detail.contains("org.freedesktop.DBus.Error.Failed")),
+        "{result:?}"
+    );
+
+    // 6c. The owner releases the name and a successor claims it before the
+    // deadline: the activation waits for the successor and lands there.
+    let moving = format!("{name}.moving");
+    let ClaimOutcome::Owned(old) = claim_bus_name_at(&moving, Closing).await else {
+        panic!("first owner must own {moving}");
+    };
+    drop(old); // closes the connection: the name has no owner now
+    let successor = Shared::default();
+    let notified = successor.0.notify.notified();
+    let pending = tokio::spawn({
+        let moving = moving.clone();
+        async move { activate_named(&moving, token("moved"), Duration::from_secs(2)).await }
+    });
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    let ClaimOutcome::Owned(_successor_claim) = claim_bus_name_at(&moving, successor.clone()).await
+    else {
+        panic!("successor must own {moving}");
+    };
+    pending
+        .await
+        .unwrap()
+        .expect("activation reaches the successor");
+    tokio::time::timeout(Duration::from_secs(2), notified)
+        .await
+        .expect("successor handler called");
 
     // 7. The synchronous entry point refuses to run inside a runtime.
     let result = crosshook_app::instance_lock::activate_running_instance(

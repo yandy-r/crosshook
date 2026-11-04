@@ -16,7 +16,7 @@ Classic (`crosshook-native`, Tauri) and the future native UI (`crosshook-ui`, YA
 | First instance killed with `kill -9` or crashed                    | The kernel releases the flock. The next launch acquires it immediately, with no stale-lock cleanup.                                                                        |
 | `$XDG_RUNTIME_DIR` unset, relative, unsafe or unwritable           | The lock step is `Degraded` (warning in the log). The D-Bus name alone guards: if the name is already owned in Phase B, the process activates the owner and exits 0.       |
 | No lock **and** no session bus                                     | Starts unguarded. The bus step is `Degraded`, `degraded.instance_unguarded = true` in the startup report, and Classic shows a dismissible warning banner.                  |
-| "Open in Classic UI" handoff (M1-19, API only now)                 | `release_and_handoff(cmd)` releases the bus name, spawns the other binary with `CROSSHOOK_INSTANCE_HANDOFF=1`, then unlocks. The new binary waits up to 5 s for the lock.  |
+| "Open in Classic UI" handoff (M1-19, API only now)                 | `release_and_handoff(cmd)` spawns the other binary with `CROSSHOOK_INSTANCE_HANDOFF=1`, then releases the bus name. The lock stays held until the old process exits (the caller must exit right after a successful handoff). The new binary waits up to 10 s for the lock. |
 | `crosshook-cli`                                                    | Never takes the lock. It does not call `pre_runtime` (verified: no bootstrap use in `crates/crosshook-cli/src`).                                                           |
 
 ## Research findings (facts the plan depends on)

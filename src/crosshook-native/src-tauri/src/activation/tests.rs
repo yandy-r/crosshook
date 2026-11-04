@@ -18,20 +18,30 @@ fn gtk_app_id_stays_disabled_and_identifier_matches_bus_name() {
 }
 
 #[test]
-fn failure_messages_distinguish_timeout_shutdown_and_bus() {
+fn failure_messages_distinguish_each_error() {
     let timeout = failure_message(&ActivationError::TimedOut);
     assert!(timeout.starts_with("CrossHook is already running but did not respond within 2 s"));
     assert!(timeout.contains("close it or end the process"));
     assert_eq!(
-        failure_message(&ActivationError::Rejected(
-            "CrossHook is shutting down".into()
-        )),
+        failure_message(&ActivationError::ShuttingDown),
         "The existing CrossHook is shutting down; try again in a few seconds."
     );
+    for starting in [ActivationError::NoOwner, ActivationError::Starting] {
+        assert_eq!(
+            failure_message(&starting),
+            "The existing CrossHook is starting up or shutting down; try again in a few seconds."
+        );
+    }
     assert_eq!(
-        failure_message(&ActivationError::NoOwner),
-        "The existing CrossHook is starting up or shutting down; try again in a few seconds."
+        failure_message(&ActivationError::RaiseFailed),
+        "CrossHook is already running but could not bring its window to the front."
     );
+    // An unrelated owner's error is shown with its detail, not as a shutdown.
+    let rejected = failure_message(&ActivationError::Rejected(
+        "org.example.Error.Nope: no".into(),
+    ));
+    assert!(rejected.contains("activation request was rejected (org.example.Error.Nope: no)"));
+    assert!(!rejected.contains("shutting down"));
     let bus = failure_message(&ActivationError::Bus("no socket".into()));
     assert!(bus.contains("could not be reached over the session bus (no socket)"));
 }

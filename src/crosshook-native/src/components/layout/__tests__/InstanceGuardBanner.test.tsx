@@ -38,8 +38,9 @@ describe('InstanceGuardBanner', () => {
       handlerOverrides: { get_startup_report: async () => reportWith(true) },
     });
     const banner = await screen.findByRole('status', { name: 'Single-instance warning' });
-    expect(banner).toHaveTextContent('CrossHook could not confirm it is the only running copy');
-    expect(banner).toHaveTextContent('Avoid opening a second CrossHook window.');
+    expect(banner).toHaveTextContent(
+      'CrossHook could not confirm it is the only running copy (the instance lock or the session bus was unavailable). Avoid opening a second CrossHook window.'
+    );
   });
 
   it('renders nothing when the startup report fails', async () => {
