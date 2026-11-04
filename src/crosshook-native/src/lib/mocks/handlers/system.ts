@@ -666,7 +666,7 @@ export function registerSystem(map: Map<string, Handler>): void {
     const { path, pathUse } = args as { path: string; pathUse: PickedPathUse };
     // Mirror the real command's Serde rejection of an unknown `pathUse` variant.
     if (pathUse !== 'host' && pathUse !== 'sandbox') {
-      throw new Error(`invalid pathUse: ${String(pathUse)}`);
+      throw new Error(`[dev-mock] invalid pathUse: ${String(pathUse)}`);
     }
     // Browser dev mode has no Flatpak sandbox or document portal: return the path unchanged for either pathUse.
     return path;

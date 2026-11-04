@@ -27,6 +27,14 @@ use super::portals::documents::{DocumentsPortal, ZbusDocumentsPortal};
 /// portal's FUSE daemon and can stall when that daemon hangs.
 const XATTR_READ_TIMEOUT: Duration = Duration::from_secs(1);
 
+/// Maximum number of xattr reads that may be outstanding at once. A read that
+/// times out keeps its blocking thread until `getxattr(2)` returns, so a hung
+/// portal could otherwise fill the shared blocking pool with repeated picks.
+const MAX_IN_FLIGHT_XATTR_READS: usize = 2;
+
+static XATTR_READ_PERMITS: tokio::sync::Semaphore =
+    tokio::sync::Semaphore::const_new(MAX_IN_FLIGHT_XATTR_READS);
+
 /// What a picked path will be used for. Sent by the frontend as `pathUse`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -112,11 +120,26 @@ pub(crate) struct PrefetchedXattr {
 impl PrefetchedXattr {
     /// Reads the xattr of `path` with `getxattr(2)` on a blocking thread,
     /// giving up after [`XATTR_READ_TIMEOUT`]. A timed-out read leaves its
-    /// thread to finish in the background and yields `None`.
+    /// thread to finish in the background and yields `None`. At most
+    /// [`MAX_IN_FLIGHT_XATTR_READS`] reads run at once; past that cap the read
+    /// is skipped (yielding `None`, so resolution falls back to D-Bus).
     async fn read(path: &str) -> Self {
+        let Ok(permit) = XATTR_READ_PERMITS.try_acquire() else {
+            tracing::warn!(
+                max_in_flight = MAX_IN_FLIGHT_XATTR_READS,
+                "document-portal xattr reads still stalled; skipping xattr lookup"
+            );
+            return Self {
+                path: path.to_string(),
+                value: None,
+            };
+        };
         let owned = path.to_string();
-        let read =
-            tokio::task::spawn_blocking(move || read_document_portal_host_path_xattr_bytes(&owned));
+        let read = tokio::task::spawn_blocking(move || {
+            // Held until the syscall returns, even after the caller times out.
+            let _permit = permit;
+            read_document_portal_host_path_xattr_bytes(&owned)
+        });
         let value = match tokio::time::timeout(XATTR_READ_TIMEOUT, read).await {
             Ok(Ok(value)) => value,
             Ok(Err(error)) => {

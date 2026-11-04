@@ -37,9 +37,12 @@ pub fn resolve_runner_path(lutris_root: &Path, version: &str) -> RunnerResolutio
 /// Host form of a runner directory found by [`resolve_runner_path`].
 ///
 /// The Lutris root is a sandbox-use pick, so under Flatpak it (and every
-/// runner below it) can be a `/run/host/…` or document-portal path. The
-/// runner is executed on the host as `proton_path`, so it is stored in host
-/// form; the directory check above keeps using the sandbox path.
+/// runner below it) can be a `/run/host/…` or document-portal path. The runner
+/// is executed on the host as `proton_path`, so it is stored in host
+/// form when that can be determined (`/run/host` stripping, or a successful
+/// document-portal xattr lookup). If the portal lookup fails, the sandbox path
+/// is stored unchanged and the launch-time `normalize_flatpak_host_path` repair
+/// gets another chance. The directory check above keeps using the sandbox path.
 pub fn runner_host_path(runner_dir: &Path) -> String {
     normalize_flatpak_host_path(&runner_dir.to_string_lossy())
 }
