@@ -68,21 +68,47 @@ export function useLaunchSubTabsProps({
 
   const suggestions = useProtonDbSuggestions(resolvedSteamAppId, selectedProfile);
   const { catalog: commandArgumentCatalog } = useCommandArgumentCatalog();
-  // Latest selection, read after the accept IPC resolves so a reload never
-  // targets a profile the user has already navigated away from.
+  // Latest selection and dirty flag, read after the accept IPC resolves so a
+  // reload never targets a profile the user has already navigated away from
+  // and never discards edits made while the accept was in flight.
   const selectedProfileRef = useRef(selectedProfile);
   selectedProfileRef.current = selectedProfile;
+  const dirtyRef = useRef(profileState.dirty);
+  dirtyRef.current = profileState.dirty;
+
+  const sectionAutosavePending = [
+    profileState.launchOptimizationsStatus,
+    profileState.gamescopeAutoSaveStatus,
+    profileState.trainerGamescopeAutoSaveStatus,
+    profileState.mangoHudAutoSaveStatus,
+    profileState.commandArgumentsAutoSaveStatus,
+  ].some((status) => status.tone === 'saving');
 
   const handleAcceptSuggestion = useCallback(
     async (acceptance: SuggestionAcceptance): Promise<void> => {
-      // Accepting writes the profile on disk and then reloads it, which would
-      // silently discard any unsaved edits in the shared draft.
-      if (profileState.dirty) {
-        throw new Error('Save or discard your unsaved profile changes before applying ProtonDB suggestions.');
+      // Accepting writes the profile on disk and then reloads it. The reload
+      // resets the section autosave baselines, so a debounced section save
+      // that has not landed yet would be silently dropped.
+      if (sectionAutosavePending) {
+        throw new Error('Launch settings are still saving. Try again in a moment.');
       }
       const requestedProfile = selectedProfile;
+      // Save unsaved draft edits first so the post-accept reload cannot
+      // discard them (mirrors the Profiles tab's flush-before-switch).
+      if (profileState.dirty) {
+        if (!hasSavedSelectedProfile) {
+          throw new Error('Save the profile before accepting ProtonDB suggestions.');
+        }
+        const saved = await profileState.persistProfileDraft(requestedProfile, profileState.profile);
+        if (!saved.ok) {
+          throw new Error(saved.error);
+        }
+        // A successful save reloads the profile, which clears `dirty`; later
+        // renders refresh this ref from the real state.
+        dirtyRef.current = false;
+      }
       const result = await suggestions.acceptSuggestion(acceptance);
-      if (selectedProfileRef.current !== requestedProfile) {
+      if (selectedProfileRef.current !== requestedProfile || dirtyRef.current) {
         return;
       }
       if (result.appliedKeys.length > 0 || result.toggledOptionIds.length > 0) {
@@ -91,7 +117,17 @@ export function useLaunchSubTabsProps({
         });
       }
     },
-    [suggestions.acceptSuggestion, profileState.dirty, profileState.selectProfile, selectedProfile, activeCollectionId]
+    [
+      sectionAutosavePending,
+      suggestions.acceptSuggestion,
+      profileState.dirty,
+      profileState.persistProfileDraft,
+      profileState.profile,
+      profileState.selectProfile,
+      hasSavedSelectedProfile,
+      selectedProfile,
+      activeCollectionId,
+    ]
   );
 
   // ---------------------------------------------------------------------------
