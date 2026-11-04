@@ -97,7 +97,10 @@ impl StartupHandle {
     /// Phase-B degraded-not-fatal contract.
     pub fn snapshot(&self) -> StartupReport {
         let settings = self.inner.stores.settings.load().unwrap_or_else(|error| {
-            tracing::warn!(%error, "startup snapshot: settings unreadable; using defaults");
+            tracing::warn!(
+                error = error.redacted_summary(),
+                "startup snapshot: settings unreadable; using defaults"
+            );
             Default::default()
         });
         let profiles = self.inner.stores.profiles.list().unwrap_or_else(|error| {

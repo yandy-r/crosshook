@@ -6,6 +6,7 @@ mod health;
 mod logs;
 mod metadata_status;
 mod profiles;
+mod secrets;
 mod steam_diagnostics;
 mod system_info;
 
@@ -31,6 +32,7 @@ use self::health::collect_health_summary;
 use self::logs::{collect_app_logs, collect_launch_logs};
 use self::metadata_status::collect_metadata_status;
 use self::profiles::{collect_profiles, collect_settings};
+use self::secrets::SecretScrubber;
 use self::steam_diagnostics::collect_steam_diagnostics;
 use self::system_info::collect_system_info;
 
@@ -165,65 +167,65 @@ pub fn export_diagnostic_bundle(
         source,
     })?;
 
+    // Read settings once so the scrubber and the bundled copy see the same contents.
+    let settings_content = fs::read_to_string(settings_store.settings_path()).ok();
+
     let encoder = GzEncoder::new(archive_file, Compression::default());
-    let mut tar = Builder::new(encoder);
+    let mut bundle = BundleWriter {
+        tar: Builder::new(encoder),
+        prefix,
+        scrubber: SecretScrubber::from_settings_content(settings_content.as_deref().unwrap_or("")),
+    };
 
     // -- Collect and add each section --
 
     let system_info = collect_system_info();
-    append_text(&mut tar, &prefix, "system-info.txt", &system_info)?;
+    bundle.append_text("system-info.txt", &system_info)?;
 
     let crosshook_info = collect_crosshook_info(settings_store, options.redact_paths);
-    append_text(&mut tar, &prefix, "crosshook-info.txt", &crosshook_info)?;
+    bundle.append_text("crosshook-info.txt", &crosshook_info)?;
 
     let health_summary = collect_health_summary(profile_store);
-    append_text(&mut tar, &prefix, "health-summary.json", &health_summary)?;
+    bundle.append_text("health-summary.json", &health_summary)?;
 
     if let Some(status) = &options.metadata_status {
         let metadata_text =
             collect_metadata_status(status, &options.metadata_backup_files, options.redact_paths);
-        append_text(&mut tar, &prefix, "metadata-status.json", &metadata_text)?;
+        bundle.append_text("metadata-status.json", &metadata_text)?;
     }
 
     let (steam_diag_text, proton_installs_json, proton_install_count) = collect_steam_diagnostics();
-    append_text(&mut tar, &prefix, "steam-diagnostics.txt", &steam_diag_text)?;
-    append_text(
-        &mut tar,
-        &prefix,
-        "proton-installs.json",
-        &proton_installs_json,
-    )?;
+    bundle.append_text("steam-diagnostics.txt", &steam_diag_text)?;
+    bundle.append_text("proton-installs.json", &proton_installs_json)?;
 
-    let settings_text = collect_settings(settings_store, options.redact_paths);
-    append_text(&mut tar, &prefix, "settings.toml", &settings_text)?;
+    let settings_text = collect_settings(settings_content.as_deref(), options.redact_paths);
+    bundle.append_text("settings.toml", &settings_text)?;
 
     let profiles = collect_profiles(profile_store, options.redact_paths);
     for (name, content) in &profiles {
-        let entry_path = format!("profiles/{name}.toml");
-        append_text(&mut tar, &prefix, &entry_path, content)?;
+        bundle.append_text(&format!("profiles/{name}.toml"), content)?;
     }
 
     let app_logs = collect_app_logs();
     for (filename, data) in &app_logs {
-        let entry_path = format!("logs/app/{filename}");
-        append_bytes(&mut tar, &prefix, &entry_path, data)?;
+        bundle.append_bytes(&format!("logs/app/{filename}"), data)?;
     }
 
     let launch_logs = collect_launch_logs();
     for (filename, data) in &launch_logs {
-        let entry_path = format!("logs/launch/{filename}");
-        append_bytes(&mut tar, &prefix, &entry_path, data)?;
+        bundle.append_bytes(&format!("logs/launch/{filename}"), data)?;
     }
 
     let log_file_count = app_logs.len() + launch_logs.len();
 
     for file in &options.extra_files {
         let entry_path = format!("{DIAGNOSTIC_BUNDLE_EXTRA_FILES_DIR}/{}", file.name);
-        append_bytes(&mut tar, &prefix, &entry_path, &file.contents)?;
+        bundle.append_bytes(&entry_path, &file.contents)?;
     }
 
     // Finalize the archive.
-    let encoder = tar
+    let encoder = bundle
+        .tar
         .into_inner()
         .map_err(|error| DiagnosticBundleError::Archive(error.to_string()))?;
     encoder
@@ -260,30 +262,35 @@ fn redact_home_paths(text: &str) -> String {
     result.replace(&home, "~")
 }
 
-fn append_text<W: io::Write>(
-    tar: &mut Builder<W>,
-    prefix: &str,
-    entry_path: &str,
-    content: &str,
-) -> Result<(), DiagnosticBundleError> {
-    append_bytes(tar, prefix, entry_path, content.as_bytes())
+/// Archive writer that scrubs configured secret values from every entry.
+struct BundleWriter<W: io::Write> {
+    tar: Builder<W>,
+    prefix: String,
+    scrubber: SecretScrubber,
 }
 
-fn append_bytes<W: io::Write>(
-    tar: &mut Builder<W>,
-    prefix: &str,
-    entry_path: &str,
-    data: &[u8],
-) -> Result<(), DiagnosticBundleError> {
-    let full_path = format!("{prefix}/{entry_path}");
+impl<W: io::Write> BundleWriter<W> {
+    fn append_text(
+        &mut self,
+        entry_path: &str,
+        content: &str,
+    ) -> Result<(), DiagnosticBundleError> {
+        self.append_bytes(entry_path, content.as_bytes())
+    }
 
-    let mut header = tar::Header::new_gnu();
-    header.set_size(data.len() as u64);
-    header.set_mode(0o644);
-    header.set_cksum();
+    fn append_bytes(&mut self, entry_path: &str, data: &[u8]) -> Result<(), DiagnosticBundleError> {
+        let full_path = format!("{}/{entry_path}", self.prefix);
+        let data = self.scrubber.scrub(data);
 
-    tar.append_data(&mut header, &full_path, data)
-        .map_err(|error| DiagnosticBundleError::Archive(error.to_string()))
+        let mut header = tar::Header::new_gnu();
+        header.set_size(data.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+
+        self.tar
+            .append_data(&mut header, &full_path, data.as_ref())
+            .map_err(|error| DiagnosticBundleError::Archive(error.to_string()))
+    }
 }
 
 #[cfg(test)]
@@ -405,6 +412,89 @@ mod tests {
             .iter()
             .any(|p| p.contains("profiles/test-game.toml")));
         assert!(entry_paths.iter().any(|p| p.ends_with("/app/ui.log")));
+    }
+
+    const TEST_KEY: &str = "sgdb-test-key-0123456789abcdef";
+
+    /// Exports a bundle with `settings` as settings.toml and returns `(path, text)` entries.
+    fn export_entries(
+        settings: &str,
+        redact_paths: bool,
+        extra_files: Vec<DiagnosticBundleFile>,
+    ) -> Vec<(String, String)> {
+        let temp = tempdir().unwrap();
+        let settings_dir = temp.path().join("settings");
+        fs::create_dir_all(&settings_dir).unwrap();
+        let settings_store = SettingsStore::with_base_path(settings_dir);
+        fs::write(settings_store.settings_path(), settings).unwrap();
+        let profile_store = ProfileStore::with_base_path(temp.path().join("profiles"));
+        let options = DiagnosticBundleOptions {
+            redact_paths,
+            output_dir: Some(temp.path().join("output")),
+            metadata_status: Some(MetadataStatus::Ok),
+            extra_files,
+            ..Default::default()
+        };
+
+        let result = export_diagnostic_bundle(&profile_store, &settings_store, &options).unwrap();
+
+        let decoder = flate2::read::GzDecoder::new(File::open(&result.archive_path).unwrap());
+        let mut archive = tar::Archive::new(decoder);
+        archive
+            .entries()
+            .unwrap()
+            .map(|entry| {
+                let mut entry = entry.unwrap();
+                let path = entry.path().unwrap().to_string_lossy().into_owned();
+                let mut contents = Vec::new();
+                io::Read::read_to_end(&mut entry, &mut contents).unwrap();
+                (path, String::from_utf8_lossy(&contents).into_owned())
+            })
+            .collect()
+    }
+
+    fn assert_no_key(entries: &[(String, String)]) {
+        for (path, text) in entries {
+            assert!(
+                !text.contains(TEST_KEY),
+                "{path} leaks the SteamGridDB API key"
+            );
+        }
+    }
+
+    #[test]
+    fn export_diagnostic_bundle_redacts_steamgriddb_api_key_in_settings() {
+        let settings =
+            format!("last_used_profile = \"daily\"\nsteamgriddb_api_key = \"{TEST_KEY}\"\n");
+        for redact_paths in [false, true] {
+            let entries = export_entries(&settings, redact_paths, Vec::new());
+            assert_no_key(&entries);
+            let (_, text) = entries
+                .iter()
+                .find(|(path, _)| path.ends_with("/settings.toml"))
+                .expect("settings.toml entry");
+            assert!(text.contains("steamgriddb_api_key = \"<redacted>\""));
+            assert!(text.contains("last_used_profile = \"daily\""));
+        }
+    }
+
+    #[test]
+    fn export_diagnostic_bundle_scrubs_key_from_malformed_settings_and_other_entries() {
+        // Unquoted value: the TOML parse error would otherwise quote this line.
+        let settings = format!("steamgriddb_api_key = {TEST_KEY}\n");
+        let extra_files = vec![DiagnosticBundleFile {
+            name: "ui.log".to_string(),
+            contents: format!("request failed for key {TEST_KEY}").into_bytes(),
+        }];
+
+        let entries = export_entries(&settings, false, extra_files);
+
+        assert_no_key(&entries);
+        let (_, ui_log) = entries
+            .iter()
+            .find(|(path, _)| path.ends_with("/app/ui.log"))
+            .expect("ui.log entry");
+        assert_eq!(ui_log, "request failed for key <redacted>");
     }
 
     #[test]

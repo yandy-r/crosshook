@@ -1,9 +1,8 @@
 use std::fs;
 
 use crate::profile::ProfileStore;
-use crate::settings::SettingsStore;
 
-use super::redact_home_paths;
+use super::{redact_home_paths, secrets::redact_secret_settings};
 
 /// Reads each profile TOML as raw text, optionally redacting home paths.
 pub(super) fn collect_profiles(store: &ProfileStore, redact_paths: bool) -> Vec<(String, String)> {
@@ -30,27 +29,30 @@ pub(super) fn collect_profiles(store: &ProfileStore, redact_paths: bool) -> Vec<
     profiles
 }
 
-/// Reads the settings TOML, omitting the private recent-palette identifiers.
-pub(super) fn collect_settings(settings_store: &SettingsStore, redact_paths: bool) -> String {
-    let path = settings_store.settings_path();
-    match fs::read_to_string(&path) {
-        Ok(content) => {
-            let content = match content.parse::<toml::Table>() {
-                Ok(mut settings) => {
-                    if let Some(ui) = settings.get_mut("ui").and_then(toml::Value::as_table_mut) {
-                        ui.remove("palette_recent");
-                    }
-                    toml::to_string(&settings).unwrap_or(content)
-                }
-                Err(_) => "(settings file could not be parsed; contents omitted)".to_string(),
-            };
-            if redact_paths {
-                redact_home_paths(&content)
-            } else {
-                content
+/// Sanitizes the raw settings TOML (`None` when the file could not be read):
+/// redacts credentials and omits the private recent-palette identifiers.
+/// Fails closed: if the file cannot be parsed or re-serialized, no raw
+/// contents are emitted.
+pub(super) fn collect_settings(content: Option<&str>, redact_paths: bool) -> String {
+    let Some(content) = content else {
+        return "(settings file not found)".to_string();
+    };
+    let content = match content.parse::<toml::Table>() {
+        Ok(mut settings) => {
+            redact_secret_settings(&mut settings);
+            if let Some(ui) = settings.get_mut("ui").and_then(toml::Value::as_table_mut) {
+                ui.remove("palette_recent");
             }
+            toml::to_string(&settings).unwrap_or_else(|_| {
+                "(settings file could not be serialized; contents omitted)".to_string()
+            })
         }
-        Err(_) => "(settings file not found)".to_string(),
+        Err(_) => "(settings file could not be parsed; contents omitted)".to_string(),
+    };
+    if redact_paths {
+        redact_home_paths(&content)
+    } else {
+        content
     }
 }
 
@@ -103,20 +105,17 @@ mod tests {
 
     #[test]
     fn collect_settings_excludes_only_recent_palette_ids() {
-        let temp = tempdir().unwrap();
-        let store = SettingsStore::with_base_path(temp.path().to_path_buf());
-        fs::write(
-            store.settings_path(),
-            "last_used_profile = \"daily\"\n\
-             [ui]\n\
-             library_view_mode = \"list\"\n\
-             palette_recent = [\"private-palette-id\"]\n\
-             [ui.extra]\n\
-             custom_palette = \"keep-me\"\n",
-        )
-        .unwrap();
-
-        let content = collect_settings(&store, false);
+        let content = collect_settings(
+            Some(
+                "last_used_profile = \"daily\"\n\
+                 [ui]\n\
+                 library_view_mode = \"list\"\n\
+                 palette_recent = [\"private-palette-id\"]\n\
+                 [ui.extra]\n\
+                 custom_palette = \"keep-me\"\n",
+            ),
+            false,
+        );
 
         assert!(!content.contains("palette_recent"));
         assert!(!content.contains("private-palette-id"));
@@ -126,18 +125,21 @@ mod tests {
     }
 
     #[test]
-    fn collect_settings_omits_malformed_file_with_private_palette_ids() {
-        let temp = tempdir().unwrap();
-        let store = SettingsStore::with_base_path(temp.path().to_path_buf());
-        fs::write(
-            store.settings_path(),
-            "[ui]\npalette_recent = [\"private-palette-id\"]\ninvalid = [",
-        )
-        .unwrap();
+    fn collect_settings_redacts_api_key_value() {
+        let content = collect_settings(
+            Some("steamgriddb_api_key = \"sgdb-test-key-0123456789abcdef\"\n"),
+            false,
+        );
+        assert!(!content.contains("sgdb-test-key-0123456789abcdef"));
+        assert!(content.contains("steamgriddb_api_key = \"<redacted>\""));
+    }
 
+    #[test]
+    fn collect_settings_omits_malformed_file_with_private_palette_ids() {
+        let malformed = "[ui]\npalette_recent = [\"private-palette-id\"]\ninvalid = [";
         for redact_paths in [false, true] {
             assert_eq!(
-                collect_settings(&store, redact_paths),
+                collect_settings(Some(malformed), redact_paths),
                 "(settings file could not be parsed; contents omitted)"
             );
         }

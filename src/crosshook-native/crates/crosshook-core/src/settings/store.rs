@@ -30,6 +30,18 @@ impl fmt::Display for SettingsStoreError {
 
 impl std::error::Error for SettingsStoreError {}
 
+impl SettingsStoreError {
+    /// Fixed description that is safe to log or export. `Display` is not: TOML
+    /// errors quote the offending source line, which may hold a credential.
+    pub fn redacted_summary(&self) -> &'static str {
+        match self {
+            Self::Io(_) => "I/O error",
+            Self::TomlDe(_) => "TOML syntax or type error",
+            Self::TomlSer(_) => "TOML serialization error",
+        }
+    }
+}
+
 impl From<std::io::Error> for SettingsStoreError {
     fn from(value: std::io::Error) -> Self {
         Self::Io(value)
