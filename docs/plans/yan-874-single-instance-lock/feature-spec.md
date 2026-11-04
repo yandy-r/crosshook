@@ -8,16 +8,16 @@ Classic (`crosshook-native`, Tauri) and the future native UI (`crosshook-ui`, YA
 
 ## Behaviour (user-visible)
 
-| Situation | Result |
-| --- | --- |
-| First launch | Takes the lock in Phase A step 0 and owns the session-bus name `dev.crosshook.CrossHook` in Phase B. Starts normally. |
-| Second launch (either binary) while one runs | Phase A fails the lock **before any migration**. Calls `org.freedesktop.Application.Activate` on the running instance, which un-minimizes and focuses its window. Exits 0. |
-| Second launch, and the running instance does not answer within 2 s | Prints `CrossHook is already running but did not respond within 2 s…` to stderr and exits 1. No dialog. |
-| First instance killed with `kill -9` or crashed | The kernel releases the flock. The next launch acquires it immediately, with no stale-lock cleanup. |
-| `$XDG_RUNTIME_DIR` unset, relative, unsafe or unwritable | The lock step is `Degraded` (warning in the log). The D-Bus name alone guards: if the name is already owned in Phase B, the process activates the owner and exits 0. |
-| No lock **and** no session bus | Starts unguarded. The bus step is `Degraded`, `degraded.instance_unguarded = true` in the startup report, and Classic shows a dismissible warning banner. |
-| "Open in Classic UI" handoff (M1-19, API only now) | `release_and_handoff(cmd)` releases the bus name, spawns the other binary with `CROSSHOOK_INSTANCE_HANDOFF=1`, then unlocks. The new binary waits up to 5 s for the lock. |
-| `crosshook-cli` | Never takes the lock. It does not call `pre_runtime` (verified: no bootstrap use in `crates/crosshook-cli/src`). |
+| Situation                                                          | Result                                                                                                                                                                     |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| First launch                                                       | Takes the lock in Phase A step 0 and owns the session-bus name `dev.crosshook.CrossHook` in Phase B. Starts normally.                                                      |
+| Second launch (either binary) while one runs                       | Phase A fails the lock **before any migration**. Calls `org.freedesktop.Application.Activate` on the running instance, which un-minimizes and focuses its window. Exits 0. |
+| Second launch, and the running instance does not answer within 2 s | Prints `CrossHook is already running but did not respond within 2 s…` to stderr and exits 1. No dialog.                                                                    |
+| First instance killed with `kill -9` or crashed                    | The kernel releases the flock. The next launch acquires it immediately, with no stale-lock cleanup.                                                                        |
+| `$XDG_RUNTIME_DIR` unset, relative, unsafe or unwritable           | The lock step is `Degraded` (warning in the log). The D-Bus name alone guards: if the name is already owned in Phase B, the process activates the owner and exits 0.       |
+| No lock **and** no session bus                                     | Starts unguarded. The bus step is `Degraded`, `degraded.instance_unguarded = true` in the startup report, and Classic shows a dismissible warning banner.                  |
+| "Open in Classic UI" handoff (M1-19, API only now)                 | `release_and_handoff(cmd)` releases the bus name, spawns the other binary with `CROSSHOOK_INSTANCE_HANDOFF=1`, then unlocks. The new binary waits up to 5 s for the lock.  |
+| `crosshook-cli`                                                    | Never takes the lock. It does not call `pre_runtime` (verified: no bootstrap use in `crates/crosshook-cli/src`).                                                           |
 
 ## Research findings (facts the plan depends on)
 
@@ -51,10 +51,10 @@ Classic (`crosshook-native`, Tauri) and the future native UI (`crosshook-ui`, YA
 
 ## Security / stability decisions
 
-- **Lock directory.** The native dir `$XDG_RUNTIME_DIR/crosshook` is created with mode `0700`. Whether it already existed or was just created, it must be a real directory (`symlink_metadata`, no symlink), owned by `geteuid()`, and have no group/other write bits. Otherwise the step is `Degraded("runtime dir unsafe")`. *Why:* another user or a hostile symlink must not be able to block or redirect the lock.
-- **Lock file.** Opened `O_RDWR|O_CREAT|O_CLOEXEC|O_NOFOLLOW`, mode `0600`, and checked to be a regular file with `fstat`. Nothing is written to it. *Why:* without `O_CLOEXEC`, spawned children (games, the handed-off binary) would inherit the open file description and keep the lock alive after CrossHook exits. `O_NOFOLLOW` blocks symlink swaps.
-- **`$XDG_RUNTIME_DIR`.** Read through the host seam (`env_var`), never through `BaseDirs`. *Why:* the read happens before the Flatpak gate, and trace rule R3 forbids base-dir lookups before `gate:end`.
-- **`Activate` platform data is untrusted** (any session peer can call it outside Flatpak). Only `activation-token` and `desktop-startup-id` string values are accepted, each at most 512 bytes and free of control characters; anything else is ignored. The handler only raises the window. *Why:* bounded input and no privileged action.
+- **Lock directory.** The native dir `$XDG_RUNTIME_DIR/crosshook` is created with mode `0700`. Whether it already existed or was just created, it must be a real directory (`symlink_metadata`, no symlink), owned by `geteuid()`, and have no group/other write bits. Otherwise the step is `Degraded("runtime dir unsafe")`. _Why:_ another user or a hostile symlink must not be able to block or redirect the lock.
+- **Lock file.** Opened `O_RDWR|O_CREAT|O_CLOEXEC|O_NOFOLLOW`, mode `0600`, and checked to be a regular file with `fstat`. Nothing is written to it. _Why:_ without `O_CLOEXEC`, spawned children (games, the handed-off binary) would inherit the open file description and keep the lock alive after CrossHook exits. `O_NOFOLLOW` blocks symlink swaps.
+- **`$XDG_RUNTIME_DIR`.** Read through the host seam (`env_var`), never through `BaseDirs`. _Why:_ the read happens before the Flatpak gate, and trace rule R3 forbids base-dir lookups before `gate:end`.
+- **`Activate` platform data is untrusted** (any session peer can call it outside Flatpak). Only `activation-token` and `desktop-startup-id` string values are accepted, each at most 512 bytes and free of control characters; anything else is ignored. The handler only raises the window. _Why:_ bounded input and no privileged action.
 - **No sleeps on the startup path.** The handoff wait uses an inotify `IN_CLOSE` watch plus `poll` with a deadline. Activation uses a `NameOwnerChanged` subscription inside the 2 s budget.
 
 ## Out of scope
