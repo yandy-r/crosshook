@@ -3,6 +3,8 @@ use std::fs;
 use crate::profile::ProfileStore;
 use crate::settings::SettingsStore;
 
+use super::secrets::redact_secret_settings;
+
 use super::redact_home_paths;
 
 /// Reads each profile TOML as raw text, optionally redacting home paths.
@@ -30,17 +32,22 @@ pub(super) fn collect_profiles(store: &ProfileStore, redact_paths: bool) -> Vec<
     profiles
 }
 
-/// Reads the settings TOML, omitting the private recent-palette identifiers.
+/// Reads the settings TOML, redacting credentials and omitting the private
+/// recent-palette identifiers. Fails closed: if the file cannot be parsed or
+/// re-serialized, no raw contents are emitted.
 pub(super) fn collect_settings(settings_store: &SettingsStore, redact_paths: bool) -> String {
     let path = settings_store.settings_path();
     match fs::read_to_string(&path) {
         Ok(content) => {
             let content = match content.parse::<toml::Table>() {
                 Ok(mut settings) => {
+                    redact_secret_settings(&mut settings);
                     if let Some(ui) = settings.get_mut("ui").and_then(toml::Value::as_table_mut) {
                         ui.remove("palette_recent");
                     }
-                    toml::to_string(&settings).unwrap_or(content)
+                    toml::to_string(&settings).unwrap_or_else(|_| {
+                        "(settings file could not be serialized; contents omitted)".to_string()
+                    })
                 }
                 Err(_) => "(settings file could not be parsed; contents omitted)".to_string(),
             };

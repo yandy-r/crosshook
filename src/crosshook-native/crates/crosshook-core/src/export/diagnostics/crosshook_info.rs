@@ -1,4 +1,4 @@
-use crate::settings::SettingsStore;
+use crate::settings::{SettingsStore, SettingsStoreError};
 
 use super::redact_home_paths;
 
@@ -30,7 +30,13 @@ pub(super) fn collect_crosshook_info(settings_store: &SettingsStore, redact_path
             }
         }
         Err(error) => {
-            lines.push(format!("(failed to load settings: {error})"));
+            // The TOML error text quotes the offending source line, which may hold a credential.
+            let reason = match error {
+                SettingsStoreError::Io(_) => "I/O error",
+                SettingsStoreError::TomlDe(_) => "TOML syntax or type error",
+                SettingsStoreError::TomlSer(_) => "TOML serialization error",
+            };
+            lines.push(format!("(failed to load settings: {reason})"));
         }
     }
 
