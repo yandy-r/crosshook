@@ -271,14 +271,12 @@ pub fn run() {
         .build(context)
         .expect("error while building CrossHook Native")
         .run(move |_app, event| {
-            // Give up the bus name as soon as exiting starts, so a relaunch
-            // during the bounded shutdown below is told CrossHook is shutting
-            // down instead of activating a window that is gone. The lock stays
-            // held until the process ends. Idempotent.
-            if matches!(
-                event,
-                tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit
-            ) {
+            // Give up the bus name on `Exit` (it cannot be prevented, unlike
+            // `ExitRequested`) and before the bounded shutdown below, so a
+            // relaunch meanwhile is told CrossHook is shutting down instead of
+            // activating a window that is gone. Bounded to 500 ms; the lock
+            // stays held until the process ends.
+            if let tauri::RunEvent::Exit = event {
                 tauri::async_runtime::block_on(instance_owner.instance().release_bus_name());
             }
             // `Exit` fires once on every exit path (after `ExitRequested`,

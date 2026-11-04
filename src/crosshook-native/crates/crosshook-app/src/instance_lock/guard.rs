@@ -23,6 +23,9 @@ pub enum HandoffError {
     /// This process does not hold the lock, so there is nothing to hand off.
     #[error("instance lock not held")]
     NotHeld,
+    /// A handoff already started; this process is about to exit.
+    #[error("a handoff is already in progress")]
+    AlreadyPending,
     /// The other binary could not be started; the lock and the bus name are
     /// still held.
     #[error("could not start the other CrossHook: {0}")]
@@ -95,12 +98,21 @@ impl InstanceGuard {
     /// `CROSSHOOK_INSTANCE_HANDOFF=1`, then releases the bus name. The lock
     /// stays held until this process exits (the kernel releases it and the
     /// new process, waiting up to `HANDOFF_WAIT`, takes it), so the caller
-    /// must exit right after `Ok`. On a spawn failure the lock and the bus
-    /// name are both kept and nothing changes.
+    /// must exit right after `Ok`. A second call returns
+    /// [`HandoffError::AlreadyPending`] without spawning. On a spawn failure
+    /// the lock and the bus name are both kept and nothing changes.
     pub async fn release_and_handoff(&self, cmd: Command) -> Result<Child, HandoffError> {
         let lock = self.lock.as_ref().ok_or(HandoffError::NotHeld)?;
-        let child = lock.spawn_handoff(cmd).map_err(HandoffError::Spawn)?;
-        self.handoff_pending.store(true, Ordering::Release);
+        if self.handoff_pending.swap(true, Ordering::AcqRel) {
+            return Err(HandoffError::AlreadyPending);
+        }
+        let child = match lock.spawn_handoff(cmd) {
+            Ok(child) => child,
+            Err(error) => {
+                self.handoff_pending.store(false, Ordering::Release);
+                return Err(HandoffError::Spawn(error));
+            }
+        };
         self.release_bus_name().await;
         Ok(child)
     }

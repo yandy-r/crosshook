@@ -20,6 +20,8 @@ const ACTIVATION_TOKEN: &str = "activation-token";
 const DESKTOP_STARTUP_ID: &str = "desktop-startup-id";
 /// Upper bound on the Phase B bus claim (connect + name request).
 const CLAIM_TIMEOUT: Duration = Duration::from_secs(2);
+/// Upper bound on releasing the bus name at exit or handoff.
+const RELEASE_TIMEOUT: Duration = Duration::from_millis(500);
 /// Longest accepted activation token or startup id, in bytes.
 const MAX_TOKEN_LEN: usize = 512;
 
@@ -174,9 +176,18 @@ pub struct BusClaim {
 
 impl BusClaim {
     /// Releases the name and closes the connection.
+    /// Releases the name and closes the connection, bounded by
+    /// [`RELEASE_TIMEOUT`]; on timeout, dropping the connection gives the
+    /// name up anyway.
     pub(crate) async fn release(self) {
-        if let Err(error) = self.connection.release_name(self.name.as_str()).await {
-            tracing::warn!(%error, "failed to release the instance bus name");
+        let release = self.connection.release_name(self.name.as_str());
+        match tokio::time::timeout(RELEASE_TIMEOUT, release).await {
+            Ok(Ok(_)) => {}
+            Ok(Err(error)) => tracing::warn!(%error, "failed to release the instance bus name"),
+            Err(_) => tracing::warn!(
+                timeout_ms = RELEASE_TIMEOUT.as_millis(),
+                "instance bus name release timed out; closing the connection instead"
+            ),
         }
     }
 }

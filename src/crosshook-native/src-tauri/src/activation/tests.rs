@@ -22,15 +22,16 @@ fn failure_messages_distinguish_timeout_shutdown_and_bus() {
     let timeout = failure_message(&ActivationError::TimedOut);
     assert!(timeout.starts_with("CrossHook is already running but did not respond within 2 s"));
     assert!(timeout.contains("close it or end the process"));
-    for shutting_down in [
-        ActivationError::NoOwner,
-        ActivationError::Rejected("CrossHook is shutting down".into()),
-    ] {
-        assert_eq!(
-            failure_message(&shutting_down),
-            "The existing CrossHook is shutting down; try again in a few seconds."
-        );
-    }
+    assert_eq!(
+        failure_message(&ActivationError::Rejected(
+            "CrossHook is shutting down".into()
+        )),
+        "The existing CrossHook is shutting down; try again in a few seconds."
+    );
+    assert_eq!(
+        failure_message(&ActivationError::NoOwner),
+        "The existing CrossHook is starting up or shutting down; try again in a few seconds."
+    );
     let bus = failure_message(&ActivationError::Bus("no socket".into()));
     assert!(bus.contains("could not be reached over the session bus (no socket)"));
 }

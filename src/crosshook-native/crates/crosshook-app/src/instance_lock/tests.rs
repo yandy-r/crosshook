@@ -206,6 +206,23 @@ fn wait_times_out_while_held() {
     assert!(started.elapsed() >= Duration::from_millis(300));
 }
 
+/// Fail closed: the shared dir is unusable (so that file is never opened or
+/// watched) and the primary is held. The wait must report `Contended`, not
+/// `Unavailable`, or a handed-off launch would start beside the holder.
+#[test]
+fn wait_with_unsafe_shared_dir_and_held_primary_is_contended() {
+    let runtime = tempdir().unwrap();
+    let native = InstanceLockPaths::in_dir(runtime.path());
+    let shared_dir = native.shared_file().unwrap().parent().unwrap().to_owned();
+    std::fs::create_dir_all(&shared_dir).unwrap();
+    std::fs::set_permissions(&shared_dir, std::fs::Permissions::from_mode(0o777)).unwrap();
+    let _held = InstanceLock::try_acquire(&native).expect("primary lock");
+    assert_contended(InstanceLock::acquire_with_wait(
+        &native,
+        Duration::from_millis(100),
+    ));
+}
+
 #[test]
 fn wait_on_free_lock_acquires_immediately() {
     let runtime = tempdir().unwrap();
@@ -301,6 +318,44 @@ async fn guard_handoff_spawn_failure_keeps_everything() {
     assert!(!guard.handoff_pending());
     let paths = InstanceLockPaths::in_dir(runtime.path());
     assert_contended(InstanceLock::try_acquire(&paths));
+}
+
+#[tokio::test]
+async fn guard_second_handoff_is_already_pending() {
+    let runtime = tempdir().unwrap();
+    let guard = held_guard(runtime.path());
+    let mut child = guard
+        .release_and_handoff(Command::new("true"))
+        .await
+        .expect("first handoff spawns");
+    let again = guard.release_and_handoff(Command::new("true")).await;
+    assert!(
+        matches!(again, Err(HandoffError::AlreadyPending)),
+        "{again:?}"
+    );
+    assert!(guard.handoff_pending());
+    assert!(child.wait().unwrap().success());
+}
+
+#[tokio::test]
+async fn guard_handoff_retry_after_spawn_failure_is_allowed() {
+    let runtime = tempdir().unwrap();
+    let guard = held_guard(runtime.path());
+    let missing = Command::new(runtime.path().join("no-such-binary"));
+    assert!(matches!(
+        guard.release_and_handoff(missing).await,
+        Err(HandoffError::Spawn(_))
+    ));
+    assert!(
+        !guard.handoff_pending(),
+        "a failed spawn resets the pending state"
+    );
+    let mut child = guard
+        .release_and_handoff(Command::new("true"))
+        .await
+        .expect("retry spawns");
+    assert!(child.wait().unwrap().success());
+    assert!(guard.handoff_pending());
 }
 
 #[tokio::test]

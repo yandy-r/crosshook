@@ -121,17 +121,20 @@ time (they share one app-id and the same stores).
   `degraded.instance_unguarded` is `true` and Classic shows a warning banner.
   `BootstrapOptions::with_instance_bus(InstanceBus::Skip { .. })` opts out
   (required when bootstrapping inside a Tokio runtime, such as
-  `#[tokio::test]`). Shells call `InstanceGuard::release_bus_name()` when
-  they start exiting (Classic: `RunEvent::ExitRequested`/`Exit`); the lock
-  stays held until the process ends.
+  `#[tokio::test]`). Shells call `InstanceGuard::release_bus_name()` once
+  exiting can no longer be cancelled (Classic: `RunEvent::Exit`, before the
+  bounded shutdown); the release is bounded to 500 ms, and the lock stays
+  held until the process ends.
 - **Activation.** A second launch calls
   `activate_running_instance(ActivationRequest::from_env(), ACTIVATE_TIMEOUT)`
   (outside any Tokio runtime; inside one it returns `ActivationError::Bus`),
   forwarding `XDG_ACTIVATION_TOKEN` / `DESKTOP_STARTUP_ID`. If the name has no
   owner yet it waits for `NameOwnerChanged` within the same 2 s budget. The
   Classic shell exits 0 on success and 1 otherwise, with one message per
-  error: `TimedOut` (owner did not answer), `NoOwner` or `Rejected` (the
-  instance is shutting down; try again), `Bus` (no usable session bus).
+  error: `TimedOut` (owner did not answer), `NoOwner` (no owner for the
+  whole budget: the instance is starting up or shutting down; try again),
+  `Rejected` (the instance is shutting down; try again), `Bus` (no usable
+  session bus).
   Incoming platform data is untrusted: only those two string keys (≤ 512
   bytes, no control characters) are kept. Requests that arrive before the
   UI calls `BootstrappedApp::instance().set_activation_handler(..)` are
@@ -143,11 +146,14 @@ time (they share one app-id and the same stores).
   `CROSSHOOK_INSTANCE_HANDOFF=1`, then releases the bus name. **The caller
   must exit right after `Ok`**: the lock stays held until this process
   exits, so the two never use the stores at the same time, and
-  `handoff_pending()` reports the state. A failed spawn keeps both the lock
-  and the bus name. The new process removes the variable in Phase A and
+  `handoff_pending()` reports the state; a second call returns
+  `HandoffError::AlreadyPending` without spawning. A failed spawn keeps both
+  the lock and the bus name and clears the pending state. The new process removes the variable in Phase A and
   waits up to `HANDOFF_WAIT` (10 s, above Classic's ~8 s worst-case exit:
   the `[ui]` flush plus `App::DEFAULT_SHUTDOWN_TIMEOUT`) with an inotify
-  `IN_CLOSE` watch and `poll` (no sleeps).
+  `IN_CLOSE` watch on the lock files it opened and `poll` (no sleeps). The
+  wait fails closed: if the watch cannot be set up while the lock is held,
+  the launch is `AlreadyRunning`, never unguarded.
 - **Benches** reuse the real `XDG_RUNTIME_DIR` and session bus: close
   CrossHook before benching, or the bench run activates it and exits 0.
 

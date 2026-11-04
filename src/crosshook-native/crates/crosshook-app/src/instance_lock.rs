@@ -184,36 +184,42 @@ pub struct InstanceLock {
 impl InstanceLock {
     /// Takes the lock without blocking.
     pub fn try_acquire(paths: &InstanceLockPaths) -> Result<Self, AcquireError> {
-        let files = open_all(paths)?;
-        lock_all(&files)?;
-        Ok(Self::held(files, paths))
+        let opened = open_all(paths)?;
+        lock_all(&opened)?;
+        Ok(Self::held(opened, paths))
     }
 
-    /// Takes the lock, waiting up to `timeout` for the holder to close it: an
-    /// inotify `IN_CLOSE` watch on every lock file set before the first try,
-    /// then `poll` with a deadline (no sleeps, no threads).
+    /// Takes the lock, waiting up to `timeout` for the holder to close it.
+    ///
+    /// Tries once; on contention it watches every lock file it actually
+    /// opened for `IN_CLOSE` and loops try → `poll` with a deadline (no
+    /// sleeps, no threads). It fails closed: once the lock is known to be
+    /// held, an inotify failure is [`AcquireError::Contended`], never
+    /// `Unavailable`, so a handed-off launch cannot start beside a live
+    /// holder.
     pub fn acquire_with_wait(
         paths: &InstanceLockPaths,
         timeout: Duration,
     ) -> Result<Self, AcquireError> {
         let deadline = Instant::now().checked_add(timeout);
-        let files = open_all(paths)?;
-        let inotify =
-            Inotify::init(InitFlags::IN_CLOEXEC | InitFlags::IN_NONBLOCK).map_err(io_error)?;
-        for location in [Some(&paths.primary), paths.shared.as_ref()]
-            .into_iter()
-            .flatten()
-        {
-            inotify
-                .add_watch(
-                    &location.file,
-                    AddWatchFlags::IN_CLOSE | AddWatchFlags::IN_DONT_FOLLOW,
-                )
-                .map_err(io_error)?;
+        let opened = open_all(paths)?;
+        match lock_all(&opened) {
+            Ok(()) => return Ok(Self::held(opened, paths)),
+            Err(AcquireError::Contended) => {}
+            Err(error) => return Err(error),
         }
+        let inotify = match watch_closes(&opened) {
+            Ok(inotify) => inotify,
+            Err(error) => {
+                tracing::warn!(%error, "instance lock wait unavailable; treating the lock as held");
+                return Err(AcquireError::Contended);
+            }
+        };
+        // The watch is armed now; the loop's first try covers a close that
+        // happened between the first try and the watch.
         loop {
-            match lock_all(&files) {
-                Ok(()) => return Ok(Self::held(files, paths)),
+            match lock_all(&opened) {
+                Ok(()) => return Ok(Self::held(opened, paths)),
                 Err(AcquireError::Contended) => {}
                 Err(error) => return Err(error),
             }
@@ -224,7 +230,14 @@ impl InstanceLock {
             if remaining.is_zero() {
                 return Err(AcquireError::Contended);
             }
-            wait_for_close(&inotify, remaining)?;
+            // Still held: a broken wait must not turn into "lock unavailable".
+            if let Err(error) = wait_for_close(&inotify, remaining) {
+                tracing::warn!(
+                    ?error,
+                    "instance lock wait failed; treating the lock as held"
+                );
+                return Err(AcquireError::Contended);
+            }
         }
     }
 
@@ -241,21 +254,31 @@ impl InstanceLock {
         &self.paths
     }
 
-    fn held(files: Vec<File>, paths: &InstanceLockPaths) -> Self {
+    fn held(opened: Vec<OpenedLock>, paths: &InstanceLockPaths) -> Self {
         Self {
-            _files: files,
+            _files: opened.into_iter().map(|lock| lock.file).collect(),
             paths: paths.clone(),
         }
     }
 }
 
+/// One opened lock file and the path it was opened at (for the watch).
+struct OpenedLock {
+    file: File,
+    path: PathBuf,
+}
+
 /// Opens every lock file: the primary must open; the native run's shared
 /// file is skipped with a warning when its directory is unusable.
-fn open_all(paths: &InstanceLockPaths) -> Result<Vec<File>, AcquireError> {
-    let mut files = vec![open_lock_file(&paths.primary)?];
+fn open_all(paths: &InstanceLockPaths) -> Result<Vec<OpenedLock>, AcquireError> {
+    let opened = |location: &LockLocation, file| OpenedLock {
+        file,
+        path: location.file.clone(),
+    };
+    let mut files = vec![opened(&paths.primary, open_lock_file(&paths.primary)?)];
     if let Some(shared) = &paths.shared {
         match open_lock_file(shared) {
-            Ok(file) => files.push(file),
+            Ok(file) => files.push(opened(shared, file)),
             Err(AcquireError::Unavailable(unavailable, error)) => {
                 let detail =
                     error.map(|error| crate::presenter::sanitize_message(&error.to_string()));
@@ -277,21 +300,33 @@ fn open_all(paths: &InstanceLockPaths) -> Result<Vec<File>, AcquireError> {
 
 /// Locks every file or none: on contention or error the locks taken in this
 /// attempt are released again.
-fn lock_all(files: &[File]) -> Result<(), AcquireError> {
-    for (index, file) in files.iter().enumerate() {
-        let error = match file.try_lock() {
+fn lock_all(files: &[OpenedLock]) -> Result<(), AcquireError> {
+    for (index, lock) in files.iter().enumerate() {
+        let error = match lock.file.try_lock() {
             Ok(()) => continue,
             Err(TryLockError::WouldBlock) => AcquireError::Contended,
             Err(TryLockError::Error(error)) => io_error(error),
         };
         for taken in files.iter().take(index) {
-            if let Err(unlock) = taken.unlock() {
+            if let Err(unlock) = taken.file.unlock() {
                 tracing::warn!(error = %unlock, "could not release a partial instance lock");
             }
         }
         return Err(error);
     }
     Ok(())
+}
+
+/// Watches every opened lock file for `IN_CLOSE`.
+fn watch_closes(opened: &[OpenedLock]) -> nix::Result<Inotify> {
+    let inotify = Inotify::init(InitFlags::IN_CLOEXEC | InitFlags::IN_NONBLOCK)?;
+    for lock in opened {
+        inotify.add_watch(
+            &lock.path,
+            AddWatchFlags::IN_CLOSE | AddWatchFlags::IN_DONT_FOLLOW,
+        )?;
+    }
+    Ok(inotify)
 }
 
 /// Opens (creating `0700`) the lock dir; rejects symlinks, foreign owners and group/other write.

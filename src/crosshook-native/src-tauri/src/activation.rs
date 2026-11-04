@@ -92,8 +92,14 @@ fn failure_message(error: &ActivationError) -> String {
              close it or end the process and try again.",
             ACTIVATE_TIMEOUT.as_secs()
         ),
-        ActivationError::Rejected(_) | ActivationError::NoOwner => {
+        ActivationError::Rejected(_) => {
             "The existing CrossHook is shutting down; try again in a few seconds.".to_owned()
+        }
+        // The name is claimed after the lock, so no owner also covers a first
+        // start that is still migrating.
+        ActivationError::NoOwner => {
+            "The existing CrossHook is starting up or shutting down; try again in a few seconds."
+                .to_owned()
         }
         ActivationError::Bus(detail) => format!(
             "CrossHook is already running but could not be reached over the session bus \
