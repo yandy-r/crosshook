@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 
 import type {
@@ -119,6 +119,10 @@ export function useProtonManager(opts: UseProtonManagerOptions = {}): UseProtonM
   const [allLoading, setAllLoading] = useState(false);
   const [allError, setAllError] = useState<string | null>(null);
   const [allFetchVersion, setAllFetchVersion] = useState(0);
+  // One-shot refresh intent for the All-mode fan-out: only the fetch triggered
+  // by `refreshAll` bypasses the cache. Cleared once that fetch succeeds; kept
+  // when the fetch is superseded by an effect rerun.
+  const pendingAllForceRefreshRef = useRef(false);
 
   const steamClientInstallPath = opts.steamClientInstallPath?.trim() ?? '';
 
@@ -149,7 +153,7 @@ export function useProtonManager(opts: UseProtonManagerOptions = {}): UseProtonM
         const [resolvedProviders, resolvedRoots] = await Promise.all([
           callCommand<ProtonUpProviderDescriptor[]>('protonup_list_providers'),
           callCommand<InstallRootDescriptor[]>('protonup_resolve_install_roots', {
-            steam_client_install_path: steamClientInstallPath.length > 0 ? steamClientInstallPath : undefined,
+            steamClientInstallPath: steamClientInstallPath.length > 0 ? steamClientInstallPath : undefined,
           }),
         ]);
 
@@ -176,6 +180,7 @@ export function useProtonManager(opts: UseProtonManagerOptions = {}): UseProtonM
   }, [steamClientInstallPath]);
 
   // All-mode fan-out: fetch every provider catalog in parallel and merge.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: trigger-only dep — `allFetchVersion` reruns the fan-out on refreshAll
   useEffect(() => {
     if (!inAllMode || providers.length === 0) {
       return;
@@ -185,6 +190,7 @@ export function useProtonManager(opts: UseProtonManagerOptions = {}): UseProtonM
     setAllLoading(true);
 
     const ids = providers.map((p) => p.id);
+    const forceRefresh = pendingAllForceRefreshRef.current;
 
     (async () => {
       try {
@@ -192,7 +198,7 @@ export function useProtonManager(opts: UseProtonManagerOptions = {}): UseProtonM
           ids.map((id) =>
             callCommand<ProtonUpCatalogResponse>('protonup_list_available_versions', {
               provider: id,
-              force_refresh: allFetchVersion > 0,
+              forceRefresh,
             }).catch((_err: unknown): ProtonUpCatalogResponse => {
               return {
                 versions: [],
@@ -203,6 +209,9 @@ export function useProtonManager(opts: UseProtonManagerOptions = {}): UseProtonM
         );
 
         if (!active) return;
+        if (forceRefresh) {
+          pendingAllForceRefreshRef.current = false;
+        }
 
         const merged = responses.flatMap((r) => r.versions);
         const cache: ProtonUpCacheMeta = responses.reduce<ProtonUpCacheMeta>(
@@ -234,6 +243,7 @@ export function useProtonManager(opts: UseProtonManagerOptions = {}): UseProtonM
   }, [inAllMode, providers, allFetchVersion]);
 
   const refreshAll = useCallback(() => {
+    pendingAllForceRefreshRef.current = true;
     setAllFetchVersion((current) => current + 1);
   }, []);
 

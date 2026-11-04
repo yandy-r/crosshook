@@ -2,7 +2,6 @@ import { useId } from 'react';
 import { useProtonDbApply } from '../hooks/profile/useProtonDbApply';
 import { useProtonDbSuggestions } from '../hooks/useProtonDbSuggestions';
 import type { GameProfile, LaunchMethod } from '../types';
-import type { AcceptSuggestionRequest } from '../types/protondb';
 import type { VersionCorrelationStatus } from '../types/version';
 import { resolveArtAppId } from '../utils/art';
 import type { OptimizationCatalogPayload } from '../utils/optimization-catalog';
@@ -68,12 +67,14 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
   const profileSelector = 'profileSelector' in props ? props.profileSelector : undefined;
   const profileNamesListId = useId();
   const resolvedAppId = resolveArtAppId(profile);
-  const suggestions = useProtonDbSuggestions(resolvedAppId, profileName);
-
-  const handleAcceptSuggestion = async (request: AcceptSuggestionRequest): Promise<void> => {
-    const result = await suggestions.acceptSuggestion(request);
-    onUpdateProfile(() => result.updatedProfile);
-  };
+  // Dismissals persist against the on-disk profile, so only pass a name that
+  // exists there: an unsaved (or mid-rename) draft name would target the wrong file.
+  // Accepting is not wired here: its only caller (the Install review modal)
+  // runs in review mode, and an accept would reload over the unsaved draft.
+  const suggestions = useProtonDbSuggestions(
+    resolvedAppId,
+    profileExists ? (profileSelector?.selectedProfile ?? profileName) : ''
+  );
 
   const {
     pendingOverwrite,
@@ -87,7 +88,6 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
     profile,
     catalog,
     onUpdateProfile,
-    onAcceptSuggestion: handleAcceptSuggestion,
   });
 
   const profiles = profileSelector?.profiles;
@@ -108,7 +108,6 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
         onApplyEnvVars={reviewMode ? undefined : handleApplyProtonDbEnvVars}
         applyingGroupId={applyingGroupId}
         suggestionSet={reviewMode ? undefined : suggestions.suggestionSet}
-        onAcceptSuggestion={reviewMode ? undefined : handleAcceptSuggestion}
         onDismissSuggestion={reviewMode ? undefined : suggestions.dismissSuggestion}
       />
 

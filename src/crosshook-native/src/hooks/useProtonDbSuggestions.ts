@@ -1,13 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 
-import type { AcceptSuggestionRequest, AcceptSuggestionResult, ProtonDbSuggestionSet } from '../types/protondb';
+import type {
+  AcceptSuggestionRequest,
+  AcceptSuggestionResult,
+  ProtonDbSuggestionSet,
+  SuggestionAcceptance,
+} from '../types/protondb';
 
 export interface UseProtonDbSuggestionsResult {
   suggestionSet: ProtonDbSuggestionSet | null;
   loading: boolean;
   error: string | null;
-  acceptSuggestion: (request: AcceptSuggestionRequest) => Promise<AcceptSuggestionResult>;
+  acceptSuggestion: (acceptance: SuggestionAcceptance) => Promise<AcceptSuggestionResult>;
   dismissSuggestion: (suggestionKey: string) => void;
   refresh: () => Promise<void>;
 }
@@ -17,10 +22,17 @@ export function useProtonDbSuggestions(appId: string, profileName: string): UseP
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
+  // Latest inputs, read after an accept resolves so its follow-up refetch
+  // never runs (and bumps `requestIdRef`) for a profile that is no longer
+  // selected.
+  const latestAppIdRef = useRef(appId);
+  latestAppIdRef.current = appId;
+  const latestProfileNameRef = useRef(profileName);
+  latestProfileNameRef.current = profileName;
 
   const fetchSuggestions = useCallback(
     async (forceRefresh = false) => {
-      if (!appId || !profileName) {
+      if (!appId || !profileName.trim()) {
         setSuggestionSet(null);
         setLoading(false);
         setError(null);
@@ -58,9 +70,11 @@ export function useProtonDbSuggestions(appId: string, profileName: string): UseP
     },
     [appId, profileName]
   );
+  const latestFetchSuggestionsRef = useRef(fetchSuggestions);
+  latestFetchSuggestionsRef.current = fetchSuggestions;
 
   useEffect(() => {
-    if (!appId || !profileName) {
+    if (!appId || !profileName.trim()) {
       requestIdRef.current += 1;
       setSuggestionSet(null);
       setLoading(false);
@@ -72,14 +86,20 @@ export function useProtonDbSuggestions(appId: string, profileName: string): UseP
   }, [appId, profileName, fetchSuggestions]);
 
   const acceptSuggestion = useCallback(
-    async (request: AcceptSuggestionRequest): Promise<AcceptSuggestionResult> => {
+    async (acceptance: SuggestionAcceptance): Promise<AcceptSuggestionResult> => {
+      if (!profileName.trim()) {
+        throw new Error('Save the profile before accepting ProtonDB suggestions.');
+      }
+      const request: AcceptSuggestionRequest = { ...acceptance, profileName };
       const result = await callCommand<AcceptSuggestionResult>('protondb_accept_suggestion', {
         request,
       });
-      void fetchSuggestions(false);
+      if (latestAppIdRef.current === appId && latestProfileNameRef.current === profileName) {
+        void latestFetchSuggestionsRef.current(false);
+      }
       return result;
     },
-    [fetchSuggestions]
+    [appId, profileName]
   );
 
   const dismissSuggestion = useCallback(

@@ -203,8 +203,8 @@ export function useProfileActions({ setPendingLauncherReExport }: UseProfileActi
     setExportingCommunity(true);
     try {
       const result = await callCommand<CommunityExportResult>('community_export_profile', {
-        profile_name: nameOnDisk,
-        output_path: outputPath,
+        profileName: nameOnDisk,
+        outputPath,
       });
       setCommunityExportSuccess(`Community profile saved to ${result.output_path}`);
       setCommunityExportError(null);
@@ -225,7 +225,7 @@ export function useProfileActions({ setPendingLauncherReExport }: UseProfileActi
       const toml = await callCommand<string>('profile_export_toml', {
         name: profileName,
         data: profile,
-        include_hooks: false,
+        includeHooks: false,
       });
       setProfilePreviewContent(toml);
       setProfilePreviewHooksStripped(profileHasConfiguredHooks);
@@ -247,7 +247,7 @@ export function useProfileActions({ setPendingLauncherReExport }: UseProfileActi
       const toml = await callCommand<string>('profile_export_toml', {
         name: profileName,
         data: profile,
-        include_hooks: true,
+        includeHooks: true,
       });
       setProfilePreviewContent(toml);
       setProfilePreviewHooksStripped(false);

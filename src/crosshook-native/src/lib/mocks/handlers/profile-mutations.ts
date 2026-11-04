@@ -360,14 +360,10 @@ export function registerProfileMutations(map: Map<string, Handler>): void {
   map.set(
     'profile_export_toml',
     withProfileFixtureGate('profile_export_toml', async (args) => {
-      const {
-        name,
-        data,
-        include_hooks: includeHooks,
-      } = args as {
+      const { name, data, includeHooks } = args as {
         name: string;
         data: GameProfile;
-        include_hooks?: boolean;
+        includeHooks?: boolean;
       };
       const hookSuffix =
         includeHooks && ((data.pre_launch_hooks?.length ?? 0) > 0 || (data.post_exit_hooks?.length ?? 0) > 0)

@@ -4,7 +4,6 @@ import { open as openUrl } from '@/lib/plugin-stubs/shell';
 
 import { useProtonDbLookup } from '../hooks/useProtonDbLookup';
 import type {
-  AcceptSuggestionRequest,
   CatalogSuggestionItem,
   EnvVarSuggestionItem,
   ProtonDbLookupState,
@@ -12,6 +11,7 @@ import type {
   ProtonDbSuggestionSet,
   ProtonDbTier,
   ProtonDbVersionContext,
+  SuggestionAcceptance,
 } from '../types/protondb';
 import { copyToClipboard } from '../utils/clipboard';
 import { formatRelativeTime } from '../utils/format';
@@ -24,7 +24,7 @@ export interface ProtonDbLookupCardProps {
   onApplyEnvVars?: (group: ProtonDbRecommendationGroup) => void;
   applyingGroupId?: string | null;
   suggestionSet?: ProtonDbSuggestionSet | null;
-  onAcceptSuggestion?: (request: AcceptSuggestionRequest) => Promise<void>;
+  onAcceptSuggestion?: (acceptance: SuggestionAcceptance) => Promise<void>;
   onDismissSuggestion?: (suggestionKey: string) => void;
 }
 
@@ -78,6 +78,8 @@ export function ProtonDbLookupCard({
   const titleId = useId();
   const [copyLabels, setCopyLabels] = useState<Record<string, string>>({});
   const copyTimeouts = useRef<Map<string, number>>(new Map());
+  const [acceptError, setAcceptError] = useState<string | null>(null);
+  const [acceptPending, setAcceptPending] = useState(false);
   const lookup = useProtonDbLookup(appId);
 
   useEffect(() => {
@@ -87,6 +89,13 @@ export function ProtonDbLookupCard({
       });
     };
   }, []);
+
+  // An accept error describes the suggestions it was raised against; drop it
+  // once the card shows a different game or a refreshed suggestion set.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: trigger-only deps — reset the error when the app or suggestion set changes
+  useEffect(() => {
+    setAcceptError(null);
+  }, [appId, suggestionSet]);
   const { snapshot, cache, recommendationGroups } = lookup;
   const actionableGroups = recommendationGroups;
 
@@ -140,6 +149,19 @@ export function ProtonDbLookupCard({
       copyTimeouts.current.delete(copyKey);
     }, 2000);
     copyTimeouts.current.set(copyKey, id);
+  }
+
+  async function handleAccept(acceptance: SuggestionAcceptance) {
+    if (!onAcceptSuggestion) return;
+    setAcceptError(null);
+    setAcceptPending(true);
+    try {
+      await onAcceptSuggestion(acceptance);
+    } catch (err) {
+      setAcceptError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAcceptPending(false);
+    }
   }
 
   function renderBanner() {
@@ -418,6 +440,12 @@ export function ProtonDbLookupCard({
               </div>
             ) : null}
 
+            {acceptError ? (
+              <p className="crosshook-danger" role="alert">
+                {acceptError}
+              </p>
+            ) : null}
+
             {visibleCatalog.map((item: CatalogSuggestionItem) => (
               <div key={item.catalogEntryId} className="crosshook-protondb-card__recommendation-item">
                 <div className="crosshook-protondb-card__recommendation-label">
@@ -437,10 +465,10 @@ export function ProtonDbLookupCard({
                     <button
                       type="button"
                       className="crosshook-button"
+                      disabled={acceptPending}
                       onClick={() =>
-                        void onAcceptSuggestion({
+                        void handleAccept({
                           kind: 'catalog',
-                          profileName: '',
                           catalogEntryId: item.catalogEntryId,
                         })
                       }
@@ -485,10 +513,10 @@ export function ProtonDbLookupCard({
                     <button
                       type="button"
                       className="crosshook-button"
+                      disabled={acceptPending}
                       onClick={() =>
-                        void onAcceptSuggestion({
+                        void handleAccept({
                           kind: 'env_var',
-                          profileName: '',
                           envKey: item.key,
                           envValue: item.value,
                         })
