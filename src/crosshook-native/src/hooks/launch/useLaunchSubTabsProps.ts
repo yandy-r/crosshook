@@ -2,8 +2,9 @@ import { useCallback, useMemo, useRef } from 'react';
 import type { LaunchSubTabsProps } from '../../components/launch-subtabs/types';
 import { useProfileContext } from '../../context/ProfileContext';
 import { useProfileHealthContext } from '../../context/ProfileHealthContext';
+import type { GameProfile } from '../../types/profile';
 import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '../../types/profile';
-import type { SuggestionAcceptance } from '../../types/protondb';
+import type { AcceptSuggestionResult, SuggestionAcceptance } from '../../types/protondb';
 import { useLaunchEnvironmentAutosave } from '../profile/useLaunchEnvironmentAutosave';
 import { useProtonDbApply } from '../profile/useProtonDbApply';
 import { useCommandArgumentCatalog } from '../useCommandArgumentCatalog';
@@ -29,6 +30,42 @@ export interface UseLaunchSubTabsPropsInput {
 }
 
 /**
+ * Copies only the fields a ProtonDB accept wrote on disk into the live draft:
+ * the accepted env var for `env_var`, the newly enabled option for `catalog`
+ * (a catalog accept only touches `launch.optimizations`). Every other draft
+ * field, including edits made while the accept was in flight, is kept.
+ */
+function mergeAcceptedSuggestion(
+  current: GameProfile,
+  acceptance: SuggestionAcceptance,
+  result: AcceptSuggestionResult
+): GameProfile {
+  if (acceptance.kind === 'env_var') {
+    const savedEnvVars = result.updatedProfile.launch.custom_env_vars;
+    const customEnvVars = { ...current.launch.custom_env_vars };
+    for (const key of result.appliedKeys) {
+      const value = savedEnvVars[key];
+      if (value !== undefined) {
+        customEnvVars[key] = value;
+      }
+    }
+    return { ...current, launch: { ...current.launch, custom_env_vars: customEnvVars } };
+  }
+  const enabledOptionIds = current.launch.optimizations.enabled_option_ids;
+  const added = result.toggledOptionIds.filter((id) => !enabledOptionIds.includes(id));
+  if (added.length === 0) {
+    return current;
+  }
+  return {
+    ...current,
+    launch: {
+      ...current.launch,
+      optimizations: { ...current.launch.optimizations, enabled_option_ids: [...enabledOptionIds, ...added] },
+    },
+  };
+}
+
+/**
  * Assembles the full `LaunchSubTabsProps` payload from the active profile
  * context and the call-site-specific dep-gate values.
  *
@@ -45,7 +82,6 @@ export function useLaunchSubTabsProps({
   const { healthByName } = useProfileHealthContext();
 
   const { profile, selectedProfile, profileName } = profileState;
-  const activeCollectionId = profileState.activeCollectionId;
 
   // ---------------------------------------------------------------------------
   // Derived values from profile
@@ -68,13 +104,10 @@ export function useLaunchSubTabsProps({
 
   const suggestions = useProtonDbSuggestions(resolvedSteamAppId, selectedProfile);
   const { catalog: commandArgumentCatalog } = useCommandArgumentCatalog();
-  // Latest selection and dirty flag, read after the accept IPC resolves so a
-  // reload never targets a profile the user has already navigated away from
-  // and never discards edits made while the accept was in flight.
+  // Latest selection, read after the accept IPC resolves so the accepted
+  // fields are never merged into a profile the user has navigated away from.
   const selectedProfileRef = useRef(selectedProfile);
   selectedProfileRef.current = selectedProfile;
-  const dirtyRef = useRef(profileState.dirty);
-  dirtyRef.current = profileState.dirty;
 
   const sectionAutosavePending = [
     profileState.launchOptimizationsStatus,
@@ -86,15 +119,15 @@ export function useLaunchSubTabsProps({
 
   const handleAcceptSuggestion = useCallback(
     async (acceptance: SuggestionAcceptance): Promise<void> => {
-      // Accepting writes the profile on disk and then reloads it. The reload
-      // resets the section autosave baselines, so a debounced section save
-      // that has not landed yet would be silently dropped.
+      // Accepting loads and rewrites the profile on disk. A debounced section
+      // save that has not landed yet could race that write, so wait for it.
       if (sectionAutosavePending) {
         throw new Error('Launch settings are still saving. Try again in a moment.');
       }
       const requestedProfile = selectedProfile;
-      // Save unsaved draft edits first so the post-accept reload cannot
-      // discard them (mirrors the Profiles tab's flush-before-switch).
+      // Save unsaved draft edits first so the on-disk profile the accept
+      // rewrites already carries them (mirrors the Profiles tab's
+      // flush-before-switch).
       if (profileState.dirty) {
         if (!hasSavedSelectedProfile) {
           throw new Error('Save the profile before accepting ProtonDB suggestions.');
@@ -103,19 +136,17 @@ export function useLaunchSubTabsProps({
         if (!saved.ok) {
           throw new Error(saved.error);
         }
-        // A successful save reloads the profile, which clears `dirty`; later
-        // renders refresh this ref from the real state.
-        dirtyRef.current = false;
       }
       const result = await suggestions.acceptSuggestion(acceptance);
-      if (selectedProfileRef.current !== requestedProfile || dirtyRef.current) {
+      if (selectedProfileRef.current !== requestedProfile) {
         return;
       }
-      if (result.appliedKeys.length > 0 || result.toggledOptionIds.length > 0) {
-        void profileState.selectProfile(requestedProfile, {
-          collectionId: activeCollectionId ?? undefined,
-        });
-      }
+      // Merge only the accepted fields into the live draft instead of
+      // reloading the profile from disk: a reload would replace edits made
+      // while the accept or the reload was in flight. `updateLaunchSetting`
+      // keeps a saved profile clean; a catalog accept re-arms the
+      // optimizations autosave, which writes the same ids the accept saved.
+      profileState.updateLaunchSetting((current) => mergeAcceptedSuggestion(current, acceptance, result));
     },
     [
       sectionAutosavePending,
@@ -123,10 +154,9 @@ export function useLaunchSubTabsProps({
       profileState.dirty,
       profileState.persistProfileDraft,
       profileState.profile,
-      profileState.selectProfile,
+      profileState.updateLaunchSetting,
       hasSavedSelectedProfile,
       selectedProfile,
-      activeCollectionId,
     ]
   );
 

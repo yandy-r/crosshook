@@ -50,4 +50,53 @@ describe('useProtonUp IPC contract', () => {
     expect(refreshArgs).toHaveProperty('forceRefresh', true);
     expect(refreshArgs).not.toHaveProperty('force_refresh');
   });
+
+  it('forces only the refresh fetch: a later provider change reads the cache again', async () => {
+    const { result, rerender } = renderHook(
+      ({ provider }: { provider: 'ge-proton' | 'proton-cachyos' }) =>
+        useProtonUp({ autoFetchCatalog: true, catalogProvider: provider }),
+      { initialProps: { provider: 'ge-proton' } }
+    );
+
+    await waitFor(() => expect(listVersionsCalls()).toHaveLength(1));
+
+    act(() => {
+      result.current.refreshCatalog();
+    });
+
+    await waitFor(() => expect(listVersionsCalls()).toHaveLength(2));
+    expect(listVersionsCalls()[1]).toEqual({ provider: 'ge-proton', forceRefresh: true });
+    await waitFor(() => expect(result.current.catalogLoading).toBe(false));
+
+    rerender({ provider: 'proton-cachyos' });
+
+    await waitFor(() => expect(listVersionsCalls()).toHaveLength(3));
+    expect(listVersionsCalls()[2]).toEqual({ provider: 'proton-cachyos', forceRefresh: false });
+  });
+
+  it('keeps the refresh intent when the forced fetch is superseded before it resolves', async () => {
+    const { result, rerender } = renderHook(
+      ({ provider }: { provider: 'ge-proton' | 'proton-cachyos' }) =>
+        useProtonUp({ autoFetchCatalog: true, catalogProvider: provider }),
+      { initialProps: { provider: 'ge-proton' } }
+    );
+
+    await waitFor(() => expect(listVersionsCalls()).toHaveLength(1));
+
+    const refreshGate = Promise.withResolvers<typeof EMPTY_CATALOG>();
+    callCommandMock.mockReturnValueOnce(refreshGate.promise);
+    act(() => {
+      result.current.refreshCatalog();
+    });
+    await waitFor(() => expect(listVersionsCalls()).toHaveLength(2));
+
+    rerender({ provider: 'proton-cachyos' });
+
+    await waitFor(() => expect(listVersionsCalls()).toHaveLength(3));
+    expect(listVersionsCalls()[2]).toEqual({ provider: 'proton-cachyos', forceRefresh: true });
+    await act(async () => {
+      refreshGate.resolve(EMPTY_CATALOG);
+      await refreshGate.promise;
+    });
+  });
 });

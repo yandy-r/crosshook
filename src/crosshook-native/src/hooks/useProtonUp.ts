@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 
 import type {
@@ -79,6 +79,10 @@ export function useProtonUp(options: UseProtonUpOptions = {}): UseProtonUpResult
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [installing, setInstalling] = useState(false);
   const [fetchVersion, setFetchVersion] = useState(0);
+  // One-shot refresh intent: only the fetch triggered by `refreshCatalog`
+  // bypasses the cache. Cleared once that fetch succeeds; kept when the fetch
+  // is superseded by an effect rerun so the replacement fetch still forces.
+  const pendingForceRefreshRef = useRef(false);
 
   const steamClientInstallPath = options.steamClientInstallPath?.trim() ?? '';
   const autoFetchCatalog = options.autoFetchCatalog ?? false;
@@ -93,16 +97,20 @@ export function useProtonUp(options: UseProtonUpOptions = {}): UseProtonUpResult
     setCatalogLoading(true);
 
     async function fetchCatalog() {
+      const forceRefresh = pendingForceRefreshRef.current;
       try {
         const response = await callCommand<ProtonUpCatalogResponse>('protonup_list_available_versions', {
           provider: catalogProvider,
-          forceRefresh: fetchVersion > 0,
+          forceRefresh,
         });
 
         if (!active) {
           return;
         }
 
+        if (forceRefresh) {
+          pendingForceRefreshRef.current = false;
+        }
         setVersions(response.versions);
         setCacheMeta(response.cache);
         setCatalogError(null);
@@ -129,6 +137,7 @@ export function useProtonUp(options: UseProtonUpOptions = {}): UseProtonUpResult
   }, [autoFetchCatalog, catalogProvider, fetchVersion]);
 
   const refreshCatalog = useCallback(() => {
+    pendingForceRefreshRef.current = true;
     setFetchVersion((current) => current + 1);
   }, []);
 

@@ -59,4 +59,36 @@ describe('useProtonManager IPC contract', () => {
     expect(refreshArgs).toHaveProperty('forceRefresh', true);
     expect(refreshArgs).not.toHaveProperty('force_refresh');
   });
+
+  it('forces only the All-mode refresh fetch: re-entering All mode reads the cache again', async () => {
+    const { result } = renderHook(() => useProtonManager({ steamClientInstallPath: STEAM_PATH }));
+
+    await waitFor(() => expect(callsFor('protonup_list_available_versions')).toHaveLength(1));
+
+    act(() => {
+      result.current.catalog.refreshCatalog();
+    });
+
+    await waitFor(() => expect(callsFor('protonup_list_available_versions')).toHaveLength(2));
+    expect(callsFor('protonup_list_available_versions')[1]).toEqual({ provider: 'ge-proton', forceRefresh: true });
+    await waitFor(() => expect(result.current.catalog.catalogLoading).toBe(false));
+
+    act(() => {
+      result.current.setSelectedProviderId('proton-cachyos');
+    });
+
+    await waitFor(() => expect(callsFor('protonup_list_available_versions')).toHaveLength(3));
+    expect(callsFor('protonup_list_available_versions')[2]).toEqual({
+      provider: 'proton-cachyos',
+      forceRefresh: false,
+    });
+    await waitFor(() => expect(result.current.catalog.catalogLoading).toBe(false));
+
+    act(() => {
+      result.current.setSelectedProviderId(null);
+    });
+
+    await waitFor(() => expect(callsFor('protonup_list_available_versions')).toHaveLength(4));
+    expect(callsFor('protonup_list_available_versions')[3]).toEqual({ provider: 'ge-proton', forceRefresh: false });
+  });
 });
