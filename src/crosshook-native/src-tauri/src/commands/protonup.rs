@@ -1,159 +1,147 @@
 //! Thin IPC adapters over the Proton runtime management service.
 
+use crosshook_app::ipc::cancel_accepted;
 use crosshook_app::services::protonup::{
-    next_progress, InstallOwner, ProtonInstallHandle, ProtonUninstallPlanResponse,
-    ProtonUninstallResponse,
+    InstallOwner, ProtonInstallHandle, ProtonUninstallPlanResponse, ProtonUninstallResponse,
 };
-use crosshook_app::services::ProtonUpService;
-use crosshook_app::{AppError, AppErrorKind};
 use crosshook_core::protonup::install_root::InstallRootCandidate;
 use crosshook_core::protonup::providers::ProtonUpProviderDescriptor;
 use crosshook_core::protonup::{
     ProtonUpAvailableVersion, ProtonUpCatalogResponse, ProtonUpInstallRequest,
     ProtonUpInstallResult, ProtonUpSuggestion,
 };
-use tauri::{Emitter as _, State};
+use tauri::AppHandle;
 
-fn map_app_error(error: AppError) -> String {
-    error.message().to_string()
-}
+use super::{AppState, IpcResult};
+use crate::error_map::ipc;
+use crate::event_bridge::relay_protonup_progress;
 
 // Only pass the label of the injected invoking webview, never a JS argument.
 fn install_owner(label: &str) -> InstallOwner {
     InstallOwner::new(label)
 }
 
-/// Maps the service's cancel result to the frozen IPC `bool`: own active
-/// install → `true`; unknown, foreign or already-cancelled/completed → `false`.
-fn cancel_result_to_bool(result: Result<(), AppError>) -> Result<bool, String> {
-    match result {
-        Ok(()) => Ok(true),
-        Err(error) if error.kind() == AppErrorKind::NotFound => Ok(false),
-        Err(error) => Err(map_app_error(error)),
-    }
-}
-
-/// List available Proton versions from the selected provider catalog.
 #[tauri::command]
 pub async fn protonup_list_available_versions(
     provider: Option<String>,
     force_refresh: Option<bool>,
-    service: State<'_, ProtonUpService>,
-) -> Result<ProtonUpCatalogResponse, String> {
-    service
+    app: AppState<'_>,
+) -> IpcResult<ProtonUpCatalogResponse> {
+    ipc(app
+        .services()
+        .protonup
         .list_available_versions(provider, force_refresh.unwrap_or(false))
-        .await
-        .map_err(map_app_error)
+        .await)
 }
 
-/// Install a selected Proton version and wait for it to finish (legacy variant).
 #[tauri::command]
 pub async fn protonup_install_version(
     request: ProtonUpInstallRequest,
-    service: State<'_, ProtonUpService>,
-) -> Result<ProtonUpInstallResult, String> {
-    service
-        .install_version(request)
-        .await
-        .map_err(map_app_error)
+    app: AppState<'_>,
+) -> IpcResult<ProtonUpInstallResult> {
+    ipc(app.services().protonup.install_version(request).await)
 }
 
-/// Get a runtime suggestion for a community profile.
 #[tauri::command]
 pub async fn protonup_get_suggestion(
     community_version: String,
     steam_client_install_path: Option<String>,
-    service: State<'_, ProtonUpService>,
-) -> Result<ProtonUpSuggestion, String> {
-    service
+    app: AppState<'_>,
+) -> IpcResult<ProtonUpSuggestion> {
+    ipc(app
+        .services()
+        .protonup
         .get_suggestion(community_version, steam_client_install_path)
-        .await
-        .map_err(map_app_error)
+        .await)
 }
 
-/// List all registered Proton release providers with their static metadata.
 #[tauri::command]
-pub fn protonup_list_providers(
-    service: State<'_, ProtonUpService>,
-) -> Result<Vec<ProtonUpProviderDescriptor>, String> {
-    Ok(service.list_providers())
+pub async fn protonup_list_providers(
+    app: AppState<'_>,
+) -> IpcResult<Vec<ProtonUpProviderDescriptor>> {
+    Ok(app.services().protonup.list_providers())
 }
 
 /// Enumerate candidate install roots, including writability status.
 #[tauri::command]
 pub async fn protonup_resolve_install_roots(
     steam_client_install_path: Option<String>,
-    service: State<'_, ProtonUpService>,
-) -> Result<Vec<InstallRootCandidate>, String> {
-    service
+    app: AppState<'_>,
+) -> IpcResult<Vec<InstallRootCandidate>> {
+    ipc(app
+        .services()
+        .protonup
         .resolve_install_roots(steam_client_install_path)
-        .await
-        .map_err(map_app_error)
+        .await)
 }
 
 /// Start a supervised install and relay its progress to the existing IPC event.
 #[tauri::command]
 pub async fn protonup_install_version_async(
-    app: tauri::AppHandle,
+    handle: AppHandle,
     webview: tauri::Webview,
     request: ProtonUpInstallRequest,
     version: ProtonUpAvailableVersion,
-    service: State<'_, ProtonUpService>,
-) -> Result<ProtonInstallHandle, String> {
-    let start = service
+    app: AppState<'_>,
+) -> IpcResult<ProtonInstallHandle> {
+    let start = ipc(app
+        .services()
+        .protonup
         .start_install(install_owner(webview.label()), request, version)
-        .await
-        .map_err(map_app_error)?;
-    let handle = ProtonInstallHandle { op_id: start.op_id };
-    let mut progress = start.progress;
-    // next_progress skips lagged snapshots and ends only when the sender closes.
-    drop(tauri::async_runtime::spawn(async move {
-        while let Some(progress) = next_progress(&mut progress).await {
-            let _ = app.emit("protonup:install:progress", &progress);
-        }
-    }));
-    Ok(handle)
+        .await)?;
+    relay_protonup_progress(handle, start.progress);
+    Ok(ProtonInstallHandle { op_id: start.op_id })
 }
 
 /// Cancel this webview's active install; unknown, foreign or completed ids return false.
 #[tauri::command]
-pub fn protonup_cancel_install(
+pub async fn protonup_cancel_install(
     op_id: String,
     webview: tauri::Webview,
-    service: State<'_, ProtonUpService>,
-) -> Result<bool, String> {
-    cancel_result_to_bool(service.cancel_install(&install_owner(webview.label()), &op_id))
+    app: AppState<'_>,
+) -> IpcResult<bool> {
+    ipc(cancel_accepted(
+        app.services()
+            .protonup
+            .cancel_install(&install_owner(webview.label()), &op_id),
+    ))
 }
 
-/// Uninstall a Proton tool, returning a structured refusal or failure if needed.
 #[tauri::command]
 pub async fn protonup_uninstall_version(
     tool_path: String,
     steam_client_install_path: Option<String>,
-    service: State<'_, ProtonUpService>,
-) -> Result<ProtonUninstallResponse, String> {
-    service
+    app: AppState<'_>,
+) -> IpcResult<ProtonUninstallResponse> {
+    ipc(app
+        .services()
+        .protonup
         .uninstall(tool_path, steam_client_install_path)
-        .await
-        .map_err(map_app_error)
+        .await)
 }
 
-/// Plan a Proton uninstall without mutating disk.
 #[tauri::command]
 pub async fn protonup_plan_uninstall_version(
     tool_path: String,
     steam_client_install_path: Option<String>,
-    service: State<'_, ProtonUpService>,
-) -> Result<ProtonUninstallPlanResponse, String> {
-    service
+    app: AppState<'_>,
+) -> IpcResult<ProtonUninstallPlanResponse> {
+    ipc(app
+        .services()
+        .protonup
         .plan_uninstall(tool_path, steam_client_install_path)
-        .await
-        .map_err(map_app_error)
+        .await)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn install_owner_is_derived_from_the_webview_label() {
+        assert_eq!(install_owner("main"), InstallOwner::new("main"));
+        assert_ne!(install_owner("main"), install_owner("other"));
+    }
 
     #[test]
     fn command_names_match_expected_ipc_contract() {
@@ -166,38 +154,5 @@ mod tests {
         let _ = protonup_cancel_install;
         let _ = protonup_uninstall_version;
         let _ = protonup_plan_uninstall_version;
-    }
-
-    #[test]
-    fn app_error_maps_to_its_plain_message() {
-        let error = AppError::validation(
-            "version",
-            "install metadata did not match server-resolved catalog entry",
-        );
-        assert_eq!(
-            map_app_error(error),
-            "install metadata did not match server-resolved catalog entry"
-        );
-    }
-
-    #[test]
-    fn cancel_result_maps_ok_not_found_and_other_errors() {
-        assert_eq!(cancel_result_to_bool(Ok(())), Ok(true));
-        assert_eq!(
-            cancel_result_to_bool(Err(AppError::from(
-                crosshook_core::fs_util::WorkspacePathError::NotFound
-            ))),
-            Ok(false)
-        );
-        assert_eq!(
-            cancel_result_to_bool(Err(AppError::validation("version", "bad input"))),
-            Err("bad input".to_string())
-        );
-    }
-
-    #[test]
-    fn install_owner_is_derived_from_the_webview_label() {
-        assert_eq!(install_owner("main"), InstallOwner::new("main"));
-        assert_ne!(install_owner("main"), install_owner("proton-manager"));
     }
 }

@@ -1,36 +1,28 @@
 //! Thin IPC adapters over the umu database service.
 
-use crosshook_app::services::UmuService;
-use crosshook_app::AppError;
 use crosshook_core::umu_database;
-use tauri::State;
 
-fn map_app_error(error: AppError) -> String {
-    error.message().to_string()
-}
+use super::{AppState, IpcResult};
+use crate::error_map::ipc;
 
 #[tauri::command]
 pub async fn refresh_umu_database(
-    service: State<'_, UmuService>,
-) -> Result<umu_database::UmuDatabaseRefreshStatus, String> {
-    service.refresh().await.map_err(map_app_error)
+    app: AppState<'_>,
+) -> IpcResult<umu_database::UmuDatabaseRefreshStatus> {
+    ipc(app.services().umu.refresh().await)
 }
 
-/// Lightweight cached coverage lookup used by the profile Runner selector.
-/// Blank or omitted app ids return Unknown without a network request.
 #[tauri::command]
 pub async fn check_umu_coverage(
     app_id: Option<String>,
-    service: State<'_, UmuService>,
-) -> Result<umu_database::CsvCoverage, String> {
-    service.coverage(app_id).await.map_err(map_app_error)
+    app: AppState<'_>,
+) -> IpcResult<umu_database::CsvCoverage> {
+    ipc(app.services().umu.coverage(app_id).await)
 }
 
 #[tauri::command]
-pub async fn clear_umu_gameid_lookup_cache(
-    service: State<'_, UmuService>,
-) -> Result<usize, String> {
-    service.clear_gameid_cache().await.map_err(map_app_error)
+pub async fn clear_umu_gameid_lookup_cache(app: AppState<'_>) -> IpcResult<usize> {
+    ipc(app.services().umu.clear_gameid_cache().await)
 }
 
 #[cfg(test)]
@@ -42,11 +34,5 @@ mod tests {
         let _ = refresh_umu_database;
         let _ = check_umu_coverage;
         let _ = clear_umu_gameid_lookup_cache;
-    }
-
-    #[test]
-    fn app_error_maps_to_its_plain_message() {
-        let error = AppError::validation("app_id", "app id is invalid");
-        assert_eq!(map_app_error(error), "app id is invalid");
     }
 }

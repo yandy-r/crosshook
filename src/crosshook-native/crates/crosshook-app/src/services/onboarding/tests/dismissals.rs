@@ -120,3 +120,18 @@ async fn dismiss_readiness_nag_unknown_tool_preserves_legacy_text() {
         "unknown readiness tool_id: not-a-tool. Use a tool id from the host readiness catalog."
     );
 }
+
+#[tokio::test]
+async fn dismiss_onboarding_marks_settings_complete_without_touching_nags() {
+    let tmp = tempfile::tempdir().unwrap();
+    let settings = SettingsStore::with_base_path(tmp.path().to_path_buf());
+    let service = service(settings.clone(), MetadataStore::disabled());
+    assert!(!settings.load().unwrap().onboarding_completed);
+
+    service.dismiss_onboarding().await.unwrap();
+
+    let saved = settings.load().unwrap();
+    assert!(saved.onboarding_completed);
+    assert!(saved.install_nag_dismissed_at.is_none());
+    assert!(saved.steam_deck_caveats_dismissed_at.is_none());
+}

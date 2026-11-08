@@ -157,6 +157,23 @@ impl LaunchService {
             .await
     }
 
+    /// Whether a process named `exe_name` is running (`/proc` scan, plus the
+    /// host `ps` view under Flatpak). The name is trimmed and an empty name is
+    /// never running. The scan may shell out, so it runs on the blocking pool;
+    /// a failed task or an unknown host answer reads as "not running".
+    pub async fn is_game_running(&self, exe_name: String) -> bool {
+        let name = exe_name.trim().to_string();
+        if name.is_empty() {
+            return false;
+        }
+        run_blocking(move || Ok(launch::is_process_running(&name)))
+            .await
+            .unwrap_or_else(|error| {
+                tracing::warn!(%error, "game running check failed");
+                false
+            })
+    }
+
     /// User-initiated launch reset: cancels every active session (game and
     /// trainer) registered for the profile. Returns the number of sessions
     /// signalled — 0 when nothing was registered.

@@ -1,10 +1,10 @@
 mod activation;
 mod commands;
 mod env_policy;
+mod error_map;
+mod event_bridge;
 mod fatal;
-mod session_bridge;
 mod signals;
-mod startup_bridge;
 
 pub use crosshook_app::services::{BackgroundGrantHolder, BackgroundProtectionState};
 
@@ -46,51 +46,17 @@ pub fn run() {
         Err(error) => fatal::show_and_exit(context, error),
     };
     let startup_events = core.subscribe();
-    let stores = core.stores();
-    let services = core.services();
-    let ui_settings = services.ui_settings.clone();
+    let ui_settings = core.services().ui_settings.clone();
     let app_owner = core.app().clone();
     let instance_owner = core.clone();
     tauri::Builder::default()
-        .manage(stores.settings.clone())
-        .manage(stores.profiles.clone())
-        .manage(stores.recent_files.clone())
-        .manage(stores.community_taps.clone())
-        .manage(stores.metadata.clone())
-        .manage(services.settings.clone())
-        .manage(services.ui_settings.clone())
-        .manage(services.recent_files.clone())
-        .manage(services.diagnostics.clone())
-        .manage(services.health.clone())
-        .manage(services.onboarding.clone())
-        .manage(services.host_tools.clone())
-        .manage(services.offline.clone())
-        .manage(services.profiles.clone())
-        .manage(services.background.clone())
-        .manage(services.launch.clone())
-        .manage(services.storage.clone())
-        .manage(services.mods.clone())
-        .manage(services.collections.clone())
-        .manage(services.launcher_export.clone())
-        .manage(services.version.clone())
-        .manage(services.steam.clone())
-        .manage(services.community.clone())
-        .manage(services.lutris.clone())
-        .manage(services.discovery.clone())
-        .manage(services.protondb.clone())
-        .manage(services.protonup.clone())
-        .manage(services.proton_migration.clone())
-        .manage(services.umu.clone())
-        .manage(services.install.clone())
-        .manage(services.update.clone())
-        .manage(services.run_executable.clone())
-        .manage(services.prefix_deps.clone())
+        // The one managed state: every command reaches the services through it.
         .manage(core.clone())
         .setup(move |app| {
             // Delivers any activation that arrived before the window existed.
             core.instance()
                 .set_activation_handler(activation::TauriActivation::new(app.handle().clone()));
-            startup_bridge::spawn(app.handle().clone(), core.startup(), startup_events);
+            event_bridge::spawn_startup_bridge(app.handle().clone(), core.startup(), startup_events);
             // SIGINT/SIGTERM/SIGHUP take the normal exit path below.
             signals::exit_on_termination(app.handle().clone());
             Ok(())

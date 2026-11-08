@@ -8,10 +8,12 @@
 #![deny(missing_docs)]
 
 mod app;
+pub mod bench;
 pub mod bootstrap;
 mod error;
 mod events;
 pub mod instance_lock;
+pub mod ipc;
 pub mod jobs;
 pub mod log_tail;
 pub mod presenter;

@@ -1,72 +1,64 @@
 //! Thin IPC adapters over the discovery service.
 
-use crosshook_app::services::DiscoveryService;
-use crosshook_app::AppError;
 use crosshook_core::discovery::{
     CatalogPage, CatalogQuery, ExternalTrainerSearchQuery, ExternalTrainerSearchResponse,
     ExternalTrainerSourceSubscription, VersionMatchResult,
 };
-use tauri::State;
 
-fn map_app_error(error: AppError) -> String {
-    error.message().to_string()
-}
+use super::{AppState, IpcResult};
+use crate::error_map::ipc;
 
 #[tauri::command]
-pub async fn discovery_catalog(
-    query: CatalogQuery,
-    service: State<'_, DiscoveryService>,
-) -> Result<CatalogPage, String> {
-    service.catalog(query).await.map_err(map_app_error)
+pub async fn discovery_catalog(query: CatalogQuery, app: AppState<'_>) -> IpcResult<CatalogPage> {
+    ipc(app.services().discovery.catalog(query).await)
 }
 
 #[tauri::command]
 pub async fn discovery_search_external(
     query: ExternalTrainerSearchQuery,
-    service: State<'_, DiscoveryService>,
-) -> Result<ExternalTrainerSearchResponse, String> {
-    service.search_external(query).await.map_err(map_app_error)
+    app: AppState<'_>,
+) -> IpcResult<ExternalTrainerSearchResponse> {
+    ipc(app.services().discovery.search_external(query).await)
 }
 
 #[tauri::command]
 pub async fn discovery_check_version_compatibility(
     profile_name: String,
     trainer_game_version: Option<String>,
-    service: State<'_, DiscoveryService>,
-) -> Result<VersionMatchResult, String> {
-    service
+    app: AppState<'_>,
+) -> IpcResult<VersionMatchResult> {
+    ipc(app
+        .services()
+        .discovery
         .check_version_compatibility(profile_name, trainer_game_version)
-        .await
-        .map_err(map_app_error)
+        .await)
 }
 
 #[tauri::command]
 pub async fn discovery_list_external_sources(
-    service: State<'_, DiscoveryService>,
-) -> Result<Vec<ExternalTrainerSourceSubscription>, String> {
-    service.list_external_sources().await.map_err(map_app_error)
+    app: AppState<'_>,
+) -> IpcResult<Vec<ExternalTrainerSourceSubscription>> {
+    ipc(app.services().discovery.list_external_sources().await)
 }
 
 #[tauri::command]
 pub async fn discovery_add_external_source(
     source: ExternalTrainerSourceSubscription,
-    service: State<'_, DiscoveryService>,
-) -> Result<Vec<ExternalTrainerSourceSubscription>, String> {
-    service
-        .add_external_source(source)
-        .await
-        .map_err(map_app_error)
+    app: AppState<'_>,
+) -> IpcResult<Vec<ExternalTrainerSourceSubscription>> {
+    ipc(app.services().discovery.add_external_source(source).await)
 }
 
 #[tauri::command]
 pub async fn discovery_remove_external_source(
     source_id: String,
-    service: State<'_, DiscoveryService>,
-) -> Result<Vec<ExternalTrainerSourceSubscription>, String> {
-    service
+    app: AppState<'_>,
+) -> IpcResult<Vec<ExternalTrainerSourceSubscription>> {
+    ipc(app
+        .services()
+        .discovery
         .remove_external_source(source_id)
-        .await
-        .map_err(map_app_error)
+        .await)
 }
 
 #[cfg(test)]
@@ -75,8 +67,6 @@ mod tests {
 
     #[test]
     fn command_names_match_expected_ipc_contract() {
-        // Async commands cannot be cast to fn pointers; naming them pins the
-        // exported symbol (and thus the IPC command name).
         let _ = discovery_catalog;
         let _ = discovery_search_external;
         let _ = discovery_check_version_compatibility;

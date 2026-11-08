@@ -2,35 +2,29 @@
 
 use std::path::PathBuf;
 
-use crosshook_app::services::LutrisService;
-use crosshook_app::AppError;
 use crosshook_core::profile::{LutrisImportEntry, LutrisImportPreview, LutrisImportResult};
-use tauri::State;
 
-fn map_app_error(error: AppError) -> String {
-    error.message().to_string()
-}
+use super::{AppState, IpcResult};
+use crate::error_map::ipc;
 
 #[tauri::command]
 pub async fn lutris_prepare_import(
     directory: Option<String>,
-    service: State<'_, LutrisService>,
-) -> Result<LutrisImportPreview, String> {
-    service
+    app: AppState<'_>,
+) -> IpcResult<LutrisImportPreview> {
+    ipc(app
+        .services()
+        .lutris
         .prepare_import(directory.map(PathBuf::from))
-        .await
-        .map_err(map_app_error)
+        .await)
 }
 
 #[tauri::command]
 pub async fn lutris_import_profiles(
     entries: Vec<LutrisImportEntry>,
-    service: State<'_, LutrisService>,
-) -> Result<LutrisImportResult, String> {
-    service
-        .import_profiles(entries)
-        .await
-        .map_err(map_app_error)
+    app: AppState<'_>,
+) -> IpcResult<LutrisImportResult> {
+    ipc(app.services().lutris.import_profiles(entries).await)
 }
 
 #[cfg(test)]
@@ -39,8 +33,6 @@ mod tests {
 
     #[test]
     fn command_names_match_expected_ipc_contract() {
-        // Async commands cannot be cast to fn pointers; naming them pins the
-        // exported symbol (and thus the IPC command name).
         let _ = lutris_prepare_import;
         let _ = lutris_import_profiles;
     }

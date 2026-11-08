@@ -742,21 +742,17 @@ dependencies = [
 name = "crosshook-native"
 version = "0.6.1"
 dependencies = [
- "chrono",
  "crosshook-app",
  "crosshook-core",
  "gtk",
  "nix",
- "serde",
  "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
  "tauri-plugin-fs",
  "tauri-plugin-shell",
- "tempfile",
  "tokio",
- "toml 1.1.2+spec-1.1.0",
  "tracing",
 ]
 

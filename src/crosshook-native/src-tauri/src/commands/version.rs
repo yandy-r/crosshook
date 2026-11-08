@@ -1,17 +1,9 @@
-//! Thin IPC adapters for Steam build/trainer version correlation (Forgejo #34).
-//! All logic lives in [`crosshook_app::services::version`].
-//!
-//! Error strings reach the frontend unchanged via [`map_error`] (the service
-//! preserves the legacy texts, e.g. `profile '{name}' is not registered in the
-//! metadata store`).
+//! Thin IPC adapters for Steam build/trainer version correlation.
 
-use crosshook_app::services::{VersionCheckResult, VersionService, VersionSnapshotInfo};
-use crosshook_app::AppError;
-use tauri::State;
+use crosshook_app::services::{VersionCheckResult, VersionSnapshotInfo};
 
-fn map_error(error: AppError) -> String {
-    error.message().to_string()
-}
+use super::{AppState, IpcResult};
+use crate::error_map::ipc;
 
 /// Check the current version correlation status for a named profile.
 ///
@@ -21,18 +13,17 @@ fn map_error(error: AppError) -> String {
 #[tauri::command]
 pub async fn check_version_status(
     name: String,
-    service: State<'_, VersionService>,
-) -> Result<VersionCheckResult, String> {
-    service.check_status(name).await.map_err(map_error)
+    app: AppState<'_>,
+) -> IpcResult<VersionCheckResult> {
+    ipc(app.services().version.check_status(name).await)
 }
 
-/// Return the latest recorded version snapshot for a named profile, if any.
 #[tauri::command]
 pub async fn get_version_snapshot(
     name: String,
-    service: State<'_, VersionService>,
-) -> Result<Option<VersionSnapshotInfo>, String> {
-    service.snapshot(name).await.map_err(map_error)
+    app: AppState<'_>,
+) -> IpcResult<Option<VersionSnapshotInfo>> {
+    ipc(app.services().version.snapshot(name).await)
 }
 
 /// Record a manual trainer version hint for a named profile.
@@ -44,12 +35,13 @@ pub async fn get_version_snapshot(
 pub async fn set_trainer_version(
     name: String,
     version: String,
-    service: State<'_, VersionService>,
-) -> Result<(), String> {
-    service
+    app: AppState<'_>,
+) -> IpcResult<()> {
+    ipc(app
+        .services()
+        .version
         .set_trainer_version(name, version)
-        .await
-        .map_err(map_error)
+        .await)
 }
 
 /// Mark the latest version change for a named profile as acknowledged.
@@ -57,11 +49,8 @@ pub async fn set_trainer_version(
 /// Sets the latest snapshot's status to `"matched"`, indicating the user has
 /// verified the trainer still works with the updated game version.
 #[tauri::command]
-pub async fn acknowledge_version_change(
-    name: String,
-    service: State<'_, VersionService>,
-) -> Result<(), String> {
-    service.acknowledge_change(name).await.map_err(map_error)
+pub async fn acknowledge_version_change(name: String, app: AppState<'_>) -> IpcResult<()> {
+    ipc(app.services().version.acknowledge_change(name).await)
 }
 
 #[cfg(test)]
@@ -70,8 +59,6 @@ mod tests {
 
     #[test]
     fn command_names_match_expected_ipc_contract() {
-        // Async commands cannot be cast to fn pointers; naming them pins the
-        // exported symbol (and thus the IPC command name).
         let _ = check_version_status;
         let _ = get_version_snapshot;
         let _ = set_trainer_version;

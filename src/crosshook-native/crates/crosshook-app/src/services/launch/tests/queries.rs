@@ -394,3 +394,31 @@ async fn enrich_umu_gameid_is_fail_soft_for_a_proton_request_without_hints() {
     let resolution = req.resolved_umu_game_id.expect("resolution is set");
     assert!(!resolution.game_id.is_empty(), "a fallback GAMEID resolves");
 }
+
+#[tokio::test]
+async fn is_game_running_is_false_for_a_blank_or_unknown_name() {
+    let harness = Harness::new(Metadata::Enabled);
+
+    assert!(!harness.service.is_game_running(String::new()).await);
+    assert!(!harness.service.is_game_running("   ".to_string()).await);
+    assert!(
+        !harness
+            .service
+            .is_game_running("crosshook-no-such-process.exe".to_string())
+            .await
+    );
+}
+
+#[tokio::test]
+async fn is_game_running_trims_the_name_and_finds_a_live_process() {
+    let harness = Harness::new(Metadata::Enabled);
+    // The test process itself is a live process with a known `comm`.
+    let comm = std::fs::read_to_string("/proc/self/comm").expect("own comm");
+
+    assert!(
+        harness
+            .service
+            .is_game_running(format!("  {}  ", comm.trim()))
+            .await
+    );
+}

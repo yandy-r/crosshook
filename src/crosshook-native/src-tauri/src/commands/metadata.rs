@@ -1,7 +1,7 @@
 //! Metadata store health IPC surface.
 
-use crosshook_core::metadata::{MetadataStatus, MetadataStore};
-use tauri::State;
+use super::{AppState, IpcResult};
+use crosshook_core::metadata::MetadataStatus;
 
 /// Reports metadata store health for the UI degraded-state banner and
 /// diagnostics flows.
@@ -10,10 +10,8 @@ use tauri::State;
 /// `{"state":"ok"}`, `{"state":"newer_schema","found":N,"supported":N}`,
 /// `{"state":"disabled","reason":"..."}`.
 #[tauri::command]
-pub fn metadata_store_status(
-    metadata_store: State<'_, MetadataStore>,
-) -> Result<MetadataStatus, String> {
-    Ok(metadata_store.status())
+pub async fn metadata_store_status(app: AppState<'_>) -> IpcResult<MetadataStatus> {
+    Ok(app.services().diagnostics.metadata_status())
 }
 
 #[cfg(test)]
@@ -22,7 +20,6 @@ mod tests {
 
     #[test]
     fn command_names_match_expected_ipc_contract() {
-        let _ =
-            metadata_store_status as fn(State<'_, MetadataStore>) -> Result<MetadataStatus, String>;
+        let _ = metadata_store_status;
     }
 }
