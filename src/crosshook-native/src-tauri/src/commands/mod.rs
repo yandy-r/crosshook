@@ -1,3 +1,8 @@
+//! Tauri command handlers. Every handler is `async`, takes the one managed
+//! `State<'_, BootstrappedApp>` and delegates to `app.services()`; payload
+//! shapes, relays and event names live in `crosshook_app::ipc` and
+//! `crate::event_bridge`.
+
 pub mod background;
 pub mod bench;
 pub mod catalog;
@@ -17,7 +22,6 @@ pub mod mods;
 pub mod offline;
 pub mod onboarding;
 pub mod prefix_deps;
-mod process_relay;
 pub mod profile;
 pub mod protondb;
 pub mod protonup;
@@ -30,3 +34,13 @@ pub mod storage;
 pub mod umu_database;
 pub mod update;
 pub mod version;
+
+use crosshook_app::BootstrappedApp;
+use tauri::State;
+
+/// The one managed state every command borrows.
+pub(crate) type AppState<'a> = State<'a, BootstrappedApp>;
+
+/// Plain IPC result: `Ok` serializes exactly like the bare value, `Err` is the
+/// sanitized message string.
+pub(crate) type IpcResult<T> = Result<T, String>;

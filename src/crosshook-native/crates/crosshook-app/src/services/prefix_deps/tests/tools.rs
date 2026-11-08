@@ -150,3 +150,39 @@ fn missing_tool_type_falls_back_to_the_binary_name() {
     assert_eq!(resolved.tool, PrefixDepsTool::Winetricks);
     assert_eq!(resolved.steam_app_id, None);
 }
+
+#[tokio::test]
+async fn detect_binary_asks_the_probe_with_the_settings_override_path() {
+    use std::sync::Arc;
+
+    use super::fakes::FakeProbe;
+    use super::helpers::Harness;
+    use crate::jobs::JobRegistry;
+
+    let harness = Harness::new();
+    let mut settings = harness.settings.load().unwrap();
+    settings.protontricks_binary_path = "/custom/protontricks".to_string();
+    harness.settings.save(&settings).unwrap();
+    let probe = Arc::new(FakeProbe::found(
+        PROTONTRICKS,
+        PrefixDepsTool::Protontricks,
+        None,
+    ));
+    let service = harness.service_with(
+        JobRegistry::default(),
+        Arc::new(super::super::seams::MetadataJournalStore(
+            harness.metadata.clone(),
+        )),
+        harness.restorer(),
+        Arc::new(super::fakes::FakeInUse::new(false, &harness.prefix)),
+        probe.clone(),
+    );
+
+    let detected = service.detect_binary().await.unwrap();
+
+    assert_eq!(detected.binary_path.as_deref(), Some(PROTONTRICKS));
+    assert_eq!(
+        *probe.settings_paths.lock().unwrap(),
+        vec!["/custom/protontricks".to_string()]
+    );
+}

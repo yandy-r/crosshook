@@ -1,104 +1,88 @@
 use crosshook_app::services::onboarding::{CachedHostReadinessSnapshot, LegacyNag};
-use crosshook_app::services::{HostToolsService, OnboardingService};
 use crosshook_core::onboarding::{
     Capability, HostToolDetails, ReadinessCheckResult, TrainerGuidanceContent,
 };
-use tauri::State;
+
+use super::{AppState, IpcResult};
+use crate::error_map::ipc;
 
 #[tauri::command]
-pub async fn check_readiness(
-    service: State<'_, OnboardingService>,
-) -> Result<ReadinessCheckResult, String> {
-    service
-        .check_readiness()
-        .await
-        .map_err(|e| e.message().to_string())
+pub async fn check_readiness(app: AppState<'_>) -> IpcResult<ReadinessCheckResult> {
+    ipc(app.services().onboarding.check_readiness().await)
 }
 
 #[tauri::command]
-pub async fn check_generalized_readiness(
-    service: State<'_, OnboardingService>,
-) -> Result<ReadinessCheckResult, String> {
-    service
+pub async fn check_generalized_readiness(app: AppState<'_>) -> IpcResult<ReadinessCheckResult> {
+    ipc(app
+        .services()
+        .onboarding
         .check_generalized_readiness()
-        .await
-        .map_err(|e| e.message().to_string())
+        .await)
 }
 
 #[tauri::command]
 pub async fn probe_host_tool_details(
     tool_id: String,
-    service: State<'_, HostToolsService>,
-) -> Result<HostToolDetails, String> {
-    service
-        .tool_details(tool_id)
-        .await
-        .map_err(|e| e.message().to_string())
+    app: AppState<'_>,
+) -> IpcResult<HostToolDetails> {
+    ipc(app.services().host_tools.tool_details(tool_id).await)
 }
 
 #[tauri::command]
 pub async fn get_cached_host_readiness_snapshot(
-    service: State<'_, OnboardingService>,
-) -> Result<Option<CachedHostReadinessSnapshot>, String> {
-    service
+    app: AppState<'_>,
+) -> IpcResult<Option<CachedHostReadinessSnapshot>> {
+    ipc(app
+        .services()
+        .onboarding
         .cached_host_readiness_snapshot()
-        .await
-        .map_err(|e| e.message().to_string())
+        .await)
 }
 
 #[tauri::command]
-pub async fn get_capabilities(
-    service: State<'_, OnboardingService>,
-) -> Result<Vec<Capability>, String> {
-    service
-        .capabilities()
-        .await
-        .map_err(|e| e.message().to_string())
+pub async fn get_capabilities(app: AppState<'_>) -> IpcResult<Vec<Capability>> {
+    ipc(app.services().onboarding.capabilities().await)
 }
 
 #[tauri::command]
-pub async fn dismiss_onboarding(service: State<'_, OnboardingService>) -> Result<(), String> {
-    service
-        .dismiss_onboarding()
-        .await
-        .map_err(|e| e.message().to_string())
+pub async fn dismiss_onboarding(app: AppState<'_>) -> IpcResult<()> {
+    ipc(app.services().onboarding.dismiss_onboarding().await)
 }
 
 #[tauri::command]
-pub async fn dismiss_umu_install_nag(service: State<'_, OnboardingService>) -> Result<(), String> {
-    service
+pub async fn dismiss_umu_install_nag(app: AppState<'_>) -> IpcResult<()> {
+    ipc(app
+        .services()
+        .onboarding
         .dismiss_legacy_nag(LegacyNag::UmuInstall)
-        .await
-        .map_err(|e| e.message().to_string())
+        .await)
 }
 
 #[tauri::command]
-pub async fn dismiss_steam_deck_caveats(
-    service: State<'_, OnboardingService>,
-) -> Result<(), String> {
-    service
+pub async fn dismiss_steam_deck_caveats(app: AppState<'_>) -> IpcResult<()> {
+    ipc(app
+        .services()
+        .onboarding
         .dismiss_legacy_nag(LegacyNag::SteamDeckCaveats)
-        .await
-        .map_err(|e| e.message().to_string())
+        .await)
 }
 
 #[tauri::command]
 pub async fn dismiss_readiness_nag(
-    service: State<'_, OnboardingService>,
+    app: AppState<'_>,
     tool_id: String,
     ttl_days: Option<u32>,
-) -> Result<(), String> {
-    service
+) -> IpcResult<()> {
+    ipc(app
+        .services()
+        .onboarding
         .dismiss_readiness_nag(tool_id, ttl_days)
-        .await
-        .map_err(|e| e.message().to_string())
+        .await)
 }
 
 #[tauri::command]
-pub async fn get_trainer_guidance(
-    service: State<'_, OnboardingService>,
-) -> Result<TrainerGuidanceContent, String> {
-    Ok(service.trainer_guidance())
+pub async fn get_trainer_guidance(app: AppState<'_>) -> IpcResult<TrainerGuidanceContent> {
+    Ok(app.services().onboarding.trainer_guidance())
 }
 
 #[cfg(test)]

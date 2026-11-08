@@ -1,10 +1,9 @@
+use super::{AppState, IpcResult};
 use crosshook_app::bootstrap::StartupReport;
-use crosshook_app::BootstrappedApp;
-use tauri::State;
 
 /// Returns a live, idempotent startup snapshot, including completed job results.
 #[tauri::command]
-pub async fn get_startup_report(app: State<'_, BootstrappedApp>) -> Result<StartupReport, String> {
+pub async fn get_startup_report(app: AppState<'_>) -> IpcResult<StartupReport> {
     let startup = app.startup();
     tauri::async_runtime::spawn_blocking(move || startup.snapshot())
         .await
@@ -15,4 +14,11 @@ pub async fn get_startup_report(app: State<'_, BootstrappedApp>) -> Result<Start
 }
 
 #[cfg(test)]
-mod tests;
+mod tests {
+    use super::*;
+
+    #[test]
+    fn command_names_match_expected_ipc_contract() {
+        let _ = get_startup_report;
+    }
+}

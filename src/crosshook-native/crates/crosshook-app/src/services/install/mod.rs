@@ -13,12 +13,16 @@ use std::path::PathBuf;
 
 use crosshook_core::install::{
     install_default_prefix_path, validate_install_request, InstallGameError, InstallGameRequest,
-    InstallGameValidationError,
+    InstallGameResult, InstallGameValidationError,
 };
 
+use super::process::RunEvent;
 use super::run_blocking;
 use crate::jobs::{JobRegistry, LOG_DIR};
 use crate::{AppError, AppErrorKind};
+
+/// Text of the error when the install job ended without a completion.
+const MSG_INSTALL_INTERRUPTED: &str = "the installer run ended before reporting a result";
 
 /// Registry kind for installer jobs.
 pub const INSTALL_GAME_JOB_KIND: &str = "install-game";
@@ -67,6 +71,29 @@ impl InstallService {
         .await
     }
 
+    /// Runs the installer as a supervised job and waits for its result.
+    ///
+    /// Install has no live log events (the installer log file holds the
+    /// output), so callers that only need the outcome use this instead of
+    /// [`InstallService::start`].
+    ///
+    /// # Errors
+    /// Everything [`InstallService::start`] reports, the failure text of a
+    /// failed installer, and an `Internal` error when the job ended without a
+    /// completion.
+    pub async fn run_to_completion(
+        &self,
+        request: InstallGameRequest,
+    ) -> Result<InstallGameResult, AppError> {
+        let mut run = self.start(request).await?;
+        while let Some(event) = run.next().await {
+            if let RunEvent::Finished(completion) = event {
+                return completion.unwrap_or_else(|| Err(interrupted()));
+            }
+        }
+        Err(interrupted())
+    }
+
     /// Validates `request` without provisioning anything.
     ///
     /// # Errors
@@ -78,6 +105,10 @@ impl InstallService {
 }
 
 static_assertions::assert_impl_all!(InstallService: Send, Sync);
+
+fn interrupted() -> AppError {
+    AppError::new(AppErrorKind::Internal, MSG_INSTALL_INTERRUPTED)
+}
 
 /// Maps a core install error to an [`AppError`] carrying core's message.
 fn install_error(error: InstallGameError) -> AppError {

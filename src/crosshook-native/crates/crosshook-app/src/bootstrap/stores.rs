@@ -24,12 +24,12 @@ use super::{BootstrapError, StoreKind};
 use crate::events::EventBus;
 use crate::jobs::JobRegistry;
 use crate::services::{
-    BackgroundGrantHolder, CollectionsService, CommunityService, DiagnosticsService,
-    DiscoveryService, HealthService, HostToolsService, InstallService, LaunchService,
-    LauncherExportService, LutrisService, ModsService, OfflineService, OnboardingService,
-    PrefixDepsService, ProfileWriter, ProtonDbService, ProtonMigrationService, ProtonUpService,
-    RecentFilesService, RunExecutableService, SettingsService, SteamService, StorageService,
-    UiSettingsService, UmuService, UpdateService, VersionService,
+    BackgroundGrantHolder, CatalogService, CollectionsService, CommunityService,
+    DiagnosticsService, DiscoveryService, HealthService, HostToolsService, InstallService,
+    LaunchService, LauncherExportService, LutrisService, ModsService, OfflineService,
+    OnboardingService, PrefixDepsService, ProfileWriter, ProtonDbService, ProtonMigrationService,
+    ProtonUpService, RecentFilesService, RunExecutableService, SettingsService, SteamService,
+    StorageService, UiSettingsService, UmuService, UpdateService, VersionService,
 };
 
 /// The persistent stores the application owns. Clones are cheap; clones of
@@ -51,6 +51,8 @@ pub struct Stores {
 /// Toolkit-independent services built over [`Stores`]. Clones are cheap.
 #[derive(Clone)]
 pub struct Services {
+    /// Optimization, command-argument and MangoHud preset catalogs.
+    pub catalog: CatalogService,
     /// Typed settings reads and saves.
     pub settings: SettingsService,
     /// Typed `[ui]` settings.
@@ -125,6 +127,7 @@ impl Services {
             events.clone(),
         );
         Self {
+            catalog: CatalogService,
             settings: SettingsService::new(
                 stores.settings.clone(),
                 stores.profiles.base_path.clone(),

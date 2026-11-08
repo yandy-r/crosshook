@@ -155,6 +155,12 @@ jobs:
       - name: Startup-path guardrail self-test
         run: ./scripts/check-startup-path.sh --selftest
 
+      - name: Async Tauri commands guardrail
+        run: ./scripts/check-async-commands.sh
+
+      - name: Async Tauri commands guardrail self-test
+        run: ./scripts/check-async-commands.sh --self-test
+
       - name: Mock coverage contract gate
         run: ./scripts/check-mock-coverage.sh
 

@@ -109,7 +109,7 @@ check_tree() (
   shell="$native/src-tauri/src"
   local roots=("$app" "$core" "$cli" "$shell")
   local required=("$app/bootstrap/mod.rs" "$app/bootstrap/pre_runtime.rs" "$app/bootstrap/env_policy.rs"
-    "$core/platform/dirs.rs" "$shell/lib.rs" "$shell/startup_bridge.rs" "$shell/env_policy.rs"
+    "$core/platform/dirs.rs" "$shell/lib.rs" "$shell/event_bridge.rs" "$shell/env_policy.rs"
     "$shell/fatal.rs" "$shell/commands/startup.rs")
   for scan_root in "${roots[@]}"; do
     [[ -d "$scan_root" && ! -L "$scan_root" ]] || { echo "error: required scan root missing: $scan_root" >&2; return 1; }
@@ -154,7 +154,7 @@ check_tree() (
     fi
   done <"$files"
   (( count > 0 )) || { echo 'error: no bootstrap sources found' >&2; return 1; }
-  for file in "$shell/lib.rs" "$shell/startup_bridge.rs" "$shell/env_policy.rs" "$shell/fatal.rs" "$shell/commands/startup.rs"; do
+  for file in "$shell/lib.rs" "$shell/event_bridge.rs" "$shell/env_policy.rs" "$shell/fatal.rs" "$shell/commands/startup.rs"; do
     scan_file "$file" "$sleep_pattern" 'startup sleep' || return 1
   done
   echo 'startup-path check passed.'
@@ -172,7 +172,7 @@ selftest() (
   cli="$native/crates/crosshook-cli/src"
   shell="$native/src-tauri/src"
   local required=("$app/bootstrap/mod.rs" "$app/bootstrap/pre_runtime.rs" "$app/bootstrap/env_policy.rs"
-    "$core/platform/dirs.rs" "$shell/lib.rs" "$shell/startup_bridge.rs" "$shell/env_policy.rs"
+    "$core/platform/dirs.rs" "$shell/lib.rs" "$shell/event_bridge.rs" "$shell/env_policy.rs"
     "$shell/fatal.rs" "$shell/commands/startup.rs")
   die() { echo "selftest FAILED: $1" >&2; exit 1; }
   fresh() {

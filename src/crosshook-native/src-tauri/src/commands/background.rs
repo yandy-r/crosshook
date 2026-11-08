@@ -1,9 +1,8 @@
-use crosshook_app::services::{BackgroundGrantHolder, BackgroundProtectionState};
-use std::sync::Arc;
-use tauri::State;
+use super::{AppState, IpcResult};
+use crosshook_app::services::BackgroundProtectionState;
 
-/// Tauri command: report the current background-protection state so the
-/// host-tool dashboard can surface it as a capability row.
+/// Reports the current background-protection state so the host-tool dashboard
+/// can surface it as a capability row.
 ///
 /// Returns [`BackgroundProtectionState::Pending`] transiently at startup
 /// under Flatpak while the one-time `RequestBackground` call is in flight;
@@ -11,10 +10,10 @@ use tauri::State;
 /// No TypeScript consumer exists yet (ADR-0002 § Capability integration
 /// marks the UI integration as deferred).
 #[tauri::command]
-pub fn get_background_protection_state(
-    holder: State<'_, Arc<BackgroundGrantHolder>>,
-) -> BackgroundProtectionState {
-    holder.protection_state()
+pub async fn get_background_protection_state(
+    app: AppState<'_>,
+) -> IpcResult<BackgroundProtectionState> {
+    Ok(app.services().background.protection_state())
 }
 
 #[cfg(test)]
@@ -23,7 +22,6 @@ mod tests {
 
     #[test]
     fn command_names_match_expected_ipc_contract() {
-        let _ = get_background_protection_state
-            as fn(State<'_, Arc<BackgroundGrantHolder>>) -> BackgroundProtectionState;
+        let _ = get_background_protection_state;
     }
 }

@@ -162,3 +162,15 @@ async fn auto_populate_finds_game_prefix_and_proton_from_fixture() {
     assert_eq!(result.proton_state, SteamAutoPopulateFieldState::Found);
     assert_eq!(result.proton_path, proton);
 }
+
+#[tokio::test]
+async fn default_client_install_path_matches_the_synchronous_resolver() {
+    let root = tempfile::tempdir().unwrap();
+    let steam = service(root.path(), MetadataStore::disabled());
+
+    // The async wrapper must return exactly what the pure resolver returns
+    // for the same process environment (the value itself is host-dependent).
+    let expected = default_client_install_path_with_env(|key| std::env::var_os(key));
+
+    assert_eq!(steam.default_client_install_path().await, expected);
+}

@@ -10,7 +10,8 @@ usage() {
   cat <<'EOF'
 Usage: ./scripts/lint.sh [--fix] [--staged] [--unstaged] [--modified]
                          [--rust] [--ts] [--shell] [--host-gateway]
-                         [--legacy-palette] [--schema-version] [--startup-path] [--all]
+                         [--legacy-palette] [--schema-version] [--startup-path]
+                         [--async-commands] [--all]
 
 Run linters across the full stack.
 
@@ -28,6 +29,7 @@ Run linters across the full stack.
   --legacy-palette   Legacy palette check only (Phase 2 token migration; always full-tree scan)
   --schema-version   Schema-version drift check only (SUPPORTED_MAX_VERSION vs docs; always full-tree scan)
   --startup-path     Startup ordering guardrail only (always full-tree scan)
+  --async-commands   Async #[tauri::command] guardrail only (src-tauri; always full-tree scan)
   --all              All checks (default)
 EOF
 }
@@ -42,6 +44,7 @@ RUN_HOST_GATEWAY=0
 RUN_LEGACY_PALETTE=0
 RUN_SCHEMA_VERSION=0
 RUN_STARTUP_PATH=0
+RUN_ASYNC_COMMANDS=0
 EXIT_CODE=0
 
 while [[ $# -gt 0 ]]; do
@@ -57,7 +60,8 @@ while [[ $# -gt 0 ]]; do
     --legacy-palette) RUN_LEGACY_PALETTE=1; shift ;;
     --schema-version) RUN_SCHEMA_VERSION=1; shift ;;
     --startup-path) RUN_STARTUP_PATH=1; shift ;;
-    --all) RUN_RUST=1; RUN_TS=1; RUN_SHELL=1; RUN_HOST_GATEWAY=1; RUN_LEGACY_PALETTE=1; RUN_SCHEMA_VERSION=1; RUN_STARTUP_PATH=1; shift ;;
+    --async-commands) RUN_ASYNC_COMMANDS=1; shift ;;
+    --all) RUN_RUST=1; RUN_TS=1; RUN_SHELL=1; RUN_HOST_GATEWAY=1; RUN_LEGACY_PALETTE=1; RUN_SCHEMA_VERSION=1; RUN_STARTUP_PATH=1; RUN_ASYNC_COMMANDS=1; shift ;;
     --help|-h) usage; exit 0 ;;
     *) echo "Unknown arg: $1" >&2; usage >&2; exit 1 ;;
   esac
@@ -75,7 +79,7 @@ fi
 SCOPED=$(( SCOPE_STAGED || SCOPE_UNSTAGED ))
 
 # Default to all if nothing specified
-if (( !RUN_RUST && !RUN_TS && !RUN_SHELL && !RUN_HOST_GATEWAY && !RUN_LEGACY_PALETTE && !RUN_SCHEMA_VERSION && !RUN_STARTUP_PATH )); then
+if (( !RUN_RUST && !RUN_TS && !RUN_SHELL && !RUN_HOST_GATEWAY && !RUN_LEGACY_PALETTE && !RUN_SCHEMA_VERSION && !RUN_STARTUP_PATH && !RUN_ASYNC_COMMANDS )); then
   RUN_RUST=1
   RUN_TS=1
   RUN_SHELL=1
@@ -83,6 +87,7 @@ if (( !RUN_RUST && !RUN_TS && !RUN_SHELL && !RUN_HOST_GATEWAY && !RUN_LEGACY_PAL
   RUN_LEGACY_PALETTE=1
   RUN_SCHEMA_VERSION=1
   RUN_STARTUP_PATH=1
+  RUN_ASYNC_COMMANDS=1
 fi
 
 if (( RUN_RUST )); then
@@ -238,6 +243,14 @@ if (( RUN_STARTUP_PATH )); then
     echo "note: scope flags do not narrow startup-path; running full-tree check."
   fi
   "$ROOT_DIR/scripts/check-startup-path.sh" || EXIT_CODE=1
+fi
+
+if (( RUN_ASYNC_COMMANDS )); then
+  echo "=== Async commands ==="
+  if (( SCOPED )); then
+    echo "note: scope flags do not narrow async-commands; running full-tree check."
+  fi
+  "$ROOT_DIR/scripts/check-async-commands.sh" || EXIT_CODE=1
 fi
 
 exit "$EXIT_CODE"

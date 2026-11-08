@@ -94,3 +94,24 @@ fn tool_details_yields_while_probe_is_gated_and_reaps_job() {
     });
     watchdog.join().unwrap();
 }
+
+#[test]
+fn gamescope_session_reflects_the_core_predicate() {
+    let service = HostToolsService::new(JobRegistry::default());
+
+    assert_eq!(
+        service.gamescope_session(),
+        crosshook_core::launch::is_inside_gamescope_session()
+    );
+}
+
+#[tokio::test]
+async fn platform_status_serializes_the_camel_case_capability_flags() {
+    let service = HostToolsService::new(JobRegistry::default());
+
+    let status = service.platform_status().await.expect("platform status");
+
+    let json = serde_json::to_value(status).unwrap();
+    assert!(json["isFlatpak"].is_boolean(), "{json}");
+    assert!(json["unshareNetAvailable"].is_boolean(), "{json}");
+}

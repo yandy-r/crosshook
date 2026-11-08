@@ -56,3 +56,46 @@ impl CatalogService {
         global_mangohud_presets().preset.clone()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn optimization_catalog_mirrors_the_global_catalog() {
+        let snapshot = CatalogService.optimization_catalog().await;
+        let global = global_catalog();
+
+        assert_eq!(snapshot.catalog_version, global.catalog_version);
+        assert_eq!(snapshot.entries.len(), global.entries.len());
+        assert!(!snapshot.entries.is_empty());
+    }
+
+    #[tokio::test]
+    async fn command_argument_catalog_mirrors_the_global_catalog() {
+        let snapshot = CatalogService.command_argument_catalog().await;
+        let global = global_command_argument_catalog();
+
+        assert_eq!(snapshot.catalog_version, global.catalog_version);
+        assert_eq!(snapshot.entries.len(), global.entries.len());
+    }
+
+    #[tokio::test]
+    async fn mangohud_presets_mirror_the_builtin_presets() {
+        let presets = CatalogService.mangohud_presets().await;
+
+        assert_eq!(presets.len(), global_mangohud_presets().preset.len());
+        assert!(!presets.is_empty());
+    }
+
+    #[tokio::test]
+    async fn snapshots_serialize_the_frozen_keys() {
+        let optimization = serde_json::to_value(CatalogService.optimization_catalog().await);
+        let command = serde_json::to_value(CatalogService.command_argument_catalog().await);
+
+        for json in [optimization.unwrap(), command.unwrap()] {
+            assert!(json["catalog_version"].is_u64(), "{json}");
+            assert!(json["entries"].is_array(), "{json}");
+        }
+    }
+}

@@ -148,3 +148,14 @@ async fn export_rejects_unsafe_attachment_names_without_writing() {
         assert!(!output.exists(), "{name:?} must not write anything");
     }
 }
+
+#[test]
+fn metadata_status_reports_the_store_health_unchanged() {
+    let root = tempdir().unwrap();
+    let status = service(root.path()).metadata_status();
+    assert_eq!(
+        serde_json::to_value(status).unwrap()["state"],
+        "disabled",
+        "a disabled store reports the disabled state"
+    );
+}

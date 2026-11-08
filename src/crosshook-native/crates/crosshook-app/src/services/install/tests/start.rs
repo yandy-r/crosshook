@@ -214,3 +214,45 @@ async fn shutdown_cancels_the_installer() {
     assert_eq!(error.kind(), AppErrorKind::Cancelled);
     assert_eq!(jobs.job_counts(), (0, 0));
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn run_to_completion_returns_the_result_of_a_successful_install() {
+    let fixture = Fixture::new("echo installing\nexit 0");
+    let service = fixture.service(JobRegistry::default());
+
+    let result = service.run_to_completion(fixture.request()).await.unwrap();
+
+    assert!(result.succeeded);
+    assert_eq!(result.profile_name, "x-game");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn run_to_completion_reports_the_failure_text_of_a_failed_install() {
+    let fixture = Fixture::new("exit 3");
+    let service = fixture.service(JobRegistry::default());
+
+    let error = service
+        .run_to_completion(fixture.request())
+        .await
+        .unwrap_err();
+
+    assert_eq!(error.kind(), AppErrorKind::Io);
+    assert!(error.message().contains("status code 3"), "{error}");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn run_to_completion_fails_validation_before_any_job() {
+    let fixture = Fixture::new("exit 0");
+    let service = fixture.service(JobRegistry::default());
+    let mut request = fixture.request();
+    request.installer_path = String::new();
+
+    let error = service.run_to_completion(request).await.unwrap_err();
+
+    assert_eq!(
+        error.kind(),
+        AppErrorKind::Validation {
+            field: "installer_path"
+        }
+    );
+}

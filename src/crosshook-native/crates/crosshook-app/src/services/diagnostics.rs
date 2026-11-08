@@ -6,7 +6,7 @@ use crosshook_core::export::{
     export_diagnostic_bundle, is_valid_bundle_file_name, DiagnosticBundleFile,
     DiagnosticBundleOptions, DiagnosticBundleSummary,
 };
-use crosshook_core::metadata::MetadataStore;
+use crosshook_core::metadata::{MetadataStatus, MetadataStore};
 use crosshook_core::profile::ProfileStore;
 use crosshook_core::settings::{RecentFilesStore, SettingsStore};
 
@@ -82,6 +82,14 @@ impl DiagnosticsService {
     pub(crate) fn with_display_home(mut self, home: PathBuf) -> Self {
         self.display_home = Some(home);
         self
+    }
+
+    /// Metadata store health for the UI degraded-state banner. In-memory
+    /// read; the JSON shape is part of the IPC contract: `{"state":"ok"}`,
+    /// `{"state":"newer_schema","found":N,"supported":N}`,
+    /// `{"state":"disabled","reason":"..."}`.
+    pub fn metadata_status(&self) -> MetadataStatus {
+        self.metadata_store.status()
     }
 
     /// Writes a diagnostic bundle. Invalid attachment names fail with a
