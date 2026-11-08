@@ -253,3 +253,62 @@ async fn unknown_provider_force_refresh_falls_back_to_stale_scoped_cache() {
     assert_eq!(resp.versions.len(), 1);
     assert_eq!(resp.versions[0].version, "GE-Proton9-1");
 }
+
+fn make_arm_version(version: &str) -> ProtonUpAvailableVersion {
+    ProtonUpAvailableVersion {
+        download_url: Some(format!("https://example.com/{version}-aarch64.tar.gz")),
+        ..make_version(version)
+    }
+}
+
+#[test]
+fn fresh_cache_with_an_arm_download_is_refetched() {
+    let future = (Utc::now() + ChronoDuration::hours(5)).to_rfc3339();
+    let fetched = Utc::now().to_rfc3339();
+    let scoped = "ge-proton:stable";
+    let rows = vec![
+        make_row(
+            scoped,
+            "GE-Proton11-5",
+            &fetched,
+            Some(&future),
+            &make_arm_version("GE-Proton11-5"),
+        ),
+        make_row(
+            scoped,
+            "GE-Proton9-1",
+            &fetched,
+            Some(&future),
+            &make_version("GE-Proton9-1"),
+        ),
+    ];
+    assert!(
+        build_response_from_rows(&rows, false).is_none(),
+        "a fresh cache holding an ARM archive must miss so the catalog is refetched"
+    );
+}
+
+#[test]
+fn stale_fallback_drops_arm_downloads() {
+    let past = (Utc::now() - ChronoDuration::hours(10)).to_rfc3339();
+    let scoped = "ge-proton:stable";
+    let rows = vec![
+        make_row(
+            scoped,
+            "GE-Proton11-5",
+            &past,
+            Some(&past),
+            &make_arm_version("GE-Proton11-5"),
+        ),
+        make_row(
+            scoped,
+            "GE-Proton9-1",
+            &past,
+            Some(&past),
+            &make_version("GE-Proton9-1"),
+        ),
+    ];
+    let resp = build_response_from_rows(&rows, true).expect("stale fallback");
+    let versions: Vec<&str> = resp.versions.iter().map(|v| v.version.as_str()).collect();
+    assert_eq!(versions, vec!["GE-Proton9-1"]);
+}

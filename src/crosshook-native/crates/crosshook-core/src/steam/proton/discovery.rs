@@ -236,6 +236,11 @@ fn try_add_compat_tool_install(
     let mut aliases = Vec::new();
     let mut seen_aliases = HashSet::new();
     push_alias(&mut aliases, &mut seen_aliases, &name);
+    // GE-Proton 11-5+ and Proton-CachyOS unpack to `<release tag>-x86_64`; the
+    // bare tag is what community profiles and the release catalog name.
+    if let Some(release_tag) = name.strip_suffix("-x86_64") {
+        push_alias(&mut aliases, &mut seen_aliases, release_tag);
+    }
 
     let compatibility_tool_definition_path = tool_directory_path.join("compatibilitytool.vdf");
     let vdf_is_file = if use_host_fs {

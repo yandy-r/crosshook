@@ -35,7 +35,8 @@ export function classifyInstallProvider(name: string): string | null {
  * `proton-` prefix and the `-x86_64[_v3]` arch suffix so the key aligns with
  * the tag.
  *
- * GE-Proton and Proton-EM directory names already equal their tags.
+ * GE-Proton 11-5+ archives also unpack to `<tag>-x86_64`; older GE-Proton
+ * directory names equal their tags.
  */
 export function normalizeInstallToTag(installName: string, providerId: string | null): string {
   if (providerId === 'proton-cachyos') {
@@ -45,6 +46,10 @@ export function normalizeInstallToTag(installName: string, providerId: string | 
   if (providerId === 'proton-em') {
     // `proton-<tag>` (e.g. `proton-EM-10.0-37-HDR`) → `<tag>` (e.g. `EM-10.0-37-HDR`).
     return installName.replace(/^proton-/, '');
+  }
+  if (providerId === 'ge-proton') {
+    // `GE-Proton11-5-x86_64` → `GE-Proton11-5`; older names are unchanged.
+    return installName.replace(/-x86_64$/, '');
   }
   return installName;
 }

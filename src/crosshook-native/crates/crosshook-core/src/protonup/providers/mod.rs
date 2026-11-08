@@ -250,40 +250,46 @@ pub(super) fn find_matching_sha512sum<'a>(
     assets.iter().find(|a| a.name == expected)
 }
 
+/// True when an archive name targets an ARM host: one of its `-`/`_`/`.`
+/// separated tokens is `aarch64`, `arm64`, `armhf`, `armv7` or `arm`.
+pub(crate) fn is_arm_archive(name: &str) -> bool {
+    name.to_ascii_lowercase()
+        .split(['-', '_', '.'])
+        .any(|token| matches!(token, "aarch64" | "arm64" | "armhf" | "armv7" | "arm"))
+}
+
 /// Pick the primary downloadable archive for a release.
 ///
-/// GE-Proton publishes `.tar.gz`. Proton-EM publishes `.tar.xz`. Proton-CachyOS
-/// publishes `.tar.xz` for several architectures; we prefer the Linux x86_64
-/// baseline, then x86_64_v3, then any non-ARM `.tar.xz`. Other providers get
-/// the first `.tar.gz` / `.tar.xz` the upstream lists (GitHub returns assets
-/// in upload order, which puts the primary archive first for these repos).
+/// Proton-CachyOS publishes `.tar.xz` only; every other provider publishes
+/// `.tar.gz` or `.tar.xz`. Providers that publish one archive per architecture
+/// (GE-Proton from 11-5, Proton-CachyOS) list them in no useful order, so the
+/// pick never trusts upload order: it prefers the Linux x86_64 baseline, then
+/// x86_64_v3, then any non-ARM archive. Proton itself is x86_64-only, so an ARM
+/// archive is only chosen when it is the sole candidate.
 pub(super) fn pick_tarball_asset<'a>(
     assets: &'a [GhAsset],
     provider_id: &str,
 ) -> Option<&'a GhAsset> {
-    if provider_id == "proton-cachyos" {
-        let xz: Vec<&GhAsset> = assets
-            .iter()
-            .filter(|a| a.name.ends_with(".tar.xz"))
-            .collect();
+    let candidates: Vec<&GhAsset> = assets
+        .iter()
+        .filter(|a| {
+            a.name.ends_with(".tar.xz")
+                || (provider_id != "proton-cachyos" && a.name.ends_with(".tar.gz"))
+        })
+        .collect();
 
-        let baseline_x86 = xz.iter().find(|a| {
-            let n = a.name.as_str();
-            n.contains("x86_64") && !n.contains("x86_64_v3")
-        });
-        let v3 = xz.iter().find(|a| a.name.contains("x86_64_v3"));
-        let non_arm = xz.iter().find(|a| !a.name.to_lowercase().contains("arm"));
+    let baseline_x86 = candidates.iter().find(|a| {
+        let n = a.name.as_str();
+        n.contains("x86_64") && !n.contains("x86_64_v3")
+    });
+    let v3 = candidates.iter().find(|a| a.name.contains("x86_64_v3"));
+    let non_arm = candidates.iter().find(|a| !is_arm_archive(&a.name));
 
-        baseline_x86
-            .or(v3)
-            .or(non_arm)
-            .copied()
-            .or_else(|| xz.first().copied())
-    } else {
-        assets
-            .iter()
-            .find(|a| a.name.ends_with(".tar.gz") || a.name.ends_with(".tar.xz"))
-    }
+    baseline_x86
+        .or(v3)
+        .or(non_arm)
+        .copied()
+        .or_else(|| candidates.first().copied())
 }
 
 /// Convert a single GitHub release into a `ProtonUpAvailableVersion`.
@@ -294,6 +300,11 @@ pub(super) fn gh_release_to_version(
     provider_id: &str,
 ) -> Option<ProtonUpAvailableVersion> {
     let tarball = pick_tarball_asset(&release.assets, provider_id)?;
+    // Proton is x86_64-only: a release with nothing but an ARM archive can
+    // never install, so it is not offered (and never cached).
+    if is_arm_archive(&tarball.name) {
+        return None;
+    }
     let checksum = find_matching_sha512sum(&release.assets, &tarball.name);
 
     Some(ProtonUpAvailableVersion {
@@ -532,5 +543,58 @@ mod tests {
             .collect();
 
         assert_eq!(tags, vec!["valid-1", "valid-2"]);
+    }
+
+    fn named_asset(name: &str) -> GhAsset {
+        GhAsset {
+            name: name.to_string(),
+            browser_download_url: format!("https://github.com/example/releases/download/x/{name}"),
+            size: 1,
+        }
+    }
+
+    #[test]
+    fn ge_proton_prefers_x86_64_when_aarch64_is_listed_first() {
+        let assets = vec![
+            named_asset("GE-Proton11-5-aarch64.sha512sum"),
+            named_asset("GE-Proton11-5-aarch64.tar.gz"),
+            named_asset("GE-Proton11-5-x86_64.sha512sum"),
+            named_asset("GE-Proton11-5-x86_64.tar.gz"),
+        ];
+        let picked = pick_tarball_asset(&assets, "ge-proton").expect("an archive");
+        assert_eq!(picked.name, "GE-Proton11-5-x86_64.tar.gz");
+        let checksum = find_matching_sha512sum(&assets, &picked.name).expect("paired checksum");
+        assert_eq!(checksum.name, "GE-Proton11-5-x86_64.sha512sum");
+    }
+
+    #[test]
+    fn single_arch_archive_is_still_picked() {
+        let assets = vec![
+            named_asset("GE-Proton9-21.sha512sum"),
+            named_asset("GE-Proton9-21.tar.gz"),
+        ];
+        let picked = pick_tarball_asset(&assets, "ge-proton").expect("an archive");
+        assert_eq!(picked.name, "GE-Proton9-21.tar.gz");
+    }
+
+    #[test]
+    fn arm_only_release_is_not_offered() {
+        let release = make_release(
+            "GE-Proton11-5",
+            false,
+            false,
+            vec![named_asset("GE-Proton11-5-aarch64.tar.gz")],
+        );
+        assert!(gh_release_to_version(release, "ge-proton").is_none());
+    }
+
+    #[test]
+    fn arm_detection_matches_tokens_not_substrings() {
+        assert!(is_arm_archive("GE-Proton11-5-aarch64.tar.gz"));
+        assert!(is_arm_archive("proton-cachyos-11.0-arm64.tar.xz"));
+        assert!(is_arm_archive("tool_armhf.tar.gz"));
+        assert!(!is_arm_archive("GE-Proton11-5-x86_64.tar.gz"));
+        assert!(!is_arm_archive("luxtorpeda-warm-start.tar.gz"));
+        assert!(!is_arm_archive("boxtron-alarm.tar.gz"));
     }
 }

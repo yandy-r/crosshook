@@ -208,4 +208,19 @@ mod tests {
         assert_eq!(result.community_version.as_deref(), Some("GE-Proton9"));
         assert_eq!(result.recommended_version.as_deref(), Some("GE-Proton9"));
     }
+
+    #[test]
+    fn x86_64_install_dir_matches_its_release_tag() {
+        // Discovery adds the bare tag as an alias for `<tag>-x86_64` directories.
+        let installs = vec![test_install(
+            "GE-Proton11-5-x86_64",
+            &["GE-Proton11-5-x86_64", "GE-Proton11-5"],
+        )];
+        let result = match_community_version("GE-Proton11-5", &installs);
+        assert_eq!(result.status, ProtonUpMatchStatus::Matched);
+        assert_eq!(
+            result.matched_install_name.as_deref(),
+            Some("GE-Proton11-5-x86_64")
+        );
+    }
 }

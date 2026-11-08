@@ -154,3 +154,30 @@ fn collects_app_specific_and_default_mappings_from_config_files() {
     );
     assert!(diagnostics.is_empty());
 }
+
+#[test]
+fn x86_64_tool_directories_also_alias_their_release_tag() {
+    let steam_root = tempdir().expect("steam root");
+    let system_root = tempdir().expect("system root");
+    create_tool(
+        &steam_root
+            .path()
+            .join("compatibilitytools.d/GE-Proton11-5-x86_64"),
+        None,
+    );
+
+    let mut diagnostics = Vec::new();
+    let tools = discover_compat_tools_with_roots(
+        vec![steam_root.path().to_path_buf()],
+        vec![system_root.path().to_path_buf()],
+        &mut diagnostics,
+    );
+    let tool = tools
+        .iter()
+        .find(|tool| tool.name == "GE-Proton11-5-x86_64")
+        .expect("discovered tool");
+    assert!(tool.aliases.iter().any(|alias| alias == "GE-Proton11-5"));
+    assert!(tool
+        .normalized_aliases
+        .contains(&normalize_alias("GE-Proton11-5").unwrap()));
+}
