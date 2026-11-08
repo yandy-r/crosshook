@@ -105,6 +105,23 @@ pub(crate) fn build_response_from_rows(
         })
         .collect();
 
+    // Rows cached before the per-architecture asset pick (YAN-1986) may point at
+    // an ARM archive. A fresh cache holding one is refetched; a stale fallback
+    // drops those versions rather than offering an archive that cannot install.
+    let has_arm_download = |v: &ProtonUpAvailableVersion| {
+        v.download_url
+            .as_deref()
+            .and_then(|url| url.rsplit('/').next())
+            .is_some_and(providers::is_arm_archive)
+    };
+    if !is_stale && versions.iter().any(has_arm_download) {
+        return None;
+    }
+    let versions: Vec<ProtonUpAvailableVersion> = versions
+        .into_iter()
+        .filter(|v| !has_arm_download(v))
+        .collect();
+
     if versions.is_empty() {
         return None;
     }

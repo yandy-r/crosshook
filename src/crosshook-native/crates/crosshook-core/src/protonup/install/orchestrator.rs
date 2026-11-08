@@ -386,7 +386,12 @@ fn validate_archive_top_level(
     version_info: &ProtonUpAvailableVersion,
     top_level_dir: &str,
 ) -> Result<(), (InstallError, String)> {
-    if version_info.provider == "ge-proton" && top_level_dir != version_info.version {
+    // GE-Proton 11-5+ archives unpack to `<version>-x86_64`; older ones to `<version>`.
+    let x86_64_dir = format!("{}-x86_64", version_info.version);
+    if version_info.provider == "ge-proton"
+        && top_level_dir != version_info.version
+        && top_level_dir != x86_64_dir
+    {
         let message = format!(
             "archive top-level directory '{top_level_dir}' does not match expected version '{}'",
             version_info.version
@@ -459,4 +464,36 @@ fn cancel_with_cleanup<T>(
     best_effort_cleanup(temp_path, partial_dir);
     emit(emitter, Phase::Cancelled, message);
     Err(InstallError::Cancelled)
+}
+
+#[cfg(test)]
+mod top_level_tests {
+    use super::validate_archive_top_level;
+    use crate::protonup::ProtonUpAvailableVersion;
+
+    fn ge(version: &str) -> ProtonUpAvailableVersion {
+        ProtonUpAvailableVersion {
+            provider: "ge-proton".to_string(),
+            version: version.to_string(),
+            release_url: None,
+            download_url: None,
+            checksum_url: None,
+            checksum_kind: None,
+            asset_size: None,
+            published_at: None,
+        }
+    }
+
+    #[test]
+    fn accepts_plain_and_x86_64_ge_proton_dirs() {
+        assert!(validate_archive_top_level(&ge("GE-Proton9-21"), "GE-Proton9-21").is_ok());
+        assert!(validate_archive_top_level(&ge("GE-Proton11-5"), "GE-Proton11-5-x86_64").is_ok());
+    }
+
+    #[test]
+    fn rejects_arm_and_foreign_ge_proton_dirs() {
+        assert!(validate_archive_top_level(&ge("GE-Proton11-5"), "GE-Proton11-5-aarch64").is_err());
+        assert!(validate_archive_top_level(&ge("GE-Proton11-5"), "GE-Proton11-4-x86_64").is_err());
+        assert!(validate_archive_top_level(&ge("GE-Proton11-5"), "x86_64").is_err());
+    }
 }

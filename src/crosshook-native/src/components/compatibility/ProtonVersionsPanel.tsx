@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useProtonInstalls } from '../../hooks/useProtonInstalls';
 import { useProtonUp } from '../../hooks/useProtonUp';
+import { classifyInstallProvider, normalizeInstallToTag } from '../../lib/protonup/classifyInstall';
 import type { ProtonUpAvailableVersion, ProtonUpInstallResult, ProtonUpProvider } from '../../types/protonup';
 import { DashboardPanelSection } from '../layout/DashboardPanelSection';
 import { CollapsibleSection } from '../ui/CollapsibleSection';
@@ -22,7 +23,15 @@ export function ProtonVersionsPanel() {
   const [installResult, setInstallResult] = useState<ProtonUpInstallResult | null>(null);
   const [installingVersion, setInstallingVersion] = useState<string | null>(null);
 
-  const installedNames = useMemo(() => new Set(installs.map((item) => normalizeForComparison(item.name))), [installs]);
+  const installedNames = useMemo(
+    () =>
+      new Set(
+        installs.map((item) =>
+          normalizeForComparison(normalizeInstallToTag(item.name, classifyInstallProvider(item.name)))
+        )
+      ),
+    [installs]
+  );
 
   const handleInstall = useCallback(
     async (version: ProtonUpAvailableVersion) => {

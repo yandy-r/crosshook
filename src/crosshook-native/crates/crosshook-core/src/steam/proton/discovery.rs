@@ -236,6 +236,11 @@ fn try_add_compat_tool_install(
     let mut aliases = Vec::new();
     let mut seen_aliases = HashSet::new();
     push_alias(&mut aliases, &mut seen_aliases, &name);
+    // GE-Proton 11-5+ and Proton-CachyOS unpack to `<release tag>-x86_64`; the
+    // bare tag is what community profiles and the release catalog name.
+    if let Some(release_tag) = strip_x86_64_suffix(&name) {
+        push_alias(&mut aliases, &mut seen_aliases, release_tag);
+    }
 
     let compatibility_tool_definition_path = tool_directory_path.join("compatibilitytool.vdf");
     let vdf_is_file = if use_host_fs {
@@ -291,4 +296,12 @@ fn try_add_compat_tool_install(
         aliases,
         normalized_aliases,
     });
+}
+
+/// `name` without a trailing `-x86_64` (any case), or `None` when absent.
+fn strip_x86_64_suffix(name: &str) -> Option<&str> {
+    const SUFFIX: &str = "-x86_64";
+    let split = name.len().checked_sub(SUFFIX.len())?;
+    let (tag, suffix) = (name.get(..split)?, name.get(split..)?);
+    (suffix.eq_ignore_ascii_case(SUFFIX) && !tag.is_empty()).then_some(tag)
 }
