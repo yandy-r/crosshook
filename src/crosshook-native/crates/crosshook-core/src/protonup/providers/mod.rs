@@ -258,13 +258,20 @@ pub(crate) fn is_arm_archive(name: &str) -> bool {
         .any(|token| matches!(token, "aarch64" | "arm64" | "armhf" | "armv7" | "arm"))
 }
 
+/// True for microarchitecture-optimized builds (`x86_64_v2`, `_v3`, `_v4`, …),
+/// which need CPU features the baseline `x86_64` build does not.
+fn is_optimized_x86_64(name: &str) -> bool {
+    name.match_indices("x86_64_v")
+        .any(|(i, m)| name[i + m.len()..].starts_with(|c: char| c.is_ascii_digit()))
+}
+
 /// Pick the primary downloadable archive for a release.
 ///
 /// Proton-CachyOS publishes `.tar.xz` only; every other provider publishes
 /// `.tar.gz` or `.tar.xz`. Providers that publish one archive per architecture
 /// (GE-Proton from 11-5, Proton-CachyOS) list them in no useful order, so the
 /// pick never trusts upload order: it prefers the Linux x86_64 baseline, then
-/// x86_64_v3, then any non-ARM archive. Proton itself is x86_64-only, so an ARM
+/// x86_64_v3, then any non-ARM archive (never another optimized variant first). Proton itself is x86_64-only, so an ARM
 /// archive is only chosen when it is the sole candidate.
 pub(super) fn pick_tarball_asset<'a>(
     assets: &'a [GhAsset],
@@ -278,10 +285,9 @@ pub(super) fn pick_tarball_asset<'a>(
         })
         .collect();
 
-    let baseline_x86 = candidates.iter().find(|a| {
-        let n = a.name.as_str();
-        n.contains("x86_64") && !n.contains("x86_64_v3")
-    });
+    let baseline_x86 = candidates
+        .iter()
+        .find(|a| a.name.contains("x86_64") && !is_optimized_x86_64(&a.name));
     let v3 = candidates.iter().find(|a| a.name.contains("x86_64_v3"));
     let non_arm = candidates.iter().find(|a| !is_arm_archive(&a.name));
 
@@ -353,7 +359,11 @@ where
         .into_iter()
         .filter(|r| !r.draft && (include_prereleases || !r.prerelease))
         .filter_map(|r| {
-            let tarball = r.assets.iter().find(|a| asset_filter(a))?;
+            // Same architecture rule as `pick_tarball_asset`: never an ARM archive.
+            let tarball = r
+                .assets
+                .iter()
+                .find(|a| asset_filter(a) && !is_arm_archive(&a.name))?;
             let checksum_url = format!("{checksum_base_url}/{}/{}", r.tag_name, checksum_filename);
             Some(ProtonUpAvailableVersion {
                 provider: provider_id.to_string(),
@@ -596,5 +606,44 @@ mod tests {
         assert!(!is_arm_archive("GE-Proton11-5-x86_64.tar.gz"));
         assert!(!is_arm_archive("luxtorpeda-warm-start.tar.gz"));
         assert!(!is_arm_archive("boxtron-alarm.tar.gz"));
+    }
+
+    #[test]
+    fn optimized_variants_are_not_taken_as_the_baseline() {
+        let assets = vec![
+            named_asset("proton-cachyos-11.0-x86_64_v4.tar.xz"),
+            named_asset("proton-cachyos-11.0-x86_64_v3.tar.xz"),
+            named_asset("proton-cachyos-11.0-x86_64.tar.xz"),
+        ];
+        let picked = pick_tarball_asset(&assets, "proton-cachyos").expect("an archive");
+        assert_eq!(picked.name, "proton-cachyos-11.0-x86_64.tar.xz");
+        assert!(is_optimized_x86_64("tool-x86_64_v2.tar.gz"));
+        assert!(!is_optimized_x86_64("tool-x86_64.tar.gz"));
+    }
+
+    #[test]
+    fn experimental_providers_skip_arm_archives() {
+        let release = make_release(
+            "v1.0",
+            false,
+            false,
+            vec![
+                named_asset("tool-aarch64.tar.gz"),
+                named_asset("tool-x86_64.tar.gz"),
+            ],
+        );
+        let versions = build_versions_from_releases(
+            vec![release],
+            "luxtorpeda",
+            5,
+            false,
+            "https://example.com",
+            "sha256sum.txt",
+            |a| a.name.ends_with(".tar.gz"),
+        );
+        assert_eq!(
+            versions[0].download_url.as_deref(),
+            Some("https://github.com/example/releases/download/x/tool-x86_64.tar.gz")
+        );
     }
 }

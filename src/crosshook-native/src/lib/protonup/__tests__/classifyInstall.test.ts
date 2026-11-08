@@ -6,6 +6,10 @@ describe('normalizeInstallToTag', () => {
     expect(normalizeInstallToTag('GE-Proton11-5-x86_64', 'ge-proton')).toBe('GE-Proton11-5');
   });
 
+  it('strips the suffix regardless of case', () => {
+    expect(normalizeInstallToTag('GE-Proton11-5-X86_64', 'ge-proton')).toBe('GE-Proton11-5');
+  });
+
   it('keeps older GE-Proton directory names unchanged', () => {
     expect(normalizeInstallToTag('GE-Proton9-21', 'ge-proton')).toBe('GE-Proton9-21');
   });

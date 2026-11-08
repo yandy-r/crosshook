@@ -49,7 +49,7 @@ export function normalizeInstallToTag(installName: string, providerId: string | 
   }
   if (providerId === 'ge-proton') {
     // `GE-Proton11-5-x86_64` → `GE-Proton11-5`; older names are unchanged.
-    return installName.replace(/-x86_64$/, '');
+    return installName.replace(/-x86_64$/i, '');
   }
   return installName;
 }
