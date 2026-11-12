@@ -5,7 +5,6 @@ import type { GameProfile, GamescopeConfig, MangoHudConfig } from '../../types/p
 import type { ProtonDbRecommendationGroup, ProtonDbSuggestionSet, SuggestionAcceptance } from '../../types/protondb';
 import type { OptimizationCatalogPayload } from '../../utils/optimization-catalog';
 import type { PendingProtonDbOverwrite } from '../../utils/protondb';
-import type { LaunchOptimizationsPanelStatus } from '../LaunchOptimizationsPanel';
 
 export type LaunchSubTabId =
   | 'offline'
@@ -47,7 +46,7 @@ export interface LaunchSubTabsProps {
   // Launch Optimizations panel
   enabledOptionIds: readonly LaunchOptimizationId[];
   onToggleOption: (optionId: LaunchOptimizationId, nextEnabled: boolean) => void;
-  launchOptimizationsStatus?: LaunchOptimizationsPanelStatus;
+  launchOptimizationsStatus?: LaunchAutoSaveStatus;
   optimizationPresetNames?: readonly string[];
   activeOptimizationPreset?: string;
   onSelectOptimizationPreset?: (presetName: string) => void;

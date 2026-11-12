@@ -28,7 +28,3 @@ export const DEFAULT_LAUNCH_COMMAND_ARGUMENTS: LaunchCommandArguments = {
   enabled_argument_ids: [],
   custom_args: [],
 };
-
-export function isLaunchCommandArgumentsEmpty(args: LaunchCommandArguments): boolean {
-  return args.enabled_argument_ids.length === 0 && args.custom_args.length === 0;
-}

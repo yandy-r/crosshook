@@ -1,19 +1,5 @@
 import type { EnvVarSource, UmuGameIdResolutionSource } from '@/types/launch';
 
-/** Returns a readable label for a launch preview method identifier. */
-export function launchMethodLabel(method: string): string {
-  switch (method) {
-    case 'steam_applaunch':
-      return 'Steam launch';
-    case 'proton_run':
-      return 'Proton launch';
-    case 'native':
-      return 'Native launch';
-    default:
-      return method;
-  }
-}
-
 /** Returns a readable label for the source of a preview environment variable. */
 export function envSourceLabel(source: EnvVarSource): string {
   switch (source) {

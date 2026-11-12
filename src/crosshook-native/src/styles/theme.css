@@ -182,14 +182,6 @@ textarea {
   min-width: 0;
 }
 
-@media (max-height: 820px) {
-  .crosshook-panel-route-decor__art {
-    opacity: 0.12;
-    max-height: min(88px, 20vh);
-    width: min(152px, 46%);
-  }
-}
-
 .crosshook-profile-actions__toolbar {
   display: flex;
   gap: 12px;

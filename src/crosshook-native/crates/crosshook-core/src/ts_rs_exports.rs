@@ -15,16 +15,6 @@ use crate::{
 
 const GENERATED_BASE: &str = "../../src/types";
 
-#[allow(dead_code)]
-#[derive(TS)]
-#[ts(export, export_to = "generated/ts_rs_edge_cases.ts")]
-struct TsRsEdgeCases {
-    id: uuid::Uuid,
-    generated_at: chrono::DateTime<chrono::Utc>,
-    payload: Vec<u8>,
-    note: Option<String>,
-}
-
 /// Export a small set of representative arg/return DTOs to TypeScript via ts-rs.
 /// Intended for the Phase 5 evaluation — gated behind the `ts-rs` feature.
 pub fn export_ts_types() -> Result<(), Box<dyn std::error::Error>> {
@@ -33,7 +23,6 @@ pub fn export_ts_types() -> Result<(), Box<dyn std::error::Error>> {
     std::env::set_var("TS_RS_EXPORT_DIR", &base);
 
     export_onboarding()?;
-    export_edge_cases()?;
     export_launch_hooks()?;
     Ok(())
 }
@@ -51,12 +40,6 @@ fn export_onboarding() -> Result<(), Box<dyn std::error::Error>> {
     ReadinessCheckResult::export()?;
     TrainerGuidanceEntry::export()?;
     TrainerGuidanceContent::export()?;
-    Ok(())
-}
-
-/// Export additional shapes that exercise ts-rs edge cases (chrono / uuid / Vec<u8>).
-fn export_edge_cases() -> Result<(), Box<dyn std::error::Error>> {
-    TsRsEdgeCases::export()?;
     Ok(())
 }
 

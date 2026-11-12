@@ -1,12 +1,10 @@
 import type { LaunchAutoSaveStatus } from '../../types';
 import type { ResolvedLaunchMethod } from '../../utils/launch';
 
-export type LaunchOptimizationsStatus = LaunchAutoSaveStatus;
-
 export function buildLaunchOptimizationsStatus(
   method: ResolvedLaunchMethod,
   hasExistingSavedProfile: boolean
-): LaunchOptimizationsStatus {
+): LaunchAutoSaveStatus {
   if (method !== 'proton_run' && method !== 'steam_applaunch') {
     return {
       tone: 'warning',

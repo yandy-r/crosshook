@@ -38,12 +38,7 @@ import {
 import { claimStartupAction, fetchStartupReport } from '@/lib/startupReport';
 import { isAppRoute } from '@/lib/validAppRoutes';
 import type { LibraryFilterKey } from '@/types/library';
-import type {
-  AppNavigateOptions,
-  GameDetailOrigin,
-  LibraryFilterIntent,
-  OpenGameDetailIntent,
-} from '@/types/navigation';
+import type { AppNavigateOptions, LibraryFilterIntent, OpenGameDetailIntent } from '@/types/navigation';
 import { ContextRail } from './ContextRail';
 import { contextRailLayoutForShell } from './contextRailVariants';
 import { inspectorWidthForBreakpoint } from './inspectorVariants';
@@ -85,8 +80,6 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
   const [libraryFilterIntent, setLibraryFilterIntent] = useState<LibraryFilterIntent | null>(null);
   const [activeLibraryFilter, setActiveLibraryFilter] = useState<LibraryFilterKey>('all');
   const libraryFilterIntentTokenRef = useRef(0);
-  // NOTE(hero-detail-consolidation): delete with Phase 10 route removal.
-  const [gameDetailOrigin, setGameDetailOrigin] = useState<GameDetailOrigin | null>(null);
   const [openGameDetailIntent, setOpenGameDetailIntent] = useState<OpenGameDetailIntent | null>(null);
   const openGameDetailIntentTokenRef = useRef(0);
   const lastProfile = profileName.trim() || selectedProfile;
@@ -128,12 +121,6 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
       });
     } else {
       setLibraryFilterIntent(null);
-    }
-    // NOTE(hero-detail-consolidation): delete with Phase 10 route removal.
-    if (options?.gameDetailOrigin) {
-      setGameDetailOrigin(options.gameDetailOrigin);
-    } else {
-      setGameDetailOrigin(null);
     }
     if (options?.openGameDetail) {
       openGameDetailIntentTokenRef.current += 1;
@@ -481,7 +468,6 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
                           libraryFilterIntent={libraryFilterIntent}
                           onLibraryFilterChange={handleLibraryFilterChange}
                           onOpenCommandPalette={openPalette}
-                          gameDetailOrigin={gameDetailOrigin}
                           openGameDetailIntent={openGameDetailIntent}
                         />
                       </Panel>
@@ -507,7 +493,6 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
                           libraryFilterIntent={libraryFilterIntent}
                           onLibraryFilterChange={handleLibraryFilterChange}
                           onOpenCommandPalette={openPalette}
-                          gameDetailOrigin={gameDetailOrigin}
                           openGameDetailIntent={openGameDetailIntent}
                         />
                       </div>
