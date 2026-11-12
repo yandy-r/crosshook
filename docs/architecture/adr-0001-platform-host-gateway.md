@@ -178,9 +178,5 @@ ADR-0002 does **not** add tools to the denylist, does **not** reshape the gatewa
 
 ## References
 
-- `docs/research/flatpak-bundling/06-archaeological.md` — per-tool architecture audit; confirms `platform.rs` as the single abstraction gateway
-- `docs/research/flatpak-bundling/13-opportunities.md` — AO-1: protect the `platform.rs` abstraction
-- `docs/research/flatpak-bundling/14-recommendations.md` — Phase 1 task 1.7: add ADR and CI lint
-- `docs/research/flatpak-bundling/10-evidence.md` — Tier 1 claims #1, #8, #11: source-code-verified facts about CrossHook's architecture
 - Issue #273 (this ADR); parent tracker #276 (Flatpak distribution)
 - ADR-0002 — Flatpak portal contracts: `docs/architecture/adr-0002-flatpak-portal-contracts.md` (additive; portal D-Bus integrations)

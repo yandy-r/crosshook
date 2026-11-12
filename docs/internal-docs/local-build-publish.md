@@ -63,9 +63,6 @@ Common overrides:
 | Ephemeral output       | `CROSSHOOK_BUILD_EPHEMERAL=1 ./scripts/build-release-binary.sh`                         |
 | Inspect resolved paths | `./scripts/build-release-binary.sh --print-paths`                                       |
 
-`scripts/build-native.sh` is only a compatibility shim for the old command and
-forwards to `scripts/build-release-binary.sh`.
-
 ## Flatpak Build
 
 Build the local Flatpak bundle from a fresh release binary:

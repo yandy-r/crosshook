@@ -4,10 +4,6 @@ This directory implements the browser-mode IPC mock layer used by the `dev:brows
 Vite dev mode (`--mode webdev`). It intercepts every `callCommand()` call that would
 otherwise hit a real Tauri backend, and returns synthetic in-memory responses.
 
-See the feature spec for the full business rules:
-[feature-spec.md](../../../../../../docs/plans/dev-web-frontend/feature-spec.md)
-(BR-1 through BR-12).
-
 ---
 
 ## Architecture
@@ -279,4 +275,3 @@ sentinel tied to production bundle contents, not to a specific package artifact.
 - `lib/ipc.ts` — dynamic import point; dispatches commands to this registry
 - `lib/events.ts` — `emitMockEvent` source (re-exported by `eventBus.ts`)
 - `lib/runtime.ts` — `isTauri()` guard used in `events.ts`
-- `docs/plans/dev-web-frontend/feature-spec.md` — full spec including BR-1–BR-12
