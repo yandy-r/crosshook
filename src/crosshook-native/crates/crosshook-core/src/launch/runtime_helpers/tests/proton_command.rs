@@ -3,8 +3,7 @@ use std::path::Path;
 
 use crate::launch::request::RuntimeLaunchConfig;
 use crate::launch::runtime_helpers::proton_command::{
-    build_direct_proton_command_lifecycle_with, build_direct_proton_command_with_wrappers,
-    build_gamescope_args, build_proton_command_with_gamescope,
+    build_direct_proton_command_lifecycle_with, build_gamescope_args,
     build_proton_command_with_gamescope_pid_capture_in_directory_inner,
     collect_pressure_vessel_paths,
 };
@@ -183,80 +182,6 @@ fn collect_pressure_vessel_paths_root_directory_preserved() {
     assert_eq!(
         collect_pressure_vessel_paths(&request),
         vec!["/".to_string()]
-    );
-}
-
-#[test]
-fn direct_proton_command_skips_empty_wrappers() {
-    let command = build_direct_proton_command_with_wrappers(
-        "/run/host/usr/share/steam/compatibilitytools.d/proton/proton",
-        &["   ".to_string(), " \t ".to_string()],
-        &BTreeMap::new(),
-    );
-
-    assert_eq!(
-        command.as_std().get_program(),
-        "/usr/share/steam/compatibilitytools.d/proton/proton"
-    );
-    let args = command
-        .as_std()
-        .get_args()
-        .map(|arg| arg.to_string_lossy().into_owned())
-        .collect::<Vec<_>>();
-    assert_eq!(args, vec!["run".to_string()]);
-}
-
-#[test]
-fn direct_proton_command_normalizes_wrappers_and_proton_path() {
-    let command = build_direct_proton_command_with_wrappers(
-        "/run/host/usr/share/steam/compatibilitytools.d/proton/proton",
-        &[
-            " /run/host/usr/bin/env ".to_string(),
-            " /run/host/usr/bin/mangohud ".to_string(),
-        ],
-        &BTreeMap::new(),
-    );
-
-    assert_eq!(command.as_std().get_program(), "/usr/bin/env");
-    let args = command
-        .as_std()
-        .get_args()
-        .map(|arg| arg.to_string_lossy().into_owned())
-        .collect::<Vec<_>>();
-    assert_eq!(
-        args,
-        vec![
-            "/usr/bin/mangohud".to_string(),
-            "/usr/share/steam/compatibilitytools.d/proton/proton".to_string(),
-            "run".to_string(),
-        ]
-    );
-}
-
-#[test]
-fn gamescope_proton_command_normalizes_wrappers_and_proton_path() {
-    let command = build_proton_command_with_gamescope(
-        "/run/host/usr/share/steam/compatibilitytools.d/proton/proton",
-        &[" /run/host/usr/bin/mangohud ".to_string()],
-        &["-f".to_string()],
-        &BTreeMap::new(),
-    );
-
-    assert_eq!(command.as_std().get_program(), "gamescope");
-    let args = command
-        .as_std()
-        .get_args()
-        .map(|arg| arg.to_string_lossy().into_owned())
-        .collect::<Vec<_>>();
-    assert_eq!(
-        args,
-        vec![
-            "-f".to_string(),
-            "--".to_string(),
-            "/usr/bin/mangohud".to_string(),
-            "/usr/share/steam/compatibilitytools.d/proton/proton".to_string(),
-            "run".to_string(),
-        ]
     );
 }
 

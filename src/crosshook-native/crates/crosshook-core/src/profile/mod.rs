@@ -38,7 +38,7 @@ pub use exchange::{
     export_community_profile, import_community_profile, preview_community_profile_import,
     CommunityExchangeError, CommunityExportResult, CommunityImportPreview, CommunityImportResult,
 };
-pub use legacy::{delete, list, load, save, validate_name};
+pub use legacy::{load, validate_name};
 pub use lutris_import::{
     LutrisImportEntry, LutrisImportEntryResult, LutrisImportError, LutrisImportOutcome,
     LutrisImportPreview, LutrisImportResult,

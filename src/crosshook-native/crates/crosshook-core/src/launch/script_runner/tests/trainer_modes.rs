@@ -9,7 +9,6 @@ fn proton_trainer_command_prefers_enabled_trainer_gamescope() {
     let proton_path = temp_dir.path().join("proton");
     let trainer_source_dir = temp_dir.path().join("trainer");
     let trainer_path = trainer_source_dir.join("sample.exe");
-    let log_path = temp_dir.path().join("trainer.log");
 
     std::fs::create_dir_all(prefix_path.join("drive_c")).expect("prefix dir");
     std::fs::create_dir_all(&trainer_source_dir).expect("trainer source dir");
@@ -51,7 +50,7 @@ fn proton_trainer_command_prefers_enabled_trainer_gamescope() {
         ..Default::default()
     };
 
-    let command = build_proton_trainer_command(&request, &log_path).expect("trainer command");
+    let command = build_proton_trainer_command(&request).expect("trainer command");
     let args = command
         .as_std()
         .get_args()
@@ -145,7 +144,6 @@ fn proton_trainer_command_prepends_unshare_net_when_isolation_enabled() {
     let proton_path = temp_dir.path().join("proton");
     let trainer_source_dir = temp_dir.path().join("trainer");
     let trainer_path = trainer_source_dir.join("sample.exe");
-    let log_path = temp_dir.path().join("trainer.log");
 
     std::fs::create_dir_all(prefix_path.join("drive_c")).expect("prefix dir");
     std::fs::create_dir_all(&trainer_source_dir).expect("trainer source dir");
@@ -181,7 +179,7 @@ fn proton_trainer_command_prepends_unshare_net_when_isolation_enabled() {
         ..Default::default()
     };
 
-    let command = build_proton_trainer_command(&request, &log_path).expect("trainer command");
+    let command = build_proton_trainer_command(&request).expect("trainer command");
     assert_eq!(
         command.as_std().get_program().to_string_lossy(),
         "unshare",
@@ -202,7 +200,6 @@ fn proton_trainer_command_skips_unshare_when_isolation_disabled() {
     let proton_path = temp_dir.path().join("proton");
     let trainer_source_dir = temp_dir.path().join("trainer");
     let trainer_path = trainer_source_dir.join("sample.exe");
-    let log_path = temp_dir.path().join("trainer.log");
 
     std::fs::create_dir_all(prefix_path.join("drive_c")).expect("prefix dir");
     std::fs::create_dir_all(&trainer_source_dir).expect("trainer source dir");
@@ -238,7 +235,7 @@ fn proton_trainer_command_skips_unshare_when_isolation_disabled() {
         ..Default::default()
     };
 
-    let command = build_proton_trainer_command(&request, &log_path).expect("trainer command");
+    let command = build_proton_trainer_command(&request).expect("trainer command");
     let program = command
         .as_std()
         .get_program()

@@ -23,9 +23,7 @@ fn proton_trainer_command_swaps_to_umu_run_when_umu_preferred() {
     };
     request.runtime.proton_path = "/opt/proton/GE-Proton9-20/proton".to_string();
 
-    let log_dir = tempfile::tempdir().unwrap();
-    let log_path = log_dir.path().join("trainer.log");
-    let command = build_proton_trainer_command(&request, &log_path).unwrap();
+    let command = build_proton_trainer_command(&request).unwrap();
 
     let program = command
         .as_std()
@@ -70,9 +68,7 @@ fn proton_trainer_command_falls_back_to_proton_when_umu_preferred_but_missing() 
     };
     request.runtime.proton_path = "/opt/proton/GE-Proton9-20/proton".to_string();
 
-    let log_dir = tempfile::tempdir().unwrap();
-    let log_path = log_dir.path().join("trainer.log");
-    let command = build_proton_trainer_command(&request, &log_path).unwrap();
+    let command = build_proton_trainer_command(&request).unwrap();
 
     let program = command
         .as_std()
@@ -105,9 +101,7 @@ fn auto_preference_uses_umu_trainer_when_present() {
     };
     request.runtime.proton_path = "/opt/proton/GE-Proton9-20/proton".to_string();
 
-    let log_dir = tempfile::tempdir().unwrap();
-    let log_path = log_dir.path().join("trainer.log");
-    let command = build_proton_trainer_command(&request, &log_path).unwrap();
+    let command = build_proton_trainer_command(&request).unwrap();
 
     let program = command
         .as_std()
@@ -143,9 +137,7 @@ fn auto_preference_trainer_falls_back_to_proton_when_missing() {
     };
     request.runtime.proton_path = "/opt/proton/GE-Proton9-20/proton".to_string();
 
-    let log_dir = tempfile::tempdir().unwrap();
-    let log_path = log_dir.path().join("trainer.log");
-    let command = build_proton_trainer_command(&request, &log_path).unwrap();
+    let command = build_proton_trainer_command(&request).unwrap();
 
     let program = command
         .as_std()
@@ -181,9 +173,7 @@ fn flatpak_steam_trainer_command_never_uses_umu_even_when_preferred() {
     request.steam.compatdata_path = "/tmp/compat".to_string();
     request.steam.proton_path = "/opt/steam/proton/proton".to_string();
 
-    let log_dir = tempfile::tempdir().unwrap();
-    let log_path = log_dir.path().join("steam-trainer.log");
-    let command = build_flatpak_steam_trainer_command(&request, &log_path).unwrap();
+    let command = build_flatpak_steam_trainer_command(&request).unwrap();
 
     let program = command
         .as_std()

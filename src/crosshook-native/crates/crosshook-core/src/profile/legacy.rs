@@ -1,7 +1,7 @@
 use crate::launch::ANONYMOUS_PROFILE_KEY;
 use crate::profile::LegacyProfileData;
 use std::fs;
-use std::io::{self, Write};
+use std::io;
 use std::path::{Path, PathBuf};
 
 const PROFILE_EXTENSION: &str = "profile";
@@ -50,64 +50,6 @@ pub fn load(profiles_dir: &Path, name: &str) -> io::Result<LegacyProfileData> {
     }
 
     Ok(data)
-}
-
-pub fn save(profiles_dir: &Path, name: &str, data: &LegacyProfileData) -> io::Result<()> {
-    validate_name(name)?;
-    fs::create_dir_all(profiles_dir)?;
-
-    let mut file = fs::File::create(profile_path_unchecked(profiles_dir, name))?;
-    writeln!(file, "GamePath={}", data.game_path)?;
-    writeln!(file, "TrainerPath={}", data.trainer_path)?;
-    writeln!(file, "Dll1Path={}", data.dll1_path)?;
-    writeln!(file, "Dll2Path={}", data.dll2_path)?;
-    writeln!(file, "LaunchInject1={}", data.launch_inject1)?;
-    writeln!(file, "LaunchInject2={}", data.launch_inject2)?;
-    writeln!(file, "LaunchMethod={}", data.launch_method)?;
-    writeln!(file, "UseSteamMode={}", data.use_steam_mode)?;
-    writeln!(file, "SteamAppId={}", data.steam_app_id)?;
-    writeln!(file, "SteamCompatDataPath={}", data.steam_compat_data_path)?;
-    writeln!(file, "SteamProtonPath={}", data.steam_proton_path)?;
-    writeln!(
-        file,
-        "SteamLauncherIconPath={}",
-        data.steam_launcher_icon_path
-    )?;
-    Ok(())
-}
-
-pub fn list(profiles_dir: &Path) -> io::Result<Vec<String>> {
-    if !profiles_dir.exists() {
-        return Ok(Vec::new());
-    }
-
-    let mut names = Vec::new();
-    for entry in fs::read_dir(profiles_dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.extension().and_then(|value| value.to_str()) != Some(PROFILE_EXTENSION) {
-            continue;
-        }
-
-        if let Some(name) = path.file_stem().and_then(|value| value.to_str()) {
-            names.push(name.to_string());
-        }
-    }
-
-    names.sort();
-    Ok(names)
-}
-
-pub fn delete(profiles_dir: &Path, name: &str) -> io::Result<()> {
-    let path = profile_path(profiles_dir, name)?;
-    if !path.exists() {
-        return Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            "profile file not found",
-        ));
-    }
-    fs::remove_file(path)?;
-    Ok(())
 }
 
 pub fn validate_name(name: &str) -> io::Result<()> {
@@ -196,34 +138,6 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
 
-    fn sample_profile() -> LegacyProfileData {
-        LegacyProfileData {
-            game_path: "/games/example.exe".to_string(),
-            trainer_path: "/trainers/example.exe".to_string(),
-            dll1_path: "/dlls/one.dll".to_string(),
-            dll2_path: "/dlls/two.dll".to_string(),
-            launch_inject1: true,
-            launch_inject2: false,
-            launch_method: "proton_run".to_string(),
-            use_steam_mode: true,
-            steam_app_id: "12345".to_string(),
-            steam_compat_data_path: "/compat/12345".to_string(),
-            steam_proton_path: "/proton/proton".to_string(),
-            steam_launcher_icon_path: "/icons/example.png".to_string(),
-        }
-    }
-
-    #[test]
-    fn save_and_load_round_trip() {
-        let temp_dir = tempdir().unwrap();
-        let profile = sample_profile();
-
-        save(temp_dir.path(), "example", &profile).unwrap();
-
-        let loaded = load(temp_dir.path(), "example").unwrap();
-        assert_eq!(loaded, profile);
-    }
-
     #[test]
     fn load_normalizes_legacy_z_paths_and_case_insensitive_bools() {
         let temp_dir = tempdir().unwrap();
@@ -240,22 +154,6 @@ mod tests {
         assert!(loaded.launch_inject1);
         assert!(loaded.use_steam_mode);
         assert!(!loaded.launch_inject2);
-    }
-
-    #[test]
-    fn list_and_delete_profiles() {
-        let temp_dir = tempdir().unwrap();
-        fs::write(temp_dir.path().join("b.profile"), "").unwrap();
-        fs::write(temp_dir.path().join("a.profile"), "").unwrap();
-        fs::write(temp_dir.path().join("ignore.txt"), "").unwrap();
-
-        assert_eq!(
-            list(temp_dir.path()).unwrap(),
-            vec!["a".to_string(), "b".to_string()]
-        );
-
-        delete(temp_dir.path(), "a").unwrap();
-        assert!(!temp_dir.path().join("a.profile").exists());
     }
 
     #[test]

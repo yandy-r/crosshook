@@ -71,7 +71,6 @@ async fn umu_concurrent_pids_game_and_trainer_both_alive() {
 
     // 4. Build a trainer request.  trainer_loading_mode defaults to
     //    SourceDirectory so the builder does not try to copy any files.
-    let log_trainer = tmp.path().join("trainer.log");
     let trainer_request = LaunchRequest {
         trainer_path: "/bin/true".to_string(),
         trainer_host_path: "/bin/true".to_string(),
@@ -83,7 +82,7 @@ async fn umu_concurrent_pids_game_and_trainer_both_alive() {
     //    `should_use_umu` returns `(true, Some(stub_path))`.
     let mut game_cmd = build_proton_game_command(&game_request, &log_game)
         .expect("build_proton_game_command must succeed with stub umu-run on PATH");
-    let mut trainer_cmd = build_proton_trainer_command(&trainer_request, &log_trainer)
+    let mut trainer_cmd = build_proton_trainer_command(&trainer_request)
         .expect("build_proton_trainer_command must succeed with stub umu-run on PATH");
 
     // Shed stdio so the test doesn't block on pipes.

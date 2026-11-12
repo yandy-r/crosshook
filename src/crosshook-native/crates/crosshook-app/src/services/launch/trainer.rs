@@ -30,13 +30,12 @@ impl LaunchService {
         let command = match prepared.request.resolved_method() {
             METHOD_STEAM_APPLAUNCH if prepared.execution_method == METHOD_PROTON_RUN => {
                 let mut command =
-                    build_flatpak_steam_trainer_command(&prepared.request, &prepared.log_path)
-                        .map_err(|error| {
-                            AppError::new(
-                                AppErrorKind::Io,
-                                format!("failed to build Flatpak Steam trainer launch: {error}"),
-                            )
-                        })?;
+                    build_flatpak_steam_trainer_command(&prepared.request).map_err(|error| {
+                        AppError::new(
+                            AppErrorKind::Io,
+                            format!("failed to build Flatpak Steam trainer launch: {error}"),
+                        )
+                    })?;
                 command.stdout(Stdio::piped()).stderr(Stdio::piped());
                 command
             }
@@ -53,14 +52,12 @@ impl LaunchService {
             }
             METHOD_PROTON_RUN => {
                 let mut command =
-                    build_proton_trainer_command(&prepared.request, &prepared.log_path).map_err(
-                        |error| {
-                            AppError::new(
-                                AppErrorKind::Io,
-                                format!("failed to build Proton trainer launch: {error}"),
-                            )
-                        },
-                    )?;
+                    build_proton_trainer_command(&prepared.request).map_err(|error| {
+                        AppError::new(
+                            AppErrorKind::Io,
+                            format!("failed to build Proton trainer launch: {error}"),
+                        )
+                    })?;
                 command.stdout(Stdio::piped()).stderr(Stdio::piped());
                 command
             }

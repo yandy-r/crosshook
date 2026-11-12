@@ -26,7 +26,7 @@ pub use catalog::{
 };
 pub use command_arguments::{
     global_catalog as global_command_argument_catalog,
-    initialize_catalog as initialize_command_argument_catalog, is_known_command_argument_id,
+    initialize_catalog as initialize_command_argument_catalog,
     load_catalog as load_command_argument_catalog, resolve_command_arguments,
     resolve_command_arguments_for_method, CommandArgumentCatalog, CommandArgumentEntry,
     CommandArgumentResolveError, ResolvedCommandArguments,
@@ -34,10 +34,7 @@ pub use command_arguments::{
 pub use diagnostics::{
     analyze, should_surface_report, CoexistenceAdvisoryRecord, DiagnosticReport,
 };
-pub use env::{
-    BUILTIN_LAUNCH_OPTIMIZATION_ENV_VARS, PASSTHROUGH_DISPLAY_VARS, REQUIRED_PROTON_VARS,
-    WINE_ENV_VARS_TO_CLEAR,
-};
+pub use env::WINE_ENV_VARS_TO_CLEAR;
 pub use mod_coexistence::{
     analyze_profile_mod_coexistence, collect_mod_coexistence_launch_warnings,
     MAX_COEXISTENCE_ADVISORY_RECORDS,
@@ -55,8 +52,8 @@ pub use optimizations::{
 pub use preview::{build_launch_preview, LaunchPreview};
 pub use request::{
     is_inside_gamescope_session, validate, validate_all, LaunchRequest, LaunchRequestError,
-    LaunchValidationIssue, RuntimeLaunchConfig, SteamLaunchConfig, SteamLaunchRequest,
-    ValidationError, ValidationSeverity, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
+    LaunchValidationIssue, RuntimeLaunchConfig, SteamLaunchConfig, ValidationError,
+    ValidationSeverity, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };
 pub use runtime_helpers::{launch_platform_capabilities, LaunchPlatformCapabilities};
 pub use session::{
