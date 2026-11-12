@@ -174,9 +174,6 @@ never memoized for jobs, because a job's state changes after the first read.
 
 ## References
 
-- `docs/prps/plans/completed/flatpak-isolation.plan.md` — implementation plan (tasks 1.1–5.3)
-- `docs/prps/prds/flatpak-distribution.prd.md` §10.3 — per-app isolation follow-up
-- `docs/plans/bootstrap/plan.md` — startup bootstrap (`pre_runtime` → `App::bootstrap`) plan
 - `crates/crosshook-app/tests/bootstrap_ordering.rs` — ordering integration test
 - [ADR-0001 — `platform.rs` host-command gateway](./adr-0001-platform-host-gateway.md)
 - [ADR-0002 — Flatpak portal contracts](./adr-0002-flatpak-portal-contracts.md)

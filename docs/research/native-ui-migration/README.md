@@ -730,7 +730,7 @@ Metric definitions, units and reported statistics are canonical in [`docs/intern
 
 - **Collaboration has moved to GitHub.** Commit `20a8da7` moved collaboration back to GitHub.
   - `.github/workflows/` contains `copilot-setup-steps`, `fixture-lint`, `lint-autofix`, `lint`, `pr-title-autofix`, `pr-title` and `release`.
-  - Forgejo is archived under `.archive/forgejo/`, and the templates now live in `.github/ISSUE_TEMPLATE/`.
+  - The Forgejo tracker was retired, and the templates now live in `.github/ISSUE_TEMPLATE/`.
   - CLAUDE.md, AGENTS.md and the other agent-rule files were updated in the same commit.
 - **Stale `platform.rs` references.** CLAUDE.md, AGENTS.md, ADR-0001 and `check-host-gateway.sh` (`PLATFORM_RS`) still reference `crosshook-core/src/platform.rs`. It is now the `platform/` module.
 - **Schema version.** It is v27 in code (`v26_v27.rs`, `prefix_version_restore_journal`). AGENTS.md agrees; CLAUDE.md says 26.

@@ -4,7 +4,6 @@
 //! (`writer.rs`): validate → load → mutate → persist once → observe →
 //! revision → health invalidation → publish `AppEvent::ProfilesChanged`.
 //! Writes are serialized by a writer-wide lock; reads do not take it.
-//! See `docs/plans/profile-writer/b0-contracts.md` for module ownership.
 
 mod defaults_art;
 mod history;

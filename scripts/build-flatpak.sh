@@ -10,7 +10,7 @@
 # assets/icon-128.png, assets/icon-256.png, and assets/icon-512.png are
 # Flatpak packaging inputs generated from SVG sources by scripts/generate-assets.sh.
 #
-# This is the Phase 1 bundle path (see docs/prps/prds/flatpak-distribution.prd.md).
+# This is the Phase 1 bundle path.
 # It uses the manifest's `simple` buildsystem and a pre-built binary so there
 # is no Rust build inside the Flatpak sandbox. A Flathub-ready manifest that
 # builds from source with flatpak-cargo-generator lives in Phase 4 work.

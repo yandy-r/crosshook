@@ -12,23 +12,6 @@ and extract GE-Proton and Proton-CachyOS releases — that works inside the
 Flatpak sandbox without bundling a sandbox helper or shelling out to a
 host-side tool.
 
-The design is grounded in three research anchors from the Flatpak deep-research
-series:
-
-- `docs/research/flatpak-bundling/14-recommendations.md` §3.1 (Proton version
-  download manager) and §3.2 (Flatpak Steam write access negotiation): §3.1
-  defines the GitHub API client + extract-to-`compatibilitytools.d/` approach
-  that this ADR implements; §3.2 establishes the write-access constraint that
-  makes install-root resolution non-trivial under Flatpak Steam.
-- `docs/research/flatpak-bundling/13-opportunities.md` SO-2 (Build Proton
-  version management as a native feature): identifies this as a high-effort /
-  high-impact strategic opportunity that eliminates the `protonup-qt` host
-  dependency without requiring `flatpak-spawn --host`.
-- `docs/research/flatpak-bundling/11-patterns.md` Tier 3 (Should Build as
-  Native Feature): classifies Proton download/management as in-process Rust
-  work, not host-tool delegation, explicitly noting that
-  `protonup_binary_path` was the placeholder setting.
-
 Today the repo has partial scaffolding in
 `src/crosshook-native/crates/crosshook-core/src/protonup/`: `catalog.rs`
 handles cache-first GitHub Releases API fetch for GE-Proton and
@@ -204,7 +187,7 @@ already owns for its users. This ADR rejects that approach permanently.
 
 Invoking `protonup-qt` or a wrapped `protonup-rs` binary from CrossHook
 was the approach the scaffolded `protonup_binary_path` setting anticipated.
-`docs/research/flatpak-bundling/14-recommendations.md` §3.1 rejects this in
+The Flatpak bundling research rejects this in
 favor of a narrower native capability: host-tool invocation adds a Flatpak
 boundary crossing (requiring `flatpak-spawn --host` for a sandbox-installed
 `protonup-qt`, or a separate Flatpak portal for the Flathub variant), a
@@ -242,12 +225,6 @@ burden and a class of consistency bugs with no compensating benefit.
 
 ## References
 
-- `docs/research/flatpak-bundling/14-recommendations.md` §3.1 and §3.2 —
-  task definitions for the Proton manager and Flatpak Steam write access
-- `docs/research/flatpak-bundling/13-opportunities.md` SO-2 — strategic
-  rationale for building Proton management as a native capability
-- `docs/research/flatpak-bundling/11-patterns.md` Tier 3 — architecture tier
-  guidance confirming in-process Rust (not host delegation) is correct
 - `src/crosshook-native/crates/crosshook-core/src/protonup/catalog.rs` —
   existing cache-first GitHub Releases catalog fetcher
 - `src/crosshook-native/crates/crosshook-core/src/protonup/install.rs` —

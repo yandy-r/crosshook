@@ -12,7 +12,7 @@ CrossHook is packaged as a Flatpak (target tracked under [#276]) and launches Wi
 1. **`org.freedesktop.portal.GameMode`** — the one gaming tool in the ecosystem with a real sandbox-to-host bridge. It lets CrossHook register **its own sandbox-side PID** with the host's `gamemoded` daemon. The games CrossHook launches on the host already talk to `gamemoded` through `gamemoderun` — that path is unchanged.
 2. **`org.freedesktop.portal.Background.RequestBackground`** — the only mechanism that prevents `xdg-desktop-portal` from reaping a sandboxed process when the user minimizes its window. CrossHook runs a sandbox-side `gamescope_watchdog` that supervises long-running host gameplay; losing that task leaks the compositor.
 
-[`docs/research/flatpak-bundling/15-gamemode-and-background-ground-truth.md`](../research/flatpak-bundling/15-gamemode-and-background-ground-truth.md) documents the verified current state: neither portal is called anywhere in the repo today, and the manifest does not request access to them.
+The Flatpak bundling research documents the verified current state: neither portal is called anywhere in the repo today, and the manifest does not request access to them.
 
 This ADR defines the Rust contracts that encode these two portal integrations so every future launch path consults one owner per concern rather than scattering portal checks across `launch/`, `src-tauri/`, and `onboarding/`.
 
@@ -203,7 +203,7 @@ pub enum BackgroundError {
 
 ### Scope boundaries
 
-- **CrossHook itself, not host games.** `RequestBackground` is a sandbox-scoped contract: it tells the portal "do not reap my sandbox process." Host games run outside the sandbox and are never passed to this API. This aligns with [`docs/research/flatpak-bundling/12-risks.md`](../research/flatpak-bundling/12-risks.md) §1 Correction 2.
+- **CrossHook itself, not host games.** `RequestBackground` is a sandbox-scoped contract: it tells the portal "do not reap my sandbox process." Host games run outside the sandbox and are never passed to this API. This aligns with the Flatpak bundling research §1 Correction 2.
 - **No autostart.** CrossHook is not a system daemon. We pass `autostart: false` unconditionally; the user launches CrossHook explicitly.
 - **No singleton.** We explicitly do not install a global static `BackgroundGrant`. Ownership sits in Tauri's managed state so tests can construct a sandbox without leaking tokio tasks.
 - **Fake-able seam for tests.** The portal call goes through the `BackgroundPortal` trait in `crosshook-app` (`supported()`, async `request(reason, autostart)`) with the live `XdgBackgroundPortal` impl; unit tests inject a fake portal and grant handle without touching D-Bus.
@@ -275,10 +275,6 @@ Added for YAN-855 (picked host path resolution). A file or folder picked through
 
 ## References
 
-- [`docs/research/flatpak-bundling/15-gamemode-and-background-ground-truth.md`](../research/flatpak-bundling/15-gamemode-and-background-ground-truth.md) — verified current state (tasks 1.1–1.3 of [#271]).
-- [`docs/research/flatpak-bundling/10-evidence.md`](../research/flatpak-bundling/10-evidence.md) Tier 1 #4 — GameMode portal evidence.
-- [`docs/research/flatpak-bundling/12-risks.md`](../research/flatpak-bundling/12-risks.md) §1 Correction 2 / P-T2 — scope boundaries.
-- [`docs/research/flatpak-bundling/14-recommendations.md`](../research/flatpak-bundling/14-recommendations.md) Phase 1 row 1.4, Phase 2 row 2.4.
 - [`docs/architecture/adr-0001-platform-host-gateway.md`](./adr-0001-platform-host-gateway.md) — host-tool gateway contract (unchanged).
 - Issue [#271] (this ADR); parent tracker [#276] (Flatpak distribution); related [#269], [#273].
 

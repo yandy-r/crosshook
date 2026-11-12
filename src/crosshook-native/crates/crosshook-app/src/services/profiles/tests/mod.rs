@@ -1,5 +1,5 @@
 //! `ProfileWriter` tests. `helpers` is the shared harness; each B1 slice
-//! owns its own file (see `docs/plans/profile-writer/b0-contracts.md`).
+//! owns its own file.
 
 mod events;
 mod helpers;
