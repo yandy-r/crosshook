@@ -87,20 +87,3 @@ pub fn put_cache_entry(
 
     Ok(())
 }
-
-pub fn evict_expired_cache_entries(conn: &Connection) -> Result<usize, MetadataStoreError> {
-    let now = Utc::now().to_rfc3339();
-
-    let rows_deleted = conn
-        .execute(
-            "DELETE FROM external_cache_entries \
-             WHERE expires_at IS NOT NULL AND expires_at < ?1",
-            params![now],
-        )
-        .map_err(|source| MetadataStoreError::Database {
-            action: "evict expired external cache entries",
-            source,
-        })?;
-
-    Ok(rows_deleted)
-}

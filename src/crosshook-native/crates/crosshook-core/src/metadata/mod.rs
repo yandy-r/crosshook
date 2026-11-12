@@ -138,13 +138,13 @@ pub use game_image_store::GameImageCacheRow;
 pub use health_store::HealthSnapshotRow;
 pub use models::{
     BundledOptimizationPresetRow, CacheEntryStatus, CollectionRow, CommunityProfileRow,
-    CommunityTapRow, ConfigRevisionRow, ConfigRevisionSource, DriftState, FailureTrendRow,
-    HashOnlyReason, IntegrityFailure, LaunchHistoryEntry, LaunchOutcome, MetadataStatus,
-    MetadataStoreError, PrefixDependencyStateRow, PrefixStorageCleanupAuditRow,
-    PrefixStorageSnapshotRow, PrefixVersionRestoreJournalRow, ProfileLaunchPresetOrigin,
-    RevisionIntegrity, SyncReport, SyncSource, VersionCorrelationStatus, VersionSnapshotRow,
-    MAX_CACHE_PAYLOAD_BYTES, MAX_CONFIG_REVISIONS_PER_PROFILE, MAX_DIAGNOSTIC_JSON_BYTES,
-    MAX_HISTORY_LIST_LIMIT, MAX_SNAPSHOT_TOML_BYTES, MAX_VERSION_SNAPSHOTS_PER_PROFILE,
+    ConfigRevisionRow, ConfigRevisionSource, DriftState, FailureTrendRow, HashOnlyReason,
+    IntegrityFailure, LaunchHistoryEntry, LaunchOutcome, MetadataStatus, MetadataStoreError,
+    PrefixDependencyStateRow, PrefixStorageCleanupAuditRow, PrefixStorageSnapshotRow,
+    PrefixVersionRestoreJournalRow, ProfileLaunchPresetOrigin, RevisionIntegrity, SyncReport,
+    SyncSource, VersionCorrelationStatus, VersionSnapshotRow, MAX_CACHE_PAYLOAD_BYTES,
+    MAX_CONFIG_REVISIONS_PER_PROFILE, MAX_DIAGNOSTIC_JSON_BYTES, MAX_HISTORY_LIST_LIMIT,
+    MAX_SNAPSHOT_TOML_BYTES, MAX_VERSION_SNAPSHOTS_PER_PROFILE,
 };
 pub use offline_store::{CommunityTapOfflineRow, OfflineReadinessRow, TrainerHashCacheRow};
 pub use profile_sync::sha256_hex;

@@ -2,7 +2,6 @@ use std::path::Path;
 
 use super::{
     offline_store, CommunityTapOfflineRow, MetadataStore, MetadataStoreError, OfflineReadinessRow,
-    TrainerHashCacheRow,
 };
 use crate::profile::GameProfile;
 
@@ -18,45 +17,6 @@ impl MetadataStore {
         })
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub fn upsert_trainer_hash_cache_row(
-        &self,
-        cache_id: &str,
-        profile_id: &str,
-        file_path: &str,
-        file_size: Option<i64>,
-        file_modified_at: Option<&str>,
-        sha256_hash: &str,
-        verified_at: &str,
-        created_at: &str,
-        updated_at: &str,
-    ) -> Result<(), MetadataStoreError> {
-        self.with_conn("upsert trainer hash cache", |conn| {
-            offline_store::upsert_trainer_hash_cache(
-                conn,
-                cache_id,
-                profile_id,
-                file_path,
-                file_size,
-                file_modified_at,
-                sha256_hash,
-                verified_at,
-                created_at,
-                updated_at,
-            )
-        })
-    }
-
-    pub fn lookup_trainer_hash_cache_row(
-        &self,
-        profile_id: &str,
-        file_path: &str,
-    ) -> Result<Option<TrainerHashCacheRow>, MetadataStoreError> {
-        self.with_conn("lookup trainer hash cache", |conn| {
-            offline_store::lookup_trainer_hash_cache(conn, profile_id, file_path)
-        })
-    }
-
     pub fn verify_trainer_hash_for_profile_path(
         &self,
         profile_id: &str,
@@ -64,41 +24,6 @@ impl MetadataStore {
     ) -> Result<Option<crate::offline::HashVerifyResult>, MetadataStoreError> {
         self.with_conn("verify trainer hash", |conn| {
             crate::offline::verify_and_cache_trainer_hash(conn, profile_id, trainer_path)
-        })
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn upsert_offline_readiness_snapshot_row(
-        &self,
-        profile_id: &str,
-        readiness_state: &str,
-        readiness_score: i64,
-        trainer_type: &str,
-        trainer_present: i64,
-        trainer_hash_valid: i64,
-        trainer_activated: i64,
-        proton_available: i64,
-        community_tap_cached: i64,
-        network_required: i64,
-        blocking_reasons: Option<&str>,
-        checked_at: &str,
-    ) -> Result<(), MetadataStoreError> {
-        self.with_conn("upsert offline readiness snapshot", |conn| {
-            offline_store::upsert_offline_readiness_snapshot(
-                conn,
-                profile_id,
-                readiness_state,
-                readiness_score,
-                trainer_type,
-                trainer_present,
-                trainer_hash_valid,
-                trainer_activated,
-                proton_available,
-                community_tap_cached,
-                network_required,
-                blocking_reasons,
-                checked_at,
-            )
         })
     }
 

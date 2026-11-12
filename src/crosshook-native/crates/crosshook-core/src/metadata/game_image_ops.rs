@@ -39,10 +39,4 @@ impl MetadataStore {
             game_image_store::get_game_image(conn, steam_app_id, image_type)
         })
     }
-
-    pub fn evict_expired_images(&self) -> Result<Vec<String>, MetadataStoreError> {
-        self.with_conn_mut("evict expired game image cache entries", |conn| {
-            game_image_store::evict_expired_images(conn)
-        })
-    }
 }

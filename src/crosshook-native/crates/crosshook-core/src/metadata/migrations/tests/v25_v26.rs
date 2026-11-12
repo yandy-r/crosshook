@@ -36,7 +36,7 @@ fn fresh_db_reaches_current_user_version() {
     let version: u32 = conn
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 28, "fresh DB should migrate to current schema v28");
+    assert_eq!(version, 29, "fresh DB should migrate to current schema v29");
 }
 
 #[test]

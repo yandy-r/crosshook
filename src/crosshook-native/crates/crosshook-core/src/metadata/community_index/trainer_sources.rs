@@ -88,13 +88,12 @@ pub fn index_trainer_sources(
 
             tx.execute(
                 "INSERT INTO trainer_sources (
-                    tap_id, game_name, steam_app_id, source_name, source_url,
+                    tap_id, game_name, source_name, source_url,
                     trainer_version, game_version, notes, sha256, relative_path, created_at
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, datetime('now'))",
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, datetime('now'))",
                 params![
                     tap_id,
                     manifest.game_name,
-                    manifest.steam_app_id,
                     entry.source_name,
                     entry.source_url,
                     entry.trainer_version,

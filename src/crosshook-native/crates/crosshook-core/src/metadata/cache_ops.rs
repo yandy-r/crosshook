@@ -18,10 +18,4 @@ impl MetadataStore {
             cache_store::put_cache_entry(conn, source_url, cache_key, payload, expires_at)
         })
     }
-
-    pub fn evict_expired_cache_entries(&self) -> Result<usize, MetadataStoreError> {
-        self.with_conn("evict expired cache entries", |conn| {
-            cache_store::evict_expired_cache_entries(conn)
-        })
-    }
 }

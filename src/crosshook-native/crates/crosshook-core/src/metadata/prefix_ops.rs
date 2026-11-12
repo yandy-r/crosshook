@@ -126,12 +126,6 @@ impl MetadataStore {
         })
     }
 
-    pub fn clear_prefix_dep_states(&self, profile_id: &str) -> Result<(), MetadataStoreError> {
-        self.with_conn_mut("clear prefix dep states", |conn| {
-            prefix_deps_store::clear_dependency_states(conn, profile_id)
-        })
-    }
-
     pub fn clear_stale_prefix_dep_states(&self, ttl_hours: i64) -> Result<u64, MetadataStoreError> {
         self.with_conn_mut("clear stale prefix dep states", |conn| {
             prefix_deps_store::clear_stale_states(conn, ttl_hours)

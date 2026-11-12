@@ -11,10 +11,7 @@ pub struct GameImageCacheRow {
     pub file_size: i64,
     pub content_hash: String,
     pub mime_type: String,
-    pub width: Option<i64>,
-    pub height: Option<i64>,
     pub source_url: String,
-    pub preferred_source: String,
     pub expires_at: Option<String>,
     pub fetched_at: String,
     pub created_at: String,
@@ -75,7 +72,7 @@ pub fn get_game_image(
     let mut stmt = conn
         .prepare(
             "SELECT cache_id, steam_app_id, image_type, source, file_path, file_size,
-                    content_hash, mime_type, width, height, source_url, preferred_source,
+                    content_hash, mime_type, source_url,
                     expires_at, fetched_at, created_at, updated_at
              FROM game_image_cache
              WHERE steam_app_id = ?1 AND image_type = ?2
@@ -96,14 +93,11 @@ pub fn get_game_image(
             file_size: row.get(5)?,
             content_hash: row.get(6)?,
             mime_type: row.get(7)?,
-            width: row.get(8)?,
-            height: row.get(9)?,
-            source_url: row.get(10)?,
-            preferred_source: row.get(11)?,
-            expires_at: row.get(12)?,
-            fetched_at: row.get(13)?,
-            created_at: row.get(14)?,
-            updated_at: row.get(15)?,
+            source_url: row.get(8)?,
+            expires_at: row.get(9)?,
+            fetched_at: row.get(10)?,
+            created_at: row.get(11)?,
+            updated_at: row.get(12)?,
         })
     })
     .optional()
@@ -111,57 +105,6 @@ pub fn get_game_image(
         action: "get game image by steam_app_id and image_type",
         source,
     })
-}
-
-pub fn evict_expired_images(conn: &mut Connection) -> Result<Vec<String>, MetadataStoreError> {
-    let tx = conn
-        .savepoint()
-        .map_err(|source| MetadataStoreError::Database {
-            action: "begin evict expired game images transaction",
-            source,
-        })?;
-
-    let file_paths = select_expired_image_paths(&tx)?;
-    tx.execute(
-        "DELETE FROM game_image_cache
-         WHERE expires_at IS NOT NULL AND expires_at < datetime('now')",
-        [],
-    )
-    .map_err(|source| MetadataStoreError::Database {
-        action: "delete expired game image cache rows",
-        source,
-    })?;
-    tx.commit().map_err(|source| MetadataStoreError::Database {
-        action: "commit evict expired game images transaction",
-        source,
-    })?;
-
-    Ok(file_paths)
-}
-
-fn select_expired_image_paths(tx: &Connection) -> Result<Vec<String>, MetadataStoreError> {
-    let mut stmt = tx
-        .prepare(
-            "SELECT file_path FROM game_image_cache
-             WHERE expires_at IS NOT NULL AND expires_at < datetime('now')",
-        )
-        .map_err(|source| MetadataStoreError::Database {
-            action: "prepare evict expired game images select",
-            source,
-        })?;
-
-    let rows = stmt
-        .query_map([], |row| row.get::<_, String>(0))
-        .map_err(|source| MetadataStoreError::Database {
-            action: "query expired game image file paths",
-            source,
-        })?;
-
-    rows.collect::<Result<Vec<_>, _>>()
-        .map_err(|source| MetadataStoreError::Database {
-            action: "collect expired game image file paths",
-            source,
-        })
 }
 
 #[cfg(test)]
@@ -271,72 +214,5 @@ mod tests {
         let conn = open_test_db();
         let result = get_game_image(&conn, "999999", "cover").unwrap();
         assert!(result.is_none());
-    }
-
-    #[test]
-    fn evict_expired_images_removes_expired_rows_and_returns_paths() {
-        let mut conn = open_test_db();
-
-        // Insert an already-expired row (expires_at in the past).
-        conn.execute(
-            "INSERT INTO game_image_cache
-                 (cache_id, steam_app_id, image_type, source, file_path, file_size,
-                  content_hash, mime_type, source_url, preferred_source,
-                  fetched_at, created_at, updated_at, expires_at)
-             VALUES ('id-expired', '440', 'cover', 'steam_cdn', '/cache/expired.jpg', 0,
-                     '', 'image/jpeg', '', 'auto',
-                     datetime('now'), datetime('now'), datetime('now'),
-                     datetime('now', '-1 day'))",
-            [],
-        )
-        .unwrap();
-
-        // Insert a row that is NOT expired.
-        conn.execute(
-            "INSERT INTO game_image_cache
-                 (cache_id, steam_app_id, image_type, source, file_path, file_size,
-                  content_hash, mime_type, source_url, preferred_source,
-                  fetched_at, created_at, updated_at, expires_at)
-             VALUES ('id-valid', '730', 'cover', 'steam_cdn', '/cache/valid.jpg', 0,
-                     '', 'image/jpeg', '', 'auto',
-                     datetime('now'), datetime('now'), datetime('now'),
-                     datetime('now', '+7 days'))",
-            [],
-        )
-        .unwrap();
-
-        // Insert a row with NULL expires_at (never expires).
-        conn.execute(
-            "INSERT INTO game_image_cache
-                 (cache_id, steam_app_id, image_type, source, file_path, file_size,
-                  content_hash, mime_type, source_url, preferred_source,
-                  fetched_at, created_at, updated_at, expires_at)
-             VALUES ('id-never', '271590', 'cover', 'steam_cdn', '/cache/never.jpg', 0,
-                     '', 'image/jpeg', '', 'auto',
-                     datetime('now'), datetime('now'), datetime('now'),
-                     NULL)",
-            [],
-        )
-        .unwrap();
-
-        let evicted = evict_expired_images(&mut conn).unwrap();
-
-        assert_eq!(evicted.len(), 1);
-        assert_eq!(evicted[0], "/cache/expired.jpg");
-
-        // Confirm the expired row is gone and the others remain.
-        let remaining: i64 = conn
-            .query_row("SELECT COUNT(*) FROM game_image_cache", [], |r| r.get(0))
-            .unwrap();
-        assert_eq!(remaining, 2, "only the expired row should be deleted");
-
-        let still_there = get_game_image(&conn, "730", "cover").unwrap();
-        assert!(still_there.is_some(), "valid row must survive eviction");
-
-        let never_there = get_game_image(&conn, "271590", "cover").unwrap();
-        assert!(
-            never_there.is_some(),
-            "never-expiring row must survive eviction"
-        );
     }
 }

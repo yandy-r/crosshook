@@ -92,45 +92,6 @@ fn test_cache_payload_oversized_stored_as_null() {
 }
 
 #[test]
-fn test_evict_expired_entries() {
-    let store = MetadataStore::open_in_memory().unwrap();
-
-    // Insert a non-expired entry (expires far in the future).
-    store
-        .put_cache_entry(
-            "https://example.invalid/source",
-            "live-key",
-            "live-payload",
-            Some("2099-01-01T00:00:00Z"),
-        )
-        .unwrap();
-
-    // Insert an expired entry directly via raw SQL (already past expiry).
-    {
-        let conn = connection(&store);
-        conn.execute(
-            "INSERT INTO external_cache_entries \
-             (cache_id, source_url, cache_key, payload_json, payload_size, fetched_at, expires_at, created_at, updated_at) \
-             VALUES ('expired-id', 'https://example.invalid/source', 'expired-key', 'expired', 7, \
-             '2020-01-01T00:00:00Z', '2020-01-02T00:00:00Z', '2020-01-01T00:00:00Z', '2020-01-01T00:00:00Z')",
-            [],
-        )
-        .unwrap();
-    }
-
-    let evicted = store.evict_expired_cache_entries().unwrap();
-    assert_eq!(evicted, 1);
-
-    let conn = connection(&store);
-    let remaining: i64 = conn
-        .query_row("SELECT COUNT(*) FROM external_cache_entries", [], |row| {
-            row.get(0)
-        })
-        .unwrap();
-    assert_eq!(remaining, 1, "only the non-expired entry should remain");
-}
-
-#[test]
 fn test_cache_entry_disabled_store_noop() {
     let store = MetadataStore::disabled();
 
