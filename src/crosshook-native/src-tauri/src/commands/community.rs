@@ -77,19 +77,3 @@ pub async fn community_list_indexed_profiles(
 ) -> IpcResult<Vec<CommunityProfileRow>> {
     ipc(app.services().community.list_indexed_profiles().await)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        let _ = community_add_tap;
-        let _ = community_list_profiles;
-        let _ = community_export_profile;
-        let _ = community_import_profile;
-        let _ = community_prepare_import;
-        let _ = community_sync;
-        let _ = community_list_indexed_profiles;
-    }
-}

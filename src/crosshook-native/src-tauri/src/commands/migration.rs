@@ -35,15 +35,3 @@ pub async fn apply_batch_migration(
 ) -> IpcResult<BatchMigrationResult> {
     ipc(app.services().proton_migration.apply_batch(request).await)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        let _ = check_proton_migrations;
-        let _ = apply_proton_migration;
-        let _ = apply_batch_migration;
-    }
-}

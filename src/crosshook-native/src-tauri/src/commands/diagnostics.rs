@@ -24,13 +24,3 @@ pub async fn export_diagnostics(
         summary: export.summary,
     })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        let _ = export_diagnostics;
-    }
-}

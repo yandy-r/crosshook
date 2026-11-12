@@ -41,16 +41,3 @@ pub async fn get_cached_offline_readiness_snapshots(
         .cached_offline_readiness_snapshots()
         .await)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        let _ = batch_validate_profiles;
-        let _ = get_profile_health;
-        let _ = get_cached_health_snapshots;
-        let _ = get_cached_offline_readiness_snapshots;
-    }
-}

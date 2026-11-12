@@ -34,15 +34,3 @@ pub async fn install_game(
 ) -> IpcResult<InstallGameResult> {
     ipc(app.services().install.run_to_completion(request).await)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        let _ = install_default_prefix_path;
-        let _ = validate_install_request;
-        let _ = install_game;
-    }
-}

@@ -19,15 +19,3 @@ pub async fn get_optimization_catalog(app: AppState<'_>) -> IpcResult<Optimizati
 pub async fn get_mangohud_presets(app: AppState<'_>) -> IpcResult<Vec<MangoHudPreset>> {
     Ok(app.services().catalog.mangohud_presets().await)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        let _ = get_command_argument_catalog;
-        let _ = get_optimization_catalog;
-        let _ = get_mangohud_presets;
-    }
-}

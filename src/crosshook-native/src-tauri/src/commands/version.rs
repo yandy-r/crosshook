@@ -52,16 +52,3 @@ pub async fn set_trainer_version(
 pub async fn acknowledge_version_change(name: String, app: AppState<'_>) -> IpcResult<()> {
     ipc(app.services().version.acknowledge_change(name).await)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        let _ = check_version_status;
-        let _ = get_version_snapshot;
-        let _ = set_trainer_version;
-        let _ = acknowledge_version_change;
-    }
-}

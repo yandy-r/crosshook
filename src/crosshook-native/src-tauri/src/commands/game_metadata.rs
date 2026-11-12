@@ -59,16 +59,3 @@ pub async fn import_custom_art(
         .import_custom_art(source_path, art_type)
         .await)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        let _ = fetch_game_metadata;
-        let _ = fetch_game_cover_art;
-        let _ = import_custom_cover_art;
-        let _ = import_custom_art;
-    }
-}

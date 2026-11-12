@@ -60,18 +60,3 @@ pub async fn discovery_remove_external_source(
         .remove_external_source(source_id)
         .await)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        let _ = discovery_catalog;
-        let _ = discovery_search_external;
-        let _ = discovery_check_version_compatibility;
-        let _ = discovery_list_external_sources;
-        let _ = discovery_add_external_source;
-        let _ = discovery_remove_external_source;
-    }
-}

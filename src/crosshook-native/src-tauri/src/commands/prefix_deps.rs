@@ -88,18 +88,3 @@ pub async fn get_dependency_status(
         .dependency_status(profile_name, prefix_path)
         .await)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        let _ = detect_protontricks_binary;
-        let _ = check_prefix_dependencies;
-        let _ = install_prefix_dependency;
-        let _ = get_prefix_version_repair_status;
-        let _ = repair_prefix_windows_version;
-        let _ = get_dependency_status;
-    }
-}

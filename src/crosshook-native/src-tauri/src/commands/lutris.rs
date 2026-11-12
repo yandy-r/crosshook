@@ -26,14 +26,3 @@ pub async fn lutris_import_profiles(
 ) -> IpcResult<LutrisImportResult> {
     ipc(app.services().lutris.import_profiles(entries).await)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        let _ = lutris_prepare_import;
-        let _ = lutris_import_profiles;
-    }
-}

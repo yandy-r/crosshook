@@ -1,16 +1,8 @@
 use std::error::Error;
 
-// Exit code constants — EXIT_USAGE_ERROR is handled by clap directly;
-// EXIT_SUCCESS and EXIT_STEAM_NOT_FOUND are reserved for future use.
-#[allow(dead_code)]
-pub(crate) const EXIT_SUCCESS: i32 = 0;
 pub(crate) const EXIT_GENERAL_ERROR: i32 = 1;
-#[allow(dead_code)]
-pub(crate) const EXIT_USAGE_ERROR: i32 = 2;
 pub(crate) const EXIT_PROFILE_NOT_FOUND: i32 = 3;
 pub(crate) const EXIT_LAUNCH_FAILURE: i32 = 4;
-#[allow(dead_code)]
-pub(crate) const EXIT_STEAM_NOT_FOUND: i32 = 5;
 
 pub(crate) enum CliError {
     ProfileNotFound(String),
