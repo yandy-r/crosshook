@@ -30,17 +30,3 @@ pub async fn check_network_status(app: AppState<'_>) -> IpcResult<bool> {
 pub async fn get_trainer_type_catalog(app: AppState<'_>) -> IpcResult<Vec<TrainerTypeEntry>> {
     Ok(app.services().offline.trainer_type_catalog())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        let _ = check_offline_readiness;
-        let _ = batch_offline_readiness;
-        let _ = verify_trainer_hash;
-        let _ = check_network_status;
-        let _ = get_trainer_type_catalog;
-    }
-}

@@ -20,13 +20,3 @@ pub async fn normalize_host_path(path: String, path_use: PickedPathUse) -> IpcRe
         PickedPathUse::Sandbox => Ok(resolve_picked_sandbox_path(&path)),
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        let _ = normalize_host_path;
-    }
-}

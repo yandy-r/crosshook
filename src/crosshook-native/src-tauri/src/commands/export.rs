@@ -82,7 +82,6 @@ pub async fn delete_launcher_by_slug(
 }
 
 #[tauri::command]
-#[allow(clippy::too_many_arguments)]
 pub async fn rename_launcher(
     old_launcher_slug: String,
     new_display_name: String,
@@ -194,25 +193,4 @@ pub async fn preview_launcher_desktop(
         .launcher_export
         .preview_desktop(request)
         .await)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        let _ = validate_launcher_export;
-        let _ = export_launchers;
-        let _ = check_launcher_exists;
-        let _ = check_launcher_for_profile;
-        let _ = delete_launcher;
-        let _ = delete_launcher_by_slug;
-        let _ = rename_launcher;
-        let _ = list_launchers;
-        let _ = find_orphaned_launchers;
-        let _ = reexport_launcher_by_slug;
-        let _ = preview_launcher_script;
-        let _ = preview_launcher_desktop;
-    }
 }

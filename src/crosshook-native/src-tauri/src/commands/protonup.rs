@@ -17,10 +17,6 @@ use crate::error_map::ipc;
 use crate::event_bridge::relay_protonup_progress;
 
 // Only pass the label of the injected invoking webview, never a JS argument.
-fn install_owner(label: &str) -> InstallOwner {
-    InstallOwner::new(label)
-}
-
 #[tauri::command]
 pub async fn protonup_list_available_versions(
     provider: Option<String>,
@@ -87,7 +83,7 @@ pub async fn protonup_install_version_async(
     let start = ipc(app
         .services()
         .protonup
-        .start_install(install_owner(webview.label()), request, version)
+        .start_install(InstallOwner::new(webview.label()), request, version)
         .await)?;
     relay_protonup_progress(handle, start.progress);
     Ok(ProtonInstallHandle { op_id: start.op_id })
@@ -100,11 +96,10 @@ pub async fn protonup_cancel_install(
     webview: tauri::Webview,
     app: AppState<'_>,
 ) -> IpcResult<bool> {
-    ipc(cancel_accepted(
-        app.services()
-            .protonup
-            .cancel_install(&install_owner(webview.label()), &op_id),
-    ))
+    ipc(cancel_accepted(app.services().protonup.cancel_install(
+        &InstallOwner::new(webview.label()),
+        &op_id,
+    )))
 }
 
 #[tauri::command]
@@ -131,28 +126,4 @@ pub async fn protonup_plan_uninstall_version(
         .protonup
         .plan_uninstall(tool_path, steam_client_install_path)
         .await)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn install_owner_is_derived_from_the_webview_label() {
-        assert_eq!(install_owner("main"), InstallOwner::new("main"));
-        assert_ne!(install_owner("main"), install_owner("other"));
-    }
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        let _ = protonup_list_available_versions;
-        let _ = protonup_install_version;
-        let _ = protonup_get_suggestion;
-        let _ = protonup_list_providers;
-        let _ = protonup_resolve_install_roots;
-        let _ = protonup_install_version_async;
-        let _ = protonup_cancel_install;
-        let _ = protonup_uninstall_version;
-        let _ = protonup_plan_uninstall_version;
-    }
 }

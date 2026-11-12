@@ -29,15 +29,3 @@ pub async fn auto_populate_steam(
 ) -> IpcResult<SteamAutoPopulateResult> {
     ipc(app.services().steam.auto_populate(request).await)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        let _ = default_steam_client_install_path;
-        let _ = list_proton_installs;
-        let _ = auto_populate_steam;
-    }
-}

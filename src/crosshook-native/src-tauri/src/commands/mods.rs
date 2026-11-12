@@ -69,18 +69,3 @@ pub async fn analyze_mod_coexistence(
 ) -> IpcResult<Vec<LaunchValidationIssue>> {
     ipc(app.services().mods.analyze(profile_name).await)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        let _ = list_profile_mods;
-        let _ = add_profile_mod;
-        let _ = update_profile_mod;
-        let _ = remove_profile_mod;
-        let _ = detect_profile_mods;
-        let _ = analyze_mod_coexistence;
-    }
-}

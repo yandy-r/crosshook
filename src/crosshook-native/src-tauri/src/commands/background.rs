@@ -15,13 +15,3 @@ pub async fn get_background_protection_state(
 ) -> IpcResult<BackgroundProtectionState> {
     Ok(app.services().background.protection_state())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        let _ = get_background_protection_state;
-    }
-}

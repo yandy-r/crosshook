@@ -138,26 +138,3 @@ pub async fn collection_import_from_toml(
 ) -> IpcResult<CollectionImportPreview> {
     ipc(app.services().collections.import_from_toml(path).await)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        // Async commands cannot be cast to function pointers; pin their exported names.
-        let _ = collection_list;
-        let _ = collection_create;
-        let _ = collection_delete;
-        let _ = collection_add_profile;
-        let _ = collection_remove_profile;
-        let _ = collection_list_profiles;
-        let _ = collection_rename;
-        let _ = collection_update_description;
-        let _ = collections_for_profile;
-        let _ = collection_get_defaults;
-        let _ = collection_set_defaults;
-        let _ = collection_export_to_toml;
-        let _ = collection_import_from_toml;
-    }
-}

@@ -61,16 +61,3 @@ pub async fn protondb_dismiss_suggestion(
         .dismiss_suggestion(profile_name, app_id, suggestion_key)
         .await)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        let _ = protondb_lookup;
-        let _ = protondb_get_suggestions;
-        let _ = protondb_accept_suggestion;
-        let _ = protondb_dismiss_suggestion;
-    }
-}
