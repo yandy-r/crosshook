@@ -1,8 +1,7 @@
-use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
-use super::descendants::{collect_descendant_pids_from_children_map, parse_status_ppid};
+use super::descendants::collect_descendant_pids;
 use super::TASK_COMM_LEN;
 
 pub(super) fn process_name_candidates(exe_name: &str) -> Vec<String> {
@@ -69,33 +68,6 @@ pub(super) fn comm_matches_candidates(
 
 pub(super) fn is_pid_alive(pid: u32) -> bool {
     Path::new(&format!("/proc/{pid}")).exists()
-}
-
-pub(super) fn collect_descendant_pids(root_pid: u32) -> Vec<u32> {
-    let mut children_map: HashMap<u32, Vec<u32>> = HashMap::new();
-    let Ok(proc_dir) = fs::read_dir("/proc") else {
-        return Vec::new();
-    };
-
-    for entry in proc_dir.flatten() {
-        let name_os = entry.file_name();
-        let name = name_os.to_string_lossy();
-        if name.is_empty() || !name.bytes().all(|b| b.is_ascii_digit()) {
-            continue;
-        }
-        let Ok(pid) = name.parse::<u32>() else {
-            continue;
-        };
-        let status_path = entry.path().join("status");
-        let Ok(status) = fs::read_to_string(&status_path) else {
-            continue;
-        };
-        if let Some(ppid) = parse_status_ppid(&status) {
-            children_map.entry(ppid).or_default().push(pid);
-        }
-    }
-
-    collect_descendant_pids_from_children_map(root_pid, &children_map)
 }
 
 pub(super) fn is_descendant_process_running(root_pid: u32, exe_name: &str) -> bool {

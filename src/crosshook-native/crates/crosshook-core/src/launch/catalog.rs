@@ -47,9 +47,6 @@ fn default_applies_to_method() -> String {
 
 #[derive(Debug, Deserialize)]
 struct RawCatalogFile {
-    #[serde(default)]
-    #[allow(dead_code)]
-    catalog_version: u32,
     #[serde(rename = "optimization", default)]
     optimizations: Vec<OptimizationEntry>,
 }

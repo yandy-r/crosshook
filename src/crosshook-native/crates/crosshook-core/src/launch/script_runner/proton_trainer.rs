@@ -19,33 +19,22 @@ use crate::launch::{LaunchRequest, METHOD_PROTON_RUN};
 use crate::platform::normalize_flatpak_host_path;
 use crate::profile::TrainerLoadingMode;
 
-pub fn build_flatpak_steam_trainer_command(
-    request: &LaunchRequest,
-    log_path: &Path,
-) -> std::io::Result<Command> {
+pub fn build_flatpak_steam_trainer_command(request: &LaunchRequest) -> std::io::Result<Command> {
     let mut direct_request = request.clone();
     direct_request.method = METHOD_PROTON_RUN.to_string();
     direct_request.runtime.prefix_path =
         normalize_flatpak_host_path(&request.steam.compatdata_path);
     direct_request.runtime.proton_path = request.steam.proton_path.clone();
 
-    build_proton_trainer_command_with_umu_override(
-        &direct_request,
-        log_path,
-        /*force_no_umu=*/ true,
-    )
+    build_proton_trainer_command_with_umu_override(&direct_request, /*force_no_umu=*/ true)
 }
 
-pub fn build_proton_trainer_command(
-    request: &LaunchRequest,
-    log_path: &Path,
-) -> std::io::Result<Command> {
-    build_proton_trainer_command_with_umu_override(request, log_path, /*force_no_umu=*/ false)
+pub fn build_proton_trainer_command(request: &LaunchRequest) -> std::io::Result<Command> {
+    build_proton_trainer_command_with_umu_override(request, /*force_no_umu=*/ false)
 }
 
 pub(super) fn build_proton_trainer_command_with_umu_override(
     request: &LaunchRequest,
-    _log_path: &Path,
     force_no_umu: bool,
 ) -> std::io::Result<Command> {
     let normalized_prefix_path = normalize_flatpak_host_path(&request.runtime.prefix_path);

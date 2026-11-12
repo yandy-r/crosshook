@@ -65,23 +65,6 @@ pub fn collect_pressure_vessel_paths(request: &LaunchRequest) -> Vec<String> {
     collected
 }
 
-/// Builds a direct Proton `run` command with wrappers, threading `env` through
-/// [`host_command_with_env`] so Flatpak preserves `WINEPREFIX` / `STEAM_COMPAT_*`.
-pub fn build_direct_proton_command_with_wrappers(
-    proton_path: &str,
-    wrappers: &[String],
-    env: &BTreeMap<String, String>,
-) -> Command {
-    build_direct_proton_command_with_wrappers_in_directory(
-        proton_path,
-        wrappers,
-        env,
-        None,
-        &BTreeMap::new(),
-        false,
-    )
-}
-
 pub fn build_direct_proton_command_with_wrappers_in_directory(
     proton_path: &str,
     wrappers: &[String],
@@ -152,14 +135,6 @@ pub(crate) fn build_direct_proton_command_lifecycle_with(
     command
 }
 
-pub fn new_direct_proton_command(proton_path: &str) -> Command {
-    build_direct_proton_command_with_wrappers(proton_path, &[], &BTreeMap::new())
-}
-
-pub fn new_direct_proton_command_with_wrappers(proton_path: &str, wrappers: &[String]) -> Command {
-    build_direct_proton_command_with_wrappers(proton_path, wrappers, &BTreeMap::new())
-}
-
 pub fn build_gamescope_args(config: &GamescopeConfig) -> Vec<String> {
     let mut args: Vec<String> = Vec::new();
 
@@ -218,23 +193,6 @@ pub fn build_gamescope_args(config: &GamescopeConfig) -> Vec<String> {
     }
 
     args
-}
-
-pub fn build_proton_command_with_gamescope(
-    proton_path: &str,
-    wrappers: &[String],
-    gamescope_args: &[String],
-    env: &BTreeMap<String, String>,
-) -> Command {
-    build_proton_command_with_gamescope_in_directory(
-        proton_path,
-        wrappers,
-        gamescope_args,
-        env,
-        None,
-        &BTreeMap::new(),
-        false,
-    )
 }
 
 pub fn build_proton_command_with_gamescope_in_directory(
@@ -349,12 +307,4 @@ pub(crate) fn build_proton_command_with_gamescope_pid_capture_in_directory_inner
         command.arg("run");
     }
     command
-}
-
-pub fn new_proton_command_with_gamescope(
-    proton_path: &str,
-    wrappers: &[String],
-    gamescope_args: &[String],
-) -> Command {
-    build_proton_command_with_gamescope(proton_path, wrappers, gamescope_args, &BTreeMap::new())
 }

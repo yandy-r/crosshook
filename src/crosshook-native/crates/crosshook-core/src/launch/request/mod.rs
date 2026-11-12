@@ -14,9 +14,8 @@ pub use from_profile::LaunchRequestError;
 pub use issues::{LaunchValidationIssue, ValidationSeverity};
 pub use models::{
     is_inside_gamescope_session, LaunchCommandArgumentsRequest, LaunchOptimizationsRequest,
-    LaunchRequest, RuntimeLaunchConfig, SteamLaunchConfig, SteamLaunchRequest, UmuGameIdLookupKey,
-    UmuGameIdResolution, UmuGameIdResolutionSource, METHOD_NATIVE, METHOD_PROTON_RUN,
-    METHOD_STEAM_APPLAUNCH,
+    LaunchRequest, RuntimeLaunchConfig, SteamLaunchConfig, UmuGameIdLookupKey, UmuGameIdResolution,
+    UmuGameIdResolutionSource, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };
 pub use validation::{validate, validate_all};
 

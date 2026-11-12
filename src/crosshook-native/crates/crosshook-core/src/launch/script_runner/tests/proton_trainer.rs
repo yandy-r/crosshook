@@ -16,7 +16,6 @@ fn proton_trainer_command_preserves_custom_env_while_ignoring_game_optimizations
     let trainer_source_dir = temp_dir.path().join("trainer");
     let trainer_host_path = trainer_source_dir.join("sample.exe");
     let trainer_support_path = trainer_source_dir.join("sample.ini");
-    let log_path = temp_dir.path().join("trainer.log");
     let workspace_dir = prefix_path.join("workspace");
     let wine_prefix_path = prefix_path.join("pfx");
 
@@ -70,7 +69,7 @@ fn proton_trainer_command_preserves_custom_env_while_ignoring_game_optimizations
         ..Default::default()
     };
 
-    let command = build_proton_trainer_command(&request, &log_path).expect("trainer command");
+    let command = build_proton_trainer_command(&request).expect("trainer command");
     let args = command
         .as_std()
         .get_args()
@@ -123,7 +122,6 @@ fn proton_trainer_command_does_not_inherit_game_command_arguments() {
     let proton_path = temp_dir.path().join("proton");
     let trainer_source_dir = temp_dir.path().join("trainer");
     let trainer_host_path = trainer_source_dir.join("sample.exe");
-    let log_path = temp_dir.path().join("trainer.log");
     let workspace_dir = prefix_path.join("workspace");
     let wine_prefix_path = prefix_path.join("pfx");
 
@@ -164,7 +162,7 @@ fn proton_trainer_command_does_not_inherit_game_command_arguments() {
         ..Default::default()
     };
 
-    let command = build_proton_trainer_command(&request, &log_path).expect("trainer command");
+    let command = build_proton_trainer_command(&request).expect("trainer command");
     let args = command
         .as_std()
         .get_args()
@@ -195,7 +193,6 @@ fn proton_trainer_command_sets_proton_verb_to_runinprefix() {
     let proton_path = temp_dir.path().join("proton");
     let trainer_source_dir = temp_dir.path().join("trainer");
     let trainer_host_path = trainer_source_dir.join("sample.exe");
-    let log_path = temp_dir.path().join("trainer.log");
     let workspace_dir = prefix_path.join("workspace");
 
     fs::create_dir_all(&trainer_source_dir).expect("trainer dir");
@@ -227,7 +224,7 @@ fn proton_trainer_command_sets_proton_verb_to_runinprefix() {
         ..Default::default()
     };
 
-    let command = build_proton_trainer_command(&request, &log_path).expect("trainer command");
+    let command = build_proton_trainer_command(&request).expect("trainer command");
     assert_eq!(command_env_value(&command, "PROTON_VERB"), None);
 }
 
@@ -238,7 +235,6 @@ fn proton_trainer_command_sets_pressure_vessel_paths_skipping_copy_to_prefix_tra
     let proton_path = temp_dir.path().join("proton");
     let trainer_source_dir = temp_dir.path().join("trainer");
     let trainer_host_path = trainer_source_dir.join("sample.exe");
-    let log_path = temp_dir.path().join("trainer.log");
 
     fs::create_dir_all(trainer_source_dir).expect("trainer dir");
     fs::create_dir_all(prefix_path.join("pfx/drive_c")).expect("prefix dir");
@@ -269,7 +265,7 @@ fn proton_trainer_command_sets_pressure_vessel_paths_skipping_copy_to_prefix_tra
         ..Default::default()
     };
 
-    let command = build_proton_trainer_command(&request, &log_path).expect("trainer command");
+    let command = build_proton_trainer_command(&request).expect("trainer command");
     let expected = "/opt/games/TheGame:/srv/crosshook/workspaces/the-game".to_string();
 
     assert_eq!(
@@ -289,7 +285,6 @@ fn flatpak_steam_trainer_command_inherits_proton_verb_runinprefix() {
     let proton_path = temp_dir.path().join("proton");
     let trainer_source_dir = temp_dir.path().join("trainer");
     let trainer_host_path = trainer_source_dir.join("sample.exe");
-    let log_path = temp_dir.path().join("trainer.log");
     let workspace_dir = prefix_path.join("workspace");
 
     fs::create_dir_all(&trainer_source_dir).expect("trainer dir");
@@ -326,8 +321,7 @@ fn flatpak_steam_trainer_command_inherits_proton_verb_runinprefix() {
         ..Default::default()
     };
 
-    let command =
-        build_flatpak_steam_trainer_command(&request, &log_path).expect("flatpak trainer command");
+    let command = build_flatpak_steam_trainer_command(&request).expect("flatpak trainer command");
     assert_eq!(command_env_value(&command, "PROTON_VERB"), None);
 }
 
@@ -337,7 +331,6 @@ fn flatpak_steam_trainer_command_inherits_pressure_vessel_allowlist() {
     let compatdata_path = temp_dir.path().join("compatdata");
     let proton_path = temp_dir.path().join("proton");
     let steam_client_path = temp_dir.path().join("steam-client");
-    let log_path = temp_dir.path().join("trainer.log");
 
     fs::create_dir_all(compatdata_path.join("pfx/drive_c")).expect("compatdata dir");
     fs::create_dir_all(steam_client_path.join("steamapps")).expect("steam client steamapps dir");
@@ -372,8 +365,7 @@ fn flatpak_steam_trainer_command_inherits_pressure_vessel_allowlist() {
         ..Default::default()
     };
 
-    let command =
-        build_flatpak_steam_trainer_command(&request, &log_path).expect("flatpak trainer command");
+    let command = build_flatpak_steam_trainer_command(&request).expect("flatpak trainer command");
     let expected =
         "/opt/games/TheGame:/opt/trainers:/srv/crosshook/workspaces/the-game".to_string();
 

@@ -27,12 +27,6 @@ pub struct LaunchDirectives {
     pub wrapper_origins: Vec<WrapperOrigin>,
 }
 
-impl LaunchDirectives {
-    pub fn is_empty(&self) -> bool {
-        self.env.is_empty() && self.wrappers.is_empty()
-    }
-}
-
 pub fn is_known_launch_optimization_id(option_id: &str) -> bool {
     global_catalog().is_known_id(option_id)
 }

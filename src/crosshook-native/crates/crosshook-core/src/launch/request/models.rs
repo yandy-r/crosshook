@@ -77,8 +77,6 @@ pub struct LaunchRequest {
     pub post_exit_hooks: Vec<LaunchHook>,
 }
 
-pub type SteamLaunchRequest = LaunchRequest;
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct SteamLaunchConfig {
     #[serde(default)]
@@ -274,10 +272,6 @@ impl LaunchRequest {
         } else {
             trimmed.to_string()
         }
-    }
-
-    pub fn should_copy_trainer_to_prefix(&self) -> bool {
-        self.trainer_loading_mode == TrainerLoadingMode::CopyToPrefix
     }
 }
 

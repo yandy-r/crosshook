@@ -27,10 +27,6 @@ pub enum CommandArgumentResolveError {
     UnsupportedLaunchMethod(String),
 }
 
-pub fn is_known_command_argument_id(argument_id: &str) -> bool {
-    global_catalog().is_known_id(argument_id)
-}
-
 /// Resolves command arguments for a launch method using the global catalog.
 pub fn resolve_command_arguments_for_method(
     enabled_argument_ids: &[String],
