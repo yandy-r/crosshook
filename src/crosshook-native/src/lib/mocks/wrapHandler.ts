@@ -27,7 +27,7 @@ const pendingDelayTimers = new Set<number>();
  * per BR-11. These commands are exempt from `?errors=true` rejection so the
  * `<AppShell />` always mounts.
  */
-export const SHELL_CRITICAL_READS: ReadonlySet<string> = new Set([
+const SHELL_CRITICAL_READS: ReadonlySet<string> = new Set([
   'settings_load',
   'recent_files_load',
   'default_steam_client_install_path',
@@ -90,11 +90,6 @@ export function isReadCommand(name: string): boolean {
   if (READ_VERB_RE.test(name)) return true;
   if (READ_NOUN_RE.test(name)) return true;
   return false;
-}
-
-/** Returns true for the BR-11 shell-critical read set. */
-export function isShellCritical(name: string): boolean {
-  return SHELL_CRITICAL_READS.has(name);
 }
 
 /**

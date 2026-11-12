@@ -166,7 +166,6 @@ export function HeroDetailProfilesTab({
     ) : null;
 
   // LauncherExport panel — only shown for steam_applaunch / proton_run methods.
-  // Mirrors ProfileSubTabs.tsx supportsLauncherExport guard (line 112).
   const supportsLauncherExport = launchMethod === 'steam_applaunch' || launchMethod === 'proton_run';
   const launcherExportSlot =
     supportsLauncherExport && profileExists ? (

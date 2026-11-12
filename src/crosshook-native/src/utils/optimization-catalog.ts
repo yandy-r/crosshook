@@ -35,11 +35,6 @@ export async function fetchOptimizationCatalog(): Promise<OptimizationCatalogPay
   return _cached;
 }
 
-/** Returns the cached catalog, or null if not yet fetched. */
-export function getCachedCatalog(): OptimizationCatalogPayload | null {
-  return _cached;
-}
-
 /** Build a lookup map from entry id to entry. */
 export function buildOptionsById(entries: readonly OptimizationEntry[]): Record<string, OptimizationEntry> {
   const map: Record<string, OptimizationEntry> = {};

@@ -153,10 +153,6 @@ function deriveProfileNameFrom(gameName: string, relativePath: string): string {
   return 'community-profile';
 }
 
-export function deriveCommunityImportProfileName(entry: CommunityProfileIndexEntry): string {
-  return deriveProfileNameFrom(entry.manifest.metadata.game_name, entry.relative_path);
-}
-
 export function deriveCatalogEntryProfileName(entry: CatalogEntry): string {
   return deriveProfileNameFrom(entry.gameName ?? '', entry.relativePath);
 }
