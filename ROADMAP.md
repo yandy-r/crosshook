@@ -297,8 +297,8 @@ packaging (GitHub #69) shipped in v0.5.0; config history enhancements (Forgejo
 
 ## Key documents
 
-| Document                                                                                                                             | Purpose                                                                        |
-| ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| [`docs/internal-docs/design-tokens.md`](docs/internal-docs/design-tokens.md)                                                         | Token rules post Unified Desktop / Hero Detail polish                          |
-| [`CHANGELOG.md`](CHANGELOG.md)                                                                                                       | Release history (git-cliff)                                                    |
-| [`AGENTS.md`](AGENTS.md)                                                                                                             | Agent/repo policy                                                              |
+| Document                                                                     | Purpose                                               |
+| ---------------------------------------------------------------------------- | ----------------------------------------------------- |
+| [`docs/internal-docs/design-tokens.md`](docs/internal-docs/design-tokens.md) | Token rules post Unified Desktop / Hero Detail polish |
+| [`CHANGELOG.md`](CHANGELOG.md)                                               | Release history (git-cliff)                           |
+| [`AGENTS.md`](AGENTS.md)                                                     | Agent/repo policy                                     |
