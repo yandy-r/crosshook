@@ -212,20 +212,6 @@
   min-width: 0;
 }
 
-.crosshook-hero-detail__command-block {
-  margin: 0;
-  padding: 10px;
-  border-radius: var(--crosshook-radius-sm);
-  border: 1px solid var(--crosshook-color-border);
-  background: rgba(0, 0, 0, 0.25);
-  font-family: var(--crosshook-font-mono);
-  font-size: 0.76rem;
-  line-height: 1.45;
-  white-space: pre-wrap;
-  overflow-wrap: break-word;
-  color: var(--crosshook-color-text-muted);
-}
-
 .crosshook-hero-detail__launch-tab {
   display: flex;
   flex-direction: column;
@@ -319,7 +305,6 @@
   gap: 10px;
 }
 
-.crosshook-hero-detail__hook-placeholder,
 .crosshook-hero-detail__hook-banner,
 .crosshook-hero-detail__hook-row,
 .crosshook-hero-detail__hook-popover {
@@ -327,13 +312,6 @@
   gap: 12px;
   padding: 10px 12px;
   border-radius: var(--crosshook-radius-sm);
-}
-
-.crosshook-hero-detail__hook-placeholder {
-  align-items: center;
-  justify-content: space-between;
-  border: 1px dashed var(--crosshook-color-border-muted);
-  background: rgba(255, 255, 255, 0.02);
 }
 
 .crosshook-hero-detail__hooks-stack {
@@ -472,8 +450,7 @@
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
 }
 
-.crosshook-hero-detail__trainer-tab,
-.crosshook-hero-detail__trainer-stack {
+.crosshook-hero-detail__trainer-tab {
   display: grid;
   gap: 12px;
   min-width: 0;
@@ -755,67 +732,6 @@
   color: var(--crosshook-color-text-subtle);
 }
 
-.crosshook-hero-detail__env-groups {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.crosshook-hero-detail__env-group {
-  border: 1px solid var(--crosshook-color-border);
-  border-radius: var(--crosshook-radius-sm);
-  background: rgba(255, 255, 255, 0.02);
-  overflow: hidden;
-}
-
-.crosshook-hero-detail__env-group-summary {
-  cursor: pointer;
-  list-style: none;
-  padding: 8px 10px;
-  min-height: var(--crosshook-touch-target-min);
-  display: flex;
-  align-items: center;
-  font-size: 0.84rem;
-  color: var(--crosshook-color-text-muted);
-  font-weight: 600;
-}
-
-.crosshook-hero-detail__env-group-summary::-webkit-details-marker {
-  display: none;
-}
-
-.crosshook-hero-detail__env-group-summary::marker {
-  content: '';
-}
-
-.crosshook-hero-detail__env-group-summary::before {
-  content: '\25B8';
-  display: inline-block;
-  margin-right: 8px;
-  color: var(--crosshook-color-text-subtle);
-  transition: transform var(--crosshook-transition-fast) ease;
-}
-
-.crosshook-hero-detail__env-group[open] .crosshook-hero-detail__env-group-summary::before {
-  transform: rotate(90deg);
-}
-
-.crosshook-hero-detail__env-group-summary:focus-visible {
-  outline: 2px solid transparent;
-  outline-offset: 1px;
-  box-shadow:
-    inset 0 0 0 2px var(--crosshook-focus-ring-inner),
-    inset 0 0 0 4px var(--crosshook-color-accent-soft);
-}
-
-@media (forced-colors: active) {
-  .crosshook-hero-detail__env-group-summary:focus-visible {
-    outline: 2px solid CanvasText;
-    outline-offset: 0;
-    box-shadow: none;
-  }
-}
-
 .crosshook-hero-detail__launch-list {
   list-style: none;
   margin: 0;
@@ -969,8 +885,7 @@
   scroll-margin-top: 12px;
 }
 
-.crosshook-hero-detail__profiles-cta,
-.crosshook-hero-detail__profiles-new-row {
+.crosshook-hero-detail__profiles-cta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1057,12 +972,6 @@
  * Forward declarations for section wrapper classes introduced by Tasks 3.1
  * and 3.2. Mirrors the existing cascade at hero-detail.css lines 316-323.
  */
-.crosshook-hero-detail__launch-tab .crosshook-hero-detail__profile-editor-section,
-.crosshook-hero-detail__launch-tab .crosshook-hero-detail__profile-editor-section__content,
-.crosshook-hero-detail__launch-tab .crosshook-hero-detail__profile-meta-section,
-.crosshook-hero-detail__launch-tab .crosshook-hero-detail__profile-meta-section__content {
-  min-width: 0;
-}
 
 @media (max-width: 720px) {
   .crosshook-hero-detail {
@@ -1121,11 +1030,6 @@
     .crosshook-hero-detail__profile-actions-group--trailing
     > .crosshook-button:first-child {
     flex: 1 1 100%;
-  }
-
-  .crosshook-hero-detail__hook-placeholder {
-    align-items: stretch;
-    flex-direction: column;
   }
 
   .crosshook-hero-detail__hook-banner,

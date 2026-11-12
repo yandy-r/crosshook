@@ -123,7 +123,6 @@
   --crosshook-touch-target-min: 48px;
   --crosshook-touch-target-compact: 44px;
   --crosshook-button-height-compact: 44px;
-  --crosshook-layout-main-columns: minmax(0, 1.3fr) minmax(320px, 0.9fr);
   --crosshook-subtab-min-height: 44px;
   --crosshook-subtab-padding-inline: 16px;
   --crosshook-panel-padding: 20px;
@@ -137,8 +136,6 @@
   --crosshook-launch-panel-action-min-height: 52px;
   --crosshook-launch-panel-action-padding-inline: 22px;
   --crosshook-launch-panel-action-secondary-padding-inline: 20px;
-  --crosshook-page-header-gap: 10px;
-  --crosshook-page-header-margin-bottom: 24px;
   --crosshook-console-drawer-height: 280px;
   --crosshook-console-drawer-handle-height: 44px;
   /* Breathing room between route scroll content and the horizontal resize / collapsed console strip */
@@ -234,7 +231,6 @@
 :root[data-crosshook-controller-mode='true'] {
   --crosshook-touch-target-min: 56px;
   --crosshook-touch-target-compact: 44px;
-  --crosshook-layout-main-columns: 1fr;
   --crosshook-subtab-min-height: 48px;
   --crosshook-subtab-padding-inline: 20px;
   --crosshook-panel-padding: 24px;
@@ -248,8 +244,6 @@
   --crosshook-launch-panel-action-min-height: 60px;
   --crosshook-launch-panel-action-padding-inline: 26px;
   --crosshook-launch-panel-action-secondary-padding-inline: 24px;
-  --crosshook-page-header-gap: 12px;
-  --crosshook-page-header-margin-bottom: 28px;
 }
 
 @media (max-width: 1360px) {
