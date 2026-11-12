@@ -3,7 +3,7 @@ use crate::launch::script_runner::resolve_launch_proton_path;
 use crate::profile::GamescopeConfig;
 use crate::settings::UmuPreference;
 
-use super::paths::{desktop_icon_value, escape_desktop_exec_argument, shell_single_quoted};
+use super::paths::{escape_desktop_exec_argument, resolve_desktop_icon_value, shell_single_quoted};
 use super::types::SteamExternalLauncherExportRequest;
 
 pub(crate) fn build_trainer_script_content(
@@ -316,7 +316,7 @@ pub(crate) fn build_desktop_entry_content(
     content.push_str("Categories=Game;\n");
     content.push_str(&format!(
         "Icon={}\n",
-        desktop_icon_value(launcher_icon_path)
+        resolve_desktop_icon_value(launcher_icon_path)
     ));
     content.push_str("StartupNotify=false\n");
     content.push_str(&format!("X-CrossHook-Profile={display_name}\n"));

@@ -4,8 +4,6 @@ use std::fmt;
 use serde::de::{Error as DeError, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::profile::CompatibilityRating;
-
 pub const PROTONDB_CACHE_NAMESPACE: &str = "protondb";
 
 pub fn normalize_app_id(app_id: &str) -> Option<String> {
@@ -47,17 +45,6 @@ impl ProtonDbTier {
             Self::Native => Cow::Borrowed("native"),
             Self::Unknown => Cow::Borrowed("unknown"),
             Self::Other(value) => Cow::Borrowed(value.as_str()),
-        }
-    }
-
-    /// Lossy helper for older CrossHook compatibility surfaces.
-    pub fn legacy_compatibility_rating(&self) -> CompatibilityRating {
-        match self {
-            Self::Platinum | Self::Native => CompatibilityRating::Platinum,
-            Self::Gold => CompatibilityRating::Working,
-            Self::Silver | Self::Bronze => CompatibilityRating::Partial,
-            Self::Borked => CompatibilityRating::Broken,
-            Self::Unknown | Self::Other(_) => CompatibilityRating::Unknown,
         }
     }
 }
@@ -244,10 +231,6 @@ mod tests {
         let known: ProtonDbTier =
             serde_json::from_str(r#""gold""#).expect("gold tier should deserialize");
         assert_eq!(known, ProtonDbTier::Gold);
-        assert_eq!(
-            known.legacy_compatibility_rating(),
-            CompatibilityRating::Working
-        );
 
         let unknown: ProtonDbTier = serde_json::from_str(r#""experimental-tier""#)
             .expect("unknown tier should deserialize");
@@ -259,18 +242,6 @@ mod tests {
         assert_eq!(
             serde_json::to_string(&unknown).expect("serialize unknown tier"),
             r#""experimental-tier""#
-        );
-    }
-
-    #[test]
-    fn native_and_borked_map_to_lossy_compatibility_scale() {
-        assert_eq!(
-            ProtonDbTier::Native.legacy_compatibility_rating(),
-            CompatibilityRating::Platinum
-        );
-        assert_eq!(
-            ProtonDbTier::Borked.legacy_compatibility_rating(),
-            CompatibilityRating::Broken
         );
     }
 

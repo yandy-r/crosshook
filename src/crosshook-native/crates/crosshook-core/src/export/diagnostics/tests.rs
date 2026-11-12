@@ -30,9 +30,6 @@ fn diagnostic_bundle_error_display_formats_correctly() {
     let err = DiagnosticBundleError::Archive("test error".to_string());
     assert_eq!(err.to_string(), "archive error: test error");
 
-    let err = DiagnosticBundleError::ProfileStore("store error".to_string());
-    assert_eq!(err.to_string(), "profile store error: store error");
-
     let err = DiagnosticBundleError::Io {
         action: "create",
         path: PathBuf::from("/tmp/test"),

@@ -19,12 +19,6 @@ pub struct CommunityTapStore {
     base_path: PathBuf,
 }
 
-impl Default for CommunityTapStore {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl CommunityTapStore {
     pub fn try_new() -> Result<Self, String> {
         let base_path = crate::platform::base_dirs()
@@ -32,10 +26,6 @@ impl CommunityTapStore {
             .data_local_dir()
             .join(DEFAULT_COMMUNITY_TAPS_DIR);
         Ok(Self { base_path })
-    }
-
-    pub fn new() -> Self {
-        Self::try_new().expect("home directory is required for CrossHook community taps")
     }
 
     pub fn with_base_path(base_path: PathBuf) -> Self {

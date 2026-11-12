@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use tempfile::tempdir;
 
+use super::proton::{extract_proton_family, extract_version_segments, find_best_replacement};
 use super::*;
 use crate::profile::models::GameProfile;
 use crate::profile::toml_store::ProfileStore;

@@ -20,19 +20,6 @@ pub enum OfflineCapability {
     Unknown,
 }
 
-impl OfflineCapability {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Full => "full",
-            Self::FullWithRuntime => "full_with_runtime",
-            Self::ConditionalKey => "conditional_key",
-            Self::ConditionalSession => "conditional_session",
-            Self::OnlineOnly => "online_only",
-            Self::Unknown => "unknown",
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TrainerTypeEntry {
     pub id: String,
@@ -125,11 +112,8 @@ pub fn merge_trainer_type_catalogs(
     result
 }
 
-/// Load merged trainer type catalog: embedded default → tap texts → user override file.
-pub fn load_trainer_type_catalog(
-    user_config_dir: Option<&Path>,
-    tap_catalog_texts: &[(&str, &str)],
-) -> TrainerTypeCatalog {
+/// Load merged trainer type catalog: embedded default, then the user override file.
+pub fn load_trainer_type_catalog(user_config_dir: Option<&Path>) -> TrainerTypeCatalog {
     let (default_entries, default_warnings) =
         parse_trainer_type_catalog_toml(DEFAULT_TRAINER_TYPE_CATALOG_TOML, "embedded default");
     for w in &default_warnings {
@@ -137,14 +121,6 @@ pub fn load_trainer_type_catalog(
     }
 
     let mut merged = default_entries;
-
-    for (tap_label, tap_text) in tap_catalog_texts {
-        let (tap_entries, tap_warnings) = parse_trainer_type_catalog_toml(tap_text, tap_label);
-        for w in &tap_warnings {
-            tracing::warn!(warning = %w, tap = %tap_label, "tap trainer type catalog warning");
-        }
-        merged = merge_trainer_type_catalogs(merged, tap_entries);
-    }
 
     let user_entries = user_config_dir
         .map(|dir| dir.join("trainer_type_catalog.toml"))

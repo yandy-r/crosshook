@@ -12,7 +12,7 @@ mod start;
 use std::path::PathBuf;
 
 use crosshook_core::install::{
-    install_default_prefix_path, validate_install_request, InstallGameError, InstallGameRequest,
+    resolve_default_prefix_path, validate_install_request, InstallGameError, InstallGameRequest,
     InstallGameResult, InstallGameValidationError,
 };
 
@@ -64,7 +64,7 @@ impl InstallService {
     /// `Unavailable` when the prefix root cannot be resolved.
     pub async fn default_prefix_path(&self, profile_name: String) -> Result<String, AppError> {
         run_blocking(move || {
-            install_default_prefix_path(&profile_name)
+            resolve_default_prefix_path(&profile_name)
                 .map(|path| path.to_string_lossy().into_owned())
                 .map_err(install_error)
         })

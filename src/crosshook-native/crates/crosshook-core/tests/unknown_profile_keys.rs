@@ -1,7 +1,8 @@
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::{
-    export_collection_preset_to_toml, export_community_profile, profile_to_shareable_toml,
-    CollectionDefaultsSection, GameProfile, ProfileStore,
+    export_collection_preset_to_toml, export_community_profile,
+    profile_to_shareable_toml_with_options, CollectionDefaultsSection, GameProfile, ProfileStore,
+    ShareableTomlOptions,
 };
 use std::fs;
 use tempfile::tempdir;
@@ -106,7 +107,9 @@ fn ipc_profile_merge_ignores_incoming_extras_and_restores_disk_extras() {
 fn shareable_and_community_exports_strip_unknown_fields() {
     let (dir, store) = store_with_profile();
     let profile: GameProfile = toml::from_str(PROFILE).unwrap();
-    let toml = profile_to_shareable_toml("game", &profile).unwrap();
+    let toml =
+        profile_to_shareable_toml_with_options("game", &profile, ShareableTomlOptions::default())
+            .unwrap();
     assert!(!toml.contains("future"));
     let out = dir.path().join("export.json");
     export_community_profile(&store.base_path, "game", &out).unwrap();

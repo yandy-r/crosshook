@@ -68,16 +68,12 @@ pub struct LauncherRenameResult {
 #[derive(Debug)]
 pub enum LauncherStoreError {
     Io(io::Error),
-    HomePathResolutionFailed,
 }
 
 impl fmt::Display for LauncherStoreError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Io(error) => write!(f, "{error}"),
-            Self::HomePathResolutionFailed => {
-                f.write_str("Could not resolve a host home path for launcher operations.")
-            }
         }
     }
 }
@@ -86,7 +82,6 @@ impl Error for LauncherStoreError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Io(error) => Some(error),
-            _ => None,
         }
     }
 }

@@ -59,12 +59,6 @@ impl From<toml::ser::Error> for RecentFilesStoreError {
     }
 }
 
-impl Default for RecentFilesStore {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl RecentFilesStore {
     pub fn try_new() -> Result<Self, String> {
         let path = crate::platform::base_dirs()
@@ -73,10 +67,6 @@ impl RecentFilesStore {
             .join(SETTINGS_DIR)
             .join(RECENT_FILE_NAME);
         Ok(Self { path })
-    }
-
-    pub fn new() -> Self {
-        Self::try_new().expect("home directory is required for CrossHook recent files storage")
     }
 
     pub fn with_path(path: PathBuf) -> Self {

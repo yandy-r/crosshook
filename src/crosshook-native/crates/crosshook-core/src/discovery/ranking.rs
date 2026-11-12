@@ -3,7 +3,7 @@
 //! No SQL here — both the metadata-DB path and the degraded filesystem path
 //! rank through these functions, guaranteeing identical ordering semantics.
 
-use std::cmp::{Ordering, Reverse};
+use std::cmp::Reverse;
 
 use super::catalog::CatalogEntry;
 
@@ -82,7 +82,7 @@ pub fn compatibility_rank(rating: Option<&str>) -> u8 {
         })
 }
 
-/// Precomputed sort key equivalent to [`compare_catalog_rows`]: match score
+/// Precomputed sort key: match score
 /// DESC (0 in catalog mode), compatibility rank DESC, game name ASC
 /// (case-insensitive, `None` last), manifest path ASC. Use with
 /// `sort_by_cached_key` so score and case-folding run once per row instead
@@ -105,13 +105,6 @@ pub fn catalog_sort_key(entry: &CatalogEntry, query: Option<&str>) -> CatalogSor
         folded_name.unwrap_or_default(),
         entry.manifest_path.clone(),
     )
-}
-
-/// Total order over catalog entries. `query` is the pre-normalized
-/// (trimmed + lowercased) text query; `None` means catalog mode —
-/// mirroring Browse's historical `sortProfiles`.
-pub fn compare_catalog_rows(a: &CatalogEntry, b: &CatalogEntry, query: Option<&str>) -> Ordering {
-    catalog_sort_key(a, query).cmp(&catalog_sort_key(b, query))
 }
 
 #[cfg(test)]
@@ -213,7 +206,8 @@ mod tests {
         let platinum = entry(Some("Elden Ring"), None, Some("platinum"), "b.json");
         let working = entry(Some("Elden Ring II"), None, Some("working"), "a.json");
         assert_eq!(
-            compare_catalog_rows(&platinum, &working, Some("elden")),
+            catalog_sort_key(&platinum, Some("elden"))
+                .cmp(&catalog_sort_key(&working, Some("elden"))),
             std::cmp::Ordering::Less,
             "platinum must sort before working at equal match score"
         );
@@ -224,11 +218,11 @@ mod tests {
         let first = entry(Some("Elden Ring"), None, Some("working"), "a.json");
         let second = entry(Some("Elden Ring"), None, Some("working"), "b.json");
         assert_eq!(
-            compare_catalog_rows(&first, &second, Some("elden")),
+            catalog_sort_key(&first, Some("elden")).cmp(&catalog_sort_key(&second, Some("elden"))),
             std::cmp::Ordering::Less
         );
         assert_eq!(
-            compare_catalog_rows(&first, &second, None),
+            catalog_sort_key(&first, None).cmp(&catalog_sort_key(&second, None)),
             std::cmp::Ordering::Less
         );
     }
@@ -242,7 +236,7 @@ mod tests {
             entry(Some("Broken"), None, Some("broken"), "b.json"),
             entry(Some("Unrated"), None, None, "u.json"),
         ];
-        rows.sort_by(|a, b| compare_catalog_rows(a, b, None));
+        rows.sort_by_key(|row| catalog_sort_key(row, None));
 
         let names: Vec<&str> = rows.iter().filter_map(|r| r.game_name.as_deref()).collect();
         assert_eq!(
@@ -258,7 +252,7 @@ mod tests {
             entry(None, Some("Nameless Trainer"), Some("working"), "n.json"),
             entry(Some("Alpha"), None, Some("working"), "a.json"),
         ];
-        rows.sort_by(|a, b| compare_catalog_rows(a, b, None));
+        rows.sort_by_key(|row| catalog_sort_key(row, None));
         assert_eq!(rows[0].game_name.as_deref(), Some("Alpha"));
         assert_eq!(rows[1].game_name, None);
     }

@@ -60,12 +60,6 @@ impl From<toml::ser::Error> for SettingsStoreError {
     }
 }
 
-impl Default for SettingsStore {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl SettingsStore {
     pub fn try_new() -> Result<Self, String> {
         let base_path = crate::platform::base_dirs()
@@ -76,10 +70,6 @@ impl SettingsStore {
             base_path,
             io_lock: Arc::new(Mutex::new(())),
         })
-    }
-
-    pub fn new() -> Self {
-        Self::try_new().expect("home directory is required for CrossHook settings storage")
     }
 
     pub fn with_base_path(base_path: PathBuf) -> Self {
@@ -117,30 +107,6 @@ impl SettingsStore {
         let _guard = self.io_lock.lock().expect("settings mutex poisoned");
         fs::create_dir_all(&self.base_path)?;
         self.save_unlocked(settings)
-    }
-
-    /// Explicitly writes normalized settings to disk for callers that opt-in
-    /// to backfilling newly added fields. Returns true if the file changed.
-    pub fn migrate_or_save_settings(
-        &self,
-        settings: &AppSettingsData,
-    ) -> Result<bool, SettingsStoreError> {
-        let _guard = self.io_lock.lock().expect("settings mutex poisoned");
-        fs::create_dir_all(&self.base_path)?;
-
-        let path = self.settings_path();
-        let serialized = toml::to_string_pretty(settings)?;
-        let should_write = match fs::read_to_string(&path) {
-            Ok(content) => content != serialized,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => true,
-            Err(error) => return Err(SettingsStoreError::Io(error)),
-        };
-
-        if should_write {
-            crate::fs_util::write_atomic(&path, serialized.as_bytes())?;
-        }
-
-        Ok(should_write)
     }
 
     /// Atomically load-mutate-save settings under a single process-local lock.

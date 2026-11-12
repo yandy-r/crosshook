@@ -14,27 +14,10 @@ use std::{
 // Fields mirror the upstream CSV schema; not all are accessed at runtime.
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct CsvRow {
-    // Retained for schema fidelity/debugging even though lookup currently keys
-    // only by STORE + CODENAME.
-    #[allow(dead_code)]
-    #[serde(rename = "TITLE")]
-    pub title: String,
     #[serde(rename = "STORE")]
     pub store: String,
     #[serde(rename = "CODENAME")]
     pub codename: String,
-    #[allow(dead_code)]
-    #[serde(rename = "UMU_ID")]
-    pub umu_id: String,
-    #[allow(dead_code)]
-    #[serde(rename = "COMMON ACRONYM (Optional)", default)]
-    pub common_acronym: String,
-    #[allow(dead_code)]
-    #[serde(rename = "NOTE (Optional)", default)]
-    pub note: String,
-    #[allow(dead_code)]
-    #[serde(rename = "EXE_STRINGS (Optional)", default)]
-    pub exe_strings: String,
 }
 
 type Index = HashMap<(String, String), CsvRow>;

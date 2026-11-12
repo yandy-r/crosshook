@@ -26,8 +26,7 @@ pub use community_schema::{
     COMMUNITY_PROFILE_SCHEMA_VERSION,
 };
 pub use config_diff::{
-    cap_diff_output_bytes, compute_unified_diff, UnifiedDiffResult, DIFF_CONTEXT_LINES,
-    DIFF_MAX_LINES, MAX_DIFF_OUTPUT_BYTES,
+    cap_diff_output_bytes, compute_unified_diff, UnifiedDiffResult, MAX_DIFF_OUTPUT_BYTES,
 };
 pub use config_semantic_diff::{
     compute_semantic_diff, SemanticChange, SemanticChangeKind, SemanticDiffResult,
@@ -53,9 +52,8 @@ pub use models::{
     MangoHudPosition, RuntimeSection, SteamSection, TrainerLoadingMode, TrainerSection,
 };
 pub use toml_store::{
-    bundled_optimization_preset_toml_key, profile_to_shareable_toml,
-    profile_to_shareable_toml_with_options, DuplicateProfileResult, ProfileStore,
-    ProfileStoreError, ShareableTomlOptions,
+    bundled_optimization_preset_toml_key, profile_to_shareable_toml_with_options,
+    DuplicateProfileResult, ProfileStore, ProfileStoreError, ShareableTomlOptions,
 };
 pub mod health;
 pub mod mangohud;

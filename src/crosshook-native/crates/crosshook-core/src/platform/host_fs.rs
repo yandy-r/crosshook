@@ -24,7 +24,7 @@ pub(crate) fn is_executable_file_sync(path: &Path) -> bool {
 
 /// Returns true if `path` may be probed on the host for system Steam compat-tool directories.
 /// Only absolute paths under `/usr` (no `..`) are allowed.
-pub fn is_allowed_host_system_compat_listing_path(path: &Path) -> bool {
+pub(crate) fn is_allowed_host_system_compat_listing_path(path: &Path) -> bool {
     if !path.is_absolute() {
         return false;
     }
@@ -134,7 +134,7 @@ pub fn host_path_is_file(path: &Path) -> bool {
 }
 
 /// True if `path` points to an executable file on the host (Flatpak) or locally.
-pub fn host_path_is_executable_file(path: &Path) -> bool {
+pub(crate) fn host_path_is_executable_file(path: &Path) -> bool {
     if !is_allowed_host_system_compat_listing_path(path) {
         return false;
     }

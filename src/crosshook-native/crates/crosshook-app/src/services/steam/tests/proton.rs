@@ -121,7 +121,11 @@ async fn auto_populate_empty_game_retains_manual_hints() {
         .await
         .unwrap();
     assert_eq!(result.app_id_state, SteamAutoPopulateFieldState::NotFound);
-    assert!(!result.has_any_match());
+    assert_eq!(
+        result.compatdata_state,
+        SteamAutoPopulateFieldState::NotFound
+    );
+    assert_eq!(result.proton_state, SteamAutoPopulateFieldState::NotFound);
     assert!(!result.manual_hints.is_empty());
 }
 
