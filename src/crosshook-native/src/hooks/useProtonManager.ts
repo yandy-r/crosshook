@@ -60,13 +60,7 @@ function normalizeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-const KNOWN_PROVIDER_IDS = new Set<ProtonUpProvider>([
-  'ge-proton',
-  'proton-cachyos',
-  'proton-em',
-  'boxtron',
-  'luxtorpeda',
-]);
+const KNOWN_PROVIDER_IDS = new Set<ProtonUpProvider>(['ge-proton', 'proton-cachyos', 'proton-em']);
 
 function asProvider(id: string | null | undefined): ProtonUpProvider {
   if (id && (KNOWN_PROVIDER_IDS as Set<string>).has(id)) return id as ProtonUpProvider;
