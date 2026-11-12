@@ -15,11 +15,6 @@ pub mod ge_proton;
 pub mod proton_cachyos;
 pub mod proton_em;
 
-#[cfg(feature = "experimental-providers")]
-pub mod boxtron;
-#[cfg(feature = "experimental-providers")]
-pub mod luxtorpeda;
-
 // ── Error type ────────────────────────────────────────────────────────────────
 
 /// Errors that a provider's `fetch` implementation may surface.
@@ -92,18 +87,11 @@ pub trait ProtonReleaseProvider: Send + Sync {
 /// All active providers in priority order.
 ///
 pub fn registry() -> Vec<Arc<dyn ProtonReleaseProvider>> {
-    #[allow(unused_mut)]
-    let mut providers: Vec<Arc<dyn ProtonReleaseProvider>> = vec![
+    vec![
         Arc::new(ge_proton::GeProtonProvider::new()),
         Arc::new(proton_cachyos::ProtonCachyOsProvider::new()),
         Arc::new(proton_em::ProtonEmProvider::new()),
-    ];
-    #[cfg(feature = "experimental-providers")]
-    {
-        providers.push(Arc::new(luxtorpeda::LuxtorpedaProvider::new()));
-        providers.push(Arc::new(boxtron::BoxtronProvider::new()));
-    }
-    providers
+    ]
 }
 
 /// Look up a provider by its stable machine-readable id.
@@ -154,7 +142,7 @@ const MAX_CATALOG_BYTES: u64 = 10 * 1024 * 1024; // 10 MiB
 /// Fetch and deserialize a GitHub Releases API response.
 ///
 /// Enforces a [`MAX_CATALOG_BYTES`] ceiling on the `Content-Length` header before
-/// deserializing. All five providers share this helper so the guard is applied
+/// deserializing. Every provider shares this helper so the guard is applied
 /// consistently.
 pub(super) async fn fetch_github_releases(
     client: &reqwest::Client,
@@ -342,44 +330,6 @@ pub(super) fn parse_releases(
         .collect()
 }
 
-#[cfg_attr(not(feature = "experimental-providers"), allow(dead_code))]
-pub(super) fn build_versions_from_releases<F>(
-    releases: Vec<GhRelease>,
-    provider_id: &str,
-    max: usize,
-    include_prereleases: bool,
-    checksum_base_url: &str,
-    checksum_filename: &str,
-    asset_filter: F,
-) -> Vec<ProtonUpAvailableVersion>
-where
-    F: Fn(&GhAsset) -> bool,
-{
-    releases
-        .into_iter()
-        .filter(|r| !r.draft && (include_prereleases || !r.prerelease))
-        .filter_map(|r| {
-            // Same architecture rule as `pick_tarball_asset`: never an ARM archive.
-            let tarball = r
-                .assets
-                .iter()
-                .find(|a| asset_filter(a) && !is_arm_archive(&a.name))?;
-            let checksum_url = format!("{checksum_base_url}/{}/{}", r.tag_name, checksum_filename);
-            Some(ProtonUpAvailableVersion {
-                provider: provider_id.to_string(),
-                version: r.tag_name,
-                release_url: Some(r.html_url),
-                download_url: Some(tarball.browser_download_url.clone()),
-                asset_size: Some(tarball.size),
-                checksum_url: Some(checksum_url),
-                checksum_kind: Some("sha256".to_string()),
-                published_at: r.published_at,
-            })
-        })
-        .take(max)
-        .collect()
-}
-
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -436,20 +386,6 @@ mod tests {
         assert!(
             ids.contains(&"proton-em"),
             "registry must include proton-em"
-        );
-    }
-
-    #[cfg(feature = "experimental-providers")]
-    #[test]
-    fn registry_contains_experimental_providers_when_feature_enabled() {
-        let ids: Vec<&str> = registry().iter().map(|p| p.id()).collect();
-        assert!(
-            ids.contains(&"luxtorpeda"),
-            "registry must include luxtorpeda with experimental-providers feature"
-        );
-        assert!(
-            ids.contains(&"boxtron"),
-            "registry must include boxtron with experimental-providers feature"
         );
     }
 
@@ -518,43 +454,6 @@ mod tests {
         assert_eq!(tags, vec!["valid-1", "valid-2"]);
     }
 
-    #[cfg(feature = "experimental-providers")]
-    #[test]
-    fn build_versions_from_releases_caps_successful_versions_instead_of_attempted_releases() {
-        let releases = vec![
-            make_release(
-                "invalid-1",
-                false,
-                false,
-                vec![checksum_only_asset("invalid-1")],
-            ),
-            make_release(
-                "invalid-2",
-                false,
-                false,
-                vec![checksum_only_asset("invalid-2")],
-            ),
-            make_release("valid-1", false, false, vec![tar_gz_asset("valid-1")]),
-            make_release("valid-2", false, false, vec![tar_gz_asset("valid-2")]),
-        ];
-
-        let versions = build_versions_from_releases(
-            releases,
-            "boxtron",
-            2,
-            false,
-            "https://github.com/example/releases/download",
-            "SHA256SUMS",
-            |asset| asset.name.ends_with(".tar.gz"),
-        );
-        let tags: Vec<&str> = versions
-            .iter()
-            .map(|version| version.version.as_str())
-            .collect();
-
-        assert_eq!(tags, vec!["valid-1", "valid-2"]);
-    }
-
     fn named_asset(name: &str) -> GhAsset {
         GhAsset {
             name: name.to_string(),
@@ -604,8 +503,7 @@ mod tests {
         assert!(is_arm_archive("proton-cachyos-11.0-arm64.tar.xz"));
         assert!(is_arm_archive("tool_armhf.tar.gz"));
         assert!(!is_arm_archive("GE-Proton11-5-x86_64.tar.gz"));
-        assert!(!is_arm_archive("luxtorpeda-warm-start.tar.gz"));
-        assert!(!is_arm_archive("boxtron-alarm.tar.gz"));
+        assert!(!is_arm_archive("tool-warm-start.tar.gz"));
     }
 
     #[test]
@@ -619,31 +517,5 @@ mod tests {
         assert_eq!(picked.name, "proton-cachyos-11.0-x86_64.tar.xz");
         assert!(is_optimized_x86_64("tool-x86_64_v2.tar.gz"));
         assert!(!is_optimized_x86_64("tool-x86_64.tar.gz"));
-    }
-
-    #[test]
-    fn experimental_providers_skip_arm_archives() {
-        let release = make_release(
-            "v1.0",
-            false,
-            false,
-            vec![
-                named_asset("tool-aarch64.tar.gz"),
-                named_asset("tool-x86_64.tar.gz"),
-            ],
-        );
-        let versions = build_versions_from_releases(
-            vec![release],
-            "luxtorpeda",
-            5,
-            false,
-            "https://example.com",
-            "sha256sum.txt",
-            |a| a.name.ends_with(".tar.gz"),
-        );
-        assert_eq!(
-            versions[0].download_url.as_deref(),
-            Some("https://github.com/example/releases/download/x/tool-x86_64.tar.gz")
-        );
     }
 }

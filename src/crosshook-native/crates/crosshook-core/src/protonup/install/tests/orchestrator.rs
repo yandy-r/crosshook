@@ -3,7 +3,7 @@ use tokio_util::sync::CancellationToken;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-use super::super::{hex_encode, install_version, install_version_with_progress, InstallError};
+use super::super::{hex_encode, install_version_with_progress, InstallError};
 use super::support::{make_version, minimal_ge_proton_tar_gz, sha256_version};
 use crate::protonup::progress::{Phase, ProgressEmitter};
 use crate::protonup::providers::{self, ChecksumKind};
@@ -74,7 +74,9 @@ async fn returns_already_installed_when_tool_dir_exists_and_force_false() {
     };
     let version_info = make_version("GE-Proton9-21", Some(&download_url), Some(&checksum_url));
 
-    let result = install_version(&request, &version_info).await;
+    let result = install_version_with_progress(&request, &version_info, None, None)
+        .await
+        .unwrap_or_else(|error| error.to_result());
     assert!(!result.success);
     assert_eq!(
         result.error_kind,
@@ -96,7 +98,9 @@ async fn returns_dependency_missing_when_no_download_url() {
     };
     let version_info = make_version("GE-Proton9-21", None, None);
 
-    let result = install_version(&request, &version_info).await;
+    let result = install_version_with_progress(&request, &version_info, None, None)
+        .await
+        .unwrap_or_else(|error| error.to_result());
     assert!(!result.success);
     assert_eq!(
         result.error_kind,
@@ -119,7 +123,9 @@ async fn force_flag_bypasses_already_installed_check() {
     };
     let version_info = make_version("GE-Proton9-21", None, None);
 
-    let result = install_version(&request, &version_info).await;
+    let result = install_version_with_progress(&request, &version_info, None, None)
+        .await
+        .unwrap_or_else(|error| error.to_result());
     assert!(!result.success);
     assert_eq!(
         result.error_kind,
@@ -358,42 +364,5 @@ async fn rejects_catalog_only_provider() {
     assert!(
         matches!(result, InstallError::DependencyMissing { .. }),
         "expected DependencyMissing, got: {result:?}"
-    );
-}
-
-#[cfg(feature = "experimental-providers")]
-#[tokio::test]
-async fn experimental_catalog_only_provider_is_rejected_before_download() {
-    let temp = tempfile::tempdir().expect("temp dir");
-    let compat_dir = temp.path().join("compatibilitytools.d");
-    std::fs::create_dir_all(&compat_dir).expect("compat dir");
-
-    let request = ProtonUpInstallRequest {
-        provider: "luxtorpeda".to_string(),
-        version: "v1".to_string(),
-        target_root: compat_dir.to_string_lossy().to_string(),
-        force: false,
-    };
-    let version_info = ProtonUpAvailableVersion {
-        provider: "luxtorpeda".to_string(),
-        version: "v1".to_string(),
-        release_url: None,
-        download_url: Some(
-            "https://github.com/example/example/releases/download/v1/tool.tar.gz".to_string(),
-        ),
-        checksum_url: Some(
-            "https://github.com/example/example/releases/download/v1/SHA256SUMS".to_string(),
-        ),
-        checksum_kind: Some("sha256-manifest".to_string()),
-        asset_size: Some(1),
-        published_at: None,
-    };
-
-    let result = install_version_with_progress(&request, &version_info, None, None)
-        .await
-        .expect_err("catalog-only provider should be rejected");
-    assert!(
-        matches!(result, InstallError::DependencyMissing { reason } if reason == "catalog-only provider"),
-        "expected catalog-only provider rejection, got: {result:?}"
     );
 }

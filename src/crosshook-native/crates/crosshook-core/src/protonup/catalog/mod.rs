@@ -3,29 +3,25 @@
 
 mod cache;
 mod client;
-mod config;
 mod fetch;
 
 use chrono::{Duration as ChronoDuration, Utc};
 
 use crate::metadata::MetadataStore;
-use crate::protonup::{ProtonUpCacheMeta, ProtonUpCatalogResponse, ProtonUpProvider};
+use crate::protonup::{ProtonUpCacheMeta, ProtonUpCatalogResponse};
 
 pub(crate) use cache::{
     build_response_from_rows, load_catalog_rows, persist_catalog, scoped_cache_key,
     stale_fallback_or_offline,
 };
-pub use config::{catalog_config, CatalogProviderConfig};
 use fetch::fetch_live_catalog_by_id;
 
 pub(crate) const CACHE_TTL_HOURS: i64 = 6;
 
 /// Fetch available versions by provider id with cache-live-stale fallback.
 ///
-/// Dispatch goes through the [`providers::registry`], so any provider id the
-/// registry knows about (including `proton-em` and experimental providers)
-/// works. Unknown ids surface stale cache when possible; otherwise an empty
-/// offline response.
+/// Dispatch goes through the provider registry. Unknown ids surface stale
+/// cache when possible; otherwise an empty offline response.
 ///
 /// 1. If `force_refresh` is false, return a valid (non-expired) cache hit immediately.
 /// 2. Attempt a live fetch via the provider trait.
@@ -85,23 +81,6 @@ pub async fn list_available_versions_by_id(
             stale_fallback_or_offline(metadata_store, &cache_key)
         }
     }
-}
-
-/// Back-compat shim: dispatches the legacy [`ProtonUpProvider`] enum via its
-/// kebab-case id. Prefer [`list_available_versions_by_id`] for new callers.
-pub async fn list_available_versions(
-    metadata_store: &MetadataStore,
-    force_refresh: bool,
-    provider: ProtonUpProvider,
-    include_prereleases: bool,
-) -> ProtonUpCatalogResponse {
-    list_available_versions_by_id(
-        metadata_store,
-        force_refresh,
-        &provider.to_string(),
-        include_prereleases,
-    )
-    .await
 }
 
 #[cfg(test)]

@@ -59,18 +59,6 @@ impl ProtonReleaseProvider for GeProtonProvider {
     }
 }
 
-/// The GitHub Releases API URL used by this provider.
-///
-/// Exposed for `catalog.rs` to use as the SQLite cache key URL.
-pub fn gh_releases_url() -> &'static str {
-    GH_RELEASES_URL
-}
-
-/// SQLite cache key for this provider's catalog.
-pub fn cache_key() -> &'static str {
-    "protonup:catalog:ge-proton"
-}
-
 #[cfg(test)]
 mod tests {
     use super::super::{parse_releases, GhAsset, GhRelease};

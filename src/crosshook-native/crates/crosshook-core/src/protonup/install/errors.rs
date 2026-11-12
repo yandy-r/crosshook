@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+#[cfg(test)]
 use crate::protonup::{ProtonUpInstallErrorKind, ProtonUpInstallResult};
 
 /// Internal install error — richer than `ProtonUpInstallResult` for use inside
@@ -45,6 +46,7 @@ impl std::fmt::Display for InstallError {
 }
 
 impl InstallError {
+    #[cfg(test)]
     pub(super) fn to_result(&self) -> ProtonUpInstallResult {
         match self {
             Self::InvalidPath(message) => err(message, ProtonUpInstallErrorKind::InvalidPath),
@@ -75,6 +77,7 @@ impl InstallError {
     }
 }
 
+#[cfg(test)]
 pub(super) fn err(
     message: impl Into<String>,
     kind: ProtonUpInstallErrorKind,
