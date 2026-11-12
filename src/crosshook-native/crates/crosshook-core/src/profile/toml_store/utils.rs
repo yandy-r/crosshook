@@ -22,13 +22,6 @@ pub struct ShareableTomlOptions {
 ///
 /// The returned string is valid TOML — comment headers use `#` syntax and are
 /// ignored by TOML parsers, so the output can be saved directly as a `.toml` profile.
-pub fn profile_to_shareable_toml(
-    name: &str,
-    profile: &GameProfile,
-) -> Result<String, toml::ser::Error> {
-    profile_to_shareable_toml_with_options(name, profile, ShareableTomlOptions::default())
-}
-
 pub fn profile_to_shareable_toml_with_options(
     name: &str,
     profile: &GameProfile,

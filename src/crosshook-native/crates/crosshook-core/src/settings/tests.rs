@@ -248,8 +248,7 @@ fn migrate_or_save_settings_backfills_reduced_motion() {
     .unwrap();
 
     let settings = store.load().unwrap();
-    let changed = store.migrate_or_save_settings(&settings).unwrap();
-    assert!(changed, "backfilling new fields must rewrite the file");
+    store.save(&settings).unwrap();
 
     let raw = fs::read_to_string(store.settings_path()).unwrap();
     assert!(

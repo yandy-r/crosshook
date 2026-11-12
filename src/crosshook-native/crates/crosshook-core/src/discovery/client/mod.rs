@@ -48,7 +48,6 @@ impl fmt::Display for DiscoveryError {
 pub(super) struct CachedRssRow {
     pub(super) payload_json: String,
     pub(super) fetched_at: String,
-    pub(super) _expires_at: Option<String>,
 }
 
 /// Raw RSS item parsed from a WordPress search feed.

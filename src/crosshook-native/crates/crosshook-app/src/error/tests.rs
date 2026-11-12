@@ -195,7 +195,6 @@ fn diagnostic_bundle_errors_hide_paths() {
             source: IoError::new(ErrorKind::PermissionDenied, "/mnt/secret"),
         },
         DiagnosticBundleError::Archive("/mnt/secret/entry".to_string()),
-        DiagnosticBundleError::ProfileStore("/mnt/secret/p.toml".to_string()),
     ];
     for case in cases {
         let error = AppError::from(case);
@@ -348,12 +347,6 @@ fn lutris_import_errors_hide_paths() {
         (
             E::Pga {
                 message: "/mnt/secret/pga.db".to_string(),
-            },
-            AppErrorKind::Io,
-        ),
-        (
-            E::ProfileStore {
-                message: "/mnt/secret/profile.toml".to_string(),
             },
             AppErrorKind::Io,
         ),

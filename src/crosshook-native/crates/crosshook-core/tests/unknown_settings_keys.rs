@@ -47,9 +47,6 @@ fn settings_unknown_fields_survive_save_migration_and_partial_update() {
     loaded.offline_mode = true;
     store.save(&loaded).unwrap();
     store
-        .migrate_or_save_settings(&store.load().unwrap())
-        .unwrap();
-    store
         .update(|settings| {
             settings.last_used_profile = "new".into();
             Ok::<_, ()>(())

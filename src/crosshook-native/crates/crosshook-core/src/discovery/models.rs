@@ -65,16 +65,6 @@ pub struct ExternalTrainerSearchResponse {
     pub offline: bool,
 }
 
-/// Phase B: cache state for external discovery lookups.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum DiscoveryCacheState {
-    Fresh,
-    Stale,
-    #[default]
-    Unavailable,
-}
-
 /// Phase B: version match status between a trainer and the installed game.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]

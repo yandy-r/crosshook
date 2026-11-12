@@ -81,9 +81,6 @@ pub struct PrefixDependencyInstallOutcome {
 /// Errors specific to prefix dependency operations.
 #[derive(Debug)]
 pub enum PrefixDepsError {
-    BinaryNotFound {
-        tool: String,
-    },
     PrefixNotInitialized {
         path: String,
     },
@@ -95,16 +92,11 @@ pub enum PrefixDepsError {
     Timeout {
         seconds: u64,
     },
-    Database {
-        action: &'static str,
-        source: rusqlite::Error,
-    },
 }
 
 impl std::fmt::Display for PrefixDepsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::BinaryNotFound { tool } => write!(f, "{tool} binary not found"),
             Self::PrefixNotInitialized { path } => {
                 write!(f, "WINE prefix not initialized at {path}")
             }
@@ -116,18 +108,8 @@ impl std::fmt::Display for PrefixDepsError {
                 )
             }
             Self::Timeout { seconds } => write!(f, "operation timed out after {seconds}s"),
-            Self::Database { action, source } => {
-                write!(f, "database error during {action}: {source}")
-            }
         }
     }
 }
 
-impl std::error::Error for PrefixDepsError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Database { source, .. } => Some(source),
-            _ => None,
-        }
-    }
-}
+impl std::error::Error for PrefixDepsError {}

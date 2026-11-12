@@ -39,11 +39,8 @@ impl fmt::Display for SteamMetadataError {
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 struct CachedLookupRow {
     payload_json: String,
-    fetched_at: String,
-    expires_at: Option<String>,
 }
 
 // ── Steam API wire types ────────────────────────────────────────────────────
@@ -241,10 +238,10 @@ fn load_cached_lookup_row(
     metadata_store
         .with_sqlite_conn(action, |conn| {
             let sql = if allow_expired {
-                "SELECT payload_json, fetched_at, expires_at \
+                "SELECT payload_json \
                  FROM external_cache_entries WHERE cache_key = ?1 LIMIT 1"
             } else {
-                "SELECT payload_json, fetched_at, expires_at \
+                "SELECT payload_json \
                  FROM external_cache_entries \
                  WHERE cache_key = ?1 AND (expires_at IS NULL OR expires_at > ?2) LIMIT 1"
             };
@@ -258,8 +255,6 @@ fn load_cached_lookup_row(
             conn.query_row(sql, row_params, |row| {
                 Ok(CachedLookupRow {
                     payload_json: row.get::<_, Option<String>>(0)?.unwrap_or_default(),
-                    fetched_at: row.get::<_, String>(1)?,
-                    expires_at: row.get::<_, Option<String>>(2)?,
                 })
             })
             .optional()

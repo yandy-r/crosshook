@@ -98,11 +98,6 @@ pub fn resolve_winetricks_path() -> Option<String> {
     resolve_binary_on_path("winetricks")
 }
 
-/// Resolve protontricks binary on PATH.
-pub fn resolve_protontricks_path() -> Option<String> {
-    resolve_binary_on_path("protontricks")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

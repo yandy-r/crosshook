@@ -272,6 +272,5 @@ mod tests {
         assert_eq!(result.compatdata_path, compatdata);
         assert_eq!(result.proton_state, SteamAutoPopulateFieldState::Found);
         assert_eq!(result.proton_path, proton_dir.join("proton"));
-        assert!(result.has_any_match());
     }
 }

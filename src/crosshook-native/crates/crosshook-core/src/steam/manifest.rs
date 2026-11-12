@@ -7,9 +7,7 @@ use super::vdf::parse_vdf;
 #[derive(Debug, Clone)]
 pub struct ManifestData {
     pub build_id: String,
-    pub install_dir: String,
     pub state_flags: Option<u32>,
-    pub last_updated: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -137,28 +135,14 @@ pub fn parse_manifest_full(manifest_path: &Path) -> Result<ManifestData, String>
         ));
     }
 
-    let install_dir = app_state_node
-        .get_child("installdir")
-        .and_then(|node| node.value.as_ref())
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_default();
-
     let state_flags = app_state_node
         .get_child("stateflags")
         .and_then(|node| node.value.as_ref())
         .and_then(|value| value.trim().parse::<u32>().ok());
 
-    let last_updated = app_state_node
-        .get_child("lastupdated")
-        .and_then(|node| node.value.as_ref())
-        .and_then(|value| value.trim().parse::<u64>().ok());
-
     Ok(ManifestData {
         build_id,
-        install_dir,
         state_flags,
-        last_updated,
     })
 }
 
@@ -421,9 +405,7 @@ mod tests {
 
         let data = parse_manifest_full(&path).expect("parse");
         assert_eq!(data.build_id, "9876543");
-        assert_eq!(data.install_dir, "MyGame");
         assert_eq!(data.state_flags, Some(4));
-        assert_eq!(data.last_updated, Some(1700000000));
     }
 
     #[test]
@@ -445,9 +427,7 @@ mod tests {
 
         let data = parse_manifest_full(&path).expect("parse");
         assert_eq!(data.build_id, "1111111");
-        assert_eq!(data.install_dir, "AnotherGame");
         assert_eq!(data.state_flags, None);
-        assert_eq!(data.last_updated, None);
     }
 
     #[test]
@@ -490,8 +470,6 @@ mod tests {
 
         let data = parse_manifest_full(&path).expect("parse");
         assert_eq!(data.build_id, "");
-        assert_eq!(data.install_dir, "NoVerGame");
         assert_eq!(data.state_flags, None);
-        assert_eq!(data.last_updated, None);
     }
 }
