@@ -125,12 +125,7 @@ async fn services_new_builds_bundle_from_stores() {
     let (stores, _) = init_remaining(&roots, &settings, &AppSettingsData::default()).unwrap();
     let jobs = crate::jobs::JobRegistry::default();
 
-    let services = Services::new(
-        &stores,
-        crate::EventBus::default(),
-        tokio::runtime::Handle::current(),
-        jobs.clone(),
-    );
+    let services = Services::new(&stores, crate::EventBus::default(), jobs.clone());
 
     // Bundle is built; clones are cheap and Arc-shared background holder.
     let cloned = services.clone();

@@ -25,6 +25,14 @@ pub async fn community_add_tap(
 }
 
 #[tauri::command]
+pub async fn community_remove_tap(
+    tap: CommunityTapSubscription,
+    app: AppState<'_>,
+) -> IpcResult<Vec<CommunityTapSubscription>> {
+    ipc(app.services().community.remove_tap(tap).await)
+}
+
+#[tauri::command]
 pub async fn community_list_profiles(app: AppState<'_>) -> IpcResult<CommunityProfileIndex> {
     ipc(app.services().community.list_profiles().await)
 }

@@ -12,8 +12,6 @@
 
 use std::sync::Arc;
 
-use tokio::runtime::Handle;
-
 use crosshook_core::community::CommunityTapStore;
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::ProfileStore;
@@ -29,7 +27,7 @@ use crate::services::{
     LaunchService, LauncherExportService, LutrisService, ModsService, OfflineService,
     OnboardingService, PrefixDepsService, ProfileWriter, ProtonDbService, ProtonMigrationService,
     ProtonUpService, RecentFilesService, RunExecutableService, SettingsService, SteamService,
-    StorageService, UiSettingsService, UmuService, UpdateService, VersionService,
+    StorageService, UmuService, UpdateService, VersionService,
 };
 
 /// The persistent stores the application owns. Clones are cheap; clones of
@@ -55,8 +53,6 @@ pub struct Services {
     pub catalog: CatalogService,
     /// Typed settings reads and saves.
     pub settings: SettingsService,
-    /// Typed `[ui]` settings.
-    pub ui_settings: UiSettingsService,
     /// Recent-files lists.
     pub recent_files: RecentFilesService,
     /// Diagnostic bundle export.
@@ -113,11 +109,11 @@ pub struct Services {
 
 impl Services {
     /// Builds the service bundle over `stores`; `events` is the app bus that
-    /// services publish change notifications on, `runtime` spawns the `[ui]`
-    /// settings writer, and `jobs` is the app job registry (cancelled on app
-    /// shutdown) that supervises storage scan, health batch, readiness and the
-    /// prefix-keyed process jobs (install, update, run-executable, prefix deps).
-    pub fn new(stores: &Stores, events: EventBus, runtime: Handle, jobs: JobRegistry) -> Self {
+    /// services publish change notifications on, and `jobs` is the app job
+    /// registry (cancelled on app shutdown) that supervises storage scan,
+    /// health batch, readiness and the prefix-keyed process jobs (install,
+    /// update, run-executable, prefix deps).
+    pub fn new(stores: &Stores, events: EventBus, jobs: JobRegistry) -> Self {
         let background = Arc::new(BackgroundGrantHolder::new());
         let steam = SteamService::new(stores.metadata.clone(), stores.settings.clone());
         let writer = ProfileWriter::new(
@@ -132,7 +128,6 @@ impl Services {
                 stores.settings.clone(),
                 stores.profiles.base_path.clone(),
             ),
-            ui_settings: UiSettingsService::new(stores.settings.clone(), events.clone(), runtime),
             recent_files: RecentFilesService::new(
                 stores.settings.clone(),
                 stores.recent_files.clone(),

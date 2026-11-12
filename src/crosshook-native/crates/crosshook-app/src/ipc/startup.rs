@@ -1,6 +1,6 @@
 //! Bus-event to wire-event mapping for the startup bridge: retained terminal
 //! job outcomes, Classic's legacy success events, `profiles-changed`,
-//! `ui-settings-persist-failed` and `launch-session-changed`.
+//! and `launch-session-changed`.
 //!
 //! [`wire_events`] is pure: a shell calls it for every [`AppEvent`] of its bus
 //! subscription and forwards the returned events in order.
@@ -16,8 +16,6 @@ use crate::{AppEvent, ProfileChangeReason};
 pub const STARTUP_JOB_FINISHED_EVENT: &str = "startup-job-finished";
 /// `profiles-changed` event name.
 pub const PROFILES_CHANGED_EVENT: &str = "profiles-changed";
-/// Event Classic listens for one `[ui]` persist failure per session.
-pub const UI_SETTINGS_PERSIST_FAILED_EVENT: &str = "ui-settings-persist-failed";
 
 const BRIDGED_JOBS: [StartupJobKind; 5] = [
     StartupJobKind::HealthBatch,
@@ -39,13 +37,6 @@ struct FinishedPayload {
 struct ProfilesChangedPayload {
     reason: ProfileChangeReason,
     names: Vec<String>,
-}
-
-/// `ui-settings-persist-failed` wire payload: `{ message }`, where `message`
-/// is the already-sanitized `AppError` text.
-#[derive(Debug, Clone, Serialize)]
-struct UiSettingsPersistFailedPayload {
-    message: String,
 }
 
 /// Conservative profile resync emitted after a bus lag (D14): views refresh
@@ -187,12 +178,6 @@ pub fn wire_events(event: AppEvent, jobs: impl FnOnce() -> StartupJobs) -> Vec<W
             events.extend(WireEvent::new(
                 PROFILES_CHANGED_EVENT,
                 &ProfilesChangedPayload { reason, names },
-            ));
-        }
-        AppEvent::UiSettingsPersistFailed { message } => {
-            events.extend(WireEvent::new(
-                UI_SETTINGS_PERSIST_FAILED_EVENT,
-                &UiSettingsPersistFailedPayload { message },
             ));
         }
         // Session changes were mapped above. Named scan-completion events

@@ -406,6 +406,20 @@ async fn update_normalizes_and_preserves_unknown_keys() {
 }
 
 #[tokio::test]
+async fn update_persists_library_view_mode_to_the_ui_table() {
+    let temp = tempdir().unwrap();
+    let (service, store) = service_in(temp.path(), temp.path().join("profiles"));
+    service
+        .update(|settings| settings.ui.library_view_mode = Some(LibraryViewMode::List))
+        .await
+        .unwrap();
+    assert_eq!(
+        store.load().unwrap().ui.library_view_mode,
+        Some(LibraryViewMode::List)
+    );
+}
+
+#[tokio::test]
 async fn save_steamgriddb_key_trims_and_clears() {
     let temp = tempdir().unwrap();
     let (service, store) = service_in(temp.path(), temp.path().join("profiles"));

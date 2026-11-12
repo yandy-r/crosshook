@@ -8,7 +8,7 @@ use crate::error_map::ipc;
 #[tauri::command]
 pub async fn settings_load(app: AppState<'_>) -> IpcResult<AppSettingsIpcData> {
     let services = app.services();
-    ipc(settings::load(&services.settings, &services.ui_settings).await)
+    ipc(settings::load(&services.settings).await)
 }
 
 /// Saves the settings form. The SteamGridDB key is never touched; use
@@ -29,14 +29,18 @@ pub async fn settings_save_steamgriddb_key(
     ipc(app.services().settings.save_steamgriddb_key(key).await)
 }
 
-/// Persists the Library view mode through the throttled `[ui]` writer.
+/// Persists the Library view mode into the `[ui]` settings table.
 #[tauri::command]
 pub async fn settings_set_library_view_mode(
     mode: LibraryViewMode,
     app: AppState<'_>,
 ) -> IpcResult<()> {
-    app.services().ui_settings.set_library_view_mode(mode);
-    Ok(())
+    ipc(app
+        .services()
+        .settings
+        .update(move |settings| settings.ui.library_view_mode = Some(mode))
+        .await
+        .map(drop))
 }
 
 #[tauri::command]
