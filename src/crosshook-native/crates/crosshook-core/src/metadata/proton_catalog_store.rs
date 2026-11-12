@@ -159,23 +159,6 @@ pub fn get_proton_catalog_impl(
     Ok(rows)
 }
 
-/// Delete all cached rows for `provider_id` (used to evict stale entries before a refresh).
-pub fn clear_proton_catalog_impl(
-    conn: &mut Connection,
-    provider_id: &str,
-) -> Result<(), MetadataStoreError> {
-    conn.execute(
-        "DELETE FROM proton_release_catalog WHERE provider_id = ?1",
-        [provider_id],
-    )
-    .map_err(|source| MetadataStoreError::Database {
-        action: "clear proton catalog for provider",
-        source,
-    })?;
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -233,36 +216,6 @@ mod tests {
         // Unknown provider returns empty.
         let empty = get_proton_catalog_impl(&conn, "unknown-provider").unwrap();
         assert!(empty.is_empty());
-    }
-
-    #[test]
-    fn proton_catalog_clear_evicts_provider() {
-        let mut conn = open_v22();
-
-        let row = ProtonCatalogRow {
-            provider_id: "proton-tkg".to_string(),
-            version_tag: "proton-tkg-1".to_string(),
-            payload_json: "{}".to_string(),
-            release_url: None,
-            download_url: None,
-            checksum_url: None,
-            checksum_kind: None,
-            asset_size: None,
-            fetched_at: "2026-04-17T00:00:00Z".to_string(),
-            expires_at: None,
-        };
-        put_proton_catalog_impl(&mut conn, &[row]).unwrap();
-
-        let before = get_proton_catalog_impl(&conn, "proton-tkg").unwrap();
-        assert_eq!(before.len(), 1);
-
-        clear_proton_catalog_impl(&mut conn, "proton-tkg").unwrap();
-
-        let after = get_proton_catalog_impl(&conn, "proton-tkg").unwrap();
-        assert!(
-            after.is_empty(),
-            "clear should evict all rows for the provider"
-        );
     }
 
     #[test]
