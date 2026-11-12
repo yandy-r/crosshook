@@ -46,7 +46,6 @@ pub fn run() {
         Err(error) => fatal::show_and_exit(context, error),
     };
     let startup_events = core.subscribe();
-    let ui_settings = core.services().ui_settings.clone();
     let app_owner = core.app().clone();
     let instance_owner = core.clone();
     tauri::Builder::default()
@@ -56,7 +55,11 @@ pub fn run() {
             // Delivers any activation that arrived before the window existed.
             core.instance()
                 .set_activation_handler(activation::TauriActivation::new(app.handle().clone()));
-            event_bridge::spawn_startup_bridge(app.handle().clone(), core.startup(), startup_events);
+            event_bridge::spawn_startup_bridge(
+                app.handle().clone(),
+                core.startup(),
+                startup_events,
+            );
             // SIGINT/SIGTERM/SIGHUP take the normal exit path below.
             signals::exit_on_termination(app.handle().clone());
             Ok(())
@@ -80,6 +83,7 @@ pub fn run() {
             commands::export::preview_launcher_script,
             commands::export::preview_launcher_desktop,
             commands::community::community_add_tap,
+            commands::community::community_remove_tap,
             commands::community::community_export_profile,
             commands::community::community_import_profile,
             commands::community::community_prepare_import,
@@ -250,10 +254,6 @@ pub fn run() {
             // tao ends the process with `process::exit`: `App`'s drop never
             // runs, so shut down explicitly here.
             if let tauri::RunEvent::Exit = event {
-                // Persist any trailing `[ui]` write still waiting on the throttle.
-                if let Err(error) = tauri::async_runtime::block_on(ui_settings.flush()) {
-                    tracing::warn!(error = %error.message(), "failed to flush [ui] settings on exit");
-                }
                 // Cancel every job so supervised process groups (installers,
                 // updaters, ad-hoc executables, winetricks) end with the app;
                 // bounded (`App::DEFAULT_SHUTDOWN_TIMEOUT`), so a job ignoring

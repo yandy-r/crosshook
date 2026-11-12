@@ -64,10 +64,6 @@ fn bus_resync_becomes_a_resync_marker_and_other_events_are_ignored() {
         payload(&AppEvent::Resync { missed: 9 }),
         json!({ "kind": "resync" })
     );
-    assert!(session_changed_event(&AppEvent::UiSettingsPersistFailed {
-        message: "x".into()
-    })
-    .is_none());
 }
 
 #[test]

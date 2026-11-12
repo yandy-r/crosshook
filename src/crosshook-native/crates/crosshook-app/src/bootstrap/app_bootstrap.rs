@@ -126,12 +126,7 @@ impl App {
         let (stores, metadata_error) =
             init_stores_step(&opts.store_roots, &settings_store, &settings, &mut steps)?;
         init_metadata_steps(&stores, &settings, &mut steps);
-        let services = Services::new(
-            &stores,
-            app.events().clone(),
-            app.runtime_handle(),
-            app.jobs().clone(),
-        );
+        let services = Services::new(&stores, app.events().clone(), app.jobs().clone());
         let startup = StartupHandle::new(
             stores.clone(),
             FlatpakStartup { mode, migration },

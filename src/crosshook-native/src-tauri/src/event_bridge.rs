@@ -3,8 +3,7 @@
 //! [`WireEvent`] to the webview, and owns the relay tasks.
 //!
 //! - startup bridge: app bus -> `startup-job-finished`, the legacy scan
-//!   events, `profiles-changed`, `ui-settings-persist-failed` and
-//!   `launch-session-changed`
+//!   events, `profiles-changed` and `launch-session-changed`
 //! - launch relay: one task per session -> `launch-log`, `launch-diagnostic`,
 //!   `launch-complete`, `injection-log`
 //! - process relays: run-executable, update, prefix-dep and protonup progress

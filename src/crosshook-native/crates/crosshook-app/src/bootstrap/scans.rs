@@ -261,12 +261,7 @@ mod tests {
     }
 
     fn services_for(app: &App, stores: &Stores) -> Services {
-        Services::new(
-            stores,
-            app.events().clone(),
-            app.runtime_handle(),
-            app.jobs().clone(),
-        )
+        Services::new(stores, app.events().clone(), app.jobs().clone())
     }
 
     #[tokio::test]

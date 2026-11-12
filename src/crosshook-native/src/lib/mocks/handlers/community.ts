@@ -150,6 +150,13 @@ export function registerCommunity(map: Map<string, Handler>): void {
     return taps;
   });
 
+  map.set('community_remove_tap', async (args): Promise<CommunityTapSubscription[]> => {
+    const { tap } = args as { tap: CommunityTapSubscription };
+    const key = `${tap.url}::${tap.branch ?? ''}::${tap.pinned_commit ?? ''}`;
+    taps = taps.filter((t) => `${t.url}::${t.branch ?? ''}::${t.pinned_commit ?? ''}` !== key);
+    return taps;
+  });
+
   map.set('community_prepare_import', async (args): Promise<CommunityImportPreview> => {
     const { path } = args as { path: string };
     const entry = MOCK_ENTRIES[0];

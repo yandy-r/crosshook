@@ -8,7 +8,7 @@ use crosshook_core::settings::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::services::{SettingsService, SettingsSnapshot, UiSettingsService};
+use crate::services::{SettingsService, SettingsSnapshot};
 use crate::AppError;
 
 /// IPC-safe settings DTO returned by `settings_load`.
@@ -126,19 +126,12 @@ impl AppSettingsIpcData {
     }
 }
 
-/// Loads the settings for `settings_load`. The in-memory `[ui]` snapshot
-/// replaces the stored one because it may be ahead of disk while a throttled
-/// write is pending.
+/// Loads the settings for `settings_load`.
 ///
 /// # Errors
 /// Settings read failure, mapped to its sanitized kind.
-pub async fn load(
-    settings: &SettingsService,
-    ui: &UiSettingsService,
-) -> Result<AppSettingsIpcData, AppError> {
-    let mut snapshot = settings.load().await?;
-    snapshot.data.ui = ui.get();
-    Ok(AppSettingsIpcData::from_snapshot(snapshot))
+pub async fn load(settings: &SettingsService) -> Result<AppSettingsIpcData, AppError> {
+    Ok(AppSettingsIpcData::from_snapshot(settings.load().await?))
 }
 
 #[cfg(test)]

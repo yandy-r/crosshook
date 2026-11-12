@@ -3,9 +3,6 @@
 //! Every public service function is `async` and blocking store I/O runs inside
 //! [`tokio::task::spawn_blocking`] so callers never stall an async executor;
 //! task panics and cancellations surface as sanitized [`AppError`]s. Services
-//! with typed getters and setters over in-memory snapshots (for example
-//! [`settings::UiSettingsService`]) may expose them as plain synchronous
-//! methods — only the throttled persistence behind them stays async.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -76,9 +73,7 @@ pub use run_executable::{
     RunCompletion, RunExecutableResponse, RunExecutableService, RunExecutableStartError,
     RUN_EXECUTABLE_JOB_KIND,
 };
-pub use settings::{
-    merge_save_request, SettingsSaveRequest, SettingsService, SettingsSnapshot, UiSettingsService,
-};
+pub use settings::{merge_save_request, SettingsSaveRequest, SettingsService, SettingsSnapshot};
 pub use startup_scans::StartupScansService;
 pub use steam::SteamService;
 pub use storage::{PrefixStorageHistoryResponse, StorageService};
