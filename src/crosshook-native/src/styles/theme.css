@@ -87,41 +87,6 @@ textarea {
   gap: var(--crosshook-grid-gap);
 }
 
-.crosshook-layout {
-  display: grid;
-  gap: var(--crosshook-grid-gap);
-  grid-template-columns: var(--crosshook-layout-main-columns);
-  align-items: start;
-}
-
-.crosshook-tab-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.crosshook-tab {
-  min-height: var(--crosshook-touch-target-min);
-  padding: 0 18px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--crosshook-color-text-muted);
-  cursor: pointer;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  transition:
-    border-color var(--crosshook-transition-standard) ease,
-    background var(--crosshook-transition-standard) ease,
-    color var(--crosshook-transition-standard) ease;
-}
-
-.crosshook-tab--active {
-  border-color: rgba(74, 125, 181, 0.45);
-  background: linear-gradient(135deg, var(--crosshook-color-accent) 0%, var(--crosshook-color-accent-strong) 100%);
-  color: #fff;
-}
-
 .crosshook-subtab-row {
   display: inline-flex;
   flex-wrap: wrap;
@@ -560,10 +525,6 @@ textarea {
   line-height: 1.08;
 }
 
-.crosshook-heading-title--install {
-  font-size: 1.5rem;
-}
-
 /* In-panel heading stack: use below .crosshook-heading-eyebrow; softer than page banner title */
 .crosshook-heading-title.crosshook-heading-title--card {
   color: var(--crosshook-color-text-muted);
@@ -590,11 +551,6 @@ textarea {
 .crosshook-settings-panel {
   display: grid;
   gap: 20px;
-}
-
-.crosshook-settings-header {
-  display: grid;
-  gap: 8px;
 }
 
 .crosshook-settings-summary {
@@ -624,13 +580,6 @@ textarea {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.crosshook-settings-section-actions {
-  display: flex;
-  gap: 8px;
   align-items: center;
   flex-wrap: wrap;
 }
@@ -784,9 +733,7 @@ textarea {
   letter-spacing: 0.02em;
 }
 
-.crosshook-input,
-.crosshook-select,
-.crosshook-textarea {
+.crosshook-input {
   width: 100%;
   min-width: 0;
   min-height: var(--crosshook-touch-target-min);
@@ -802,20 +749,11 @@ textarea {
     transform var(--crosshook-transition-fast) ease;
 }
 
-.crosshook-textarea {
-  padding: 14px;
-  min-height: 120px;
-  resize: vertical;
-}
-
-.crosshook-input::placeholder,
-.crosshook-textarea::placeholder {
+.crosshook-input::placeholder {
   color: var(--crosshook-color-text-subtle);
 }
 
 .crosshook-input:focus-visible,
-.crosshook-select:focus-visible,
-.crosshook-textarea:focus-visible,
 .crosshook-button:focus-visible {
   border-color: var(--crosshook-color-accent-strong);
   box-shadow: 0 0 0 3px var(--crosshook-color-accent-soft);
@@ -922,7 +860,6 @@ textarea {
   gap: 20px;
 }
 
-.crosshook-community-browser__header,
 .crosshook-compatibility-viewer__header {
   display: grid;
   gap: 8px;
@@ -982,19 +919,6 @@ textarea {
 .crosshook-community-browser__panel {
   display: grid;
   gap: 12px;
-}
-
-.crosshook-community-browser__footer {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.crosshook-community-browser__section-copy {
-  display: grid;
-  gap: 6px;
 }
 
 .crosshook-community-browser__toolbar,
@@ -1460,9 +1384,6 @@ textarea {
 }
 
 .crosshook-protondb-card__title-row,
-.crosshook-protondb-card__summary-row,
-.crosshook-protondb-card__banner-row,
-.crosshook-protondb-card__action-row,
 .crosshook-protondb-card__source-row {
   display: flex;
   flex-wrap: wrap;
@@ -1642,16 +1563,6 @@ textarea {
 
 .crosshook-protondb-card__banner-copy--muted {
   color: var(--crosshook-color-text-muted);
-}
-
-.crosshook-protondb-card__source-link {
-  color: var(--crosshook-color-accent-strong);
-  font-weight: 600;
-  overflow-wrap: break-word;
-}
-
-.crosshook-protondb-card__source-link:hover {
-  text-decoration: underline;
 }
 
 .crosshook-protondb-card__actions {
@@ -2295,8 +2206,7 @@ textarea {
   gap: 10px;
 }
 
-.crosshook-launch-optimizations__summary-chip,
-.crosshook-launch-optimizations__status-chip {
+.crosshook-launch-optimizations__summary-chip {
   min-height: var(--crosshook-touch-target-min);
   padding: 0 14px;
   border-radius: 999px;
@@ -2312,39 +2222,6 @@ textarea {
   background: rgba(255, 255, 255, 0.04);
   border-color: rgba(255, 255, 255, 0.12);
   color: var(--crosshook-color-text);
-}
-
-.crosshook-launch-optimizations__status-chip {
-  font-weight: 700;
-  color: var(--crosshook-color-text);
-  background: rgba(74, 125, 181, 0.14);
-  border-color: rgba(74, 125, 181, 0.28);
-}
-
-.crosshook-launch-optimizations__status-chip--idle {
-  background: rgba(74, 125, 181, 0.14);
-  border-color: rgba(74, 125, 181, 0.28);
-}
-
-.crosshook-launch-optimizations__status-chip--saving {
-  background: var(--crosshook-autosave-saving-bg);
-  border-color: var(--crosshook-autosave-saving-border);
-  animation: crosshook-launch-optimizations-pulse 1.6s ease-in-out infinite;
-}
-
-.crosshook-launch-optimizations__status-chip--success {
-  background: var(--crosshook-autosave-success-bg);
-  border-color: var(--crosshook-autosave-success-border);
-}
-
-.crosshook-launch-optimizations__status-chip--warning {
-  background: var(--crosshook-autosave-warning-bg);
-  border-color: var(--crosshook-autosave-warning-border);
-}
-
-.crosshook-launch-optimizations__status-chip--error {
-  background: var(--crosshook-autosave-error-bg);
-  border-color: var(--crosshook-autosave-error-border);
 }
 
 /* Unified auto-save status chip in the Launch sub-tab bar */
@@ -3010,10 +2887,6 @@ textarea {
   align-self: start;
 }
 
-.crosshook-install-prefix-field {
-  align-self: start;
-}
-
 .crosshook-install-field-control {
   display: flex;
   gap: 10px;
@@ -3135,17 +3008,6 @@ textarea {
 .crosshook-install-log-path__value {
   word-break: break-all;
   color: var(--crosshook-color-text);
-}
-
-.crosshook-launch-profile-selector {
-  display: grid;
-  gap: 14px;
-  padding: 22px 28px;
-  border-radius: 20px;
-  border: 1px solid rgba(120, 160, 255, 0.22);
-  background: rgba(14, 20, 40, 0.82);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
-  backdrop-filter: blur(18px);
 }
 
 .crosshook-launch-panel__feedback {
@@ -3300,33 +3162,6 @@ textarea {
   background: radial-gradient(circle at top right, rgba(74, 125, 181, 0.14), transparent 30%), rgba(10, 15, 24, 0.96);
   box-shadow: var(--crosshook-shadow-strong);
   backdrop-filter: blur(18px);
-}
-
-.crosshook-export-panel__header {
-  display: grid;
-  gap: 8px;
-}
-
-.crosshook-export-panel__eyebrow {
-  margin: 0;
-  color: var(--crosshook-color-accent-strong);
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
-.crosshook-export-panel__title {
-  margin: 0;
-  font-size: 1.45rem;
-  font-weight: 800;
-  line-height: 1.12;
-}
-
-.crosshook-export-panel__copy {
-  margin: 0;
-  color: var(--crosshook-color-text-muted);
-  line-height: 1.55;
 }
 
 .crosshook-export-panel__body {
@@ -4061,9 +3896,6 @@ textarea {
 }
 
 @media (max-width: 1360px) {
-  .crosshook-layout {
-    grid-template-columns: 1fr;
-  }
 
   .crosshook-community-browser__toolbar,
   .crosshook-compatibility-viewer__filters {
@@ -4179,9 +4011,7 @@ textarea {
   }
 
   .crosshook-button,
-  .crosshook-input,
-  .crosshook-select,
-  .crosshook-textarea {
+  .crosshook-input {
     min-height: 48px;
   }
 
@@ -4208,7 +4038,6 @@ textarea {
     flex: 1 1 0;
   }
 
-  .crosshook-community-browser__footer,
   .crosshook-community-browser__profile-header,
   .crosshook-compatibility-viewer__result-header {
     flex-direction: column;
@@ -4289,14 +4118,6 @@ textarea {
   }
 }
 
-.crosshook-profile-editor-panel {
-  background: rgba(13, 20, 31, 0.92);
-  border: 1px solid rgba(120, 145, 177, 0.2);
-  border-radius: 18px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
-  padding: 20px;
-}
-
 .crosshook-error-banner {
   border-radius: 12px;
   padding: 12px;
@@ -4323,22 +4144,6 @@ textarea {
   background: rgba(125, 211, 252, 0.1);
   border: 1px solid rgba(125, 211, 252, 0.22);
   color: var(--crosshook-color-info);
-}
-
-.crosshook-profile-editor-page {
-  min-height: 100vh;
-  padding: 24px;
-  background:
-    radial-gradient(circle at top, rgba(27, 59, 108, 0.35), transparent 35%),
-    linear-gradient(180deg, #08111c 0%, #0b1320 100%);
-  color: #f3f6fb;
-}
-
-.crosshook-profile-editor-eyebrow {
-  color: #60a5fa;
-  font-size: 12px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
 }
 
 .crosshook-profile-editor-delete-overlay {
@@ -4524,10 +4329,6 @@ textarea {
   border-left: 4px solid var(--crosshook-color-danger);
 }
 
-.crosshook-health-dashboard-checking {
-  margin-bottom: var(--crosshook-grid-gap);
-}
-
 .crosshook-health-dashboard-empty {
   margin-top: var(--crosshook-grid-gap);
   display: flex;
@@ -4540,21 +4341,6 @@ textarea {
 }
 
 /* Health Dashboard — section divider between cards and table */
-.crosshook-health-dashboard-section {
-  margin-top: 28px;
-  margin-bottom: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  padding-bottom: 8px;
-}
-
-.crosshook-health-dashboard-section__heading {
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--crosshook-color-text-muted);
-  margin: 0;
-}
 
 /* Health Dashboard — table layout */
 .crosshook-health-dashboard-table {
@@ -4831,16 +4617,6 @@ textarea {
   border-radius: 4px;
 }
 
-.crosshook-health-dashboard-skeleton-row td {
-  padding: 12px 8px;
-}
-
-.crosshook-health-dashboard-skeleton-cell {
-  height: 1rem;
-  border-radius: 4px;
-  display: inline-block;
-}
-
 :root[data-crosshook-motion='reduced'] .crosshook-health-dashboard-skeleton {
   animation: none;
 }
@@ -5042,10 +4818,6 @@ textarea {
   overflow: hidden;
   object-fit: cover;
   width: 100%;
-}
-
-.crosshook-profile-cover-art--hidden {
-  display: none;
 }
 
 /* ── Skeleton Loading (shimmer) ── */
@@ -5416,10 +5188,6 @@ textarea {
   margin-top: 20px;
 }
 
-.crosshook-discovery-panel__header {
-  margin-bottom: 20px;
-}
-
 .crosshook-discovery-panel__gate {
   display: flex;
   flex-direction: column;
@@ -5456,16 +5224,6 @@ textarea {
 
 .crosshook-discovery-search__clear:hover {
   color: var(--crosshook-color-text);
-}
-
-.crosshook-discovery-panel__results-meta {
-  min-height: 1.5em;
-  margin-bottom: 8px;
-  font-size: 0.85rem;
-}
-
-.crosshook-discovery-panel__notice {
-  margin-bottom: 8px;
 }
 
 .crosshook-discovery-panel__empty {
@@ -5602,12 +5360,6 @@ textarea {
   white-space: nowrap;
 }
 
-.crosshook-discovery-badge--community {
-  color: var(--crosshook-color-accent-strong);
-  background: var(--crosshook-color-accent-soft);
-  border: 1px solid rgba(74, 125, 181, 0.3);
-}
-
 .crosshook-discovery-badge--external {
   color: var(--crosshook-color-text-muted);
   background: var(--crosshook-color-surface);
@@ -5723,12 +5475,6 @@ textarea {
   color: var(--crosshook-color-text-subtle);
 }
 
-.crosshook-discovery-card__copy-error {
-  color: var(--crosshook-color-danger);
-  font-size: 0.75rem;
-  flex-basis: 100%;
-}
-
 .crosshook-discovery-card__actions {
   display: flex;
   gap: 8px;
@@ -5772,19 +5518,6 @@ textarea {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
-}
-
-.crosshook-launch-collection-filter {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 999px;
-  padding: 2px 4px 2px 10px;
-  font-size: 0.75rem;
-  color: var(--crosshook-color-text-muted);
-  margin-bottom: 8px;
 }
 
 .crosshook-collection-edit-modal__description {
