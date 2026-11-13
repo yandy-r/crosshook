@@ -22,11 +22,6 @@ pub async fn verify_trainer_hash(name: String, app: AppState<'_>) -> IpcResult<H
 }
 
 #[tauri::command]
-pub async fn check_network_status(app: AppState<'_>) -> IpcResult<bool> {
-    ipc(app.services().offline.network_status().await)
-}
-
-#[tauri::command]
 pub async fn get_trainer_type_catalog(app: AppState<'_>) -> IpcResult<Vec<TrainerTypeEntry>> {
     Ok(app.services().offline.trainer_type_catalog())
 }

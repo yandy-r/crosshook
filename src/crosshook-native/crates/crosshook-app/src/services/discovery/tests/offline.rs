@@ -112,20 +112,3 @@ async fn catalog_falls_back_for_disabled_and_failed_database() {
         assert!(page.entries.is_empty());
     }
 }
-
-#[tokio::test]
-async fn compatibility_preserves_unknown_profile_text() {
-    let harness = Harness::new(MetadataStore::open_in_memory().unwrap());
-    let error = harness
-        .service
-        .check_version_compatibility("Missing".into(), None)
-        .await
-        .unwrap_err();
-    assert_eq!(
-        error.kind(),
-        AppErrorKind::Validation {
-            field: "profile_name"
-        }
-    );
-    assert_eq!(error.message(), "unknown profile: Missing");
-}

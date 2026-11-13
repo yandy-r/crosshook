@@ -7,9 +7,8 @@
 //! behind [`BackgroundPortal`] so tests can drive state transitions without a
 //! D-Bus session; production uses [`XdgBackgroundPortal`].
 //!
-//! UI integration of the protection state is deferred: the
-//! `get_background_protection_state` command is registered but has no
-//! frontend consumer yet (ADR-0002 § Capability integration).
+//! UI integration of the protection state is deferred (ADR-0002 § Capability
+//! integration).
 //!
 //! See `docs/architecture/adr-0002-flatpak-portal-contracts.md` § Background
 //! portal contract.

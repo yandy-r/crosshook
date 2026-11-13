@@ -138,7 +138,7 @@ are gone. `parseProfilesChanged()` treats them as a conservative resync.
 | `profile_set_favorite`                                                               | `favorite_toggled` | `[profile]`         |
 | `profile_config_rollback`                                                            | `rolled_back`      | `[profile]`         |
 | bundled and manual optimization presets                                              | `preset_applied`   | `[profile]`         |
-| `profile_import_legacy`, `lutris_import_profiles`                                    | `imported`         | imported names only |
+| `lutris_import_profiles`                                                             | `imported`         | imported names only |
 | `community_import_profile`                                                           | `imported`         | `[profile_name]`    |
 | `apply_proton_migration`, `apply_batch_migration`                                    | `migrated`         | applied names only  |
 
@@ -201,7 +201,7 @@ fixture switcher above. Like `?fixture=`, they are parsed once at module init
 | `?autoload=<profile>`     | The mock startup report auto-loads `<profile>` when it exists (URL-encode spaces).                                    |
 | `?metadata=newer`         | `metadata_store_status` and the startup report return `newer_schema` for the degraded-DB banner.                      |
 | `?metadata=disabled`      | `metadata_store_status` and the startup report return `disabled` (with a mock reason).                                |
-| `?steamDeckCaveats=show`  | `check_readiness` populates `steam_deck_caveats` (when not yet dismissed).                                            |
+| `?steamDeckCaveats=show`  | `check_generalized_readiness` populates `steam_deck_caveats` (when not yet dismissed).                                            |
 
 `?delay` and `?errors` are implemented as a `wrapHandler()` middleware in
 `lib/mocks/wrapHandler.ts` that wraps every registered handler exactly once

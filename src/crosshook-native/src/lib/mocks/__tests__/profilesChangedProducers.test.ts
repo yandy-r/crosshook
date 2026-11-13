@@ -112,11 +112,4 @@ describe('mock profiles-changed producers', () => {
       { reason: { kind: 'imported' }, names: ['synthetic-quest-2'] },
     ]);
   });
-
-  it('legacy import refuses an existing profile name without emitting', async () => {
-    await expect(mockCallCommand('profile_import_legacy', { path: `/legacy/${ALPHA}.profile` })).rejects.toThrow(
-      `a profile named '${ALPHA}' already exists`
-    );
-    expect(payloads).toEqual([]);
-  });
 });

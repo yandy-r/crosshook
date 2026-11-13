@@ -53,15 +53,12 @@ const EXPLICIT_READ_COMMANDS: ReadonlySet<string> = new Set<string>([
   'check_game_running',
   'list_running_sessions',
   'check_gamescope_session',
-  'launch_platform_status',
-  'check_readiness',
   // `check_generalized_readiness` is omitted: the real command persists a host readiness
   // snapshot via `upsert_host_readiness_snapshot` (see onboarding.rs), so it is not a
   // pure read. It still matches `READ_VERB_RE` (`check_` prefix) for test rendering.
   'preview_launch',
   'validate_launch',
   'build_steam_launch_options_command',
-  'get_trainer_guidance',
   'verify_trainer_hash',
   // `collection_*` prefix doesn't match the `get_`-prefix regex, so list reads
   // explicitly. Phase 1 collection reads (`collection_list`, `collection_list_profiles`,

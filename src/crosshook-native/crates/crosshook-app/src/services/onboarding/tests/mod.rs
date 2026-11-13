@@ -1,5 +1,4 @@
 mod dismissals;
-mod guidance;
 mod readiness;
 mod snapshot;
 
@@ -74,11 +73,7 @@ fn details() -> HostToolDetails {
 }
 
 fn fake_probe() -> Arc<FakeHostProbe> {
-    Arc::new(FakeHostProbe::new(
-        readiness_result(),
-        readiness_result(),
-        details(),
-    ))
+    Arc::new(FakeHostProbe::new(readiness_result(), details()))
 }
 
 fn service(settings: SettingsStore, metadata: MetadataStore) -> OnboardingService {

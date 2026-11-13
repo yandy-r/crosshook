@@ -24,10 +24,7 @@ pub use path_resolution::{
     ResolvedProtonPaths,
 };
 
-pub use platform::{
-    is_unshare_net_available, launch_platform_capabilities, resolve_umu_run_path,
-    LaunchPlatformCapabilities,
-};
+pub use platform::{is_unshare_net_available, resolve_umu_run_path};
 
 pub use proton_command::{
     build_direct_proton_command_with_wrappers_in_directory, build_gamescope_args,

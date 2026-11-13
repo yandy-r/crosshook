@@ -132,26 +132,4 @@ impl VersionService {
         })
         .await
     }
-
-    /// Returns the latest recorded version snapshot for a named profile, if any.
-    pub async fn snapshot(&self, name: String) -> Result<Option<VersionSnapshotInfo>, AppError> {
-        let metadata = self.metadata.clone();
-        run_blocking(move || {
-            let profile_id = metadata
-                .lookup_profile_id(&name)
-                .map_err(|e| AppError::from_metadata_validation("version", e))?
-                .unwrap_or_default();
-
-            if profile_id.is_empty() {
-                return Ok(None);
-            }
-
-            let row = metadata
-                .lookup_latest_version_snapshot(&profile_id)
-                .map_err(|e| AppError::from_metadata_validation("version", e))?;
-
-            Ok(row.map(row_to_snapshot_info))
-        })
-        .await
-    }
 }

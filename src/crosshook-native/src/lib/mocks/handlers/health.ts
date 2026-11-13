@@ -243,16 +243,6 @@ export function registerHealth(map: Map<string, Handler>): void {
     return result;
   });
 
-  // get_version_snapshot — returns the latest version snapshot for a profile
-  map.set('get_version_snapshot', async (args): Promise<VersionSnapshotInfo | null> => {
-    const { name } = args as { name: string };
-    const store = getStore();
-    if (!store.profiles.has(name)) {
-      return null;
-    }
-    return buildVersionSnapshot(name);
-  });
-
   // set_trainer_version — records a manual trainer version hint
   map.set('set_trainer_version', async (args) => {
     const { name, version } = args as { name: string; version: string };

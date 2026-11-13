@@ -3,8 +3,6 @@
 //! launch optimization, section and preset saves, favorites, command arguments
 //! and config revision history).
 
-use std::path::PathBuf;
-
 use crosshook_app::ipc::unavailable_or;
 use crosshook_app::services::profiles::{
     BundledOptimizationPresetDto, CommandArgumentsPayload, ConfigDiffResult, ConfigRevisionSummary,
@@ -89,16 +87,6 @@ pub async fn profile_rename(
     app: AppState<'_>,
 ) -> IpcResult<bool> {
     commit(app.services().profiles.rename(old_name, new_name).await)
-}
-
-#[tauri::command]
-pub async fn profile_import_legacy(path: String, app: AppState<'_>) -> IpcResult<GameProfile> {
-    commit(
-        app.services()
-            .profiles
-            .import_legacy(PathBuf::from(path))
-            .await,
-    )
 }
 
 #[tauri::command]

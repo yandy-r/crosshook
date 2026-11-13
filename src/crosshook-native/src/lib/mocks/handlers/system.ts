@@ -6,8 +6,6 @@ import type {
   CatalogPage,
   CatalogQuery,
   ExternalTrainerSearchResponse,
-  ExternalTrainerSourceSubscription,
-  VersionMatchResult,
 } from '../../../types/discovery';
 import type { CommandArgumentCatalogPayload, CommandArgumentEntry } from '../../../types/launch-command-arguments';
 import type { HashVerifyResult, OfflineReadinessReport, TrainerTypeEntry } from '../../../types/offline';
@@ -23,20 +21,6 @@ import { getActiveFixture } from '../../fixture';
 import { getActiveToggles } from '../../toggles';
 import { forcedError, neverResolving } from './profile-utils';
 import type { Handler } from './types';
-
-// --- Module-scope state ---
-
-const DEFAULT_EXTERNAL_SOURCES: ExternalTrainerSourceSubscription[] = [
-  {
-    sourceId: 'mock-source-1',
-    displayName: 'Mock Trainer Index',
-    baseUrl: 'https://mock.example.invalid/trainers',
-    sourceType: 'rss',
-    enabled: true,
-  },
-];
-
-let externalSources: ExternalTrainerSourceSubscription[] = structuredClone(DEFAULT_EXTERNAL_SOURCES);
 
 // --- discovery ---
 
@@ -522,38 +506,6 @@ export function registerSystem(map: Map<string, Handler>): void {
     return structuredClone(MOCK_EXTERNAL_SEARCH_RESPONSE);
   });
 
-  map.set('discovery_check_version_compatibility', async (_args): Promise<VersionMatchResult> => {
-    return {
-      status: 'unknown',
-      trainerGameVersion: undefined,
-      installedGameVersion: undefined,
-      detail: '[dev-mock] version compatibility always returns unknown in browser mode',
-    };
-  });
-
-  map.set('discovery_list_external_sources', async (): Promise<ExternalTrainerSourceSubscription[]> => {
-    return structuredClone(externalSources);
-  });
-
-  map.set('discovery_add_external_source', async (args): Promise<ExternalTrainerSourceSubscription[]> => {
-    const { source } = args as { source: ExternalTrainerSourceSubscription };
-    if (externalSources.some((s) => s.sourceId === source.sourceId)) {
-      throw new Error(`[dev-mock] source with id "${source.sourceId}" already exists`);
-    }
-    externalSources = [...externalSources, source];
-    return structuredClone(externalSources);
-  });
-
-  map.set('discovery_remove_external_source', async (args): Promise<ExternalTrainerSourceSubscription[]> => {
-    const { sourceId } = args as { sourceId: string };
-    const before = externalSources.length;
-    externalSources = externalSources.filter((s) => s.sourceId !== sourceId);
-    if (externalSources.length === before) {
-      throw new Error(`[dev-mock] no source with id "${sourceId}" found`);
-    }
-    return structuredClone(externalSources);
-  });
-
   // --- prefix_storage ---
 
   map.set('scan_prefix_storage', async (): Promise<PrefixStorageScanResult> => {
@@ -645,20 +597,11 @@ export function registerSystem(map: Map<string, Handler>): void {
     };
   });
 
-  map.set('check_network_status', async (): Promise<boolean> => {
-    return false;
-  });
-
   map.set('get_trainer_type_catalog', async (): Promise<TrainerTypeEntry[]> => {
     return structuredClone(MOCK_TRAINER_TYPE_CATALOG);
   });
 
   // --- background portal ---
-
-  map.set('get_background_protection_state', async (): Promise<string> => {
-    // Return 'NotApplicable' for non-Flatpak dev environment
-    return 'NotApplicable';
-  });
 
   // --- path normalization ---
 
@@ -671,8 +614,4 @@ export function registerSystem(map: Map<string, Handler>): void {
     // Browser dev mode has no Flatpak sandbox or document portal: return the path unchanged for either pathUse.
     return path;
   });
-}
-
-export function resetSystemMockState(): void {
-  externalSources = structuredClone(DEFAULT_EXTERNAL_SOURCES);
 }

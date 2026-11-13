@@ -194,12 +194,12 @@ pub enum BackgroundError {
 
 ### Call-site table
 
-| Call site                                                                                           | Action                                                                                              | Contract function                                                        |
-| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| Tauri `.setup(...)` closure in `src-tauri/src/lib.rs`                                               | Spawn one task: `BackgroundGrantHolder::request_and_store(&XdgBackgroundPortal)` → `store_result`   | `request_background`                                                     |
-| `spawn_cancel_consumer` in `crates/crosshook-app/src/services/launch/gamescope.rs`                  | Spawn a sibling task that awaits `wait_for_initialization(500ms)` and logs the resolved grant state | `background_supported`, `BackgroundGrantHolder::wait_for_initialization` |
-| (Future) Portal `Running` signal handler                                                            | If the portal revokes background and the watchdog is still active, re-request once                  | `request_background`                                                     |
-| Synthetic `background_protection` capability, exposed via `get_background_protection_state` command | Derive the dashboard row from `protection_state()` — `Pending` surfaces as an indeterminate row     | `background_supported`, `BackgroundGrantHolder::protection_state`        |
+| Call site                                                                                             | Action                                                                                              | Contract function                                                        |
+| ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Tauri `.setup(...)` closure in `src-tauri/src/lib.rs`                                                 | Spawn one task: `BackgroundGrantHolder::request_and_store(&XdgBackgroundPortal)` → `store_result`   | `request_background`                                                     |
+| `spawn_cancel_consumer` in `crates/crosshook-app/src/services/launch/gamescope.rs`                    | Spawn a sibling task that awaits `wait_for_initialization(500ms)` and logs the resolved grant state | `background_supported`, `BackgroundGrantHolder::wait_for_initialization` |
+| (Future) Portal `Running` signal handler                                                              | If the portal revokes background and the watchdog is still active, re-request once                  | `request_background`                                                     |
+| Synthetic `background_protection` capability, exposed via `BackgroundGrantHolder::protection_state()` | Derive the dashboard row from `protection_state()` — `Pending` surfaces as an indeterminate row     | `background_supported`, `BackgroundGrantHolder::protection_state`        |
 
 ### Scope boundaries
 
@@ -221,7 +221,7 @@ A new synthetic capability `background_protection` joins the existing host-tool 
 
 This integrates cleanly with `crosshook-core/src/onboarding/capability.rs::check_generalized_readiness` — it's derived state, not a persisted column, so **no SQLite schema change is required** (schema v21 unchanged).
 
-> **UI integration deferred.** The `get_background_protection_state` Tauri command (in `src-tauri/src/commands/background.rs`, backed by `BackgroundGrantHolder` in `crates/crosshook-app/src/services/background.rs`) is registered and present in `.invoke_handler`, but no TypeScript consumer currently calls it. Wiring the dashboard row is tracked as a follow-up frontend task.
+> **UI integration deferred.** The `get_background_protection_state` Tauri command was removed in the no-caller IPC cleanup because no TypeScript consumer called it. `BackgroundGrantHolder` in `crates/crosshook-app/src/services/background.rs` still resolves the state for the startup report. Wiring the dashboard row is tracked as a follow-up frontend task.
 
 ### Error handling
 

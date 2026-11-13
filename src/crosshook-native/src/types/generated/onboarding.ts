@@ -99,7 +99,7 @@ export type SteamDeckCaveats = {
 };
 
 /**
- * Static compiled guidance content returned by `get_trainer_guidance`.
+ * Static compiled trainer loading, source, and verification guidance.
  */
 export type TrainerGuidanceContent = {
   loading_modes: Array<TrainerGuidanceEntry>;

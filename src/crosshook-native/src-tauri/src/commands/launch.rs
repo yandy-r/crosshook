@@ -8,9 +8,7 @@ use std::collections::BTreeMap;
 use crosshook_app::ipc::launch::LaunchResult;
 use crosshook_app::ipc::sessions::RunningSessionsDto;
 use crosshook_app::{LaunchSession, LaunchStartError};
-use crosshook_core::launch::{
-    LaunchPlatformCapabilities, LaunchPreview, LaunchRequest, LaunchValidationIssue,
-};
+use crosshook_core::launch::{LaunchPreview, LaunchRequest, LaunchValidationIssue};
 use crosshook_core::metadata::LaunchHistoryEntry;
 use crosshook_core::profile::GamescopeConfig;
 use tauri::AppHandle;
@@ -111,12 +109,6 @@ pub async fn build_steam_launch_options_command(
 #[tauri::command]
 pub async fn check_gamescope_session(app: AppState<'_>) -> IpcResult<bool> {
     Ok(app.services().host_tools.gamescope_session())
-}
-
-/// Returns Flatpak sandbox and host capability flags for launch UI (not persisted).
-#[tauri::command]
-pub async fn launch_platform_status(app: AppState<'_>) -> IpcResult<LaunchPlatformCapabilities> {
-    ipc(app.services().host_tools.platform_status().await)
 }
 
 #[tauri::command]

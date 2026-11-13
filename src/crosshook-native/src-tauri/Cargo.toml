@@ -17,7 +17,6 @@ crosshook-app = { path = "../crates/crosshook-app" }
 crosshook-core = { path = "../crates/crosshook-core" }
 tauri = { version = "2.11.2", features = ["protocol-asset"] }
 tauri-plugin-dialog = "2.7.1"
-tauri-plugin-fs = "2.5.1"
 tauri-plugin-shell = "2"
 tokio = { version = "1", features = ["signal", "sync"] }
 tracing = "0.1"

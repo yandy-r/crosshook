@@ -340,19 +340,3 @@ async fn traversal_names_are_rejected_by_every_facade_without_events() {
     }
     assert_eq!(harness.next_event().await, None);
 }
-
-#[tokio::test]
-async fn legacy_import_rejects_invalid_file_stem_without_writing() {
-    let mut harness = Harness::new(Metadata::Enabled);
-    let legacy_dir = harness.root.path().join("legacy");
-    fs::create_dir_all(&legacy_dir).unwrap();
-    // `..profile` has the file stem `.`, which is not a valid profile name.
-    let path = legacy_dir.join("..profile");
-    fs::write(&path, "GamePath=C:\\Games\\old.exe\n").unwrap();
-
-    let error = harness.writer.import_legacy(path).await.unwrap_err();
-
-    assert_validation(&error);
-    assert!(harness.profiles.list().unwrap().is_empty());
-    assert_eq!(harness.next_event().await, None);
-}

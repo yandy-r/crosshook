@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { makeProfileDraft } from '@/test/fixtures';
 import { configureMockHandlers, mockCallCommand } from '@/test/render';
 import type { CommunityExportResult } from '../../../hooks/useCommunityProfiles';
-import type { ExternalTrainerSourceSubscription } from '../../../types/discovery';
 
 // Mock handlers must read the same camelCase top-level invoke keys the
 // frontend sends (Tauri maps them to the snake_case Rust parameters).
@@ -35,13 +34,5 @@ describe('mock handlers read camelCase invoke keys', () => {
 
     expect(withHooks).toContain('[[pre_launch_hooks]]');
     expect(withoutHooks).not.toContain('[[pre_launch_hooks]]');
-  });
-
-  it('discovery_remove_external_source reads sourceId', async () => {
-    const remaining = await mockCallCommand<ExternalTrainerSourceSubscription[]>('discovery_remove_external_source', {
-      sourceId: 'mock-source-1',
-    });
-
-    expect(remaining.map((source) => source.sourceId)).not.toContain('mock-source-1');
   });
 });

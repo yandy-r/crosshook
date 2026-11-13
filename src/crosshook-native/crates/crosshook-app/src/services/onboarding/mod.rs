@@ -2,7 +2,6 @@
 //! dismissals (TOML + SQLite dual write) and trainer guidance.
 
 mod dismissals;
-mod guidance;
 mod readiness;
 mod snapshot;
 
