@@ -78,7 +78,6 @@ const baseHandlerOverrides = {
   get_cached_health_snapshots: async () => [],
   get_cached_offline_readiness_snapshots: async () => [],
   batch_offline_readiness: async () => [],
-  launch_platform_status: async () => ({ unshare_net_available: false }),
   get_capabilities: async () => [],
   check_generalized_readiness: async () => ({
     checks: [],

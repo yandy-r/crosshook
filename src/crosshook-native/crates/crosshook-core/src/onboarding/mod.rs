@@ -193,7 +193,7 @@ pub struct TrainerGuidanceEntry {
     pub examples: Vec<String>,
 }
 
-/// Static compiled guidance content returned by `get_trainer_guidance`.
+/// Static compiled trainer loading, source, and verification guidance.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-rs", derive(TS))]
 #[cfg_attr(feature = "ts-rs", ts(export, export_to = "generated/onboarding.ts"))]

@@ -1,4 +1,4 @@
-//! Read-only launcher queries: existence checks, listing, and orphan detection.
+//! Read-only launcher queries: existence checks and listing.
 
 use std::fs;
 use std::io;
@@ -248,17 +248,4 @@ pub fn list_launchers(
 
     launchers.sort_by(|a, b| a.launcher_slug.cmp(&b.launcher_slug));
     launchers
-}
-
-/// Returns launchers that don't match any known profile slug.
-pub fn find_orphaned_launchers(
-    known_profile_slugs: &[String],
-    target_home_path: &str,
-    steam_client_install_path: &str,
-) -> Vec<LauncherInfo> {
-    let all_launchers = list_launchers(target_home_path, steam_client_install_path);
-    all_launchers
-        .into_iter()
-        .filter(|launcher| !known_profile_slugs.contains(&launcher.launcher_slug))
-        .collect()
 }

@@ -1,7 +1,6 @@
 //! Import facade tests: Lutris and community imports write under the writer
-//! lock and publish one `Imported` event with the concrete names; legacy
-//! import records an `Import` revision; duplicate and rename capture
-//! revisions and lineage.
+//! lock and publish one `Imported` event with the concrete names; duplicate
+//! and rename capture revisions and lineage.
 
 use std::fs;
 use std::path::PathBuf;
@@ -198,22 +197,6 @@ async fn invalid_community_manifest_is_rejected_without_event() {
 }
 
 #[tokio::test]
-async fn legacy_import_records_import_revision_and_publishes_trimmed_name() {
-    let mut harness = Harness::new(Metadata::Enabled);
-    let legacy_dir = harness.root.path().join("legacy");
-    fs::create_dir_all(&legacy_dir).unwrap();
-    let path = legacy_dir.join("Old Game.profile");
-    fs::write(&path, "GamePath=C:\\Games\\old.exe\nLaunchMethod=native\n").unwrap();
-
-    harness.writer.import_legacy(path).await.unwrap();
-
-    assert!(harness.profiles.profile_exists("Old Game"));
-    assert_eq!(revision_sources(&harness.metadata, "Old Game"), ["import"]);
-    assert_eq!(sync_row(&harness.metadata, "Old Game").0, "import");
-    assert_eq!(harness.next_event().await, imported(&["Old Game"]));
-}
-
-#[tokio::test]
 async fn community_import_twice_keeps_the_first_profile_and_publishes_the_suffixed_name() {
     let mut harness = Harness::new(Metadata::Enabled);
     let path = community_manifest(&harness, "", "");
@@ -243,29 +226,6 @@ async fn community_import_twice_keeps_the_first_profile_and_publishes_the_suffix
         ["community-game", "community-game-2"]
     );
     assert_eq!(harness.next_event().await, imported(&["community-game-2"]));
-    assert_eq!(harness.next_event().await, None);
-}
-
-#[tokio::test]
-async fn legacy_import_over_an_existing_profile_is_a_conflict_without_event() {
-    let mut harness = Harness::new(Metadata::Enabled);
-    harness
-        .writer
-        .save("Old Game".to_string(), steam_profile(&home(&harness)))
-        .await
-        .unwrap();
-    assert!(harness.next_event().await.is_some());
-    let existing_path = harness.profiles.base_path.join("Old Game.toml");
-    let before = fs::read(&existing_path).unwrap();
-    let legacy_dir = harness.root.path().join("legacy");
-    fs::create_dir_all(&legacy_dir).unwrap();
-    let path = legacy_dir.join("Old Game.profile");
-    fs::write(&path, "GamePath=C:\\Games\\old.exe\nLaunchMethod=native\n").unwrap();
-
-    let error = harness.writer.import_legacy(path).await.unwrap_err();
-
-    assert_eq!(error.kind(), AppErrorKind::Conflict);
-    assert_eq!(fs::read(&existing_path).unwrap(), before);
     assert_eq!(harness.next_event().await, None);
 }
 

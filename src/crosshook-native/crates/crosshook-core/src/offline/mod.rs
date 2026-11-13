@@ -1,7 +1,6 @@
 //! Offline trainer classification, readiness scoring, and hash caching.
 
 pub mod hash;
-pub mod network;
 pub mod readiness;
 pub mod trainer_type;
 
@@ -10,7 +9,6 @@ pub use hash::{
     HashVerifyResult, TrainerHashBaselineResult, TrainerHashCommunityAdvisory,
     TrainerHashLaunchOutcome,
 };
-pub use network::is_network_available;
 pub use readiness::{
     check_offline_preflight, compute_offline_readiness, enrich_health_report_with_offline,
     persist_offline_readiness_from_report, OfflineReadinessPersistHints, OfflineReadinessReport,

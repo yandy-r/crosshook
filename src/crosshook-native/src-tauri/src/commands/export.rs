@@ -1,11 +1,7 @@
-use std::collections::BTreeMap;
-
-use crosshook_app::services::LauncherRenameRequest;
 use crosshook_core::export::{
-    LauncherDeleteResult, LauncherInfo, LauncherRenameResult, SteamExternalLauncherExportRequest,
+    LauncherDeleteResult, LauncherInfo, SteamExternalLauncherExportRequest,
     SteamExternalLauncherExportResult,
 };
-use crosshook_core::profile::GamescopeConfig;
 
 use super::{AppState, IpcResult};
 use crate::error_map::ipc;
@@ -81,48 +77,6 @@ pub async fn delete_launcher_by_slug(
         .await)
 }
 
-#[tauri::command]
-pub async fn rename_launcher(
-    old_launcher_slug: String,
-    new_display_name: String,
-    new_launcher_icon_path: String,
-    target_home_path: String,
-    steam_client_install_path: String,
-    method: String,
-    trainer_path: String,
-    trainer_loading_mode: String,
-    prefix_path: String,
-    proton_path: String,
-    steam_app_id: String,
-    launcher_name: String,
-    network_isolation: bool,
-    gamescope: GamescopeConfig,
-    custom_env_vars: BTreeMap<String, String>,
-    app: AppState<'_>,
-) -> IpcResult<LauncherRenameResult> {
-    ipc(app
-        .services()
-        .launcher_export
-        .rename(LauncherRenameRequest {
-            old_launcher_slug,
-            new_display_name,
-            new_launcher_icon_path,
-            target_home_path,
-            steam_client_install_path,
-            method,
-            trainer_path,
-            trainer_loading_mode,
-            prefix_path,
-            proton_path,
-            steam_app_id,
-            launcher_name,
-            network_isolation,
-            gamescope,
-            custom_env_vars,
-        })
-        .await)
-}
-
 /// Lists launcher files found under the resolved launcher directory.
 #[tauri::command]
 pub async fn list_launchers(
@@ -134,25 +88,6 @@ pub async fn list_launchers(
         .services()
         .launcher_export
         .list(target_home_path, steam_client_install_path)
-        .await)
-}
-
-/// Lists launcher files whose slugs do not match the supplied known profile slugs.
-#[tauri::command]
-pub async fn find_orphaned_launchers(
-    known_profile_slugs: Vec<String>,
-    target_home_path: String,
-    steam_client_install_path: String,
-    app: AppState<'_>,
-) -> IpcResult<Vec<LauncherInfo>> {
-    Ok(app
-        .services()
-        .launcher_export
-        .find_orphaned(
-            known_profile_slugs,
-            target_home_path,
-            steam_client_install_path,
-        )
         .await)
 }
 

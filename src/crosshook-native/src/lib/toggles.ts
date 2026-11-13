@@ -29,7 +29,7 @@ export interface DebugToggles {
   forceErrors: boolean;
   /** If true, the mock startup report forces `report.onboarding.show`. */
   showOnboarding: boolean;
-  /** If true, populate `steam_deck_caveats` in `check_readiness` responses (when not yet dismissed). */
+  /** If true, populate `steam_deck_caveats` in `check_generalized_readiness` responses (when not yet dismissed). */
   showSteamDeckCaveats: boolean;
   /** Forced `metadata_store_status` state for browser dev mode ('ok' unless overridden). */
   metadataState: 'ok' | 'newer' | 'disabled';

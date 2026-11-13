@@ -4,12 +4,10 @@
 //! under the writer lock, then hands its metadata effects (observe → revision
 //! → health invalidation) to the commit pipeline in `writer.rs`.
 
-use std::path::PathBuf;
-
 use crosshook_core::metadata::{ConfigRevisionSource, SyncSource};
 use crosshook_core::profile::{
     profile_to_shareable_toml_with_options, validate_steam_app_id, DuplicateProfileResult,
-    GameProfile, ProfileStore, ProfileStoreError, ShareableTomlOptions,
+    GameProfile, ProfileStore, ShareableTomlOptions,
 };
 
 use super::defaults_art::{apply_new_profile_defaults, auto_import_custom_art};
@@ -89,33 +87,6 @@ impl ProfileWriter {
         };
         self.commit(RenameProfile { old_name, new_name }, reason)
             .await
-    }
-
-    /// Imports a legacy `.profile` file as a TOML profile named after its
-    /// (trimmed) file stem. The returned profile has unknown keys cleared.
-    /// Publishes `Imported`.
-    ///
-    /// # Errors
-    /// `Validation` for a file stem that is not a valid profile name (before
-    /// any side effect), `Conflict` when a profile of that name already
-    /// exists (left untouched), unreadable legacy file or filesystem failure.
-    pub async fn import_legacy(
-        &self,
-        path: PathBuf,
-    ) -> Result<ProfileCommit<GameProfile>, AppError> {
-        // The store names the profile after the validated file stem.
-        let stem = path
-            .file_stem()
-            .and_then(|value| value.to_str())
-            .ok_or_else(|| {
-                AppError::from(ProfileStoreError::InvalidName(path.display().to_string()))
-            })?;
-        let name = ProfileStore::validate_profile_name(stem)?;
-        self.commit(
-            ImportLegacyProfile { path, name },
-            ProfileChangeReason::Imported,
-        )
-        .await
     }
 
     /// Serializes `profile` to a shareable TOML document whose comment header
@@ -383,38 +354,5 @@ fn rewrite_launcher_display_name(profiles: &ProfileStore, new_name: &str) -> Opt
             tracing::warn!(%error, %new_name, "display_name update after profile rename failed");
             None
         }
-    }
-}
-
-/// Holds the profile name [`ProfileWriter::import_legacy`] validated from
-/// the file stem; the store derives the same name.
-struct ImportLegacyProfile {
-    path: PathBuf,
-    name: String,
-}
-
-impl ProfileMutation for ImportLegacyProfile {
-    type Output = GameProfile;
-
-    fn accepts(&self, reason: &ProfileChangeReason) -> bool {
-        matches!(reason, ProfileChangeReason::Imported)
-    }
-
-    fn persist(self, ctx: &CommitContext<'_>) -> Result<Persisted<GameProfile>, AppError> {
-        let Self { path, name } = self;
-        let mut profile = ctx.profiles.import_legacy(&path)?;
-        let effects = write_effects(
-            &name,
-            profile.clone(),
-            SyncSource::Import,
-            None,
-            ConfigRevisionSource::Import,
-        );
-        profile.clear_extra();
-        Ok(Persisted {
-            output: profile,
-            effects,
-            names: Some(vec![name]),
-        })
     }
 }

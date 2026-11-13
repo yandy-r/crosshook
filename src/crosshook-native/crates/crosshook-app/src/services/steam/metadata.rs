@@ -51,12 +51,6 @@ impl SteamService {
         .await
     }
 
-    /// Imports a content-addressed cover with bounded source reads.
-    #[tracing::instrument(skip_all)]
-    pub async fn import_custom_cover_art(&self, source_path: String) -> Result<String, AppError> {
-        self.import_custom_art(source_path, None).await
-    }
-
     /// Imports cover, portrait or background art with core's format validation.
     #[tracing::instrument(skip_all)]
     pub async fn import_custom_art(

@@ -55,7 +55,6 @@ pub use request::{
     LaunchValidationIssue, RuntimeLaunchConfig, SteamLaunchConfig, ValidationError,
     ValidationSeverity, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };
-pub use runtime_helpers::{launch_platform_capabilities, LaunchPlatformCapabilities};
 pub use session::{
     drain_cancel_into_outcome, session_profile_key_for_name, LaunchSessionRegistry, LinkError,
     SessionChange, SessionId, SessionInfo, SessionKind, SessionObserver, TeardownReason,

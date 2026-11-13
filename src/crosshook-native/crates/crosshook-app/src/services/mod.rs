@@ -57,7 +57,7 @@ pub use health::HealthService;
 pub use host_tools::{CoreHostProbe, HostProbe, HostToolsService};
 pub use install::InstallService;
 pub use launch::LaunchService;
-pub use launcher_export::{LauncherExportService, LauncherRenameRequest};
+pub use launcher_export::LauncherExportService;
 pub use lutris::LutrisService;
 pub use mods::{ModsService, ProfileModsResponse};
 pub use offline::OfflineService;

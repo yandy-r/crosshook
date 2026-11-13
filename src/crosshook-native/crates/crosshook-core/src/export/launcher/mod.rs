@@ -14,9 +14,11 @@ pub use types::{
     SteamExternalLauncherExportResult, SteamExternalLauncherExportValidationError,
 };
 
-pub(crate) use content::{build_desktop_entry_content, build_trainer_script_content};
+#[cfg(test)]
+pub(crate) use content::build_desktop_entry_content;
+pub(crate) use content::build_trainer_script_content;
 pub(crate) use names::{resolve_display_name, strip_trainer_suffix};
-pub(crate) use paths::{combine_host_unix_path, write_host_text_file};
+pub(crate) use paths::combine_host_unix_path;
 
 #[cfg(test)]
 mod tests;

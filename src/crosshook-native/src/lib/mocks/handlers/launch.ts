@@ -397,11 +397,6 @@ function scheduleTrainerInjectionLogSequence(request: LaunchRequest, sessionId: 
 // ---------------------------------------------------------------------------
 
 export function registerLaunch(map: Map<string, Handler>): void {
-  map.set('launch_platform_status', async () => ({
-    isFlatpak: false,
-    unshareNetAvailable: true,
-  }));
-
   map.set('list_launch_history_for_profile', async (args): Promise<LaunchHistoryEntry[]> => {
     const fixture = getActiveFixture();
     if (fixture === 'error') throw forcedError('list_launch_history_for_profile');

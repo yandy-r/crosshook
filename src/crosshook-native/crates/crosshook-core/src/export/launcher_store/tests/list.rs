@@ -1,11 +1,11 @@
-//! Tests for `list_launchers` and `find_orphaned_launchers`.
+//! Tests for `list_launchers`.
 
 use std::fs;
 use tempfile::tempdir;
 
 use crate::export::launcher::combine_host_unix_path;
 
-use super::super::queries::{find_orphaned_launchers, list_launchers};
+use super::super::queries::list_launchers;
 use super::create_file_with_content;
 
 #[test]
@@ -61,34 +61,6 @@ fn list_with_launchers() {
     assert_eq!(result[1].display_name, "beta-game");
     assert!(result[1].script_exists);
     assert!(!result[1].desktop_entry_exists);
-}
-
-#[test]
-fn find_orphaned_launchers_returns_only_unknown_slugs() {
-    let temp = tempdir().expect("temp dir");
-    let home = temp.path().to_string_lossy().into_owned();
-
-    create_file_with_content(
-        &combine_host_unix_path(
-            &home,
-            ".local/share/crosshook/launchers",
-            "known-game-trainer.sh",
-        ),
-        "#!/usr/bin/env bash\n# script known",
-    );
-    create_file_with_content(
-        &combine_host_unix_path(
-            &home,
-            ".local/share/crosshook/launchers",
-            "orphan-game-trainer.sh",
-        ),
-        "#!/usr/bin/env bash\n# script orphan",
-    );
-
-    let result = find_orphaned_launchers(&["known-game".to_string()], &home, "");
-
-    assert_eq!(result.len(), 1);
-    assert_eq!(result[0].launcher_slug, "orphan-game");
 }
 
 #[test]

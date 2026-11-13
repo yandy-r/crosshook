@@ -10,12 +10,11 @@ mod tests;
 
 use std::sync::Arc;
 
-use crosshook_core::launch::LaunchPlatformCapabilities;
 use crosshook_core::onboarding::HostToolDetails;
 
 use crate::jobs::{JobRegistry, JobSpec};
 use crate::presenter::display_path_tilde;
-use crate::services::{run_blocking, run_job};
+use crate::services::run_job;
 use crate::AppError;
 
 pub use probe::{CoreHostProbe, HostProbe};
@@ -52,12 +51,5 @@ impl HostToolsService {
     /// Reports whether the current session is already inside gamescope.
     pub fn gamescope_session(&self) -> bool {
         crosshook_core::launch::is_inside_gamescope_session()
-    }
-
-    /// Reads launch platform capabilities on the blocking pool.
-    ///
-    /// The first call may probe `unshare --net` through the core host gateway.
-    pub async fn platform_status(&self) -> Result<LaunchPlatformCapabilities, AppError> {
-        run_blocking(|| Ok(crosshook_core::launch::launch_platform_capabilities())).await
     }
 }

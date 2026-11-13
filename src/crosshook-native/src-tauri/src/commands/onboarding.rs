@@ -1,15 +1,8 @@
 use crosshook_app::services::onboarding::{CachedHostReadinessSnapshot, LegacyNag};
-use crosshook_core::onboarding::{
-    Capability, HostToolDetails, ReadinessCheckResult, TrainerGuidanceContent,
-};
+use crosshook_core::onboarding::{Capability, HostToolDetails, ReadinessCheckResult};
 
 use super::{AppState, IpcResult};
 use crate::error_map::ipc;
-
-#[tauri::command]
-pub async fn check_readiness(app: AppState<'_>) -> IpcResult<ReadinessCheckResult> {
-    ipc(app.services().onboarding.check_readiness().await)
-}
 
 #[tauri::command]
 pub async fn check_generalized_readiness(app: AppState<'_>) -> IpcResult<ReadinessCheckResult> {
@@ -78,9 +71,4 @@ pub async fn dismiss_readiness_nag(
         .onboarding
         .dismiss_readiness_nag(tool_id, ttl_days)
         .await)
-}
-
-#[tauri::command]
-pub async fn get_trainer_guidance(app: AppState<'_>) -> IpcResult<TrainerGuidanceContent> {
-    Ok(app.services().onboarding.trainer_guidance())
 }

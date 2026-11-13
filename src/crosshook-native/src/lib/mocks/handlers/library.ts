@@ -65,18 +65,7 @@ export function registerLibrary(map: Map<string, Handler>): void {
     return unavailableMetadata(normalizedId);
   });
 
-  // import_custom_cover_art(sourcePath) → string (cached path)
-  // In browser mode there is no real filesystem — return the source path unchanged.
-  map.set('import_custom_cover_art', async (args): Promise<string> => {
-    const { sourcePath } = args as { sourcePath: string };
-    if (!sourcePath || typeof sourcePath !== 'string') {
-      throw new Error('[dev-mock] import_custom_cover_art: sourcePath is required');
-    }
-    return sourcePath;
-  });
-
   // import_custom_art(sourcePath, artType) → string (cached path)
-  // Same passthrough behaviour as import_custom_cover_art.
   map.set('import_custom_art', async (args): Promise<string> => {
     const { sourcePath, artType } = args as { sourcePath: string; artType?: string };
     if (!sourcePath || typeof sourcePath !== 'string') {

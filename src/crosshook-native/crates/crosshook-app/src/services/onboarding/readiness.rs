@@ -13,19 +13,6 @@ use crate::services::run_job;
 use crate::AppError;
 
 impl OnboardingService {
-    /// Probes legacy system readiness under a supervised job and applies saved dismissals.
-    pub async fn check_readiness(&self) -> Result<ReadinessCheckResult, AppError> {
-        let service = self.clone();
-        run_job(&self.jobs, JobSpec::new("host-readiness"), move || {
-            let settings = service.settings.load()?;
-            let mut result = service.probe.system_readiness();
-            service.apply_dismissals(&mut result, &settings)?;
-            sanitize_readiness_paths(&mut result);
-            Ok(result)
-        })
-        .await
-    }
-
     /// Probes host readiness, persists the raw snapshot, then applies display overlays.
     pub async fn check_generalized_readiness(&self) -> Result<ReadinessCheckResult, AppError> {
         let service = self.clone();
