@@ -1,4 +1,4 @@
-//! Launch warning collector tests (Task 2.2).
+//! Launch warning collector tests.
 
 use crosshook_core::launch::{
     LaunchValidationIssue, ValidationSeverity, MAX_COEXISTENCE_ADVISORY_RECORDS,

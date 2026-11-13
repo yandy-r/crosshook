@@ -4,7 +4,7 @@
 //! writer lock: they never touch profile TOML. Rollback is the only content
 //! write and goes through the commit pipeline, verifying the stored revision
 //! (SHA-256 plus HMAC, ADR-0005) before anything is written. Every operation
-//! needs the metadata store and fails with `Unavailable` without it (D6).
+//! needs the metadata store and fails with `Unavailable` without it.
 
 use crosshook_core::metadata::{
     ConfigRevisionRow, ConfigRevisionSource, MetadataStore, MetadataStoreError, SyncSource,

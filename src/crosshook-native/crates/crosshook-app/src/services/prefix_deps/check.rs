@@ -1,5 +1,5 @@
 //! Tool detection and the read-only `list-installed` check. The check takes
-//! no prefix key (D5): it never mutates the prefix.
+//! no prefix key: it never mutates the prefix.
 
 use chrono::Utc;
 use crosshook_core::prefix_deps::runner::check_installed;
@@ -100,7 +100,7 @@ impl PrefixDepsService {
         .await
     }
 
-    /// Selects the tool for `profile_name` (D13): detection with the settings
+    /// Selects the tool for `profile_name`: detection with the settings
     /// override, the profile's Steam App ID (a profile that fails to load has
     /// none), and the winetricks fallback. `check` picks the check-time text.
     /// Blocking.

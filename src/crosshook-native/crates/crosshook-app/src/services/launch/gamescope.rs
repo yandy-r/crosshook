@@ -62,7 +62,7 @@ pub fn gamescope_required(req: &LaunchRequest, kind: SessionKind, env: LaunchEnv
 /// Whether the watchdog is handed a gamescope PID-capture path: the predicate
 /// holds and the process runs inside the Flatpak sandbox.
 ///
-/// Kept divergence (decision D8): for a Flatpak trainer the path reaches the
+/// Kept divergence: for a Flatpak trainer the path reaches the
 /// watchdog, but the trainer builder never writes the capture file, so the
 /// watchdog falls back to the host ancestor search after its poll window.
 pub fn pid_capture_required(req: &LaunchRequest, kind: SessionKind, env: LaunchEnv) -> bool {
@@ -145,7 +145,7 @@ pub(super) fn choose_cancel_consumer(
 /// always has a live receiver. Must be called inside a Tokio runtime.
 ///
 /// A `Watchdog` with an empty executable name keeps today's behavior
-/// (decision D8, invariant I-32): it logs, returns and drops `cancel_rx`, so
+///: it logs, returns and drops `cancel_rx`, so
 /// cascades into that session are lost.
 pub(super) fn spawn_cancel_consumer(
     consumer: CancelConsumer,

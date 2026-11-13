@@ -1,6 +1,6 @@
 //! Proton path migration apply facades (single and batch).
 //!
-//! Owned by YAN-811 Task 1.5. Every request's profile name is validated and
+//! Every request's profile name is validated and
 //! trimmed before the commit. Each item is load →
 //! `prepare_profile_migration` → `save_without_companion` (migration never
 //! rewrites the MangoHud companion). Only `Applied` items observe

@@ -1,4 +1,4 @@
-//! CLI output compatibility for YAN-798 (D10), captured from baseline a652cd0.
+//! CLI output compatibility.
 //!
 //! The 13 cases drive the unmodified CLI through its real binary with isolated
 //! child environments and stub executables. Fixtures are frozen: a mismatch is

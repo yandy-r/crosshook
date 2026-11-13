@@ -28,7 +28,7 @@ pub struct TrainerSourceEntry {
     pub sha256: Option<String>,
 }
 
-/// Phase B: external trainer result from an RSS or API source (e.g. FLiNG).
+/// External trainer result from an RSS or API source (e.g. FLiNG).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExternalTrainerResult {
@@ -41,7 +41,7 @@ pub struct ExternalTrainerResult {
     pub relevance_score: f64,
 }
 
-/// Phase B: IPC input from the frontend for external trainer search queries.
+/// IPC input from the frontend for external trainer search queries.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExternalTrainerSearchQuery {
@@ -52,7 +52,7 @@ pub struct ExternalTrainerSearchQuery {
     pub force_refresh: Option<bool>,
 }
 
-/// Phase B: IPC response wrapper for external trainer search results.
+/// IPC response wrapper for external trainer search results.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExternalTrainerSearchResponse {
@@ -65,7 +65,7 @@ pub struct ExternalTrainerSearchResponse {
     pub offline: bool,
 }
 
-/// Phase B: version match status between a trainer and the installed game.
+/// Version match status between a trainer and the installed game.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum VersionMatchStatus {
@@ -77,7 +77,7 @@ pub enum VersionMatchStatus {
     Unknown,
 }
 
-/// Phase B: version match result pairing a status with optional detail strings.
+/// Version match result pairing a status with optional detail strings.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VersionMatchResult {

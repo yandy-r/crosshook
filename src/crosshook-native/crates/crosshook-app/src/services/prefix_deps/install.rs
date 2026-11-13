@@ -92,7 +92,7 @@ impl PrefixDepsService {
     }
 
     /// The synchronous checks of [`start_install`](Self::start_install), in
-    /// order: offline gate first (D12). Blocking.
+    /// order: offline gate first. Blocking.
     fn prepare_job(
         self,
         profile_name: String,

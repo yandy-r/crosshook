@@ -1,4 +1,4 @@
-//! Startup-benchmark hooks (YAN-782 / #509). Inert unless `CROSSHOOK_BENCH=1`.
+//! Startup-benchmark hooks. Inert unless `CROSSHOOK_BENCH=1`.
 //!
 //! Toolkit-independent: the env decision, replay-plan validation, the
 //! one-shot monotonic READY marker and the paced log reader live here so the

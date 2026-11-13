@@ -1,4 +1,4 @@
-//! Shared pre-spawn launch steps (Task 3.1).
+//! Shared pre-spawn launch steps.
 //!
 //! Forces the session kind's flags, validates before any side effect, then
 //! enriches the UMU GAMEID, collects warnings, and allocates the log file and

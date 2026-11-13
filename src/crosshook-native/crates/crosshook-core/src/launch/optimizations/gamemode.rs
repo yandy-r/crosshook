@@ -13,7 +13,7 @@ pub const USE_GAMEMODE_OPTIMIZATION_ID: &str = "use_gamemode";
 /// Returns true when the request opts into `use_gamemode`, the child will
 /// actually be launched through Proton (the effective execution method is
 /// `proton_run`), and the process is running under Flatpak — in which case
-/// the launch orchestrator should call
+/// the launch service should call
 /// `crate::platform::portals::gamemode::probe_and_register_via_portal()` to
 /// register CrossHook's own sandbox PID with the host GameMode daemon.
 ///
@@ -27,7 +27,7 @@ pub const USE_GAMEMODE_OPTIMIZATION_ID: &str = "use_gamemode";
 ///
 /// This helper does **not** touch D-Bus. It only encodes the "should we try"
 /// decision; `probe_and_register_via_portal`
-/// calls happen in the IPC layer (`src-tauri/src/commands/launch.rs`).
+/// calls happen in `crosshook-app`'s launch service (`services::launch::portal`).
 ///
 /// Host games continue to use the `gamemoderun` wrapper unconditionally when
 /// `use_gamemode` is enabled — the portal is for CrossHook's own PID only.

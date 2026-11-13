@@ -5,8 +5,7 @@ use std::path::{Path, PathBuf};
 /// Discover Steam roots in priority order.
 ///
 /// The explicit Steam client path wins if it resolves to a valid root. If not,
-/// the native Linux fallbacks are checked in the same order used by the
-/// existing C# implementation plus the Flatpak Steam root needed for Steam
+/// the native Linux fallbacks are checked in order, followed by the Flatpak Steam root needed for Steam
 /// Deck installs.
 pub fn discover_steam_root_candidates(
     steam_client_install_path: impl AsRef<Path>,

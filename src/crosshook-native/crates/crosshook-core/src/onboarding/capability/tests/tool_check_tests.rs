@@ -7,7 +7,7 @@ use crate::onboarding::{
 };
 use crate::profile::health::HealthIssueSeverity;
 
-/// Regression (F007): `synthesize_umu_run_check` must not put the
+/// Regression: `synthesize_umu_run_check` must not put the
 /// human-readable `description` string into the `alternatives` field.
 /// The `alternatives` slot is for alternative install methods; when
 /// `UmuInstallGuidance` supplies none, the field must be empty.
@@ -46,7 +46,7 @@ fn synthesize_umu_run_check_alternatives_empty_when_guidance_has_no_alternatives
     );
 }
 
-/// Regression (F006): when the `checks` Vec is empty (cached SQLite snapshot)
+/// Regression: when the `checks` Vec is empty (cached SQLite snapshot)
 /// and `tool_checks` already has an `umu_run` entry with a non-empty
 /// `resolved_path`, the live host probe (`resolve_umu_run_path`) must be
 /// skipped.  We verify this by pointing PATH at an empty directory — if the

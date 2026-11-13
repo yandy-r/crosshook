@@ -317,7 +317,7 @@ pub(super) fn migrate_18_to_19(conn: &Connection) -> Result<(), MetadataStoreErr
     Ok(())
 }
 
-/// Phase 3: per-collection launch defaults.
+/// Per-collection launch defaults.
 ///
 /// Adds a nullable `defaults_json TEXT` column to `collections` for storing inline JSON
 /// (`CollectionDefaultsSection`). Existing rows backfill to `NULL`. Additive,

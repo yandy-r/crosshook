@@ -1,7 +1,7 @@
 use super::MetadataStoreError;
 use rusqlite::Connection;
 
-/// Adds `profile_mods` — per-profile mod coexistence registry (Forgejo #28).
+/// Adds `profile_mods` — per-profile mod coexistence registry.
 /// Machine-local operational metadata; never exported with community profiles.
 pub(super) fn migrate_25_to_26(conn: &Connection) -> Result<(), MetadataStoreError> {
     conn.execute_batch(

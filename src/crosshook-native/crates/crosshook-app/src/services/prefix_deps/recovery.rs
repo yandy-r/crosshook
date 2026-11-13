@@ -1,4 +1,4 @@
-//! Startup recovery of interrupted Windows-version restores (D8): every
+//! Startup recovery of interrupted Windows-version restores: every
 //! `pending` journal row is restored in its own job keyed on the prefix, so it
 //! never races an install or repair of the same prefix.
 

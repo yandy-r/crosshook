@@ -1,4 +1,4 @@
-//! Golden byte compatibility for `ProfileWriter` (YAN-811 D15).
+//! Golden byte compatibility for `ProfileWriter`.
 //!
 //! Each scenario seeds `<profiles>/Alpha.toml` from `fixtures/profile_writer/seed.toml`,
 //! drives the writer facade, and compares the written TOML byte-for-byte with
@@ -243,7 +243,7 @@ async fn batch_migrate_matches_pre_refactor_bytes() {
 }
 
 /// Seeds `Alpha` like [`Scenario::seeded`] but drives the migration through
-/// [`ProtonMigrationService`] (YAN-822 D10) sharing the same writer.
+/// [`ProtonMigrationService`] sharing the same writer.
 struct ServiceScenario {
     scenario: Scenario,
     service: ProtonMigrationService,

@@ -98,7 +98,7 @@ pub struct RuntimeLaunchConfig {
     #[serde(default)]
     pub working_directory: String,
     /// Steam App ID used as `GAMEID` when launching via `umu-run`.
-    /// Falls back to `"umu-0"` when empty (Phase 3).
+    /// Falls back to `"umu-0"` when empty .
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub steam_app_id: String,
     /// Optional protonfix override. When set, takes precedence over `steam_app_id` for umu GAMEID.

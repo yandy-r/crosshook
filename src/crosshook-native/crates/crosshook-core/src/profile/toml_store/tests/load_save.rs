@@ -26,7 +26,7 @@ fn save_load_list_and_delete_round_trip() {
     assert!(store.list().unwrap().is_empty());
 }
 
-/// Regression test for M2 of the Phase 3 review.
+/// Regression test.
 ///
 /// Exercises the real runtime pipeline used by the `profile_load` Tauri command:
 ///

@@ -32,14 +32,14 @@ struct FinishedPayload {
     state: JobSnapshotKind,
 }
 
-/// `profiles-changed` wire payload: `{ reason: { kind, ... }, names }` (D1).
+/// `profiles-changed` wire payload: `{ reason: { kind, ... }, names }`.
 #[derive(Debug, Clone, Serialize)]
 struct ProfilesChangedPayload {
     reason: ProfileChangeReason,
     names: Vec<String>,
 }
 
-/// Conservative profile resync emitted after a bus lag (D14): views refresh
+/// Conservative profile resync emitted after a bus lag: views refresh
 /// everything because the dropped changes are unknown.
 fn profiles_resync_payload() -> ProfilesChangedPayload {
     ProfilesChangedPayload {

@@ -195,7 +195,7 @@ fn partial_host_tree_imports_only_present_entries() {
     assert!(!sandbox_data.path().join("crosshook/metadata.db").exists());
 }
 
-/// F016 regression: when `.db` copies successfully but `.db-wal` copy fails (simulated via a
+/// Regression: when `.db` copies successfully but `.db-wal` copy fails (simulated via a
 /// pre-existing unwritable destination file), the atomic trio rollback removes the already-copied
 /// `.db` so the sandbox is left clean, the migration still completes (`run_for_roots` uses
 /// continue-on-error), and the returned outcome does NOT list `crosshook/metadata.db` as
@@ -270,7 +270,7 @@ fn wal_trio_partial_failure_rolls_back_and_migration_continues() {
     );
 }
 
-/// F015 regression: a dangling symlink inside a host include-subtree (plausible for a
+/// Regression: a dangling symlink inside a host include-subtree (plausible for a
 /// partially-deleted community tap) must be faithfully preserved in the sandbox. The migration
 /// should complete without error and the symlink must be present at the destination.
 ///

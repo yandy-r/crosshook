@@ -1,4 +1,4 @@
-//! Finalizer side effects and the drop guard (Task 2.5).
+//! Finalizer side effects and the drop guard.
 //!
 //! The history row, version snapshot and known-good tag follow the report
 //! after the watchdog rewrite. `exit_code` and `signal` stay the raw status.
@@ -377,7 +377,7 @@ async fn panic_still_publishes_exited_and_tears_down() {
         "the linked trainer stays registered"
     );
 }
-/// LOW regression (guard built inside the spawned task): a session task that
+/// Regression (guard built inside the spawned task): a session task that
 /// is dropped before its first poll must still tear down — the guard is now
 /// constructed before `tokio::spawn`, so dropping the un-polled task runs
 /// `Drop` (`Exited`, cascade, hooks, deregister).
@@ -425,7 +425,7 @@ async fn a_session_task_never_polled_still_tears_down() {
     );
 }
 
-/// LOW regression (duplicated finalizer cascade): the drop path and the
+/// Regression (duplicated finalizer cascade): the drop path and the
 /// normal finish path share one cascade implementation — a guard whose
 /// `finish` runs to completion must still cascade exactly once, and the
 /// linked trainer must observe exactly one `LinkedSessionExit`.

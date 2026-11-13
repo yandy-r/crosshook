@@ -210,7 +210,7 @@ impl ProfileMutation for PresetApply {
         };
 
         // The TOML is written: a failed reload falls back to the profile
-        // just saved so effects and the event still run (D4).
+        // just saved so effects and the event still run.
         let updated = ctx.profiles.load(&name).unwrap_or_else(|error| {
             tracing::warn!(
                 %error,

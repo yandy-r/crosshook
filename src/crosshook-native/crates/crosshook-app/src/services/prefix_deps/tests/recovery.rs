@@ -1,4 +1,4 @@
-//! Service-level startup recovery (D8) and explicit repair: pending rows are
+//! Service-level startup recovery and explicit repair: pending rows are
 //! restored under the prefix key and reported in the status; `failed` rows,
 //! live prefixes, an unavailable store and jobs cancelled by app shutdown
 //! before the restore are left alone.

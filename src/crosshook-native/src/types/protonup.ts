@@ -59,7 +59,7 @@ export interface ProtonUpSuggestion {
   recommended_version?: string;
 }
 
-// Types for the native Proton download manager (Issue #274).
+// Types for the native Proton download manager .
 // Mirror the Rust DTOs from the protonup::manager / protonup::resolver modules.
 
 export interface ProtonUpProviderDescriptor {

@@ -24,7 +24,7 @@ fn is_valid_verb_structure(verb: &str) -> bool {
 /// Security gates (hard reject):
 /// - Empty verb list
 /// - More than 50 verbs (DoS prevention)
-/// - Any verb starting with `-` (flag injection -- S-06)
+/// - Any verb starting with `-` (flag injection)
 /// - Any verb failing structural regex `^[a-z0-9][a-z0-9_\-]{0,63}$`
 pub fn validate_protontricks_verbs(verbs: &[String]) -> Result<(), PrefixDepsError> {
     if verbs.is_empty() {

@@ -23,7 +23,7 @@ use crate::guard;
 use crate::layout::{Layout, TOKEN};
 use crate::rng::Rng;
 
-// ponytail: one committed gradient JPEG is written as the cover for every profile — identical
+// One committed gradient JPEG is the cover for every profile — identical
 // pixels everywhere. Upgrade to per-profile variants if decode-cache effects ever matter.
 static PORTRAIT_JPEG: &[u8] = include_bytes!("assets/portrait.jpg");
 

@@ -1,4 +1,4 @@
-//! Data-driven external trainer discovery client (Phase B).
+//! Data-driven external trainer discovery client.
 //!
 //! Searches configured external sources (stored in TOML settings) using a
 //! 3-stage cache→live→stale-fallback pattern via `external_cache_entries`.

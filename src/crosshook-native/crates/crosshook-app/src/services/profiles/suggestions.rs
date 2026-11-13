@@ -1,6 +1,6 @@
 //! ProtonDB suggestion accept facade.
 //!
-//! Owned by YAN-811 Task 1.5. Both branches re-validate the suggestion at
+//! Both branches re-validate the suggestion at
 //! write time (never trusting cached suggestion data), persist once, observe
 //! the write, capture a `ProtonDbSuggestionApply` revision and publish `Saved`.
 
