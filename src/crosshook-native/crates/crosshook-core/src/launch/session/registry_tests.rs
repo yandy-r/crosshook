@@ -1,5 +1,4 @@
-//! Tests for [`super::LaunchSessionRegistry`], split out of `registry.rs`
-//! to keep the production module under the repo's ~500-line soft cap.
+//! Tests for [`super::LaunchSessionRegistry`].
 
 use super::*;
 

@@ -142,7 +142,7 @@ async fn host_steam_helper_passes_equivalent_trainer_env_directory_and_gamescope
         .map(OsString::from)
         .collect();
     // Host Steam runs a helper, not a direct gamescope child; the service's
-    // watchdog predicate remains false for that branch (D8).
+    // watchdog predicate remains false for that branch.
     assert!(!gamescope_required(&steam, SessionKind::Trainer, env));
     assert!(gamescope_required(&proton, SessionKind::Trainer, env));
     assert!(!pid_capture_required(&steam, SessionKind::Trainer, env));

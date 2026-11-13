@@ -1,4 +1,4 @@
-//! AC5: uninstall root authority and containment, against real temp dirs.
+//! Uninstall root authority and containment, against real temp dirs.
 //!
 //! The root source trusts `<tmp>/Steam` only. Every refusal is asserted for
 //! both `plan_uninstall` and `uninstall`, with a fixed path-free text and the

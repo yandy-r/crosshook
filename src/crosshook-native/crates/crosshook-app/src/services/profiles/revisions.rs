@@ -1,4 +1,4 @@
-//! Config revision capture and retention (moved from the Tauri shell).
+//! Config revision capture and retention.
 //!
 //! The snapshot serializes the supplied `GameProfile` with
 //! `toml::to_string_pretty` (not its storage form) so existing revision hashes

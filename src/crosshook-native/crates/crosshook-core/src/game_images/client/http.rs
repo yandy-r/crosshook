@@ -11,7 +11,7 @@ use crate::game_images::models::GameImageError;
 
 const REQUEST_TIMEOUT_SECS: u64 = 15;
 
-/// Hosts to which the HTTP client is allowed to follow redirects (S-01, S-06).
+/// Hosts to which the HTTP client is allowed to follow redirects.
 ///
 /// Only `https://` redirects to these domains are followed; all others are
 /// stopped to prevent SSRF and HTTP-downgrade attacks.

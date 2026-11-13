@@ -1,9 +1,9 @@
 //! The private commit pipeline every mutating facade funnels through.
 //!
 //! `commit` checks the mutation against its reason, then on the blocking pool
-//! under the writer lock (D3): primary persistence → advisory effects
+//! under the writer lock: primary persistence → advisory effects
 //! (observe → revision → health invalidation, fail-soft, D5/D6) → publish
-//! (D4). The event is published inside the closure, so a dropped caller
+//!. The event is published inside the closure, so a dropped caller
 //! future cannot lose the notification for a write that persisted; a panic
 //! inside the advisory effects is caught and reported as a warning so it
 //! cannot suppress the event either.
@@ -89,7 +89,7 @@ impl ProfileWriter {
 
 /// Runs [`run_effects`], converting a panic into
 /// [`CommitWarning::EffectsAborted`] so the primary write is still reported
-/// as a success and its event is still published (D4).
+/// as a success and its event is still published.
 fn run_effects_guarded(
     ctx: &CommitContext<'_>,
     effects: Vec<Effect>,
@@ -250,7 +250,7 @@ fn move_last_used_profile(settings: &SettingsStore, old_name: &str, new_name: &s
     }
 }
 
-/// Deletes the cached health row of the profile currently named `name` (D5).
+/// Deletes the cached health row of the profile currently named `name`.
 /// Returns `false` (already logged) when lookup or delete failed; a profile
 /// without metadata has nothing cached and succeeds.
 fn invalidate_health(metadata: &MetadataStore, name: &str) -> bool {

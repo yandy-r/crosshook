@@ -1,4 +1,4 @@
-//! Read-only launch commands and session reset (Task 2.6).
+//! Read-only launch commands and session reset.
 //!
 //! Everything here is either pure ([`LaunchService::validate`],
 //! [`LaunchService::steam_launch_options_command`]) or in-memory

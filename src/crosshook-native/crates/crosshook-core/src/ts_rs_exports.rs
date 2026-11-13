@@ -16,7 +16,7 @@ use crate::{
 const GENERATED_BASE: &str = "../../src/types";
 
 /// Export a small set of representative arg/return DTOs to TypeScript via ts-rs.
-/// Intended for the Phase 5 evaluation — gated behind the `ts-rs` feature.
+/// Gated behind the `ts-rs` feature.
 pub fn export_ts_types() -> Result<(), Box<dyn std::error::Error>> {
     let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(GENERATED_BASE);
     std::fs::create_dir_all(base.join("generated"))?;

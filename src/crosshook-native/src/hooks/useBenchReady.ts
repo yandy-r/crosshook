@@ -7,7 +7,7 @@ let fired = false;
 let warned = false;
 
 /**
- * Startup-benchmark hook (YAN-782 / #509). When `ready` first becomes true,
+ * Startup-benchmark hook. When `ready` first becomes true,
  * waits two animation frames (so the ready paint is committed), then calls the
  * backend `bench_ready` command once per process. No-op outside benchmark mode
  * (the backend ignores the call unless CROSSHOOK_BENCH=1). Renders nothing.

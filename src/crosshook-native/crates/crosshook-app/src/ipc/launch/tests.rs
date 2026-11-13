@@ -149,7 +149,7 @@ fn injection_log_matches_fixture_with_session_substituted() {
     // Fixture timestamp uses +00:00; relay formats RFC3339 the same way.
     expected["timestamp"] = json!("2026-01-01T00:00:00+00:00");
     assert_eq!(emits[0].payload_value(), expected);
-    // hook_id / hook_name omitted (I-54).
+    // hook_id / hook_name omitted.
     let value = emits[0].payload_value();
     assert!(value.get("hook_id").is_none());
     assert!(value.get("hook_name").is_none());

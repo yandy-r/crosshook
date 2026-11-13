@@ -192,7 +192,6 @@ pub fn list_launchers(
             continue;
         }
 
-        // Derive slug by stripping the -trainer.sh suffix
         let slug = file_name_str
             .strip_suffix("-trainer.sh")
             .unwrap_or_default()
@@ -219,7 +218,6 @@ pub fn list_launchers(
         let script_exists = is_regular_file_safe(&script_path);
         let desktop_entry_exists = is_regular_file_safe(&desktop_entry_path);
 
-        // Try to extract display name from the Name= line in the .desktop file
         let display_name = if desktop_entry_exists {
             match extract_display_name_from_desktop(&desktop_entry_path) {
                 Ok(Some(display_name)) => display_name,

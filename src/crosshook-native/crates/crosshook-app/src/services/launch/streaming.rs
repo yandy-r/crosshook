@@ -1,4 +1,4 @@
-//! Child stdio tee into the launch log and the log-follow driver (Task 2.3).
+//! Child stdio tee into the launch log and the log-follow driver.
 //!
 //! One streaming path serves both spawn modes. When the child's stdout or
 //! stderr is piped, the shared lossy byte tee
@@ -6,9 +6,9 @@
 //! log file (one writer task, bounded channel,
 //! [`PARTIAL_CAP`](crate::log_tail::PARTIAL_CAP)-bounded reads) so a pipe is
 //! never left undrained — even on invalid UTF-8, where the old line-based
-//! reader used to stop (D7). Whether or not a tee is needed, [`follow`] tails
+//! reader used to stop. Whether or not a tee is needed, [`follow`] tails
 //! the log file and delivers coalesced [`LogBatch`]es to the sink, replacing
-//! the 500 ms whole-file re-read (D3). Neither path ever kills the child: it
+//! the 500 ms whole-file re-read. Neither path ever kills the child: it
 //! exits on its own, or not at all.
 
 use std::io;
@@ -89,7 +89,7 @@ pub async fn stream_child_log(
     Ok(status)
 }
 
-/// [`stream_child_log`] with the session publisher as the sink (I-40).
+/// [`stream_child_log`] with the session publisher as the sink.
 ///
 /// An I/O error yields `None` so the finalizer tears the session down with an
 /// unknown exit status rather than failing the whole finalization.

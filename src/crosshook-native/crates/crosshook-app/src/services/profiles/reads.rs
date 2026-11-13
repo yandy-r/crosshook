@@ -3,7 +3,7 @@
 //! Reads never take the writer lock. The favorite toggle is metadata-only:
 //! it goes through `commit` for serialization and the `FavoriteToggled`
 //! event, but writes no TOML, captures no revision and leaves cached health
-//! untouched (D5).
+//! untouched.
 
 use crosshook_core::profile::{
     resolve_art_app_id, CollectionDefaultsSection, GameProfile, ProfileStore,
@@ -72,7 +72,7 @@ impl ProfileWriter {
     ///
     /// # Errors
     /// `Validation` for an invalid name; `Unavailable` when the metadata
-    /// store is disabled (D6); metadata database failure.
+    /// store is disabled; metadata database failure.
     pub async fn set_favorite(
         &self,
         name: String,

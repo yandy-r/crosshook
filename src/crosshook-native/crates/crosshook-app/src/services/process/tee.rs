@@ -1,5 +1,5 @@
 //! Lossy, bounded pipe tee: drains a child's stdout and stderr into one log
-//! file (moved from `services/launch/streaming.rs`).
+//! file.
 //!
 //! One reader per piped stream forwards raw bytes through a bounded channel
 //! to a single writer, so both streams interleave in arrival order. Reads are

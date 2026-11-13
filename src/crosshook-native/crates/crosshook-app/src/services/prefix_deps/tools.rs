@@ -1,4 +1,4 @@
-//! Pure dependency-tool selection shared by check and install (D13).
+//! Pure dependency-tool selection shared by check and install.
 
 use crosshook_core::prefix_deps::validation::parse_nonzero_steam_app_id;
 use crosshook_core::prefix_deps::{BinaryDetectionResult, PrefixDepsTool};

@@ -21,12 +21,10 @@ use super::{DESKTOP_ENTRY_WATERMARK, SCRIPT_WATERMARK};
 /// - If it exists and is a regular file with the CrossHook watermark, it's safe
 /// - Otherwise (symlink, directory, or non-CrossHook file), it's unsafe
 fn verify_destination_safe(path: &str, watermark: &str) -> Result<(), String> {
-    // If destination doesn't exist, it's safe to write
     if !is_regular_file_safe(path) && !Path::new(path).exists() {
         return Ok(());
     }
 
-    // If destination exists, verify it's a CrossHook-owned regular file
     match verify_crosshook_file(path, watermark) {
         Ok(None) => Ok(()), // Safe to overwrite
         Ok(Some(reason)) => Err(reason),
@@ -44,7 +42,6 @@ pub(super) fn delete_launcher_at_paths(
         ..Default::default()
     };
 
-    // Delete desktop entry first (user-visible artifact), with watermark verification
     match verify_crosshook_file(&desktop_entry_path, DESKTOP_ENTRY_WATERMARK)? {
         Some(reason) => {
             result.desktop_entry_skipped_reason = Some(reason);
@@ -54,7 +51,6 @@ pub(super) fn delete_launcher_at_paths(
         }
     }
 
-    // Delete script, with watermark verification
     match verify_crosshook_file(&script_path, SCRIPT_WATERMARK)? {
         Some(reason) => {
             result.script_skipped_reason = Some(reason);
@@ -132,7 +128,6 @@ pub fn rename_launcher_files(
     let new_slug = sanitize_launcher_slug(new_display_name);
     let home = resolve_target_home_path(target_home_path, steam_client_install_path);
 
-    // Construct old file paths from old_launcher_slug
     let old_script_path = combine_host_unix_path(
         &home,
         ".local/share/crosshook/launchers",
@@ -144,7 +139,6 @@ pub fn rename_launcher_files(
         &format!("crosshook-{old_launcher_slug}-trainer.desktop"),
     );
 
-    // Construct new file paths from new_slug
     let new_script_path = combine_host_unix_path(
         &home,
         ".local/share/crosshook/launchers",
@@ -156,7 +150,6 @@ pub fn rename_launcher_files(
         &format!("crosshook-{new_slug}-trainer.desktop"),
     );
 
-    // Check if old files exist. If neither exists, return early with renamed: false
     let old_script_exists = is_regular_file_safe(&old_script_path);
     let old_desktop_exists = is_regular_file_safe(&old_desktop_entry_path);
 
@@ -173,10 +166,6 @@ pub fn rename_launcher_files(
         });
     }
 
-    // Before writing, verify that destination paths are safe:
-    // - If destination exists, it must be a regular file with the CrossHook watermark
-    // - Symlinks and non-CrossHook files should be rejected
-    // - Skip verification if old and new paths are the same (slug unchanged)
     let mut old_script_cleanup_warning = None;
     let mut old_desktop_entry_cleanup_warning = None;
     let slug_changed = old_launcher_slug != new_slug;
@@ -198,7 +187,6 @@ pub fn rename_launcher_files(
         }
     }
 
-    // If either destination is unsafe, return early without writing
     if old_script_cleanup_warning.is_some() || old_desktop_entry_cleanup_warning.is_some() {
         return Ok(LauncherRenameResult {
             old_slug: old_launcher_slug.to_string(),
@@ -212,7 +200,6 @@ pub fn rename_launcher_files(
         });
     }
 
-    // Generate new file content
     let new_script_content = build_trainer_script_content(request, new_display_name);
     let new_desktop_content = build_desktop_entry_content(
         new_display_name,
@@ -221,7 +208,6 @@ pub fn rename_launcher_files(
         new_launcher_icon_path,
     );
 
-    // Write new files
     let mut script_renamed = false;
     if old_script_exists {
         write_host_text_file(&new_script_path, &new_script_content, 0o700)?;
@@ -234,11 +220,9 @@ pub fn rename_launcher_files(
         desktop_entry_renamed = true;
     }
 
-    // Reset cleanup warnings before attempting to delete old files
     old_script_cleanup_warning = None;
     old_desktop_entry_cleanup_warning = None;
 
-    // If old paths differ from new paths (slug changed), delete old files
     if slug_changed {
         if old_script_exists {
             old_script_cleanup_warning =

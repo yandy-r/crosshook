@@ -264,7 +264,7 @@ export function CollectionViewModal({
                   onLaunch={handleLaunchClick}
                   onEdit={handleEditClick}
                   onToggleFavorite={() => {
-                    /* Favorites are managed from LibraryPage in Phase 2. */
+                    /* Favorites are managed from LibraryPage. */
                   }}
                   isLaunching={launchingName === card.name}
                 />

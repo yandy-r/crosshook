@@ -1,5 +1,5 @@
 //! Per-profile mod coexistence registry: models, read-only detection scan,
-//! and pure trainer-coexistence advisory analysis (Forgejo #28).
+//! and pure trainer-coexistence advisory analysis.
 //!
 //! Persistence lives in `crate::metadata` (`mods_store` / `mods_ops`);
 //! launch wiring lives in `crate::launch::mod_coexistence`.

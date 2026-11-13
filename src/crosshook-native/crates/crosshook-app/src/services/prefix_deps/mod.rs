@@ -1,6 +1,6 @@
 //! Prefix dependency (winetricks/protontricks) checks and installs, run as
-//! supervised jobs keyed on the canonical prefix (D5), with the restart-safe
-//! Windows-version restore journal (D7) and its startup recovery (D8).
+//! supervised jobs keyed on the canonical prefix, with the restart-safe
+//! Windows-version restore journal and its startup recovery.
 
 mod check;
 mod install;

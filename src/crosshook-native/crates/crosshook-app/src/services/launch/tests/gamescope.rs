@@ -1,4 +1,4 @@
-//! AC1: the gamescope predicate table, the trainer config rules and the
+//! The gamescope predicate table, the trainer config rules and the
 //! cancel-consumer choice.
 //!
 //! Expected values are literals transcribed from `research-business.md` §2
@@ -548,7 +548,7 @@ async fn drain_consumer_records_the_cancel_reason_without_a_kill() {
 
 #[tokio::test]
 async fn watchdog_with_an_empty_exe_name_drops_the_cancel_channel() {
-    // Kept divergence (D8, I-32): nothing consumes the receiver, so the
+    // Kept divergence: nothing consumes the receiver, so the
     // cancel is never attributed.
     let registry = LaunchSessionRegistry::new();
     let (id, rx) = registry.register(

@@ -277,7 +277,7 @@ impl std::error::Error for WorkspacePathError {
 ///
 /// A candidate equal to the root returns the canonical root itself; callers
 /// must still require a regular file before reading. This is a point-in-time
-/// check, not a race-free open (YAN-835 D11).
+/// check, not a race-free open.
 pub fn ensure_within_workspace(
     root: &Path,
     candidate: &Path,

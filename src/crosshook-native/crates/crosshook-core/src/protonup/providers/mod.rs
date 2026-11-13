@@ -122,8 +122,6 @@ impl ProtonUpProviderDescriptor {
 }
 
 /// Describe all registered providers as serialisable DTOs.
-///
-/// Batch 4 will consume this from a Tauri handler.
 pub fn describe_providers() -> Vec<ProtonUpProviderDescriptor> {
     registry()
         .iter()

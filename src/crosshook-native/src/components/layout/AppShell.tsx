@@ -213,7 +213,7 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
       // The user clicked Launch on a card inside CollectionViewModal, so `name`
       // is guaranteed to be a member of `activeCollectionId`. Thread the
       // collection context so `profile_load` applies the collection's launch
-      // defaults via `effective_profile_with` (Phase 3 merge layer).
+      // defaults via `effective_profile_with`.
       closeCollectionModal();
       await openGameInHeroDetail({
         profileName: name,

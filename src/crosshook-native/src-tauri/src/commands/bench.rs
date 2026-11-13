@@ -1,4 +1,4 @@
-//! Startup-benchmark hook (YAN-782 / #509). The env contract, READY marker and
+//! Startup-benchmark hook. The env contract, READY marker and
 //! replay pacing live in `crosshook_app::bench`; this command only forwards the
 //! frontend-ready signal and emits the replayed lines.
 

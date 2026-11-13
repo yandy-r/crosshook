@@ -1,4 +1,4 @@
-//! Integration tests for issue #230 — trainer watchdog cleanup parity.
+//! Integration tests for trainer watchdog cleanup parity.
 //!
 //! These exercise the [`LaunchSessionRegistry`] + [`WatchdogOutcome`]
 //! coordination at the boundary the Tauri layer actually uses. Full

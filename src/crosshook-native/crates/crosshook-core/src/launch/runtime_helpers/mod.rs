@@ -12,8 +12,7 @@ const DEFAULT_SHELL: &str = "/bin/bash";
 const FLATPAK_GAMESCOPE_PID_CAPTURE_SCRIPT: &str =
     "capture_dir=$(dirname -- \"$1\"); mkdir -p -- \"$capture_dir\"; printf '%s' \"$$\" > \"$1\"; shift; exec \"$@\"";
 
-// Re-export everything previously public from the monolithic file so all
-// existing `use crate::launch::runtime_helpers::X` paths continue to resolve.
+// Re-exports keep the existing `use crate::launch::runtime_helpers::X` paths resolving.
 
 pub use environment::{
     host_environment_map, merge_optimization_and_custom_into_map, merge_runtime_proton_into_map,

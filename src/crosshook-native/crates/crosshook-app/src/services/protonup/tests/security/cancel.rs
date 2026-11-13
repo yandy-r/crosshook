@@ -1,4 +1,4 @@
-//! AC4: only the owner of an install can cancel it, and only installs.
+//! Only the owner of an install can cancel it, and only installs.
 
 use std::sync::Arc;
 

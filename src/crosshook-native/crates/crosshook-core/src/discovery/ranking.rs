@@ -1,4 +1,4 @@
-//! Pure ranking primitives for the cross-tap trainer catalog (Forgejo #27).
+//! Pure ranking primitives for the cross-tap trainer catalog.
 //!
 //! No SQL here — both the metadata-DB path and the degraded filesystem path
 //! rank through these functions, guaranteeing identical ordering semantics.

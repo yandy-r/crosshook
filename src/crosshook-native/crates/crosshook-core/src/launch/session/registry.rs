@@ -315,9 +315,6 @@ impl LaunchSessionRegistry {
     }
 }
 
-// Tests extracted to a sibling file to keep this production module under the
-// repo's ~500-line soft cap — mirrors the `#[path]` pattern used by
-// `profile::lutris_import::tests`.
 #[cfg(test)]
 #[path = "registry_tests.rs"]
 mod tests;

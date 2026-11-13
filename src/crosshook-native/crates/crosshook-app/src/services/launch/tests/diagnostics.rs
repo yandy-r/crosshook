@@ -1,4 +1,4 @@
-//! Diagnostic helper and bounded log tail tests (Task 2.2).
+//! Diagnostic helper and bounded log tail tests.
 
 use crosshook_core::launch::{METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH};
 

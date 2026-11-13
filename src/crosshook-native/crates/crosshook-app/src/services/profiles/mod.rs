@@ -47,7 +47,7 @@ pub struct ProfileWriter {
     metadata: MetadataStore,
     settings: SettingsStore,
     events: EventBus,
-    /// Serializes mutating commits (D3). Guards `()`, so a poisoned lock is
+    /// Serializes mutating commits. Guards `()`, so a poisoned lock is
     /// recovered rather than propagated.
     write_lock: Arc<Mutex<()>>,
 }

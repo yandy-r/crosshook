@@ -1,5 +1,5 @@
 //! `launch-session-changed` payloads and the `list_running_sessions` snapshot
-//! DTO (YAN-824, decision D4).
+//! DTO.
 //!
 //! The bus delivers `SessionStarted` / `SessionExited` in registry `seq`
 //! order; the UI subscribes first, then fetches the snapshot, and applies only
