@@ -7,7 +7,6 @@ OpenAI Codex, etc.) pick up the same rules without duplicating prose.
 
 ## Agent-runtime notes
 
-- Cursor: also reads [`.cursor/rules/project.mdc`](.cursor/rules/project.mdc) (same content, MDC-formatted).
 - Vendor-neutral AI tools: see [`.ai/rules/project.md`](.ai/rules/project.md).
 - When an MCP server is available for the task, prefer it; read each tool's schema first.
 - For deep analysis of this repository, start with [`CLAUDE.md`](CLAUDE.md) and the stack overview preserved below.
@@ -84,7 +83,7 @@ Certain repo scripts (`./scripts/lint.sh`, `./scripts/format.sh`) require extra 
 - **Default to worktrees**: For non-trivial work (multi-step features, refactors, changes touching multiple files), start in a git worktree at `~/.claude-worktrees/crosshook-<branch>/` instead of the main checkout. See [Worktrees](#worktrees) above for the full contract, including the setup prerequisites required for `./scripts/lint.sh` and `./scripts/format.sh` to succeed. Fall back to the main checkout only when the task is a one-liner, must observe the current working tree state, or worktree creation is blocked.
 - **Rust**: `snake_case`; modules as directories with `mod.rs`; errors via `Result` with `anyhow` or project error types.
 - **React / TypeScript**: `PascalCase` components, `camelCase` hooks/functions; respect strict TS; wrap `invoke()` in hooks for stateful UI; CSS variables in `src/crosshook-native/src/styles/variables.css`; BEM-like `crosshook-*` classes. **Route layout**: reuse the shared contract in `src/crosshook-native/src/styles/layout.css` (`crosshook-page-scroll-shell--fill`, `crosshook-route-stack`, `crosshook-route-stack__body--scroll` / `__body--fill`, `crosshook-route-card-host` / `crosshook-route-card-scroll` when a primary card must fill the body without stretching inner grids, `crosshook-route-footer`) instead of one-off viewport height chains on new pages. **Scroll containers**: WebKitGTK scroll is managed by `useScrollEnhance` (`src/crosshook-native/src/hooks/useScrollEnhance.ts`). Any new `overflow-y: auto` container **must** be added to the `SCROLLABLE` selector in that hook, or the enhanced scroll will target a parent container instead, causing dual-scroll jank. Inner scroll containers should also use `overscroll-behavior: contain` to prevent scroll-chaining to outer containers. JS-initiated animated scrolling (smooth `scrollBy`/`scrollIntoView`, momentum loops) must consult `src/crosshook-native/src/lib/motion.ts` (`isMotionReduced()` / `scrollBehavior()`) so the reduced-motion preference applies.
-- **Verification**: After substantive Rust changes, run `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core`. There is **no** configured frontend test framework—use dev/build scripts when UI behavior matters.
+- **Verification**: After substantive Rust changes, run `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core`. Frontend tests: `npm test` (Vitest) and `npm run test:smoke` (Playwright), run from `src/crosshook-native/`; see [`docs/TESTING.md`](docs/TESTING.md). Use dev/build scripts when UI behavior matters.
 - **Environment**: Repo may use `direnv` / `.envrc` and `dotenvx` for local secrets; do not bypass secret-handling conventions.
 
 ## Research and planning quality bar
