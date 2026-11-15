@@ -178,3 +178,82 @@ fn proton_resolution_is_unambiguous() {
             .join("proton")
     );
 }
+
+#[test]
+fn missing_executable_under_symlinked_root_still_matches() {
+    let steam = SymlinkedSteamHome::new();
+    let mut diagnostics = Vec::new();
+    let libraries = discover_steam_libraries(&steam.discover_roots(), &mut diagnostics);
+    let missing_exe = steam
+        .linked_root
+        .join("steamapps/common/Test Game/bin/removed.exe");
+
+    let selection = find_game_match(&missing_exe, &libraries, &mut diagnostics);
+
+    assert_eq!(selection.state, SteamAutoPopulateFieldState::Found);
+}
+
+#[test]
+fn symlinked_install_dir_matches_through_either_root_path() {
+    let steam = SymlinkedSteamHome::new();
+    let external = steam.home.join("external-games/Linked Game");
+    fs::create_dir_all(&external).expect("external game dir");
+    fs::write(external.join("game.exe"), b"test").expect("external exe");
+    symlink(
+        &external,
+        steam.real_root.join("steamapps/common/Linked Game"),
+    )
+    .expect("install dir symlink");
+    fs::write(
+        steam.real_root.join("steamapps/appmanifest_777.acf"),
+        "\"AppState\"\n{\n  \"appid\" \"777\"\n  \"installdir\" \"Linked Game\"\n}\n",
+    )
+    .expect("manifest");
+    let mut diagnostics = Vec::new();
+    let libraries = discover_steam_libraries(&steam.discover_roots(), &mut diagnostics);
+
+    for root in [&steam.real_root, &steam.linked_root] {
+        let game_exe = root.join("steamapps/common/Linked Game/game.exe");
+        let selection = find_game_match(&game_exe, &libraries, &mut diagnostics);
+        assert_eq!(
+            selection.matched.map(|matched| matched.app_id),
+            Some("777".to_string()),
+            "{}",
+            game_exe.display()
+        );
+    }
+}
+
+#[test]
+fn symlinked_tool_directory_keeps_its_own_name_for_mappings() {
+    let steam = SymlinkedSteamHome::new();
+    let custom_root = steam.real_root.join("compatibilitytools.d");
+    fs::create_dir_all(&custom_root).expect("compatibilitytools.d");
+    symlink(
+        steam.real_root.join("steamapps/common").join(PROTON_NAME),
+        custom_root.join("GE-current"),
+    )
+    .expect("tool dir symlink");
+    fs::write(
+        steam.real_root.join("config/config.vdf"),
+        format!(
+            "\"root\"\n{{\n  \"CompatToolMapping\"\n  {{\n    \"{APP_ID}\"\n    {{\n      \"name\" \"GE-current\"\n    }}\n  }}\n}}\n"
+        ),
+    )
+    .expect("config.vdf");
+    let mut diagnostics = Vec::new();
+
+    let resolution = resolve_proton_path(APP_ID, &steam.discover_roots(), &mut diagnostics);
+
+    assert_eq!(
+        resolution.state,
+        SteamAutoPopulateFieldState::Found,
+        "{diagnostics:#?}"
+    );
+    assert_eq!(
+        resolution.proton_path,
+        steam
+            .canonical_root()
+            .join("compatibilitytools.d/GE-current/proton")
+    );
+}

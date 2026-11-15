@@ -20,10 +20,30 @@ pub(crate) fn trim_path(path: &Path) -> PathBuf {
 /// A standard native Steam install has `~/.steam/root` as a symlink to
 /// `~/.local/share/Steam`, and `libraryfolders.vdf` lists the real path.
 /// Discovery dedupes on this canonical form so the same library or Proton
-/// install is not reported twice. Falls back to the raw path when the path
-/// cannot be resolved (missing, or not readable).
+/// install is not reported twice.
+///
+/// When the path itself does not exist (for example a game executable that
+/// was removed), the longest existing ancestor is resolved and the missing
+/// tail is appended, so the result still lines up with canonical library
+/// paths. Falls back to the raw path when no ancestor can be resolved.
 pub(crate) fn canonical_or_raw(path: &Path) -> PathBuf {
-    fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+    let mut missing_tail = Vec::new();
+    let mut current = path;
+    loop {
+        if let Ok(resolved) = fs::canonicalize(current) {
+            return missing_tail
+                .iter()
+                .rev()
+                .fold(resolved, |resolved, part| resolved.join(part));
+        }
+        match (current.parent(), current.file_name()) {
+            (Some(parent), Some(name)) if !parent.as_os_str().is_empty() => {
+                missing_tail.push(name.to_os_string());
+                current = parent;
+            }
+            _ => return path.to_path_buf(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -52,8 +72,24 @@ mod tests {
     }
 
     #[test]
-    fn canonical_or_raw_keeps_unresolvable_path() {
-        let missing = Path::new("/does/not/exist/crosshook");
-        assert_eq!(canonical_or_raw(missing), missing.to_path_buf());
+    fn canonical_or_raw_resolves_existing_ancestor_of_missing_path() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let real = temp.path().join("real");
+        let link = temp.path().join("link");
+        std::fs::create_dir(&real).expect("real dir");
+        std::os::unix::fs::symlink(&real, &link).expect("symlink");
+
+        assert_eq!(
+            canonical_or_raw(&link.join("missing/game.exe")),
+            std::fs::canonicalize(&real)
+                .expect("canonical real")
+                .join("missing/game.exe")
+        );
+    }
+
+    #[test]
+    fn canonical_or_raw_keeps_unresolvable_relative_path() {
+        let relative = Path::new("crosshook-missing-dir/crosshook-missing-file");
+        assert_eq!(canonical_or_raw(relative), relative.to_path_buf());
     }
 }

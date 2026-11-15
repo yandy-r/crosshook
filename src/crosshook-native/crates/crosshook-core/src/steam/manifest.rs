@@ -50,7 +50,10 @@ pub fn find_game_match(
                         .join(&install_dir_name);
 
                     if !path_is_same_or_child(&game_path, &install_dir_path)
-                        && !path_is_same_or_child(&canonical_game_path, &install_dir_path)
+                        && !path_is_same_or_child(
+                            &canonical_game_path,
+                            &canonical_or_raw(&install_dir_path),
+                        )
                     {
                         continue;
                     }

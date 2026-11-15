@@ -225,16 +225,6 @@ fn try_add_compat_tool_install(
     if !proton_ok {
         return;
     }
-    // Host-side paths cannot be resolved from inside the Flatpak sandbox.
-    let proton_key = if use_host_fs {
-        proton_path.clone()
-    } else {
-        canonical_or_raw(&proton_path)
-    };
-    if !seen_proton_paths.insert(proton_key) {
-        return;
-    }
-
     let Some(name) = tool_directory_path
         .file_name()
         .and_then(|value| value.to_str())
@@ -242,6 +232,17 @@ fn try_add_compat_tool_install(
     else {
         return;
     };
+    // Resolve only the tool root, so one root reached through a symlinked
+    // Steam root collapses to one install while a symlinked tool directory
+    // (`GE-current -> GE-Proton9-4`) keeps its own name for mappings.
+    // Host-side paths cannot be resolved from inside the Flatpak sandbox.
+    let proton_key = match tool_directory_path.parent() {
+        Some(tool_root) if !use_host_fs => canonical_or_raw(tool_root).join(&name).join("proton"),
+        _ => proton_path.clone(),
+    };
+    if !seen_proton_paths.insert(proton_key) {
+        return;
+    }
 
     let mut aliases = Vec::new();
     let mut seen_aliases = HashSet::new();
