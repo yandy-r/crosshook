@@ -293,7 +293,7 @@ impl Harness {
             restorer,
             in_use,
             probe,
-            self.dir.path().join("logs"),
+            crate::jobs::test_log_dir(self.dir.path()),
         )
     }
 }

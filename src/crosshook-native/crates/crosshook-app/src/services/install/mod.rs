@@ -9,8 +9,6 @@
 
 mod start;
 
-use std::path::PathBuf;
-
 use crosshook_core::install::{
     resolve_default_prefix_path, validate_install_request, InstallGameError, InstallGameRequest,
     InstallGameResult, InstallGameValidationError,
@@ -18,7 +16,7 @@ use crosshook_core::install::{
 
 use super::process::RunEvent;
 use super::run_blocking;
-use crate::jobs::{JobRegistry, LOG_DIR};
+use crate::jobs::{JobRegistry, LogDir};
 use crate::{AppError, AppErrorKind};
 
 /// Text of the error when the install job ended without a completion.
@@ -31,22 +29,13 @@ pub const INSTALL_GAME_JOB_KIND: &str = "install-game";
 #[derive(Clone)]
 pub struct InstallService {
     jobs: JobRegistry,
-    log_dir: PathBuf,
+    log_dir: LogDir,
 }
 
 impl InstallService {
-    /// Builds the service over the shared job registry; installer logs go to
-    /// the shared log directory.
-    pub fn new(jobs: JobRegistry) -> Self {
-        Self {
-            jobs,
-            log_dir: PathBuf::from(LOG_DIR),
-        }
-    }
-
-    /// Builds the service with installer logs created in `log_dir`.
-    #[cfg(test)]
-    pub(crate) fn with_log_dir(jobs: JobRegistry, log_dir: PathBuf) -> Self {
+    /// Builds the service over the shared job registry; installer logs are
+    /// created in `log_dir` (the private directory resolved at bootstrap).
+    pub fn new(jobs: JobRegistry, log_dir: LogDir) -> Self {
         Self { jobs, log_dir }
     }
 

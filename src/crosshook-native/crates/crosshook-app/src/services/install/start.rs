@@ -12,7 +12,9 @@ use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
 use super::{install_error, InstallService, INSTALL_GAME_JOB_KIND};
-use crate::jobs::{create_log_file_in, slugify_target, JobContext, JobKey, JobSpec, Outcome};
+use crate::jobs::{
+    create_log_file_in, require, slugify_target, JobContext, JobKey, JobSpec, LogDir, Outcome,
+};
 use crate::services::process::child::{run_child, ChildError, ChildOutput, LogFile};
 use crate::services::process::run::start_run;
 use crate::services::process::sweep::{child_was_stopped, sweep_after_cancel};
@@ -63,7 +65,7 @@ impl InstallService {
             prefix_path,
             key,
             log,
-        } = run_blocking(move || prepare_run(&prepare_request, log_dir)).await?;
+        } = run_blocking(move || prepare_run(&prepare_request, &log_dir)).await?;
         let log_path = log.path.clone();
 
         let spec = JobSpec::new(INSTALL_GAME_JOB_KIND).with_key(key);
@@ -94,18 +96,17 @@ impl InstallService {
 
 /// Validates and provisions through core, derives the prefix key and creates
 /// the run's log file.
-fn prepare_run(request: &InstallGameRequest, log_dir: PathBuf) -> Result<PreparedRun, AppError> {
+fn prepare_run(request: &InstallGameRequest, log_dir: &LogDir) -> Result<PreparedRun, AppError> {
     let PreparedInstall {
         command,
         prefix_path,
     } = prepare_install(request).map_err(install_error)?;
     let (_, key) = prefix_job_key(&prefix_path.to_string_lossy())?;
     let (path, file) = create_log_file_in(
-        log_dir,
+        require(log_dir)?,
         "install",
         &slugify_target(&request.profile_name, "install"),
-    )
-    .map_err(|message| AppError::new(AppErrorKind::Io, message))?;
+    )?;
     Ok(PreparedRun {
         command,
         prefix_path,

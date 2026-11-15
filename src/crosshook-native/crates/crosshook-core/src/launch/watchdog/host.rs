@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::path::Path;
 
 use crate::platform::host_std_command;
 
@@ -21,14 +20,6 @@ impl HostProcessProbe {
     pub(super) fn has_match(&self) -> bool {
         !self.exact_matches.is_empty() || !self.truncated_matches.is_empty()
     }
-}
-
-pub(super) fn read_host_text_file(path: &Path) -> Option<String> {
-    let output = host_std_command("cat").arg(path).output().ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    Some(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
 pub(super) fn is_host_pid_alive(pid: u32) -> bool {

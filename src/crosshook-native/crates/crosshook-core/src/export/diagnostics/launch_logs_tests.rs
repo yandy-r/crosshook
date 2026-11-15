@@ -16,7 +16,7 @@ fn euid() -> u32 {
 /// Private (0700) launch log directory inside a fresh temp root.
 fn private_log_dir() -> (TempDir, PathBuf) {
     let root = tempdir().unwrap();
-    let dir = root.path().join("crosshook-logs");
+    let dir = root.path().join("logs");
     fs::create_dir(&dir).unwrap();
     fs::set_permissions(&dir, fs::Permissions::from_mode(0o700)).unwrap();
     (root, dir)
@@ -150,13 +150,29 @@ fn missing_dir_yields_nothing() {
 }
 
 #[test]
-fn collects_cli_logs_under_their_own_bundle_dir() {
-    let (_app_root, app_dir) = private_log_dir();
-    let (_cli_root, cli_dir) = private_log_dir();
-    fs::write(app_dir.join("game.log"), "app").unwrap();
-    fs::write(cli_dir.join("cli-game.log"), "cli").unwrap();
+fn routes_cli_files_to_their_own_bundle_dir() {
+    let (_root, dir) = private_log_dir();
+    fs::write(dir.join("game.log"), "app").unwrap();
+    fs::write(dir.join("cli-game.log"), "cli").unwrap();
 
-    let logs = collect_launch_logs_with(&app_dir, Some(&cli_dir), euid());
+    let logs = collect_launch_logs_with(&[dir], euid());
+
+    let mut found = names(&logs);
+    found.sort_unstable();
+    assert_eq!(
+        found,
+        ["logs/launch-cli/cli-game.log", "logs/launch/game.log"]
+    );
+}
+
+#[test]
+fn collects_from_every_candidate_dir() {
+    let (_first_root, first) = private_log_dir();
+    let (_second_root, second) = private_log_dir();
+    fs::write(first.join("game.log"), "app").unwrap();
+    fs::write(second.join("cli-game.log"), "cli").unwrap();
+
+    let logs = collect_launch_logs_with(&[first, second], euid());
 
     assert_eq!(
         names(&logs),
@@ -165,40 +181,71 @@ fn collects_cli_logs_under_their_own_bundle_dir() {
 }
 
 #[test]
-fn each_dir_keeps_its_own_cap() {
-    let (_app_root, app_dir) = private_log_dir();
-    let (_cli_root, cli_dir) = private_log_dir();
+fn each_bundle_dir_keeps_its_own_cap() {
+    let (_root, dir) = private_log_dir();
     for i in 0..12 {
-        fs::write(app_dir.join(format!("app-{i:02}.log")), "app").unwrap();
-        fs::write(cli_dir.join(format!("cli-{i:02}.log")), "cli").unwrap();
+        fs::write(dir.join(format!("app-{i:02}.log")), "app").unwrap();
+        fs::write(dir.join(format!("cli-{i:02}.log")), "cli").unwrap();
     }
 
-    let logs = collect_launch_logs_with(&app_dir, Some(&cli_dir), euid());
+    let logs = collect_launch_logs_with(&[dir], euid());
 
+    let cli = logs
+        .iter()
+        .filter(|(name, _)| name.starts_with("logs/launch-cli/"))
+        .count();
+    assert_eq!(cli, MAX_LAUNCH_LOG_FILES);
     assert_eq!(logs.len(), 2 * MAX_LAUNCH_LOG_FILES);
 }
 
 #[test]
-fn cli_dir_resolving_to_app_dir_is_collected_once() {
-    let (root, app_dir) = private_log_dir();
-    fs::write(app_dir.join("game.log"), "app").unwrap();
+fn cap_applies_across_candidate_dirs() {
+    let (_first_root, first) = private_log_dir();
+    let (_second_root, second) = private_log_dir();
+    for i in 0..8 {
+        fs::write(first.join(format!("a-{i}.log")), "log").unwrap();
+        fs::write(second.join(format!("b-{i}.log")), "log").unwrap();
+    }
+
+    let logs = collect_launch_logs_with(&[first, second], euid());
+
+    assert_eq!(logs.len(), MAX_LAUNCH_LOG_FILES);
+}
+
+#[test]
+fn same_dir_listed_twice_is_collected_once() {
+    let (root, dir) = private_log_dir();
+    fs::write(dir.join("game.log"), "app").unwrap();
     // Same directory reached through a symlinked parent.
     let parent_link = root.path().join("runtime");
     symlink(root.path(), &parent_link).unwrap();
-    let cli_dir = parent_link.join("crosshook-logs");
+    let via_link = parent_link.join("logs");
 
-    let logs = collect_launch_logs_with(&app_dir, Some(&cli_dir), euid());
+    let logs = collect_launch_logs_with(&[dir.clone(), dir, via_link], euid());
 
     assert_eq!(names(&logs), ["logs/launch/game.log"]);
 }
 
 #[test]
-fn cli_launch_log_dir_requires_absolute_runtime_dir() {
-    assert_eq!(cli_launch_log_dir(None), None);
-    assert_eq!(cli_launch_log_dir(Some(OsString::new())), None);
-    assert_eq!(cli_launch_log_dir(Some("relative".into())), None);
-    assert_eq!(
-        cli_launch_log_dir(Some("/run/user/1000".into())),
-        Some(PathBuf::from("/run/user/1000/crosshook-logs"))
-    );
+fn dir_not_in_candidates_is_not_collected() {
+    // Stands in for the retired shared-temp location.
+    let (_legacy_root, legacy) = private_log_dir();
+    fs::write(legacy.join("game.log"), "legacy").unwrap();
+    let (_root, dir) = private_log_dir();
+    fs::write(dir.join("current.log"), "current").unwrap();
+
+    let logs = collect_launch_logs_with(&[dir], euid());
+
+    assert_eq!(names(&logs), ["logs/launch/current.log"]);
+}
+
+#[test]
+fn unusable_candidates_are_skipped_without_hiding_usable_ones() {
+    let root = tempdir().unwrap();
+    let (_good_root, good) = private_log_dir();
+    fs::write(good.join("game.log"), "app").unwrap();
+
+    let logs = collect_launch_logs_with(&[root.path().join("absent"), good], euid());
+
+    assert_eq!(names(&logs), ["logs/launch/game.log"]);
 }

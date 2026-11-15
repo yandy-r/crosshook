@@ -45,6 +45,11 @@ pub(super) fn prepare_gamescope_launch(
     (gamescope_args, filtered_wrappers)
 }
 
+/// Returns the gamescope PID capture path for a launch log.
+///
+/// Invariant: the path is a sibling of `log_path`, so it is only safe when the log was
+/// created in a verified private directory. The capture script creates it exclusively
+/// (no overwrite, no symlink following) and never creates the directory.
 pub fn gamescope_pid_capture_path(log_path: &Path) -> PathBuf {
     PathBuf::from(format!("{}.gamescope.pid", log_path.to_string_lossy()))
 }

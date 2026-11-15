@@ -1,7 +1,6 @@
 //! Launch log collection for diagnostic bundles.
 
 use std::cmp::Reverse;
-use std::ffi::OsString;
 use std::fs::File;
 use std::os::fd::OwnedFd;
 use std::path::{Path, PathBuf};
@@ -11,15 +10,10 @@ use nix::fcntl::{open, openat, OFlag};
 use nix::sys::stat::{fstat, Mode, SFlag};
 
 use super::logs::{read_tail, MAX_LOG_FILE_BYTES};
+use crate::runtime_files;
 
 /// Maximum number of recent launch log files to include per directory.
 const MAX_LAUNCH_LOG_FILES: usize = 10;
-
-/// Launch log directory used by the app.
-const APP_LAUNCH_LOG_DIR: &str = "/tmp/crosshook-logs";
-
-/// Launch log directory name the CLI uses under `$XDG_RUNTIME_DIR`.
-const CLI_LAUNCH_LOG_DIR_NAME: &str = "crosshook-logs";
 
 /// Bundle directory for app launch logs.
 const APP_BUNDLE_DIR: &str = "logs/launch";
@@ -27,41 +21,46 @@ const APP_BUNDLE_DIR: &str = "logs/launch";
 /// Bundle directory for CLI launch logs.
 const CLI_BUNDLE_DIR: &str = "logs/launch-cli";
 
+/// File name prefix the CLI gives its launch logs.
+const CLI_LOG_PREFIX: &str = "cli-";
+
 /// Collects the most recent app and CLI launch logs as `(bundle path, data)`.
 pub(super) fn collect_launch_logs() -> Vec<(String, Vec<u8>)> {
     collect_launch_logs_with(
-        Path::new(APP_LAUNCH_LOG_DIR),
-        cli_launch_log_dir(std::env::var_os("XDG_RUNTIME_DIR")).as_deref(),
+        &runtime_files::launch_log_dir_candidates(),
         nix::unistd::geteuid().as_raw(),
     )
 }
 
-/// CLI launch log directory for the given `XDG_RUNTIME_DIR` value; `None` when
-/// it is unset, empty, or relative.
-fn cli_launch_log_dir(runtime_dir: Option<OsString>) -> Option<PathBuf> {
-    let runtime_dir = PathBuf::from(runtime_dir?);
-    runtime_dir
-        .is_absolute()
-        .then(|| runtime_dir.join(CLI_LAUNCH_LOG_DIR_NAME))
-}
+/// Collects launch logs from every usable directory in `candidates`.
+///
+/// Directories that resolve to the same device and inode are read once. Files
+/// named `cli-*` go to [`CLI_BUNDLE_DIR`], everything else to
+/// [`APP_BUNDLE_DIR`]; each bundle folder keeps at most
+/// [`MAX_LAUNCH_LOG_FILES`] files, newest first.
+fn collect_launch_logs_with(candidates: &[PathBuf], owner: u32) -> Vec<(String, Vec<u8>)> {
+    let mut dirs: Vec<OwnedLogDir> = Vec::new();
+    for dir in candidates
+        .iter()
+        .filter_map(|candidate| open_owned_dir(candidate, owner))
+    {
+        if !dirs.iter().any(|seen| seen.same_dir(&dir)) {
+            dirs.push(dir);
+        }
+    }
 
-fn collect_launch_logs_with(
-    app_dir: &Path,
-    cli_dir: Option<&Path>,
-    owner: u32,
-) -> Vec<(String, Vec<u8>)> {
-    let app = open_owned_dir(app_dir, owner);
-    let cli = cli_dir
-        .and_then(|dir| open_owned_dir(dir, owner))
-        .filter(|cli| app.as_ref().is_none_or(|app| !app.same_dir(cli)));
-
-    [(app, APP_BUNDLE_DIR), (cli, CLI_BUNDLE_DIR)]
+    [(false, APP_BUNDLE_DIR), (true, CLI_BUNDLE_DIR)]
         .into_iter()
-        .filter_map(|(dir, bundle_dir)| Some((dir?, bundle_dir)))
-        .flat_map(|(dir, bundle_dir)| {
-            dir.recent_logs()
-                .into_iter()
-                .map(move |(name, data)| (format!("{bundle_dir}/{name}"), data))
+        .flat_map(|(cli, bundle_dir)| {
+            let mut logs: Vec<LogHandle> = dirs
+                .iter()
+                .flat_map(|dir| dir.recent_handles(|name| name.starts_with(CLI_LOG_PREFIX) == cli))
+                .collect();
+            keep_newest(&mut logs);
+            logs.into_iter().filter_map(move |mut log| {
+                let data = read_tail(&mut log.file, MAX_LOG_FILE_BYTES)?;
+                Some((format!("{bundle_dir}/{}", log.name), data))
+            })
         })
         .collect()
 }
@@ -69,7 +68,12 @@ fn collect_launch_logs_with(
 /// Collects up to [`MAX_LAUNCH_LOG_FILES`] recent logs from `dir`, newest first.
 #[cfg(test)]
 fn collect_launch_logs_from(dir: &Path, owner: u32) -> Vec<(String, Vec<u8>)> {
-    open_owned_dir(dir, owner).map_or_else(Vec::new, |dir| dir.recent_logs())
+    open_owned_dir(dir, owner).map_or_else(Vec::new, |dir| {
+        dir.recent_handles(|_| true)
+            .into_iter()
+            .filter_map(|mut log| Some((log.name, read_tail(&mut log.file, MAX_LOG_FILE_BYTES)?)))
+            .collect()
+    })
 }
 
 /// A launch log directory opened without following symlinks and verified to
@@ -107,14 +111,15 @@ impl OwnedLogDir {
         self.dev == other.dev && self.ino == other.ino
     }
 
-    /// Reads the tails of the most recently modified `*.log` files.
-    fn recent_logs(&self) -> Vec<(String, Vec<u8>)> {
+    /// Opens the most recently modified `*.log` files whose name satisfies
+    /// `wanted`, newest first.
+    fn recent_handles(&self, wanted: impl Fn(&str) -> bool) -> Vec<LogHandle> {
         let Some(names) = self.log_names() else {
             return Vec::new();
         };
         // Keeps at most 2 * MAX_LAUNCH_LOG_FILES handles open while scanning.
         let mut logs: Vec<LogHandle> = Vec::with_capacity(2 * MAX_LAUNCH_LOG_FILES);
-        for name in names {
+        for name in names.into_iter().filter(|name| wanted(name)) {
             if let Some(log) = self.open_log(name) {
                 logs.push(log);
                 if logs.len() == 2 * MAX_LAUNCH_LOG_FILES {
@@ -123,18 +128,17 @@ impl OwnedLogDir {
             }
         }
         keep_newest(&mut logs);
-        logs.into_iter()
-            .filter_map(|mut log| Some((log.name, read_tail(&mut log.file, MAX_LOG_FILE_BYTES)?)))
-            .collect()
+        logs
     }
 
     /// UTF-8 `*.log` entry names in the directory.
     fn log_names(&self) -> Option<Vec<String>> {
-        // `Dir` takes ownership of its descriptor, so it gets a duplicate; the
-        // duplicate shares the file offset, which only the stream uses.
-        let dir = Dir::from_fd(self.fd.try_clone().ok()?).ok()?;
+        // `Dir` takes ownership of its descriptor, so it gets a duplicate. The
+        // duplicate shares the file offset with `self.fd`; `Dir::iter`
+        // rewinds it when dropped, so the listing can be repeated.
+        let mut dir = Dir::from_fd(self.fd.try_clone().ok()?).ok()?;
         Some(
-            dir.into_iter()
+            dir.iter()
                 .filter_map(|entry| {
                     let entry = entry.ok()?;
                     let name = entry.file_name().to_str().ok()?;

@@ -1,6 +1,8 @@
 use std::fs;
 
-use crate::launch::runtime_helpers::path_resolution::resolve_steam_client_install_path_with_home;
+use crate::launch::runtime_helpers::path_resolution::{
+    attach_log_stdio, resolve_steam_client_install_path_with_home,
+};
 
 use super::support::write_steam_client_root;
 
@@ -67,4 +69,41 @@ fn resolve_steam_client_install_path_normalizes_flatpak_host_paths() {
 
     // The resolved path should be the normalized path (without `/run/host` prefix)
     assert_eq!(resolved, Some(steam_root.to_string_lossy().into_owned()));
+}
+
+#[test]
+fn attach_log_stdio_appends_to_existing_log() {
+    let temp_dir = tempfile::tempdir().expect("temp dir");
+    let log_path = temp_dir.path().join("game.log");
+    fs::write(&log_path, "").expect("pre-create log");
+
+    let mut command = tokio::process::Command::new("true");
+    attach_log_stdio(&mut command, &log_path).expect("attach existing log");
+}
+
+#[test]
+fn attach_log_stdio_fails_when_log_is_missing_and_does_not_create_it() {
+    let temp_dir = tempfile::tempdir().expect("temp dir");
+    let log_path = temp_dir.path().join("missing.log");
+    let nested_log_path = temp_dir.path().join("missing-dir").join("game.log");
+
+    let mut command = tokio::process::Command::new("true");
+    assert!(attach_log_stdio(&mut command, &log_path).is_err());
+    assert!(!log_path.exists());
+
+    assert!(attach_log_stdio(&mut command, &nested_log_path).is_err());
+    assert!(!nested_log_path.parent().expect("parent").exists());
+}
+
+#[test]
+fn attach_log_stdio_refuses_symlink_and_leaves_target_untouched() {
+    let temp_dir = tempfile::tempdir().expect("temp dir");
+    let target_path = temp_dir.path().join("victim.txt");
+    fs::write(&target_path, "original").expect("write target");
+    let log_path = temp_dir.path().join("game.log");
+    std::os::unix::fs::symlink(&target_path, &log_path).expect("plant symlink");
+
+    let mut command = tokio::process::Command::new("true");
+    assert!(attach_log_stdio(&mut command, &log_path).is_err());
+    assert_eq!(fs::read_to_string(&target_path).unwrap(), "original");
 }

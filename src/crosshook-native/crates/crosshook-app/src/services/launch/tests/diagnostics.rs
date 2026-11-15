@@ -1,5 +1,7 @@
 //! Diagnostic helper and bounded log tail tests.
 
+use std::time::Duration;
+
 use crosshook_core::launch::{METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH};
 
 use super::super::diagnostics::{diagnostic_method_for_log, read_log_tail};
@@ -78,4 +80,32 @@ async fn read_log_tail_returns_empty_for_a_missing_file() {
         read_log_tail(&dir.path().join("missing.log"), 1024).await,
         ""
     );
+}
+
+#[tokio::test]
+async fn read_log_tail_refuses_a_symlinked_log_and_leaves_the_target_untouched() {
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("target.log");
+    std::fs::write(&target, "secret contents\n").unwrap();
+    let link = dir.path().join("link.log");
+    std::os::unix::fs::symlink(&target, &link).unwrap();
+
+    assert_eq!(read_log_tail(&link, 1024).await, "");
+    assert_eq!(
+        std::fs::read_to_string(&target).unwrap(),
+        "secret contents\n"
+    );
+}
+
+#[tokio::test]
+async fn read_log_tail_returns_empty_for_a_fifo_without_blocking() {
+    let dir = tempfile::tempdir().unwrap();
+    let fifo = dir.path().join("fifo.log");
+    nix::unistd::mkfifo(&fifo, nix::sys::stat::Mode::from_bits_truncate(0o600)).unwrap();
+
+    let tail = tokio::time::timeout(Duration::from_secs(5), read_log_tail(&fifo, 1024))
+        .await
+        .expect("read_log_tail must not block on a FIFO");
+
+    assert_eq!(tail, "");
 }

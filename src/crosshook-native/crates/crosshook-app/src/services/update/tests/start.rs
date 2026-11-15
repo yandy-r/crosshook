@@ -360,7 +360,7 @@ fn response_json_is_the_old_result_plus_run_id() {
     let result = UpdateGameResult {
         succeeded: true,
         message: "Update process launched.".to_string(),
-        helper_log_path: "/tmp/crosshook-logs/update-x.log".to_string(),
+        helper_log_path: "/run/user/1000/crosshook/logs/update-x.log".to_string(),
     };
     let mut expected = serde_json::to_value(&result).unwrap();
     expected
@@ -378,7 +378,7 @@ fn response_json_is_the_old_result_plus_run_id() {
         serde_json::json!({
             "succeeded": true,
             "message": "Update process launched.",
-            "helper_log_path": "/tmp/crosshook-logs/update-x.log",
+            "helper_log_path": "/run/user/1000/crosshook/logs/update-x.log",
             "run_id": "run-1",
         })
     );

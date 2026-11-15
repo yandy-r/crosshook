@@ -4,6 +4,7 @@ mod child;
 mod owned;
 mod owner;
 mod run;
+mod tee;
 
 use super::{
     conflict_as, prefix_job_key, prefix_job_key_for_path, remove_unused_log, MSG_PREFIX_BUSY,

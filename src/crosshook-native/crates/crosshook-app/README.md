@@ -624,11 +624,17 @@ requires Windows version repair before installing dependencies.` while one
   `PATH`. With `offline_mode` on, `start_install` returns `Unavailable`
   (`offline mode is enabled`) before any job; install-game, update,
   run-executable, check and repair are ungated.
-- **Logs.** Each run logs to `/tmp/crosshook-logs` through
-  `create_log_file_in` (directory `0700` and owned by the user, file mode
-  `0600`, `create_new`); child stdio is attached to clones of the returned
-  handle (prefix-deps output goes through the lossy pipe tee and is sanitized
-  before it reaches subscribers), never reopened by path. The live tail uses
+- **Logs.** Each run logs to the per-user private directory resolved by
+  `crosshook_core::runtime_files` (Flatpak
+  `$XDG_RUNTIME_DIR/app/dev.crosshook.CrossHook/logs`, native
+  `$XDG_RUNTIME_DIR/crosshook/logs`, fallback `$XDG_STATE_HOME/crosshook/logs`,
+  never `/tmp`), opened and verified once at bootstrap and pruned there (7 days,
+  newest 200). `create_log_file_in` creates the file relative to that directory
+  handle (mode `0600`, `O_EXCL|O_NOFOLLOW`); child stdio is attached to clones
+  of the returned handle (prefix-deps output goes through the lossy pipe tee and
+  is sanitized before it reaches subscribers), never reopened by path. An
+  unusable directory fails job starts with the error text
+  `no private log directory available`; bootstrap continues. The live tail uses
   `log_tail::follow_file`, pinned to that handle's device and inode.
 
 ## Jobs
@@ -686,12 +692,13 @@ other public `host_command*` builders omit `--watch-bus`, so cancelling a job
 that uses them leaves the host process running.
 
 `jobs` also hosts the process helpers the services share:
-`create_log_file_in(dir, …)` (creates `<dir>` with mode `0700` when missing
-and refuses a symlinked, non-directory or foreign-owned directory, tightening
-a group/world-accessible one of ours to `0700`; then creates
-`<dir>/<prefix>-<slug>-<millis>.log` with mode `0600` and returns the path
-plus the open handle the child's stdio is attached to), `create_log_path_in`
-(the same, path only; `LaunchService` uses it as its log-dir seam),
+`create_log_file_in(dir, …)` (`dir` is the verified `PrivateDir` opened at
+bootstrap by `crosshook_core::runtime_files`, which refuses a symlinked,
+non-directory or foreign-owned directory and tightens a group/world-accessible
+one of ours to `0700`; the file `<prefix>-<slug>-<millis>.log` is created
+relative to that handle with mode `0600` and `O_EXCL|O_NOFOLLOW`, and the call
+returns the path plus the open handle the child's stdio is attached to), `create_log_path_in`
+(the same, path only; `LaunchService::prepare` uses it),
 `slugify_target`, `processes_using_prefix` (`/proc/*/environ` scan, no
 signals), `kill_processes_using_prefix` (one pass, between throwaway-prefix
 removal retries) and `sweep_prefix_until_clear(prefix, grace)` (kill and
@@ -755,9 +762,11 @@ file swapped in at the path is never read.
   persisted); the process services' owner slots (`JobOwner` → active job and
   kill token), the per-prefix recovery ledger behind `last_recovery`, and
   `in_progress` (whether a job holds the prefix key).
-- **Ephemeral files:** install, update, run-executable and prefix-deps logs
-  in `/tmp/crosshook-logs` (mode `0600`, never reopened by path for
-  writing); throwaway `_run-adhoc/<slug>-<suffix>` prefixes, deleted by
+- **Ephemeral files:** launch, install, update, run-executable and prefix-deps
+  logs and the Flatpak gamescope PID capture file in the per-user private log
+  directory (`$XDG_RUNTIME_DIR/.../logs`, fallback `$XDG_STATE_HOME/crosshook/logs`;
+  mode `0600`, never reopened by path for writing, pruned after 7 days or beyond
+  the newest 200, runtime-dir logs cleared at logout); throwaway `_run-adhoc/<slug>-<suffix>` prefixes, deleted by
   their run.
 
 Offline mode gates only community `sync`, external trainer search (see

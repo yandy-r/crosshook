@@ -289,9 +289,9 @@ async fn session_returns_created_log_path_and_appended_pre_hook_warning() {
 }
 
 /// MEDIUM regression: the harness log dir is private to this test run, so
-/// sessions never land in the shared `/tmp/crosshook-logs`.
+/// sessions log only into the injected directory and nowhere else.
 #[tokio::test]
-async fn sessions_log_into_the_harness_dir_not_shared_tmp() {
+async fn sessions_log_into_the_injected_private_dir_only() {
     let harness = Harness::new(Metadata::Disabled);
     harness.spawner.push(Script::piped("printf 'iso-game\\n'"));
     harness
@@ -313,15 +313,19 @@ async fn sessions_log_into_the_harness_dir_not_shared_tmp() {
     assert_eq!(game_log.parent(), Some(harness.log_dir.as_path()));
     assert_eq!(trainer_log.parent(), Some(harness.log_dir.as_path()));
     assert_ne!(game_log, trainer_log, "each session gets its own file");
-    // The shared production directory gains no file for this slug: the
-    // request's exe name keeps the slug unique per run.
+    // Both logs live under the injected tempdir's private log directory, and
+    // that directory holds exactly the two session logs (nothing else is
+    // written beside them).
+    assert!(game_log.starts_with(harness.root.path()));
+    assert!(trainer_log.starts_with(harness.root.path()));
     let slug = harness.proton_request("isolation").log_target_slug();
-    let shared = logs_for_slug_in(Path::new("/tmp/crosshook-logs"), &slug);
-    assert!(
-        shared
-            .iter()
-            .all(|path| path != &game_log && path != &trainer_log),
-        "no session log is created in /tmp/crosshook-logs"
+    let mut created = logs_for_slug_in(&harness.log_dir, &slug);
+    created.sort();
+    let mut expected = vec![game_log.clone(), trainer_log.clone()];
+    expected.sort();
+    assert_eq!(
+        created, expected,
+        "the injected log dir holds exactly this run's session logs"
     );
 
     let (game_events, trainer_events) =

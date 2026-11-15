@@ -10,7 +10,7 @@ use crosshook_core::update::{
 
 use super::types::{UpdateCompletion, UpdateGameResponse};
 use super::{validation_error, UpdateService, UPDATE_GAME_JOB_KIND};
-use crate::jobs::{create_log_file_in, slugify_target, JobKey, JobSpec};
+use crate::jobs::{create_log_file_in, require, slugify_target, JobKey, JobSpec, LogDir};
 use crate::services::process::child::LogFile;
 use crate::services::process::owned::{start_owned, FailureText, OwnedRun};
 use crate::services::process::sweep::sweep_after_cancel;
@@ -53,7 +53,7 @@ impl UpdateService {
     ) -> Result<(UpdateGameResponse, ProcessRun<UpdateCompletion>), AppError> {
         let slot = self.active.claim(owner)?;
         let log_dir = self.log_dir.clone();
-        let (prefix, key, run) = run_blocking(move || prepare(&request, log_dir)).await?;
+        let (prefix, key, run) = run_blocking(move || prepare(&request, &log_dir)).await?;
         let log_path = run.log.path.display().to_string();
         let spec = JobSpec::new(UPDATE_GAME_JOB_KIND).with_key(key);
         let run = start_owned(&self.jobs, spec, slot, run, |ctx, stopped| async move {
@@ -78,15 +78,15 @@ impl UpdateService {
 /// and creates the owner-only log file.
 fn prepare(
     request: &UpdateGameRequest,
-    log_dir: PathBuf,
+    log_dir: &LogDir,
 ) -> Result<(PathBuf, JobKey, OwnedRun), AppError> {
     validate_update_request(request).map_err(validation_error)?;
     let (prefix, key) = prefix_job_key(request.prefix_path.trim())?;
     let slug = slugify_target(&request.profile_name, "update");
-    let (path, file) = create_log_file_in(log_dir, "update", &slug).map_err(|error| {
+    let (path, file) = create_log_file_in(require(log_dir)?, "update", &slug).map_err(|error| {
         AppError::new(
             AppErrorKind::Io,
-            format!("failed to create the update log: {error}"),
+            format!("failed to create the update log: {}", error.message()),
         )
     })?;
     Ok((

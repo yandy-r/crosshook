@@ -189,7 +189,7 @@ async fn the_key_is_held_while_cleanup_runs_and_released_after() {
     let release_rx = Arc::new(Mutex::new(release_rx));
     let service = RunExecutableService::with_dirs(
         fixture.jobs.clone(),
-        fixture.log_dir.clone(),
+        fixture.log.clone(),
         fixture.adhoc_root.clone(),
     )
     .with_cleanup(move |prefix, root| {

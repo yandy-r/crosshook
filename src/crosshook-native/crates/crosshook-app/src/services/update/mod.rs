@@ -2,13 +2,11 @@
 //! holds its prefix key (D5), live log streaming, and owner-checked cancel
 //! (D6).
 
-use std::path::PathBuf;
-
 use crosshook_core::update::{
     validate_update_request, UpdateGameRequest, UpdateGameValidationError,
 };
 
-use crate::jobs::JobRegistry;
+use crate::jobs::{JobRegistry, LogDir};
 use crate::services::process::owner::ActiveJobs;
 use crate::services::process::JobOwner;
 use crate::services::run_blocking;
@@ -27,24 +25,14 @@ pub const UPDATE_GAME_JOB_KIND: &str = "update-game";
 pub struct UpdateService {
     jobs: JobRegistry,
     active: ActiveJobs,
-    /// Where run logs are created; [`crate::jobs::LOG_DIR`] in production.
-    log_dir: PathBuf,
+    /// Where run logs are created: the private directory resolved at bootstrap.
+    log_dir: LogDir,
 }
 
 impl UpdateService {
-    /// Builds the service over the shared job registry; logs go to
-    /// [`crate::jobs::LOG_DIR`].
-    pub fn new(jobs: JobRegistry) -> Self {
-        Self {
-            jobs,
-            active: ActiveJobs::default(),
-            log_dir: PathBuf::from(crate::jobs::LOG_DIR),
-        }
-    }
-
-    /// A service whose run logs land in `log_dir` (test seam).
-    #[cfg(test)]
-    pub(crate) fn with_log_dir(jobs: JobRegistry, log_dir: PathBuf) -> Self {
+    /// Builds the service over the shared job registry; run logs are created
+    /// in `log_dir` (the private directory resolved at bootstrap).
+    pub fn new(jobs: JobRegistry, log_dir: LogDir) -> Self {
         Self {
             jobs,
             active: ActiveJobs::default(),

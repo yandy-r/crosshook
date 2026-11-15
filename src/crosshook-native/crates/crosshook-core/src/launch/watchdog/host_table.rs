@@ -1,6 +1,6 @@
 //! Host process table for the Flatpak watchdog paths.
 //!
-//! The table comes from host `ps -eo pid= -o ppid= -o comm=`, which works on
+//! The table comes from host `ps -eo pid= -o ppid= -o uid= -o comm=`, which works on
 //! every procps-ng release (`--delimiter` exists only from 4.0.6, so it is
 //! not used). When `ps` cannot be run or yields nothing usable, the table is
 //! read from the host's `/proc/<pid>/stat` files instead.
@@ -14,10 +14,15 @@ use crate::platform::host_std_command;
 pub(super) struct HostProcessEntry {
     pub(super) pid: u32,
     pub(super) ppid: u32,
+    /// Effective user id from `ps`; `None` when read from `/proc/<pid>/stat`,
+    /// which does not carry it.
+    pub(super) uid: Option<u32>,
     pub(super) comm: String,
 }
 
-const PS_ARGS: [&str; 7] = ["-ww", "-eo", "pid=", "-o", "ppid=", "-o", "comm="];
+const PS_ARGS: [&str; 9] = [
+    "-ww", "-eo", "pid=", "-o", "ppid=", "-o", "uid=", "-o", "comm=",
+];
 /// `cat` keeps going past a stat file whose process exited mid-glob; its
 /// non-zero exit status is ignored and only the parsed output counts.
 const PROC_STAT_SCRIPT: &str = "cat /proc/[0-9]*/stat 2>/dev/null";
@@ -84,14 +89,17 @@ fn parse_lines(
         .collect()
 }
 
-/// Parses one `ps -eo pid= -o ppid= -o comm=` line. procps-ng before 4.0.6
-/// pads the columns with spaces (`  4242    41 Witcher 3.exe`); a tab
-/// delimited line (`4242\t41\tgamescope`) parses the same way. The command
-/// name is everything after the second field, so it may contain spaces.
+/// Parses one `ps -eo pid= -o ppid= -o uid= -o comm=` line. procps-ng before
+/// 4.0.6 pads the columns with spaces (`  4242    41  1000 Witcher 3.exe`); a
+/// tab delimited line (`4242\t41\t1000\tgamescope`) parses the same way. The
+/// command name is everything after the third field, so it may contain spaces.
 pub(super) fn parse_ps_line(line: &str) -> Option<HostProcessEntry> {
     let (pid, rest) = split_field(line)?;
-    let (ppid, comm) = split_field(rest)?;
-    entry(pid, ppid, comm)
+    let (ppid, rest) = split_field(rest)?;
+    let (uid, comm) = split_field(rest)?;
+    let mut parsed = entry(pid, ppid, comm)?;
+    parsed.uid = Some(uid.trim().parse().ok()?);
+    Some(parsed)
 }
 
 fn split_field(text: &str) -> Option<(&str, &str)> {
@@ -123,6 +131,7 @@ fn entry(pid: &str, ppid: &str, comm: &str) -> Option<HostProcessEntry> {
     Some(HostProcessEntry {
         pid: pid.trim().parse().ok()?,
         ppid: ppid.trim().parse().ok()?,
+        uid: None,
         comm: comm.to_string(),
     })
 }
@@ -139,8 +148,19 @@ mod tests {
         HostProcessEntry {
             pid,
             ppid,
+            uid: None,
             comm: comm.to_string(),
         }
+    }
+
+    fn with_uid(entries: Vec<HostProcessEntry>) -> Vec<HostProcessEntry> {
+        entries
+            .into_iter()
+            .map(|entry| HostProcessEntry {
+                uid: Some(1000),
+                ..entry
+            })
+            .collect()
     }
 
     fn output(exit_code: i32, stdout: &str, stderr: &str) -> io::Result<Output> {
@@ -151,9 +171,9 @@ mod tests {
         })
     }
 
-    const OLD_PS: &str =
-        "      1       0 systemd\n   4242      41 Witcher 3.exe\n  31337    4242 gamescope\n";
-    const NEW_PS: &str = "1\t0\tsystemd\n4242\t41\tWitcher 3.exe\n31337\t4242\tgamescope\n";
+    const OLD_PS: &str = "      1       0  1000 systemd\n   4242      41  1000 Witcher 3.exe\n  31337    4242  1000 gamescope\n";
+    const NEW_PS: &str =
+        "1\t0\t1000\tsystemd\n4242\t41\t1000\tWitcher 3.exe\n31337\t4242\t1000\tgamescope\n";
     const PROC_STATS: &str = "1 (systemd) S 0 1 1 0 -1\n4242 (Witcher 3.exe) S 41 4242 4242 0\n31337 (gamescope) R 4242 31337 0 0\n";
 
     fn expected() -> Vec<HostProcessEntry> {
@@ -166,19 +186,26 @@ mod tests {
 
     #[test]
     fn parses_space_padded_ps_output_from_procps_before_4_0_6() {
-        assert_eq!(parse_lines(OLD_PS.as_bytes(), parse_ps_line), expected());
+        assert_eq!(
+            parse_lines(OLD_PS.as_bytes(), parse_ps_line),
+            with_uid(expected())
+        );
     }
 
     #[test]
     fn parses_tab_delimited_ps_output_from_procps_4_0_6() {
-        assert_eq!(parse_lines(NEW_PS.as_bytes(), parse_ps_line), expected());
+        assert_eq!(
+            parse_lines(NEW_PS.as_bytes(), parse_ps_line),
+            with_uid(expected())
+        );
     }
 
     #[test]
     fn ps_line_without_comm_or_with_bad_numbers_is_skipped() {
-        assert_eq!(parse_ps_line("  4242    41"), None);
-        assert_eq!(parse_ps_line("  4242    41   "), None);
-        assert_eq!(parse_ps_line("  abc    41 game.exe"), None);
+        assert_eq!(parse_ps_line("  4242    41  1000"), None);
+        assert_eq!(parse_ps_line("  4242    41  1000   "), None);
+        assert_eq!(parse_ps_line("  abc    41  1000 game.exe"), None);
+        assert_eq!(parse_ps_line("  4242    41  root game.exe"), None);
         assert_eq!(parse_ps_line(""), None);
     }
 
@@ -206,7 +233,7 @@ mod tests {
                 output(0, PROC_STATS, "")
             },
         );
-        assert_eq!(table, Some(expected()));
+        assert_eq!(table, Some(with_uid(expected())));
         assert!(!fallback_ran.get());
     }
 

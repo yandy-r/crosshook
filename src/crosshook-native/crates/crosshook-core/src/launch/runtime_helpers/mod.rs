@@ -9,8 +9,14 @@ mod tests;
 /// Default `PATH` used when the host environment does not set `PATH`.
 pub const DEFAULT_HOST_PATH: &str = "/usr/bin:/bin";
 const DEFAULT_SHELL: &str = "/bin/bash";
+/// Host-shell script that records its own PID at `$1`, then `exec`s the rest of argv.
+///
+/// `set -C` (noclobber) makes the redirect an exclusive create (`O_EXCL`), so an existing
+/// file or a symlink at `$1` is refused rather than followed. The script never creates
+/// directories, and it fails closed: when the capture is refused it exits 125 before
+/// `exec`, so gamescope does not start.
 const FLATPAK_GAMESCOPE_PID_CAPTURE_SCRIPT: &str =
-    "capture_dir=$(dirname -- \"$1\"); mkdir -p -- \"$capture_dir\"; printf '%s' \"$$\" > \"$1\"; shift; exec \"$@\"";
+    "set -C; printf '%s' \"$$\" > \"$1\" || exit 125; shift; exec \"$@\"";
 
 // Re-exports keep the existing `use crate::launch::runtime_helpers::X` paths resolving.
 

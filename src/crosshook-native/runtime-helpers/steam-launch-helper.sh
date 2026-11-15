@@ -214,7 +214,7 @@ if [[ "$game_only" != "1" ]]; then
   host_test -f "$trainer_host_path" || fail "Trainer host path does not exist: $trainer_host_path"
 fi
 
-mkdir -p "$(dirname "$log_file")"
+[[ -f "$log_file" && ! -L "$log_file" ]] || fail "Log file missing or unsafe."
 exec >>"$log_file" 2>&1
 
 compatdata="$(host_realpath "$compatdata")" || fail "Failed to resolve compatdata path: $compatdata"

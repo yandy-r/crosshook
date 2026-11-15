@@ -35,6 +35,7 @@ use super::super::{
     ProcessSpawner,
 };
 use crate::events::EventBus;
+use crate::jobs::test_log_dir;
 
 /// How long [`Harness::collect`] waits for `Exited`.
 const COLLECT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -209,7 +210,7 @@ pub(super) struct Harness {
     /// Keeps the tempdir alive for the harness lifetime.
     pub(super) root: TempDir,
     /// Where this harness's session logs land (inside [`Self::root`], never
-    /// the shared `/tmp/crosshook-logs`).
+    /// the real runtime or state directory).
     pub(super) log_dir: PathBuf,
     pub(super) profiles: ProfileStore,
     pub(super) settings: SettingsStore,
@@ -231,8 +232,8 @@ impl Harness {
             Metadata::Disabled => MetadataStore::disabled(),
         };
 
-        let log_dir = root.path().join("launch-logs");
-        fs::create_dir_all(&log_dir).unwrap();
+        let log = test_log_dir(root.path());
+        let log_dir = log.as_ref().expect("usable log dir").path().to_path_buf();
 
         // The flatpak-resources candidate is exempt from the trust check, so
         // plain 0755 stubs resolve without any uid games.
@@ -250,6 +251,7 @@ impl Harness {
             metadata.clone(),
             events.clone(),
             None,
+            log,
         )
         .with_spawner(spawner.clone())
         .with_env(LaunchEnv {
@@ -260,8 +262,7 @@ impl Harness {
             flatpak_resources: Some(helper_dir),
             exe_dir: None,
             dev_dir: None,
-        }))
-        .with_log_dir(log_dir.clone());
+        }));
 
         Self {
             root,

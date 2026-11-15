@@ -33,7 +33,7 @@ fn launch_result_matches_fixture() {
         succeeded: true,
         message: "Trainer launch started.".to_string(),
         session_id: "550e8400-e29b-41d4-a716-446655440000".to_string(),
-        helper_log_path: "/tmp/crosshook-logs/trainer-x.log".to_string(),
+        helper_log_path: "/run/user/1000/crosshook/logs/trainer-x.log".to_string(),
         warnings: Vec::new(),
     };
     assert_eq!(

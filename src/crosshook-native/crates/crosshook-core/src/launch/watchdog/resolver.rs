@@ -1,16 +1,13 @@
 use std::collections::HashMap;
-use std::fs;
 use std::path::Path;
+use std::time::Duration;
 
 use tokio::time;
 
-use crate::platform::is_flatpak;
-
 use super::descendants::collect_descendant_pids_from_children_map;
 use super::{
-    host::{
-        collect_host_process_entries, host_process_entry_matches_candidates, read_host_text_file,
-    },
+    capture::{pid_is_owned_gamescope, read_pid_capture_file_blocking, CaptureOwner, CaptureRead},
+    host::{collect_host_process_entries, host_process_entry_matches_candidates, HostProcessEntry},
     process::{is_pid_alive, process_name_candidates},
     ShutdownTarget, GAMESCOPE_HOST_PID_CAPTURE_WAIT_INTERVAL,
     GAMESCOPE_HOST_PID_CAPTURE_WAIT_ITERATIONS,
@@ -71,6 +68,20 @@ pub(super) fn resolve_watchdog_target_by_host_ancestor_search(
     )
 }
 
+/// How long to wait for the capture file and its gamescope process.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct CaptureBudget {
+    pub(super) iterations: u32,
+    pub(super) interval: Duration,
+}
+
+impl CaptureBudget {
+    pub(super) const DEFAULT: Self = Self {
+        iterations: GAMESCOPE_HOST_PID_CAPTURE_WAIT_ITERATIONS,
+        interval: GAMESCOPE_HOST_PID_CAPTURE_WAIT_INTERVAL,
+    };
+}
+
 pub(super) async fn resolve_watchdog_target(
     observed_gamescope_pid: u32,
     host_pid_capture_path: Option<&Path>,
@@ -83,25 +94,95 @@ pub(super) async fn resolve_watchdog_target(
         });
     };
 
-    for _ in 0..GAMESCOPE_HOST_PID_CAPTURE_WAIT_ITERATIONS {
-        if let Some(pid) = read_pid_capture_file(path) {
-            let target = ShutdownTarget {
-                pid,
-                host_namespace: true,
-            };
-            tracing::info!(
-                fallback = "capture_file",
-                discovered_pid = target.pid,
-                game_exe = %exe_name,
-                observed_gamescope_pid,
-                "gamescope watchdog: resolved target via capture file"
-            );
-            return Some(target);
+    let captured = await_captured_gamescope(
+        path,
+        CaptureBudget::DEFAULT,
+        CaptureOwner::current(),
+        collect_host_process_entries,
+        exe_name,
+        observed_gamescope_pid,
+    )
+    .await;
+    if captured.is_some() {
+        return captured;
+    }
+    resolve_by_host_ancestor_fallback(exe_name, observed_gamescope_pid).await
+}
+
+/// Polls the capture file and accepts its PID only once the host snapshot shows
+/// it as a gamescope process of `owner`. `None` means "use the fallback".
+pub(super) async fn await_captured_gamescope<F>(
+    path: &Path,
+    budget: CaptureBudget,
+    owner: CaptureOwner,
+    snapshot: F,
+    exe_name: &str,
+    observed_gamescope_pid: u32,
+) -> Option<ShutdownTarget>
+where
+    F: Fn() -> Vec<HostProcessEntry> + Clone + Send + 'static,
+{
+    let mut captured_pid: Option<u32> = None;
+    for _ in 0..budget.iterations {
+        if captured_pid.is_none() {
+            match read_pid_capture_file_blocking(path).await {
+                CaptureRead::Pending => {}
+                CaptureRead::Rejected => {
+                    tracing::warn!(
+                        reason = "invalid_pid",
+                        game_exe = %exe_name,
+                        observed_gamescope_pid,
+                        "gamescope watchdog: rejected PID capture file"
+                    );
+                    return None;
+                }
+                CaptureRead::Pid(pid) => captured_pid = Some(pid),
+            }
         }
-        time::sleep(GAMESCOPE_HOST_PID_CAPTURE_WAIT_INTERVAL).await;
+
+        if let Some(pid) = captured_pid {
+            let entries = tokio::task::spawn_blocking(snapshot.clone())
+                .await
+                .unwrap_or_default();
+            if pid_is_owned_gamescope(&entries, pid, owner) {
+                tracing::info!(
+                    fallback = "capture_file",
+                    discovered_pid = pid,
+                    game_exe = %exe_name,
+                    observed_gamescope_pid,
+                    "gamescope watchdog: resolved target via capture file"
+                );
+                return Some(ShutdownTarget {
+                    pid,
+                    host_namespace: true,
+                });
+            }
+        }
+        time::sleep(budget.interval).await;
     }
 
-    let (exe_target, descendants) = resolve_watchdog_target_by_host_ancestor_search(exe_name);
+    if let Some(pid) = captured_pid {
+        tracing::warn!(
+            reason = "not_gamescope",
+            discovered_pid = pid,
+            game_exe = %exe_name,
+            observed_gamescope_pid,
+            "gamescope watchdog: captured PID never matched a gamescope process"
+        );
+    }
+    None
+}
+
+async fn resolve_by_host_ancestor_fallback(
+    exe_name: &str,
+    observed_gamescope_pid: u32,
+) -> Option<ShutdownTarget> {
+    let search_exe = exe_name.to_string();
+    let (exe_target, descendants) = tokio::task::spawn_blocking(move || {
+        resolve_watchdog_target_by_host_ancestor_search(&search_exe)
+    })
+    .await
+    .unwrap_or((None, Vec::new()));
 
     if let Some(target) = exe_target {
         tracing::info!(
@@ -171,13 +252,108 @@ fn find_matching_ancestor_pid(
     None
 }
 
-fn read_pid_capture_file(path: &Path) -> Option<u32> {
-    let content = fs::read_to_string(path).ok().or_else(|| {
-        if is_flatpak() {
-            read_host_text_file(path)
-        } else {
-            None
-        }
-    })?;
-    content.trim().parse::<u32>().ok().filter(|pid| *pid > 0)
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use super::*;
+
+    const OWNER: CaptureOwner = CaptureOwner {
+        uid: 1000,
+        self_pid: 50,
+    };
+    const BUDGET: CaptureBudget = CaptureBudget {
+        iterations: 3,
+        interval: Duration::from_millis(1),
+    };
+
+    fn gamescope(pid: u32, uid: u32) -> Vec<HostProcessEntry> {
+        vec![HostProcessEntry {
+            pid,
+            ppid: 1,
+            uid: Some(uid),
+            comm: "gamescope".to_string(),
+        }]
+    }
+
+    async fn await_with(
+        path: &Path,
+        snapshot: impl Fn() -> Vec<HostProcessEntry> + Clone + Send + 'static,
+    ) -> Option<ShutdownTarget> {
+        await_captured_gamescope(path, BUDGET, OWNER, snapshot, "game.exe", 7).await
+    }
+
+    #[tokio::test]
+    async fn missing_file_until_budget_returns_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = await_with(&dir.path().join("pid"), || gamescope(4242, 1000)).await;
+        assert_eq!(target, None);
+    }
+
+    #[tokio::test]
+    async fn rejected_file_returns_none_and_is_removed() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("pid");
+        fs::write(&path, "not-a-pid").unwrap();
+        assert_eq!(await_with(&path, || gamescope(4242, 1000)).await, None);
+        assert!(!path.exists());
+    }
+
+    #[tokio::test]
+    async fn pid_that_is_not_gamescope_returns_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("pid");
+        fs::write(&path, "4242").unwrap();
+        assert_eq!(await_with(&path, || gamescope(9999, 1000)).await, None);
+    }
+
+    #[tokio::test]
+    async fn gamescope_of_another_user_returns_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("pid");
+        fs::write(&path, "4242").unwrap();
+        assert_eq!(await_with(&path, || gamescope(4242, 1001)).await, None);
+    }
+
+    #[tokio::test]
+    async fn owned_gamescope_pid_becomes_host_target() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("pid");
+        fs::write(&path, "4242\n").unwrap();
+        assert_eq!(
+            await_with(&path, || gamescope(4242, 1000)).await,
+            Some(ShutdownTarget {
+                pid: 4242,
+                host_namespace: true,
+            })
+        );
+        assert!(!path.exists());
+    }
+
+    #[tokio::test]
+    async fn empty_file_keeps_polling_until_the_pid_is_written() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("pid");
+        fs::write(&path, "").unwrap();
+        let writer_path = path.clone();
+        let budget = CaptureBudget {
+            iterations: 200,
+            interval: Duration::from_millis(5),
+        };
+        let writer = tokio::spawn(async move {
+            time::sleep(Duration::from_millis(20)).await;
+            fs::write(&writer_path, "4242").unwrap();
+        });
+        let target = await_captured_gamescope(
+            &path,
+            budget,
+            OWNER,
+            || gamescope(4242, 1000),
+            "game.exe",
+            7,
+        )
+        .await;
+        writer.await.unwrap();
+        assert_eq!(target.map(|target| target.pid), Some(4242));
+    }
 }
