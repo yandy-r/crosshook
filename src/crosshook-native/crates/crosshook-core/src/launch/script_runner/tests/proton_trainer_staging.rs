@@ -1,6 +1,6 @@
 use std::fs;
 
-use super::support::{command_env_value, write_executable_file};
+use super::support::{command_env_value, test_trainer_log_path, write_executable_file};
 use crate::launch::script_runner::{
     build_flatpak_steam_trainer_command, build_proton_trainer_command,
 };
@@ -46,8 +46,8 @@ fn flatpak_steam_trainer_command_reuses_direct_proton_builder_inputs() {
         ..Default::default()
     };
 
-    let command =
-        build_flatpak_steam_trainer_command(&request).expect("flatpak steam trainer command");
+    let command = build_flatpak_steam_trainer_command(&request, test_trainer_log_path())
+        .expect("flatpak steam trainer command");
     let args = command
         .as_std()
         .get_args()
@@ -118,7 +118,8 @@ fn proton_trainer_command_stages_support_files_into_prefix() {
         ..Default::default()
     };
 
-    let command = build_proton_trainer_command(&request).expect("trainer command");
+    let command =
+        build_proton_trainer_command(&request, test_trainer_log_path()).expect("trainer command");
     let args = command
         .as_std()
         .get_args()
@@ -181,7 +182,8 @@ fn proton_trainer_command_uses_source_directory_without_staging() {
         ..Default::default()
     };
 
-    let command = build_proton_trainer_command(&request).expect("trainer command");
+    let command =
+        build_proton_trainer_command(&request, test_trainer_log_path()).expect("trainer command");
     let args = command
         .as_std()
         .get_args()
@@ -249,7 +251,8 @@ fn proton_trainer_command_uses_pfx_child_when_prefix_path_is_compatdata_root() {
         ..Default::default()
     };
 
-    let command = build_proton_trainer_command(&request).expect("trainer command");
+    let command =
+        build_proton_trainer_command(&request, test_trainer_log_path()).expect("trainer command");
     let envs = command
         .as_std()
         .get_envs()

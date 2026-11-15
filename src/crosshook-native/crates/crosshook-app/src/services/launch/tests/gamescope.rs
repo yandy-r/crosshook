@@ -124,8 +124,7 @@ const TABLE: [Block; 12] = [
         required: WRAPPED,
         capture: WRAPPED,
     },
-    // Trainer, proton_run. Flatpak capture is a kept divergence: the path
-    // reaches the watchdog but the trainer builder never writes the file.
+    // Trainer, proton_run: the builder writes the capture file in Flatpak.
     Block {
         method: METHOD_PROTON_RUN,
         kind: SessionKind::Trainer,
@@ -485,7 +484,7 @@ fn watchdog_receives_the_plan_capture_path() {
 }
 
 #[test]
-fn exe_name_is_empty_when_the_path_has_no_file_name() {
+fn consumer_is_drain_when_the_path_has_no_file_name() {
     let mut req = enabled_game_request();
     req.game_path = String::new();
     req.trainer_host_path = "/".to_string();
@@ -493,11 +492,7 @@ fn exe_name_is_empty_when_the_path_has_no_file_name() {
     for kind in [SessionKind::Game, SessionKind::Trainer] {
         assert_eq!(
             choose_cancel_consumer(&required_plan(None), &req, kind, Some(1)),
-            CancelConsumer::Watchdog {
-                pid: 1,
-                exe_name: String::new(),
-                capture: None,
-            }
+            CancelConsumer::Drain
         );
     }
 }
@@ -509,11 +504,7 @@ fn the_game_exe_name_is_not_used_for_a_trainer_and_vice_versa() {
 
     assert_eq!(
         choose_cancel_consumer(&required_plan(None), &req, SessionKind::Trainer, Some(3)),
-        CancelConsumer::Watchdog {
-            pid: 3,
-            exe_name: String::new(),
-            capture: None,
-        }
+        CancelConsumer::Drain
     );
     assert_eq!(
         choose_cancel_consumer(&required_plan(None), &req, SessionKind::Game, Some(3)),
@@ -549,9 +540,14 @@ async fn drain_consumer_records_the_cancel_reason_without_a_kill() {
 }
 
 #[tokio::test]
-async fn watchdog_with_an_empty_exe_name_drops_the_cancel_channel() {
-    // Kept divergence: nothing consumes the receiver, so the
-    // cancel is never attributed.
+async fn empty_exe_name_session_still_records_the_cascade_reason() {
+    // YAN-1610: without an executable basename the watchdog cannot run, but
+    // the session must still consume its cancel channel so a cascade from the
+    // parent game is attributed.
+    let mut req = enabled_game_request();
+    req.trainer_host_path = "/".to_string();
+    let consumer =
+        choose_cancel_consumer(&required_plan(None), &req, SessionKind::Trainer, Some(1));
     let registry = LaunchSessionRegistry::new();
     let (id, rx) = registry.register(
         SessionKind::Trainer,
@@ -559,20 +555,16 @@ async fn watchdog_with_an_empty_exe_name_drops_the_cancel_channel() {
     );
     let outcome = WatchdogOutcome::new();
 
-    spawn_cancel_consumer(
-        CancelConsumer::Watchdog {
-            pid: 1,
-            exe_name: String::new(),
-            capture: None,
-        },
-        id,
-        outcome.clone(),
-        rx,
-        None,
-    );
+    spawn_cancel_consumer(consumer, id, outcome.clone(), rx, None);
     assert!(registry.cancel_session(id, TeardownReason::LinkedSessionExit));
-    tokio::time::sleep(Duration::from_millis(50)).await;
 
-    assert_eq!(outcome.reason(), None);
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while outcome.reason().is_none() {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("the empty-exe session records the cascade reason");
+    assert_eq!(outcome.reason(), Some(TeardownReason::LinkedSessionExit));
     assert!(!outcome.was_killed());
 }

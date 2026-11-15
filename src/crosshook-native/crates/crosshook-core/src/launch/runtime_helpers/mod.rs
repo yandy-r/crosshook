@@ -16,7 +16,7 @@ const DEFAULT_SHELL: &str = "/bin/bash";
 /// regular file appearing in between. The script never creates directories, and it
 /// fails closed: when the capture is refused it exits 125 before `exec`, so gamescope
 /// does not start.
-const FLATPAK_GAMESCOPE_PID_CAPTURE_SCRIPT: &str =
+pub(crate) const FLATPAK_GAMESCOPE_PID_CAPTURE_SCRIPT: &str =
     "{ [ -e \"$1\" ] || [ -L \"$1\" ]; } && exit 125; \
      set -C; printf '%s' \"$$\" > \"$1\" || exit 125; shift; exec \"$@\"";
 
@@ -39,6 +39,8 @@ pub use proton_command::{
     build_proton_command_with_gamescope_in_directory,
     build_proton_command_with_gamescope_pid_capture_in_directory, collect_pressure_vessel_paths,
 };
+// Crate-only: the script runner passes the sandbox flag explicitly.
+pub(crate) use proton_command::build_proton_command_with_gamescope_pid_capture_in_directory_inner;
 
 // `pub(crate)` items — re-export with the same visibility
 pub(crate) use environment::env_value;

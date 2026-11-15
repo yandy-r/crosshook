@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::fs;
 
-use super::support::{command_env_value, write_executable_file};
+use super::support::{command_env_value, test_trainer_log_path, write_executable_file};
 use crate::launch::script_runner::{
     build_flatpak_steam_trainer_command, build_proton_trainer_command,
 };
@@ -69,7 +69,8 @@ fn proton_trainer_command_preserves_custom_env_while_ignoring_game_optimizations
         ..Default::default()
     };
 
-    let command = build_proton_trainer_command(&request).expect("trainer command");
+    let command =
+        build_proton_trainer_command(&request, test_trainer_log_path()).expect("trainer command");
     let args = command
         .as_std()
         .get_args()
@@ -162,7 +163,8 @@ fn proton_trainer_command_does_not_inherit_game_command_arguments() {
         ..Default::default()
     };
 
-    let command = build_proton_trainer_command(&request).expect("trainer command");
+    let command =
+        build_proton_trainer_command(&request, test_trainer_log_path()).expect("trainer command");
     let args = command
         .as_std()
         .get_args()
@@ -224,7 +226,8 @@ fn proton_trainer_command_sets_proton_verb_to_runinprefix() {
         ..Default::default()
     };
 
-    let command = build_proton_trainer_command(&request).expect("trainer command");
+    let command =
+        build_proton_trainer_command(&request, test_trainer_log_path()).expect("trainer command");
     assert_eq!(command_env_value(&command, "PROTON_VERB"), None);
 }
 
@@ -265,7 +268,8 @@ fn proton_trainer_command_sets_pressure_vessel_paths_skipping_copy_to_prefix_tra
         ..Default::default()
     };
 
-    let command = build_proton_trainer_command(&request).expect("trainer command");
+    let command =
+        build_proton_trainer_command(&request, test_trainer_log_path()).expect("trainer command");
     let expected = "/opt/games/TheGame:/srv/crosshook/workspaces/the-game".to_string();
 
     assert_eq!(
@@ -321,7 +325,8 @@ fn flatpak_steam_trainer_command_inherits_proton_verb_runinprefix() {
         ..Default::default()
     };
 
-    let command = build_flatpak_steam_trainer_command(&request).expect("flatpak trainer command");
+    let command = build_flatpak_steam_trainer_command(&request, test_trainer_log_path())
+        .expect("flatpak trainer command");
     assert_eq!(command_env_value(&command, "PROTON_VERB"), None);
 }
 
@@ -365,7 +370,8 @@ fn flatpak_steam_trainer_command_inherits_pressure_vessel_allowlist() {
         ..Default::default()
     };
 
-    let command = build_flatpak_steam_trainer_command(&request).expect("flatpak trainer command");
+    let command = build_flatpak_steam_trainer_command(&request, test_trainer_log_path())
+        .expect("flatpak trainer command");
     let expected =
         "/opt/games/TheGame:/opt/trainers:/srv/crosshook/workspaces/the-game".to_string();
 

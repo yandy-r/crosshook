@@ -82,8 +82,9 @@ async fn umu_concurrent_pids_game_and_trainer_both_alive() {
     //    `should_use_umu` returns `(true, Some(stub_path))`.
     let mut game_cmd = build_proton_game_command(&game_request, &log_game)
         .expect("build_proton_game_command must succeed with stub umu-run on PATH");
-    let mut trainer_cmd = build_proton_trainer_command(&trainer_request)
-        .expect("build_proton_trainer_command must succeed with stub umu-run on PATH");
+    let mut trainer_cmd =
+        build_proton_trainer_command(&trainer_request, std::path::Path::new(TEST_TRAINER_LOG))
+            .expect("build_proton_trainer_command must succeed with stub umu-run on PATH");
 
     // Shed stdio so the test doesn't block on pipes.
     use std::process::Stdio;
@@ -129,3 +130,6 @@ async fn umu_concurrent_pids_game_and_trainer_both_alive() {
          direct /bin/true (which exits immediately)."
     );
 }
+
+/// Log path for builders that only derive a capture path from it.
+const TEST_TRAINER_LOG: &str = "/tmp/crosshook-test-trainer.log";

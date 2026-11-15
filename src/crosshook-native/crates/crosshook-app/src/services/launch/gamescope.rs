@@ -62,9 +62,8 @@ pub fn gamescope_required(req: &LaunchRequest, kind: SessionKind, env: LaunchEnv
 /// Whether the watchdog is handed a gamescope PID-capture path: the predicate
 /// holds and the process runs inside the Flatpak sandbox.
 ///
-/// Kept divergence: for a Flatpak trainer the path reaches the
-/// watchdog, but the trainer builder never writes the capture file, so the
-/// watchdog falls back to the host ancestor search after its poll window.
+/// The game and trainer builders write `<log>.gamescope.pid` under the same
+/// condition, so the watchdog reads the compositor's host PID directly.
 pub fn pid_capture_required(req: &LaunchRequest, kind: SessionKind, env: LaunchEnv) -> bool {
     gamescope_required(req, kind, env) && env.is_flatpak
 }
@@ -99,20 +98,23 @@ pub(super) enum CancelConsumer {
     Watchdog {
         /// Direct child (gamescope) PID.
         pid: u32,
-        /// Basename of the executable the watchdog waits on; may be empty.
+        /// Basename of the executable the watchdog waits on; never empty.
         exe_name: String,
         /// Host PID-capture file, when the plan has one.
         capture: Option<PathBuf>,
     },
-    /// Nothing to tear down: only record the cancel reason.
+    /// Only record the cancel reason: nothing to tear down, or no executable
+    /// name for the watchdog to wait on.
     Drain,
 }
 
 /// Picks the cancel consumer: [`CancelConsumer::Watchdog`] iff gamescope is
-/// required and the child has a PID, otherwise [`CancelConsumer::Drain`].
+/// required, the child has a PID and the executable has a basename, otherwise
+/// [`CancelConsumer::Drain`], so a cascade is always recorded.
 ///
 /// The executable is the basename of `game_path` for a game and of
 /// `trainer_host_path` for a trainer, both taken unmodified from the request.
+/// A drained Flatpak session leaves its unread capture file to log pruning.
 pub(super) fn choose_cancel_consumer(
     plan: &GamescopePlan,
     req: &LaunchRequest,
@@ -132,9 +134,17 @@ pub(super) fn choose_cancel_consumer(
         SessionKind::Game => req.game_path.as_str(),
         SessionKind::Trainer => req.trainer_host_path.as_str(),
     };
+    let exe_name = exe_basename(source);
+    if exe_name.is_empty() {
+        tracing::warn!(
+            gamescope_pid = pid,
+            "gamescope watchdog disabled: launch path did not yield an executable basename; draining cancels"
+        );
+        return CancelConsumer::Drain;
+    }
     CancelConsumer::Watchdog {
         pid,
-        exe_name: exe_basename(source),
+        exe_name,
         capture: plan.pid_capture.clone(),
     }
 }
@@ -143,10 +153,6 @@ pub(super) fn choose_cancel_consumer(
 ///
 /// Every session gets exactly one consumer, so a cascade or a user reset
 /// always has a live receiver. Must be called inside a Tokio runtime.
-///
-/// A `Watchdog` with an empty executable name keeps today's behavior
-///: it logs, returns and drops `cancel_rx`, so
-/// cascades into that session are lost.
 pub(super) fn spawn_cancel_consumer(
     consumer: CancelConsumer,
     session_id: SessionId,
@@ -163,14 +169,6 @@ pub(super) fn spawn_cancel_consumer(
             exe_name,
             capture,
         } => {
-            if exe_name.is_empty() {
-                tracing::warn!(
-                    session_id = %session_id,
-                    gamescope_pid = pid,
-                    "gamescope watchdog disabled: launch path did not yield an executable basename"
-                );
-                return;
-            }
             tokio::spawn(async move {
                 log_background_grant(pid, background.as_deref()).await;
                 gamescope_watchdog(pid, &exe_name, outcome, capture, cancel_rx).await;

@@ -54,6 +54,13 @@ pub fn gamescope_pid_capture_path(log_path: &Path) -> PathBuf {
     PathBuf::from(format!("{}.gamescope.pid", log_path.to_string_lossy()))
 }
 
+/// The capture file a gamescope-wrapped launch writes, shared by the game and
+/// trainer builders: only a sandboxed launch needs one, because only there is
+/// gamescope's host PID unknown. Mirrors the service's `pid_capture_required`.
+pub(super) fn gamescope_pid_capture_for(log_path: &Path, flatpak: bool) -> Option<PathBuf> {
+    flatpak.then(|| gamescope_pid_capture_path(log_path))
+}
+
 pub(super) fn should_skip_gamescope(config: &GamescopeConfig) -> bool {
     !config.allow_nested && std::env::var("GAMESCOPE_WAYLAND_DISPLAY").is_ok()
 }
