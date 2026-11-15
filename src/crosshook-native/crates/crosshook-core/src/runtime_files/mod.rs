@@ -4,7 +4,6 @@
 //! symlinks, opens log files relative to that verified directory and prunes old
 //! logs. Errors are path-free so they can cross an IPC boundary.
 
-use std::path::PathBuf;
 use std::{fmt, io};
 
 use nix::errno::Errno;
@@ -55,29 +54,33 @@ pub(crate) fn launch_log_dir_from(
     Err(RuntimeDirError::NoUsableDir)
 }
 
-/// Candidate log directory paths for diagnostics, without creating anything.
+/// Candidate log directories for diagnostics, without creating anything.
 ///
 /// Includes the Flatpak location when running natively so logs written by
-/// either mode are found.
-pub fn launch_log_dir_candidates() -> Vec<PathBuf> {
+/// either mode are found. Readers open each candidate's `relative`
+/// components without following symlinks, like the writer does.
+pub fn launch_log_dir_candidates() -> Vec<LogDirCandidate> {
     launch_log_dir_candidates_from(&RuntimeDirInputs::detect())
 }
 
 /// Pure form of [`launch_log_dir_candidates`] for tests.
-pub(crate) fn launch_log_dir_candidates_from(inputs: &RuntimeDirInputs) -> Vec<PathBuf> {
-    let mut paths: Vec<PathBuf> = resolve(inputs).iter().map(LogDirCandidate::path).collect();
+pub(crate) fn launch_log_dir_candidates_from(inputs: &RuntimeDirInputs) -> Vec<LogDirCandidate> {
+    let mut candidates = resolve(inputs);
     if !inputs.flatpak {
         let flatpak_inputs = RuntimeDirInputs {
             flatpak: true,
             ..inputs.clone()
         };
-        for path in resolve(&flatpak_inputs).iter().map(LogDirCandidate::path) {
-            if !paths.contains(&path) {
-                paths.push(path);
+        for candidate in resolve(&flatpak_inputs) {
+            if !candidates
+                .iter()
+                .any(|seen| seen.path() == candidate.path())
+            {
+                candidates.push(candidate);
             }
         }
     }
-    paths
+    candidates
 }
 
 /// Why a private runtime directory or file could not be resolved or opened.

@@ -22,6 +22,13 @@ fn private_log_dir() -> (TempDir, PathBuf) {
     (root, dir)
 }
 
+fn cands(paths: &[PathBuf]) -> Vec<DirCandidate> {
+    paths
+        .iter()
+        .map(|path| DirCandidate::from_path(path))
+        .collect()
+}
+
 fn names(logs: &[(String, Vec<u8>)]) -> Vec<&str> {
     logs.iter().map(|(name, _)| name.as_str()).collect()
 }
@@ -155,7 +162,7 @@ fn routes_cli_files_to_their_own_bundle_dir() {
     fs::write(dir.join("game.log"), "app").unwrap();
     fs::write(dir.join("cli-game.log"), "cli").unwrap();
 
-    let logs = collect_launch_logs_with(&[dir], euid());
+    let logs = collect_launch_logs_with(&cands(&[dir]), euid());
 
     let mut found = names(&logs);
     found.sort_unstable();
@@ -172,7 +179,7 @@ fn collects_from_every_candidate_dir() {
     fs::write(first.join("game.log"), "app").unwrap();
     fs::write(second.join("cli-game.log"), "cli").unwrap();
 
-    let logs = collect_launch_logs_with(&[first, second], euid());
+    let logs = collect_launch_logs_with(&cands(&[first, second]), euid());
 
     assert_eq!(
         names(&logs),
@@ -188,7 +195,7 @@ fn each_bundle_dir_keeps_its_own_cap() {
         fs::write(dir.join(format!("cli-{i:02}.log")), "cli").unwrap();
     }
 
-    let logs = collect_launch_logs_with(&[dir], euid());
+    let logs = collect_launch_logs_with(&cands(&[dir]), euid());
 
     let cli = logs
         .iter()
@@ -207,7 +214,7 @@ fn cap_applies_across_candidate_dirs() {
         fs::write(second.join(format!("b-{i}.log")), "log").unwrap();
     }
 
-    let logs = collect_launch_logs_with(&[first, second], euid());
+    let logs = collect_launch_logs_with(&cands(&[first, second]), euid());
 
     assert_eq!(logs.len(), MAX_LAUNCH_LOG_FILES);
 }
@@ -221,7 +228,7 @@ fn same_dir_listed_twice_is_collected_once() {
     symlink(root.path(), &parent_link).unwrap();
     let via_link = parent_link.join("logs");
 
-    let logs = collect_launch_logs_with(&[dir.clone(), dir, via_link], euid());
+    let logs = collect_launch_logs_with(&cands(&[dir.clone(), dir, via_link]), euid());
 
     assert_eq!(names(&logs), ["logs/launch/game.log"]);
 }
@@ -234,7 +241,7 @@ fn dir_not_in_candidates_is_not_collected() {
     let (_root, dir) = private_log_dir();
     fs::write(dir.join("current.log"), "current").unwrap();
 
-    let logs = collect_launch_logs_with(&[dir], euid());
+    let logs = collect_launch_logs_with(&cands(&[dir]), euid());
 
     assert_eq!(names(&logs), ["logs/launch/current.log"]);
 }
@@ -245,7 +252,48 @@ fn unusable_candidates_are_skipped_without_hiding_usable_ones() {
     let (_good_root, good) = private_log_dir();
     fs::write(good.join("game.log"), "app").unwrap();
 
-    let logs = collect_launch_logs_with(&[root.path().join("absent"), good], euid());
+    let logs = collect_launch_logs_with(&cands(&[root.path().join("absent"), good]), euid());
 
     assert_eq!(names(&logs), ["logs/launch/game.log"]);
+}
+
+#[test]
+fn symlinked_component_below_the_root_is_not_followed() {
+    let root = tempdir().unwrap();
+    let target = root.path().join("elsewhere");
+    let logs_dir = target.join("logs");
+    fs::create_dir_all(&logs_dir).unwrap();
+    fs::set_permissions(&target, fs::Permissions::from_mode(0o700)).unwrap();
+    fs::set_permissions(&logs_dir, fs::Permissions::from_mode(0o700)).unwrap();
+    fs::write(logs_dir.join("game.log"), "planted").unwrap();
+    symlink(&target, root.path().join("crosshook")).unwrap();
+
+    let candidate = DirCandidate {
+        root: root.path().to_path_buf(),
+        relative: vec!["crosshook".to_string(), "logs".to_string()],
+    };
+    assert!(collect_launch_logs_with(&[candidate], euid()).is_empty());
+}
+
+#[test]
+fn nested_private_components_are_collected() {
+    let root = tempdir().unwrap();
+    let logs_dir = root.path().join("crosshook/logs");
+    fs::create_dir_all(&logs_dir).unwrap();
+    fs::set_permissions(
+        root.path().join("crosshook"),
+        fs::Permissions::from_mode(0o700),
+    )
+    .unwrap();
+    fs::set_permissions(&logs_dir, fs::Permissions::from_mode(0o700)).unwrap();
+    fs::write(logs_dir.join("game.log"), "app").unwrap();
+
+    let candidate = DirCandidate {
+        root: root.path().to_path_buf(),
+        relative: vec!["crosshook".to_string(), "logs".to_string()],
+    };
+    assert_eq!(
+        names(&collect_launch_logs_with(&[candidate], euid())),
+        ["logs/launch/game.log"]
+    );
 }

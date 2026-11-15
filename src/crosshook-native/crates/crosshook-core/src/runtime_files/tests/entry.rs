@@ -3,8 +3,8 @@
 use std::path::PathBuf;
 
 use super::super::{
-    launch_log_dir_candidates_from, launch_log_dir_from, RuntimeDirError, RuntimeDirInputs,
-    FLATPAK_APP_ID,
+    launch_log_dir_candidates_from, launch_log_dir_from, LogDirCandidate, RuntimeDirError,
+    RuntimeDirInputs, FLATPAK_APP_ID,
 };
 
 #[test]
@@ -54,7 +54,10 @@ fn native_candidates_also_list_the_flatpak_path_and_never_tmp() {
         state_dir: Some(PathBuf::from("/home/u/.local/state")),
         flatpak: false,
     };
-    let paths = launch_log_dir_candidates_from(&inputs);
+    let paths: Vec<PathBuf> = launch_log_dir_candidates_from(&inputs)
+        .iter()
+        .map(LogDirCandidate::path)
+        .collect();
     assert_eq!(
         paths,
         vec![
@@ -73,7 +76,10 @@ fn flatpak_candidates_are_not_duplicated() {
         state_dir: None,
         flatpak: true,
     };
-    let paths = launch_log_dir_candidates_from(&inputs);
+    let paths: Vec<PathBuf> = launch_log_dir_candidates_from(&inputs)
+        .iter()
+        .map(LogDirCandidate::path)
+        .collect();
     assert_eq!(
         paths,
         vec![PathBuf::from(format!(

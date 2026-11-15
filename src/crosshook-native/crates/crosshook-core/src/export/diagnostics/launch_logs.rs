@@ -26,10 +26,42 @@ const CLI_LOG_PREFIX: &str = "cli-";
 
 /// Collects the most recent app and CLI launch logs as `(bundle path, data)`.
 pub(super) fn collect_launch_logs() -> Vec<(String, Vec<u8>)> {
-    collect_launch_logs_with(
-        &runtime_files::launch_log_dir_candidates(),
-        nix::unistd::geteuid().as_raw(),
-    )
+    let candidates: Vec<DirCandidate> = runtime_files::launch_log_dir_candidates()
+        .iter()
+        .map(DirCandidate::from)
+        .collect();
+    collect_launch_logs_with(&candidates, nix::unistd::geteuid().as_raw())
+}
+
+/// A trusted base directory and the components below it that make up a log
+/// directory. Only `root` may be reached through a symlink (the Flatpak `app`
+/// alias); every component below it is opened without following one.
+struct DirCandidate {
+    root: PathBuf,
+    relative: Vec<String>,
+}
+
+impl From<&runtime_files::LogDirCandidate> for DirCandidate {
+    fn from(candidate: &runtime_files::LogDirCandidate) -> Self {
+        Self {
+            root: candidate.root.clone(),
+            relative: candidate.relative.iter().map(ToString::to_string).collect(),
+        }
+    }
+}
+
+impl DirCandidate {
+    /// `path` split into its parent (the root) and final component.
+    #[cfg(test)]
+    fn from_path(path: &Path) -> Self {
+        Self {
+            root: path.parent().map(Path::to_path_buf).unwrap_or_default(),
+            relative: path
+                .file_name()
+                .map(|name| vec![name.to_string_lossy().into_owned()])
+                .unwrap_or_default(),
+        }
+    }
 }
 
 /// Collects launch logs from every usable directory in `candidates`.
@@ -38,7 +70,7 @@ pub(super) fn collect_launch_logs() -> Vec<(String, Vec<u8>)> {
 /// named `cli-*` go to [`CLI_BUNDLE_DIR`], everything else to
 /// [`APP_BUNDLE_DIR`]; each bundle folder keeps at most
 /// [`MAX_LAUNCH_LOG_FILES`] files, newest first.
-fn collect_launch_logs_with(candidates: &[PathBuf], owner: u32) -> Vec<(String, Vec<u8>)> {
+fn collect_launch_logs_with(candidates: &[DirCandidate], owner: u32) -> Vec<(String, Vec<u8>)> {
     let mut dirs: Vec<OwnedLogDir> = Vec::new();
     for dir in candidates
         .iter()
@@ -68,7 +100,7 @@ fn collect_launch_logs_with(candidates: &[PathBuf], owner: u32) -> Vec<(String, 
 /// Collects up to [`MAX_LAUNCH_LOG_FILES`] recent logs from `dir`, newest first.
 #[cfg(test)]
 fn collect_launch_logs_from(dir: &Path, owner: u32) -> Vec<(String, Vec<u8>)> {
-    open_owned_dir(dir, owner).map_or_else(Vec::new, |dir| {
+    open_owned_dir(&DirCandidate::from_path(dir), owner).map_or_else(Vec::new, |dir| {
         dir.recent_handles(|_| true)
             .into_iter()
             .filter_map(|mut log| Some((log.name, read_tail(&mut log.file, MAX_LOG_FILE_BYTES)?)))
@@ -85,18 +117,32 @@ struct OwnedLogDir {
     ino: u64,
 }
 
-/// Opens `path` as an [`OwnedLogDir`]; `None` when it is missing, a symlink,
-/// not a directory, owned by someone else, or group/other writable.
-fn open_owned_dir(path: &Path, owner: u32) -> Option<OwnedLogDir> {
-    let fd = open(
-        path,
-        OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+/// Opens `candidate` as an [`OwnedLogDir`]; `None` when its root is missing,
+/// any component below the root is a symlink or not a directory, or a
+/// component is owned by someone else or group/other writable.
+fn open_owned_dir(candidate: &DirCandidate, owner: u32) -> Option<OwnedLogDir> {
+    let mut fd = open(
+        &candidate.root,
+        OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
         Mode::empty(),
     )
     .ok()?;
-    let stat = fstat(&fd).ok()?;
-    if stat.st_uid != owner || stat.st_mode & 0o022 != 0 {
+    if candidate.relative.is_empty() {
         return None;
+    }
+    let mut stat = fstat(&fd).ok()?;
+    for component in &candidate.relative {
+        fd = openat(
+            &fd,
+            component.as_str(),
+            OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+            Mode::empty(),
+        )
+        .ok()?;
+        stat = fstat(&fd).ok()?;
+        if stat.st_uid != owner || stat.st_mode & 0o022 != 0 {
+            return None;
+        }
     }
     Some(OwnedLogDir {
         fd,

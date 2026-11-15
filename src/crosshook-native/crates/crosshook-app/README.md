@@ -771,7 +771,9 @@ file swapped in at the path is never read.
 - **Ephemeral files:** launch, install, update, run-executable and prefix-deps
   logs and the Flatpak gamescope PID capture file in the per-user private log
   directory (`$XDG_RUNTIME_DIR/.../logs`, fallback `$XDG_STATE_HOME/crosshook/logs`;
-  mode `0600`, never reopened by path for writing, pruned after 7 days or beyond
+  mode `0600`; jobs write through the creation handle, while launch sessions,
+  helper scripts and the piped-output tee reopen the path for append with
+  `O_NOFOLLOW` and regular-file and owner checks; pruned after 7 days or beyond
   the newest 200, runtime-dir logs cleared at logout); throwaway `_run-adhoc/<slug>-<suffix>` prefixes, deleted by
   their run.
 

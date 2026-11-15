@@ -3,7 +3,8 @@
 //! The table comes from host `ps -eo pid= -o ppid= -o uid= -o comm=`, which works on
 //! every procps-ng release (`--delimiter` exists only from 4.0.6, so it is
 //! not used). When `ps` cannot be run or yields nothing usable, the table is
-//! read from the host's `/proc/<pid>/stat` files instead.
+//! read from the host's `/proc/<pid>/stat` files instead, with each process's
+//! owner taken from `stat -c '%u %n' /proc/<pid>` (missing owners stay `None`).
 
 use std::io;
 use std::process::Output;
@@ -23,9 +24,12 @@ pub(super) struct HostProcessEntry {
 const PS_ARGS: [&str; 9] = [
     "-ww", "-eo", "pid=", "-o", "ppid=", "-o", "uid=", "-o", "comm=",
 ];
-/// `cat` keeps going past a stat file whose process exited mid-glob; its
-/// non-zero exit status is ignored and only the parsed output counts.
-const PROC_STAT_SCRIPT: &str = "cat /proc/[0-9]*/stat 2>/dev/null";
+/// Prints one `U <uid> /proc/<pid>` owner line per process, then every
+/// `/proc/<pid>/stat` line. Both commands keep going past a process that
+/// exited mid-glob; their exit statuses are ignored and only the parsed output
+/// counts.
+const PROC_STAT_SCRIPT: &str =
+    "stat -c 'U %u %n' /proc/[0-9]* 2>/dev/null; cat /proc/[0-9]*/stat 2>/dev/null";
 
 /// Reads the host process table. `None` means neither `ps` nor the `/proc`
 /// fallback produced any process, so nothing is known about the host.
@@ -62,7 +66,7 @@ pub(super) fn collect_host_process_table_with(
 
     match read_proc_stats() {
         Ok(output) => {
-            let entries = parse_lines(&output.stdout, parse_proc_stat_line);
+            let entries = parse_proc_fallback(&output.stdout);
             if entries.is_empty() {
                 tracing::warn!(
                     status = %output.status,
@@ -106,6 +110,30 @@ fn split_field(text: &str) -> Option<(&str, &str)> {
     let text = text.trim_start();
     let end = text.find(char::is_whitespace)?;
     Some((&text[..end], &text[end..]))
+}
+
+/// Parses the `/proc` fallback output: `U <uid> /proc/<pid>` owner lines and
+/// `/proc/<pid>/stat` lines, joined by pid.
+fn parse_proc_fallback(stdout: &[u8]) -> Vec<HostProcessEntry> {
+    let text = String::from_utf8_lossy(stdout);
+    let owners: std::collections::HashMap<u32, u32> =
+        text.lines().filter_map(parse_owner_line).collect();
+    text.lines()
+        .filter(|line| !line.starts_with("U "))
+        .filter_map(parse_proc_stat_line)
+        .map(|mut entry| {
+            entry.uid = owners.get(&entry.pid).copied();
+            entry
+        })
+        .collect()
+}
+
+/// Parses `U <uid> /proc/<pid>` into `(pid, uid)`.
+fn parse_owner_line(line: &str) -> Option<(u32, u32)> {
+    let mut fields = line.strip_prefix("U ")?.split_whitespace();
+    let uid = fields.next()?.parse().ok()?;
+    let pid = fields.next()?.strip_prefix("/proc/")?.parse().ok()?;
+    Some((pid, uid))
 }
 
 /// Parses one `/proc/<pid>/stat` line: `pid (comm) state ppid ...`. The
@@ -221,6 +249,16 @@ mod tests {
         );
         assert_eq!(parse_proc_stat_line("77 (game.exe)"), None);
         assert_eq!(parse_proc_stat_line("77 )x( S 5"), None);
+    }
+
+    #[test]
+    fn proc_fallback_takes_owners_from_stat_lines() {
+        let stdout = format!("U 1000 /proc/31337\nU 0 /proc/1\n{PROC_STATS}");
+        let entries = parse_proc_fallback(stdout.as_bytes());
+        let uid_of = |pid| entries.iter().find(|entry| entry.pid == pid).unwrap().uid;
+        assert_eq!(uid_of(31337), Some(1000));
+        assert_eq!(uid_of(1), Some(0));
+        assert_eq!(uid_of(4242), None, "a missing owner line stays unknown");
     }
 
     #[test]
