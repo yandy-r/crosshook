@@ -16,6 +16,12 @@ use crate::{AppEvent, ProfileChangeReason};
 pub const STARTUP_JOB_FINISHED_EVENT: &str = "startup-job-finished";
 /// `profiles-changed` event name.
 pub const PROFILES_CHANGED_EVENT: &str = "profiles-changed";
+/// Classic's legacy health-batch success event.
+pub const PROFILE_HEALTH_BATCH_COMPLETE_EVENT: &str = "profile-health-batch-complete";
+/// Classic's legacy offline-readiness success event.
+pub const OFFLINE_READINESS_SCAN_COMPLETE_EVENT: &str = "offline-readiness-scan-complete";
+/// Classic's legacy version-scan success event.
+pub const VERSION_SCAN_COMPLETE_EVENT: &str = "version-scan-complete";
 
 const BRIDGED_JOBS: [StartupJobKind; 5] = [
     StartupJobKind::HealthBatch,
@@ -78,9 +84,9 @@ fn complete_data<T>(state: &JobState<T>) -> Option<&T> {
 /// Classic legacy event name carrying the job's success payload, if any.
 fn legacy_event_name(kind: StartupJobKind) -> Option<&'static str> {
     match kind {
-        StartupJobKind::HealthBatch => Some("profile-health-batch-complete"),
-        StartupJobKind::OfflineReadiness => Some("offline-readiness-scan-complete"),
-        StartupJobKind::VersionScan => Some("version-scan-complete"),
+        StartupJobKind::HealthBatch => Some(PROFILE_HEALTH_BATCH_COMPLETE_EVENT),
+        StartupJobKind::OfflineReadiness => Some(OFFLINE_READINESS_SCAN_COMPLETE_EVENT),
+        StartupJobKind::VersionScan => Some(VERSION_SCAN_COMPLETE_EVENT),
         StartupJobKind::UmuRefresh | StartupJobKind::BackgroundPortal => None,
     }
 }

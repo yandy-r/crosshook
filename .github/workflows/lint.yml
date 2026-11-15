@@ -164,6 +164,9 @@ jobs:
       - name: Mock coverage contract gate
         run: ./scripts/check-mock-coverage.sh
 
+      - name: Mock coverage contract gate self-test
+        run: ./scripts/check-mock-coverage.sh --self-test
+
   smoke:
     name: Playwright smoke
     # ubuntu-latest is Ubuntu 26.04. Playwright 1.60 cannot install Chromium deps there.
