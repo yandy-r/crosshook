@@ -147,7 +147,7 @@ async fn run_installer(
         move |batch| sink_ctx.log_batch(batch),
     )
     .await;
-    if child_was_stopped(&exit) {
+    if child_was_stopped(&exit) || (exit.is_ok() && ctx.is_cancelled()) {
         sweep_after_cancel(&ctx, prefix_path.clone()).await;
     }
     let result = match exit {

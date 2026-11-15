@@ -75,7 +75,8 @@ pub(crate) fn log_survivors(ctx: &JobContext, sweep: PrefixSweep) {
 }
 
 /// Whether a child that ran was cancelled or killed, or its supervision
-/// failed (its fate is unknown): the prefix must then be swept.
+/// failed (its fate is unknown): the prefix must then be swept. Callers also
+/// sweep when the job token was cancelled after a natural exit.
 pub(crate) fn child_was_stopped(result: &Result<ChildExit, ChildError>) -> bool {
     match result {
         Ok(exit) => exit.was_cancelled(),

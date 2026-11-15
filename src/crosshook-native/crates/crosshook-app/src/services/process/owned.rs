@@ -116,7 +116,10 @@ where
         move |batch| sink_ctx.log_batch(batch),
     )
     .await;
-    let stopped = child_was_stopped(&result) || (result.is_ok() && kill.is_cancelled());
+    // A cancel or stop that lands after a natural exit (during the final
+    // drain) still asks for the sweep.
+    let stopped = child_was_stopped(&result)
+        || (result.is_ok() && (kill.is_cancelled() || ctx.is_cancelled()));
     after_exit(ctx.clone(), stopped).await;
     drop(slot);
     match result {

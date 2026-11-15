@@ -12,7 +12,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::sweep::{
     environ_references_prefix, kill_processes_using_prefix_with, protected_pids,
-    sweep_prefix_until_clear_with, PrefixTarget,
+    sweep_prefix_until_clear_with, sweep_with_scan, PrefixTarget,
 };
 use super::{
     processes_using_prefix, slugify_target, supervise_child, supervise_child_with_kill, ChildExit,
@@ -462,6 +462,18 @@ async fn sweep_until_clear_is_skipped_under_flatpak() {
 
     assert_eq!(sweep, PrefixSweep::Skipped);
     assert!(user.try_wait().unwrap().is_none(), "swept under Flatpak");
+}
+
+#[test]
+fn sweep_until_clear_fails_closed_when_proc_is_unreadable() {
+    let sweep = sweep_with_scan(
+        Path::new("/prefix"),
+        false,
+        &Default::default(),
+        Duration::ZERO,
+        |_| None,
+    );
+    assert_eq!(sweep, PrefixSweep::Incomplete { survivors: 0 });
 }
 
 /// Polls until `path` holds a pid written by a detached shell.

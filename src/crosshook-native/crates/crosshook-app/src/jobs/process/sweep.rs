@@ -88,14 +88,20 @@ pub(super) fn environ_references_prefix(
 /// Under Flatpak only the sandbox `/proc` is visible, so callers must not
 /// treat an empty result as "unused" there.
 pub fn processes_using_prefix(prefix_path: &Path) -> Vec<u32> {
+    scan_prefix(prefix_path).unwrap_or_default()
+}
+
+/// [`processes_using_prefix`], but `None` when `/proc` itself could not be
+/// read, so a caller deciding whether the prefix is unused can fail closed.
+pub(super) fn scan_prefix(prefix_path: &Path) -> Option<Vec<u32>> {
     let Some(target) = PrefixTarget::new(prefix_path) else {
-        return Vec::new();
+        return Some(Vec::new());
     };
     let proc_dir = match std::fs::read_dir("/proc") {
         Ok(dir) => dir,
         Err(error) => {
             tracing::warn!(%error, "processes_using_prefix: unable to read /proc");
-            return Vec::new();
+            return None;
         }
     };
     let mut cache = HashMap::new();
@@ -111,7 +117,8 @@ pub fn processes_using_prefix(prefix_path: &Path) -> Vec<u32> {
             let environ = std::fs::read(entry.path().join("environ")).ok()?;
             environ_references_prefix(&environ, &target, &mut cache).then_some(pid)
         })
-        .collect()
+        .collect::<Vec<_>>()
+        .into()
 }
 
 /// CrossHook's own pid and every ancestor up to init: never signalled.
@@ -174,13 +181,29 @@ pub(super) fn sweep_prefix_until_clear_with(
     protected: &HashSet<u32>,
     grace: Duration,
 ) -> PrefixSweep {
+    sweep_with_scan(prefix_path, flatpak, protected, grace, scan_prefix)
+}
+
+/// [`sweep_prefix_until_clear_with`] over an explicit scan (`None`: `/proc`
+/// unreadable). A failed scan proves nothing, so it ends the sweep as
+/// [`PrefixSweep::Incomplete`] with no counted survivors.
+pub(super) fn sweep_with_scan(
+    prefix_path: &Path,
+    flatpak: bool,
+    protected: &HashSet<u32>,
+    grace: Duration,
+    scan: impl Fn(&Path) -> Option<Vec<u32>>,
+) -> PrefixSweep {
     if flatpak {
         tracing::debug!("prefix sweep: skipped under Flatpak");
         return PrefixSweep::Skipped;
     }
     let deadline = Instant::now() + grace;
     loop {
-        let survivors = live_pids(prefix_path, protected);
+        let Some(survivors) = scan(prefix_path) else {
+            return PrefixSweep::Incomplete { survivors: 0 };
+        };
+        let survivors = without_protected(survivors, protected);
         if survivors.is_empty() {
             return PrefixSweep::Clear;
         }
@@ -201,10 +224,9 @@ pub(super) fn sweep_prefix_until_clear_with(
     }
 }
 
-/// [`processes_using_prefix`] minus `protected`.
-fn live_pids(prefix_path: &Path, protected: &HashSet<u32>) -> Vec<u32> {
-    processes_using_prefix(prefix_path)
-        .into_iter()
+/// `pids` minus `protected`.
+fn without_protected(pids: Vec<u32>, protected: &HashSet<u32>) -> Vec<u32> {
+    pids.into_iter()
         .filter(|pid| !protected.contains(pid))
         .collect()
 }
@@ -244,7 +266,7 @@ pub(super) fn kill_processes_using_prefix_with(
         tracing::debug!("kill_processes_using_prefix: skipped under Flatpak");
         return;
     }
-    let pids = live_pids(prefix_path, protected);
+    let pids = without_protected(processes_using_prefix(prefix_path), protected);
     if pids.is_empty() {
         return;
     }

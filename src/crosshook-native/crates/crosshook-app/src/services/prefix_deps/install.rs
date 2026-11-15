@@ -191,7 +191,7 @@ async fn run_install(
     };
 
     let result = run_install_child(&ctx, command, log, started).await;
-    if child_was_stopped(&result) {
+    if child_was_stopped(&result) || (result.is_ok() && ctx.is_cancelled()) {
         sweep_after_cancel(&ctx, PathBuf::from(&canonical)).await;
     }
     let exit = match result {

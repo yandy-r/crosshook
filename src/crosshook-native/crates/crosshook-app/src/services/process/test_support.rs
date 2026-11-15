@@ -57,21 +57,38 @@ impl EscapeeFiles {
             .trim()
             .parse()
             .unwrap();
-        Escapee { pid, alive }
+        Escapee {
+            pid,
+            alive: Some(alive),
+            dead: false,
+        }
     }
 }
 
-/// A live escapee (see [`EscapeeFiles::attach`]).
+/// A live escapee (see [`EscapeeFiles::attach`]). Dropping it before its
+/// death was observed (a failed assertion unwinding) `SIGKILL`s it, so a
+/// failing test leaves nothing running.
 pub(crate) struct Escapee {
     pid: i32,
-    alive: std::fs::File,
+    alive: Option<std::fs::File>,
+    dead: bool,
+}
+
+impl Drop for Escapee {
+    fn drop(&mut self) {
+        if !self.dead {
+            let _ = kill(Pid::from_raw(self.pid), Signal::SIGKILL);
+        }
+    }
 }
 
 impl Escapee {
     /// Whether the escapee died (EOF on `alive`) within the bound; a
-    /// survivor is killed so the test can finish.
-    pub(crate) async fn died(self) -> bool {
-        let Self { pid, mut alive } = self;
+    /// survivor is killed on drop so the test can finish.
+    pub(crate) async fn died(mut self) -> bool {
+        let Some(mut alive) = self.alive.take() else {
+            return self.dead;
+        };
         let eof = tokio::time::timeout(
             DEATH_BOUND,
             tokio::task::spawn_blocking(move || {
@@ -80,12 +97,9 @@ impl Escapee {
             }),
         )
         .await;
-        match eof {
-            Ok(rest) => rest.unwrap().unwrap().is_empty(),
-            Err(_) => {
-                let _ = kill(Pid::from_raw(pid), Signal::SIGKILL);
-                false
-            }
-        }
+        // A timeout leaves `dead` unset: `Drop` kills the survivor, which
+        // also unblocks the reader.
+        self.dead = matches!(eof, Ok(Ok(Ok(rest))) if rest.is_empty());
+        self.dead
     }
 }
