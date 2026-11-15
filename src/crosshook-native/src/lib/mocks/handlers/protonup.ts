@@ -1,5 +1,6 @@
 // Proton manager mocks for browser dev mode (see #274).
 import type {
+  ProtonInstallProgress,
   ProtonUpAvailableVersion,
   ProtonUpCatalogResponse,
   ProtonUpInstallRequest,
@@ -221,7 +222,7 @@ export function registerProtonUp(map: Map<string, Handler>): void {
     const opId = `mock-op-${Date.now()}`;
     activeInstalls.add(opId);
 
-    const schedule = (delayMs: number, payload: Record<string, unknown>) => {
+    const schedule = (delayMs: number, payload: Omit<ProtonInstallProgress, 'op_id'>) => {
       scheduleInstallEvent(delayMs, () => {
         if (!activeInstalls.has(opId)) return;
         emitMockEvent('protonup:install:progress', { op_id: opId, ...payload });
@@ -255,7 +256,7 @@ export function registerProtonUp(map: Map<string, Handler>): void {
     const { opId } = (args ?? {}) as { opId: string };
     if (!activeInstalls.has(opId)) return false;
     activeInstalls.delete(opId);
-    emitMockEvent('protonup:install:progress', { op_id: opId, phase: 'cancelled' });
+    emitMockEvent('protonup:install:progress', { op_id: opId, phase: 'cancelled', bytes_done: 0, bytes_total: null });
     return true;
   });
 

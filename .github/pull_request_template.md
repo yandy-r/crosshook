@@ -39,6 +39,7 @@ Closes #<!-- issue number -->
 - [ ] **If touching crates/crosshook-core/src/profile/**: Verified profile save/load/import
 - [ ] **If touching src/components/ or src/hooks/**: Verified UI renders correctly
 - [ ] **If touching runtime-helpers/**: Verified shell scripts work under Proton
+- [ ] **IPC command or event added, changed or removed**: mock handler updated, payload fixture updated, `./scripts/check-mock-coverage.sh` green
 
 ## Reviewer Notes
 
