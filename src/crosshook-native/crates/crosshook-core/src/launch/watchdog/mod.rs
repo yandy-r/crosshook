@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use crate::platform::is_flatpak;
 
+mod capture;
 mod descendants;
 mod host;
 mod host_table;
@@ -22,7 +23,7 @@ pub(super) const GAMESCOPE_HOST_PID_CAPTURE_WAIT_ITERATIONS: u32 = 20;
 pub(super) const GAMESCOPE_HOST_PID_CAPTURE_WAIT_INTERVAL: Duration = Duration::from_millis(200);
 pub(super) const TASK_COMM_LEN: usize = 15;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct ShutdownTarget {
     pub(super) pid: u32,
     pub(super) host_namespace: bool,

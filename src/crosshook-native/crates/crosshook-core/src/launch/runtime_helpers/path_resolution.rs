@@ -1,5 +1,4 @@
 use std::env;
-use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
@@ -8,6 +7,7 @@ use tokio::process::Command;
 use crate::platform::{
     normalize_flatpak_host_path, normalized_path_is_dir_on_host, normalized_path_is_file_on_host,
 };
+use crate::runtime_files::open_private_append;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedProtonPaths {
@@ -81,19 +81,14 @@ pub fn resolve_effective_working_directory(
     None
 }
 
+/// Attaches the log file as the child's stdout and stderr.
+///
+/// The log must already exist (the app or CLI creates it in the private launch
+/// log directory); it is opened without being created or followed through a
+/// symlink, and must be a regular file owned by the current user.
 pub fn attach_log_stdio(command: &mut Command, log_path: &Path) -> std::io::Result<()> {
-    if let Some(parent) = log_path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-
-    let stdout = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(log_path)?;
-    let stderr = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(log_path)?;
+    let stdout = open_private_append(log_path).map_err(std::io::Error::other)?;
+    let stderr = stdout.try_clone()?;
     command.stdout(Stdio::from(stdout));
     command.stderr(Stdio::from(stderr));
     Ok(())

@@ -2,11 +2,12 @@ use std::error::Error;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::time::SystemTime;
 
 use crate::args::{GlobalOptions, LaunchCommand};
 use crate::cli_error::CliError;
 use crate::store::profile_store;
-use crosshook_app::jobs::secure_log_dir;
+use crosshook_app::jobs::{create_log_path_in, slugify_target};
 use crosshook_app::log_tail::LogBatch;
 use crosshook_app::services::launch::{read_log_tail, stream_child_log};
 use crosshook_core::launch::diagnostics::MAX_LOG_TAIL_BYTES;
@@ -16,6 +17,7 @@ use crosshook_core::launch::{
 };
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::resolve_launch_method;
+use crosshook_core::runtime_files::{launch_log_dir, prune_stale, RetentionPolicy};
 use crosshook_core::runtime_helpers::{self, RuntimeHelper};
 use crosshook_core::settings::SettingsStore;
 use crosshook_core::umu_database;
@@ -99,13 +101,8 @@ pub(crate) async fn launch_profile(
         return Ok(());
     }
 
-    let log_path = launch_log_path(&profile_name);
     let method = request.method.as_str();
-
-    if let Some(parent) = log_path.parent() {
-        secure_log_dir(parent)
-            .map_err(|e| CliError::LaunchFailure(format!("failed to create log directory: {e}")))?;
-    }
+    let log_path = create_launch_log(&profile_name)?;
 
     let mut child = match method {
         METHOD_STEAM_APPLAUNCH => {
@@ -258,33 +255,15 @@ fn validate_explicit_helper(helper: &Path) -> Result<(), CliError> {
     Ok(())
 }
 
-fn launch_log_dir() -> PathBuf {
-    launch_log_dir_for(std::env::var_os("XDG_RUNTIME_DIR"))
-}
-
-/// Launch log directory under `runtime_dir`, or under `/tmp` when it is unset,
-/// empty, or relative (the diagnostic bundle collector applies the same rule).
-fn launch_log_dir_for(runtime_dir: Option<std::ffi::OsString>) -> PathBuf {
-    runtime_dir
-        .map(PathBuf::from)
-        .filter(|dir| dir.is_absolute())
-        .unwrap_or_else(|| PathBuf::from("/tmp"))
-        .join("crosshook-logs")
-}
-
-fn launch_log_path(profile_name: &str) -> PathBuf {
-    let safe_name = profile_name
-        .chars()
-        .map(|character| {
-            if character.is_ascii_alphanumeric() {
-                character
-            } else {
-                '-'
-            }
-        })
-        .collect::<String>();
-
-    launch_log_dir().join(format!("{safe_name}.log"))
+/// Creates this run's private `0600` log file before the child is spawned.
+///
+/// Builders and the log tail reopen it by path, so the handle is dropped here.
+fn create_launch_log(profile_name: &str) -> Result<PathBuf, CliError> {
+    // `RuntimeDirError` text is path-free, so it is safe to show.
+    let dir = launch_log_dir().map_err(|e| CliError::LaunchFailure(e.to_string()))?;
+    prune_stale(&dir, &RetentionPolicy::default(), SystemTime::now());
+    create_log_path_in(&dir, "cli", &slugify_target(profile_name, "profile"))
+        .map_err(|e| CliError::LaunchFailure(format!("failed to create launch log: {e}")))
 }
 
 fn spawn_helper(
@@ -353,20 +332,6 @@ mod tests {
         assert_eq!(
             output_loss_notice(&LogBatch::Lines(vec!["x".into()]), Path::new("/tmp/l.log")),
             None
-        );
-    }
-
-    #[test]
-    fn launch_log_dir_falls_back_to_tmp_without_absolute_runtime_dir() {
-        for runtime_dir in [None, Some("".into()), Some("relative/run".into())] {
-            assert_eq!(
-                launch_log_dir_for(runtime_dir),
-                Path::new("/tmp/crosshook-logs")
-            );
-        }
-        assert_eq!(
-            launch_log_dir_for(Some("/run/user/1000".into())),
-            Path::new("/run/user/1000/crosshook-logs")
         );
     }
 }

@@ -31,7 +31,7 @@ pub use guard::{HandoffError, InstanceGuard};
 pub(crate) use relay::ActivationRelay;
 
 /// Application id: the session-bus name and the Flatpak runtime directory.
-pub const APP_ID: &str = "dev.crosshook.CrossHook";
+pub const APP_ID: &str = crosshook_core::app_id_migration::CURRENT_TAURI_APP_ID_DIR;
 /// Object path exporting `org.freedesktop.Application`.
 pub const OBJECT_PATH: &str = "/dev/crosshook/CrossHook";
 /// Set to `1` on a handed-off launch; Phase A then waits for the lock.

@@ -13,12 +13,14 @@ mod process;
 mod registry;
 mod types;
 
-pub(crate) use process::LOG_DIR;
+pub(crate) use process::require;
 pub use process::{
     create_log_file_in, create_log_path_in, kill_processes_using_prefix, processes_using_prefix,
-    secure_log_dir, slugify_target, supervise_child, supervise_child_with_kill,
-    sweep_prefix_until_clear, ChildExit, PrefixSweep, DEFAULT_KILL_GRACE,
+    slugify_target, supervise_child, supervise_child_with_kill, sweep_prefix_until_clear,
+    ChildExit, LogDir, PrefixSweep, DEFAULT_KILL_GRACE,
 };
+#[cfg(test)]
+pub(crate) use process::{test_log_dir, unusable_log_dir};
 pub use registry::{
     JobContext, JobEvents, JobHandle, JobRegistry, JobRegistryConfig, DEFAULT_JOB_RETENTION,
 };

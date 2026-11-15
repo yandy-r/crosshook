@@ -150,7 +150,7 @@ esac
 runner_script="$(resolve_runner_script)"
 [[ -f "$runner_script" ]] || fail "Host runner script not found: $runner_script"
 
-mkdir -p "$(dirname "$log_file")"
+[[ -f "$log_file" && ! -L "$log_file" && -O "$log_file" ]] || fail "Log file missing or unsafe."
 exec >>"$log_file" 2>&1
 
 compatdata="$(host_realpath "$compatdata")" || fail "Failed to resolve compatdata path: $compatdata"

@@ -20,7 +20,9 @@ use super::messages::{deps_error, msg_already_installing, MSG_OFFLINE};
 use super::tools::ResolvedTool;
 use super::types::{completion_payload, DepInstallCompletion};
 use super::{PrefixDepsService, PREFIX_DEPS_INSTALL_JOB_KIND};
-use crate::jobs::{create_log_file_in, slugify_target, ChildExit, JobContext, JobSpec, Outcome};
+use crate::jobs::{
+    create_log_file_in, require, slugify_target, ChildExit, JobContext, JobSpec, Outcome,
+};
 use crate::log_tail::LogBatch;
 use crate::services::process::child::{run_child, ChildError, ChildOutput, LogFile};
 use crate::services::process::run::start_run;
@@ -110,11 +112,10 @@ impl PrefixDepsService {
         validate_protontricks_verbs(&packages).map_err(|error| deps_error("packages", error))?;
         let (canonical, _) = prefix_job_key(&prefix_path)?;
         let (path, file) = create_log_file_in(
-            self.log_dir.clone(),
+            require(&self.log_dir)?,
             "prefix-deps",
             &slugify_target(&profile_name, "prefix-deps"),
-        )
-        .map_err(|message| AppError::new(AppErrorKind::Io, message))?;
+        )?;
         Ok(InstallJob {
             service: self,
             profile_name,

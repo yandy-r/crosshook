@@ -14,14 +14,13 @@ mod tools;
 mod types;
 
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::ProfileStore;
 use crosshook_core::settings::SettingsStore;
 
-use crate::jobs::{JobRegistry, LOG_DIR};
+use crate::jobs::{JobRegistry, LogDir};
 
 pub use messages::{
     msg_already_installing, MSG_APP_ID_REQUIRED, MSG_NO_TOOL_CHECK, MSG_NO_TOOL_INSTALL,
@@ -107,17 +106,20 @@ pub struct PrefixDepsService {
     journal: PrefixVersionJournal,
     tools: Arc<dyn ToolProbe>,
     recoveries: RecoveryLedger,
-    log_dir: PathBuf,
+    log_dir: LogDir,
 }
 
 impl PrefixDepsService {
     /// Builds the service over the shared stores and job registry with the
-    /// core tool detection, metadata journal, restorer and `/proc` probe.
+    /// core tool detection, metadata journal, restorer and `/proc` probe;
+    /// install logs are created in `log_dir` (the private directory resolved
+    /// at bootstrap).
     pub fn new(
         settings: SettingsStore,
         profiles: ProfileStore,
         metadata: MetadataStore,
         jobs: JobRegistry,
+        log_dir: LogDir,
     ) -> Self {
         let journal = PrefixVersionJournal::new(
             Arc::new(MetadataJournalStore(metadata.clone())),
@@ -132,7 +134,7 @@ impl PrefixDepsService {
             journal,
             tools: Arc::new(CoreToolProbe),
             recoveries: RecoveryLedger::default(),
-            log_dir: PathBuf::from(LOG_DIR),
+            log_dir,
         }
     }
 
@@ -147,7 +149,7 @@ impl PrefixDepsService {
         restorer: Arc<dyn PrefixVersionRestorer>,
         in_use: Arc<dyn PrefixInUse>,
         tools: Arc<dyn ToolProbe>,
-        log_dir: PathBuf,
+        log_dir: LogDir,
     ) -> Self {
         Self {
             settings,

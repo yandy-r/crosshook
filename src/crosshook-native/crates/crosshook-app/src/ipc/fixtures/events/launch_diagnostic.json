@@ -32,6 +32,6 @@
     }
   ],
   "launch_method": "proton_run",
-  "log_tail_path": "/tmp/crosshook-logs/game-x.log",
+  "log_tail_path": "/run/user/1000/crosshook/logs/game-x.log",
   "analyzed_at": "2026-01-01T00:00:00+00:00"
 }

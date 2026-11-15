@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 use crosshook_core::run_executable::{validate_run_executable_request, RunExecutableRequest};
 
-use crate::jobs::{sweep_prefix_until_clear, JobRegistry, PrefixSweep, LOG_DIR};
+use crate::jobs::{sweep_prefix_until_clear, JobRegistry, LogDir, PrefixSweep};
 use crate::services::process::owner::ActiveJobs;
 use crate::services::process::sweep::SWEEP_GRACE;
 use crate::services::process::JobOwner;
@@ -46,8 +46,8 @@ type SweepFn = Arc<dyn Fn(&Path) -> PrefixSweep + Send + Sync>;
 pub struct RunExecutableService {
     jobs: JobRegistry,
     active: ActiveJobs,
-    /// Where run logs are created; [`LOG_DIR`] in production.
-    log_dir: PathBuf,
+    /// Where run logs are created: the private directory resolved at bootstrap.
+    log_dir: LogDir,
     /// Throwaway namespace root; `None` resolves the platform root
     /// (`adhoc_prefix_root`) on each run that needs it.
     adhoc_root: Option<PathBuf>,
@@ -59,14 +59,14 @@ pub struct RunExecutableService {
 }
 
 impl RunExecutableService {
-    /// Builds the service over the shared job registry; logs go to
-    /// [`LOG_DIR`] and throwaway prefixes under the platform `_run-adhoc`
-    /// root.
-    pub fn new(jobs: JobRegistry) -> Self {
+    /// Builds the service over the shared job registry; logs go to `log_dir`
+    /// (the private directory resolved at bootstrap) and throwaway prefixes
+    /// under the platform `_run-adhoc` root.
+    pub fn new(jobs: JobRegistry, log_dir: LogDir) -> Self {
         Self {
             jobs,
             active: ActiveJobs::default(),
-            log_dir: PathBuf::from(LOG_DIR),
+            log_dir,
             adhoc_root: None,
             cleanup: Arc::new(cleanup::cleanup_throwaway_prefix),
             sweep: Arc::new(|prefix| sweep_prefix_until_clear(prefix, SWEEP_GRACE)),
@@ -76,11 +76,10 @@ impl RunExecutableService {
     /// A service whose run logs land in `log_dir` and whose throwaway
     /// prefixes live under `adhoc_root` (test seam).
     #[cfg(test)]
-    pub(crate) fn with_dirs(jobs: JobRegistry, log_dir: PathBuf, adhoc_root: PathBuf) -> Self {
+    pub(crate) fn with_dirs(jobs: JobRegistry, log_dir: LogDir, adhoc_root: PathBuf) -> Self {
         Self {
             adhoc_root: Some(adhoc_root),
-            log_dir,
-            ..Self::new(jobs)
+            ..Self::new(jobs, log_dir)
         }
     }
 

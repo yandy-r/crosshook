@@ -11,16 +11,20 @@
 //! fallback), so tests and portable runs never touch real user directories.
 
 use std::sync::Arc;
+use std::time::SystemTime;
 
 use crosshook_core::community::CommunityTapStore;
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::ProfileStore;
+use crosshook_core::runtime_files::{
+    self, open_private_dir, CandidateRoot, LogDirCandidate, RetentionPolicy,
+};
 use crosshook_core::settings::{AppSettingsData, RecentFilesStore, SettingsStore};
 
 use super::options::StoreRoots;
 use super::{BootstrapError, StoreKind};
 use crate::events::EventBus;
-use crate::jobs::JobRegistry;
+use crate::jobs::{JobRegistry, LogDir};
 use crate::services::{
     BackgroundGrantHolder, CatalogService, CollectionsService, CommunityService,
     DiagnosticsService, DiscoveryService, HealthService, HostToolsService, InstallService,
@@ -112,8 +116,10 @@ impl Services {
     /// services publish change notifications on, and `jobs` is the app job
     /// registry (cancelled on app shutdown) that supervises storage scan,
     /// health batch, readiness and the prefix-keyed process jobs (install,
-    /// update, run-executable, prefix deps).
-    pub fn new(stores: &Stores, events: EventBus, jobs: JobRegistry) -> Self {
+    /// update, run-executable, prefix deps). `log_dir` is the private launch
+    /// log directory ([`open_log_dir`]) that the launch, install, update,
+    /// run-executable and prefix-deps services create their logs in.
+    pub fn new(stores: &Stores, events: EventBus, jobs: JobRegistry, log_dir: LogDir) -> Self {
         let background = Arc::new(BackgroundGrantHolder::new());
         let steam = SteamService::new(stores.metadata.clone(), stores.settings.clone());
         let writer = ProfileWriter::new(
@@ -184,6 +190,7 @@ impl Services {
                 stores.metadata.clone(),
                 events,
                 Some(background.clone()),
+                log_dir.clone(),
             ),
             storage: StorageService::new(
                 stores.profiles.clone(),
@@ -198,17 +205,52 @@ impl Services {
                 stores.metadata.clone(),
             ),
             version: VersionService::new(stores.profiles.clone(), stores.metadata.clone()),
-            install: InstallService::new(jobs.clone()),
-            update: UpdateService::new(jobs.clone()),
-            run_executable: RunExecutableService::new(jobs.clone()),
+            install: InstallService::new(jobs.clone(), log_dir.clone()),
+            update: UpdateService::new(jobs.clone(), log_dir.clone()),
+            run_executable: RunExecutableService::new(jobs.clone(), log_dir.clone()),
             prefix_deps: PrefixDepsService::new(
                 stores.settings.clone(),
                 stores.profiles.clone(),
                 stores.metadata.clone(),
                 jobs,
+                log_dir,
             ),
             steam,
             background,
+        }
+    }
+}
+
+/// Opens the private launch log directory and prunes stale logs from it.
+///
+/// Runs after `pre_runtime` (the XDG override and Flatpak gate have settled the
+/// environment the resolver reads). [`StoreRoots::Xdg`] resolves the runtime
+/// directory (state directory fallback) through
+/// [`runtime_files::launch_log_dir`]; [`StoreRoots::Explicit`] keeps
+/// everything under its `data_dir` (`<data_dir>/logs`), so isolated runs never
+/// touch real user directories. Blocking filesystem work: the caller is the
+/// synchronous bootstrap, before any job runs.
+///
+/// An unusable directory is not fatal: it is logged (reason only, no path in
+/// the error) and returned as `Err`, so only job starts that need a log fail.
+/// Pruning is best-effort and never fails the open.
+pub(crate) fn open_log_dir(roots: &StoreRoots) -> LogDir {
+    let opened = match roots {
+        StoreRoots::Xdg => runtime_files::launch_log_dir(),
+        StoreRoots::Explicit { data_dir, .. } => open_private_dir(&LogDirCandidate {
+            root: data_dir.clone(),
+            relative: vec![runtime_files::LOG_SUBDIR],
+            kind: CandidateRoot::State,
+        }),
+    };
+    match opened {
+        Ok(dir) => {
+            runtime_files::prune_stale(&dir, &RetentionPolicy::default(), SystemTime::now());
+            Ok(Arc::new(dir))
+        }
+        Err(error) => {
+            tracing::warn!(reason = %error, "no private launch log directory; log-writing jobs will fail to start");
+            Err(Arc::new(error))
         }
     }
 }

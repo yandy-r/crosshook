@@ -38,10 +38,11 @@ use crate::services::process::tee::spawn_pipe_tee;
 /// returns. The child is never killed; with `kill_on_drop` configured, a
 /// still-running child is left to the caller's `Child` drop semantics.
 ///
-/// The log file must already exist (the service creates it via
-/// `create_log_path_in`); this function opens it append-mode and fails fast
-/// otherwise. `sink` must be non-blocking — `EventPublisher::log` is a
-/// bounded `broadcast::send`.
+/// The log file must already exist (the service creates it in the private
+/// log directory via `create_log_path_in`); this function opens it
+/// append-mode without following a symlink and fails fast otherwise. `sink`
+/// must be non-blocking — `EventPublisher::log` is a bounded
+/// `broadcast::send`.
 ///
 /// # Errors
 /// Returns the I/O error of `child.wait()`. A failure of the log follow

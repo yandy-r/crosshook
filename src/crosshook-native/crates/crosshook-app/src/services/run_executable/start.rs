@@ -14,7 +14,9 @@ use crosshook_core::run_executable::{
 use super::cleanup::CleanupOutcome;
 use super::types::{RunCompletion, RunExecutableResponse, RunExecutableStartError};
 use super::{CleanupFn, RunExecutableService, SweepFn, RUN_EXECUTABLE_JOB_KIND};
-use crate::jobs::{create_log_file_in, slugify_target, JobContext, JobKey, JobSpec, PrefixSweep};
+use crate::jobs::{
+    create_log_file_in, require, slugify_target, JobContext, JobKey, JobSpec, LogDir, PrefixSweep,
+};
 use crate::services::process::child::LogFile;
 use crate::services::process::owned::{start_owned, FailureText, OwnedRun};
 use crate::services::process::sweep::{log_survivors, sweep_prefix_using};
@@ -141,7 +143,7 @@ impl RunExecutableService {
         let adhoc_root = self.adhoc_root.clone();
         let seams = (self.cleanup.clone(), self.sweep.clone());
         let (key, prefix, run) =
-            run_blocking(move || Ok(prepare(&request, adhoc_root, log_dir, seams)))
+            run_blocking(move || Ok(prepare(&request, adhoc_root, &log_dir, seams)))
                 .await
                 .map_err(RunExecutableStartError::Failed)??;
         let log_path = run.log.path.display().to_string();
@@ -180,7 +182,7 @@ impl RunExecutableService {
 fn prepare(
     request: &RunExecutableRequest,
     adhoc_root: Option<PathBuf>,
-    log_dir: PathBuf,
+    log_dir: &LogDir,
     (cleanup, sweep): (CleanupFn, SweepFn),
 ) -> Result<(JobKey, RunPrefix, OwnedRun), RunExecutableStartError> {
     validate_run_executable_request(request)?;
@@ -228,7 +230,7 @@ fn prepare(
 fn key_and_log(
     request: &RunExecutableRequest,
     prefix: &RunPrefix,
-    log_dir: PathBuf,
+    log_dir: &LogDir,
 ) -> Result<(JobKey, LogFile), RunExecutableStartError> {
     let (_, key) = prefix_job_key(&prefix.path.to_string_lossy()).map_err(|error| {
         if prefix.throwaway_root.is_some() {
@@ -242,10 +244,14 @@ fn key_and_log(
         .and_then(|stem| stem.to_str())
         .unwrap_or("");
     let slug = slugify_target(stem, "run-executable");
-    let (path, file) = create_log_file_in(log_dir, "run-executable", &slug).map_err(|error| {
+    let dir = require(log_dir).map_err(RunExecutableStartError::Failed)?;
+    let (path, file) = create_log_file_in(dir, "run-executable", &slug).map_err(|error| {
         AppError::new(
             AppErrorKind::Io,
-            format!("failed to create the run-executable log: {error}"),
+            format!(
+                "failed to create the run-executable log: {}",
+                error.message()
+            ),
         )
     })?;
     Ok((key, LogFile { path, file }))

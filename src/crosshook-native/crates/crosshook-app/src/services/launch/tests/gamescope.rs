@@ -373,7 +373,7 @@ fn trainer_has_no_gamescope_when_neither_config_is_enabled() {
 #[test]
 fn plan_carries_the_pid_capture_path_only_when_required_in_flatpak() {
     let req = enabled_game_request();
-    let log = Path::new("/tmp/crosshook-logs/game-quest-1.log");
+    let log = Path::new("/run/user/1000/crosshook/logs/game-quest-1.log");
 
     let native = gamescope_plan(&req, SessionKind::Game, env(false, false), log);
     assert_eq!(
@@ -390,7 +390,7 @@ fn plan_carries_the_pid_capture_path_only_when_required_in_flatpak() {
         GamescopePlan {
             required: true,
             pid_capture: Some(PathBuf::from(
-                "/tmp/crosshook-logs/game-quest-1.log.gamescope.pid"
+                "/run/user/1000/crosshook/logs/game-quest-1.log.gamescope.pid"
             )),
         }
     );
@@ -470,14 +470,16 @@ fn trainer_watchdog_waits_on_the_trainer_host_path_basename() {
 #[test]
 fn watchdog_receives_the_plan_capture_path() {
     let req = enabled_game_request();
-    let plan = required_plan(Some("/tmp/crosshook-logs/game-quest-1.log.gamescope.pid"));
+    let plan = required_plan(Some(
+        "/run/user/1000/crosshook/logs/game-quest-1.log.gamescope.pid",
+    ));
 
     assert_eq!(
         choose_cancel_consumer(&plan, &req, SessionKind::Game, Some(9)),
         CancelConsumer::Watchdog {
             pid: 9,
             exe_name: "game.exe".to_string(),
-            capture: Some("/tmp/crosshook-logs/game-quest-1.log.gamescope.pid".into()),
+            capture: Some("/run/user/1000/crosshook/logs/game-quest-1.log.gamescope.pid".into()),
         }
     );
 }

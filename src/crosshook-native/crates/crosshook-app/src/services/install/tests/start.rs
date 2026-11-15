@@ -6,8 +6,9 @@ use std::fs;
 use crosshook_core::install::InstallGameResult;
 use tokio_util::sync::CancellationToken;
 
+use super::super::InstallService;
 use super::Fixture;
-use crate::jobs::{processes_using_prefix, JobRegistry};
+use crate::jobs::{processes_using_prefix, unusable_log_dir, JobRegistry};
 use crate::log_tail::LogBatch;
 use crate::services::process::test_support::EscapeeFiles;
 use crate::services::process::{
@@ -168,6 +169,19 @@ async fn invalid_request_fails_before_any_job_or_provisioning() {
     );
     assert!(!fixture.prefix.exists());
     assert!(fixture.log_files().is_empty());
+    assert_eq!(jobs.job_counts(), (0, 0));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_unusable_log_directory_fails_the_start_without_starting_a_job() {
+    let fixture = Fixture::new("exit 0");
+    let jobs = JobRegistry::default();
+    let service = InstallService::new(jobs.clone(), unusable_log_dir());
+
+    let error = service.start(fixture.request()).await.err().unwrap();
+
+    assert_eq!(error.kind(), AppErrorKind::Io);
+    assert_eq!(error.message(), "no private log directory available");
     assert_eq!(jobs.job_counts(), (0, 0));
 }
 

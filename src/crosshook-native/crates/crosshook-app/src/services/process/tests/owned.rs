@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 
 use tokio::process::Command;
 
-use crate::jobs::{create_log_file_in, JobRegistry, JobSpec};
+use crate::jobs::{create_log_file_in, test_log_dir, JobRegistry, JobSpec};
 use crate::services::process::child::LogFile;
 use crate::services::process::owned::{start_owned, FailureText, OwnedRun};
 use crate::services::process::owner::ActiveJobs;
@@ -19,7 +19,8 @@ const TEXT: FailureText = FailureText {
 };
 
 fn owned_run(dir: &Path, command: Command) -> (OwnedRun, PathBuf) {
-    let (path, file) = create_log_file_in(dir.to_path_buf(), "test", "owned").unwrap();
+    let log_dir = test_log_dir(dir);
+    let (path, file) = create_log_file_in(log_dir.as_deref().unwrap(), "test", "owned").unwrap();
     let log_path = path.clone();
     (
         OwnedRun {

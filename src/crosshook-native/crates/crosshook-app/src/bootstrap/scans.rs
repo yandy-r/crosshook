@@ -261,7 +261,9 @@ mod tests {
     }
 
     fn services_for(app: &App, stores: &Stores) -> Services {
-        Services::new(stores, app.events().clone(), app.jobs().clone())
+        // These tests start no log-writing job.
+        let log_dir = crate::jobs::unusable_log_dir();
+        Services::new(stores, app.events().clone(), app.jobs().clone(), log_dir)
     }
 
     #[tokio::test]

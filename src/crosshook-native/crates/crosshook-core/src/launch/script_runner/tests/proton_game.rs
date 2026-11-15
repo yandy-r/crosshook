@@ -279,6 +279,8 @@ fn native_game_command_applies_custom_env_vars() {
         ..Default::default()
     };
 
+    fs::write(&log_path, "").expect("pre-create log file");
+
     let command = build_native_game_command(&request, &log_path).expect("native command");
     assert_eq!(
         command_env_value(&command, "NATIVE_TEST_VAR"),

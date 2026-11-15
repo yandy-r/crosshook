@@ -11,7 +11,7 @@ use crosshook_core::install::{InstallGameError, InstallGameRequest};
 use tempfile::TempDir;
 
 use super::{install_error, InstallService};
-use crate::jobs::JobRegistry;
+use crate::jobs::{test_log_dir, unusable_log_dir, JobRegistry, LogDir};
 use crate::AppErrorKind;
 
 /// A temp workspace with an installer, a fake runner script standing in for
@@ -22,6 +22,7 @@ pub(super) struct Fixture {
     pub(super) runner: PathBuf,
     pub(super) prefix: PathBuf,
     pub(super) log_dir: PathBuf,
+    log: LogDir,
     pub(super) gate: PathBuf,
 }
 
@@ -35,8 +36,8 @@ impl Fixture {
         let installer = dir.path().join("setup.exe");
         fs::write(&installer, b"installer").unwrap();
         let prefix = dir.path().join("prefix");
-        let log_dir = dir.path().join("logs");
-        fs::create_dir(&log_dir).unwrap();
+        let log = test_log_dir(dir.path());
+        let log_dir = log.as_ref().expect("usable log dir").path().to_path_buf();
         let gate = make_fifo(dir.path());
         let runner = dir.path().join("fake-runner");
         let body = runner_body
@@ -54,6 +55,7 @@ impl Fixture {
             runner,
             prefix,
             log_dir,
+            log,
             gate,
         }
     }
@@ -79,7 +81,7 @@ impl Fixture {
     }
 
     pub(super) fn service(&self, jobs: JobRegistry) -> InstallService {
-        InstallService::with_log_dir(jobs, self.log_dir.clone())
+        InstallService::new(jobs, self.log.clone())
     }
 
     /// The log files created so far.
@@ -134,7 +136,7 @@ async fn validate_names_the_offending_field() {
 
 #[tokio::test]
 async fn default_prefix_path_slugifies_and_rejects_an_empty_name() {
-    let service = InstallService::new(JobRegistry::default());
+    let service = InstallService::new(JobRegistry::default(), unusable_log_dir());
     let path = service
         .default_prefix_path("My Game".to_string())
         .await

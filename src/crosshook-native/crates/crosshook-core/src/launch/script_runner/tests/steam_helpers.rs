@@ -189,3 +189,47 @@ fn trainer_command_includes_working_directory_when_configured() {
     assert!(args.contains(&"--working-directory".to_string()));
     assert!(args.contains(&"/games/example".to_string()));
 }
+
+/// The Steam helper scripts must refuse a missing, symlinked or non-regular
+/// log file before writing to it. Each script's guard line is run on its own,
+/// with `fail` stubbed to exit 3.
+#[test]
+fn helper_script_log_guards_refuse_missing_symlinked_and_non_regular_files() {
+    let helpers = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtime-helpers");
+    for script in [
+        "steam-launch-helper.sh",
+        "steam-launch-trainer.sh",
+        "steam-host-trainer-runner.sh",
+    ] {
+        let text = std::fs::read_to_string(helpers.join(script)).expect("read helper script");
+        let guard = text
+            .lines()
+            .find(|line| line.contains("Log file missing or unsafe."))
+            .unwrap_or_else(|| panic!("{script} has no log guard"));
+        let run = |log_file: &std::path::Path| {
+            std::process::Command::new("bash")
+                .arg("-c")
+                .arg(format!(
+                    "fail() {{ exit 3; }}; log_file=\"$1\"; {guard}; exit 0"
+                ))
+                .arg("bash")
+                .arg(log_file)
+                .status()
+                .expect("run guard")
+                .code()
+        };
+
+        let dir = tempfile::tempdir().expect("temp dir");
+        let log = dir.path().join("run.log");
+        assert_eq!(run(&log), Some(3), "{script}: missing file");
+
+        std::fs::write(&log, "").expect("create log");
+        assert_eq!(run(&log), Some(0), "{script}: regular owned file");
+
+        let link = dir.path().join("link.log");
+        std::os::unix::fs::symlink(&log, &link).expect("symlink");
+        assert_eq!(run(&link), Some(3), "{script}: symlink");
+
+        assert_eq!(run(dir.path()), Some(3), "{script}: directory");
+    }
+}
