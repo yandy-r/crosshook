@@ -22,6 +22,7 @@ use super::portal::try_register_gamemode_portal_for_launch;
 use super::prepare::Prepared;
 use super::steam_watch::{steam_game_exe, watch_steam_game, SteamWatch};
 use super::streaming::stream_session;
+use super::trainer::execution_request;
 use super::types::{
     EventPublisher, InjectionLevel, InjectionLogData, InjectionSource, SessionContext,
 };
@@ -66,7 +67,8 @@ impl LaunchService {
         let portal_guard =
             try_register_gamemode_portal_for_launch(&request, execution_method).await;
 
-        let hook_context = build_launch_hook_execution_context(&request).map_err(|error| {
+        let hook_request = execution_request(&request, execution_method);
+        let hook_context = build_launch_hook_execution_context(&hook_request).map_err(|error| {
             AppError::new(
                 AppErrorKind::Io,
                 format!("failed to prepare launch hook context: {error}"),

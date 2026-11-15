@@ -3,11 +3,12 @@
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
 use std::fs;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 use crosshook_core::launch::runtime_helpers::{build_gamescope_args, host_environment_map};
 use crosshook_core::launch::{LaunchRequest, SessionKind, METHOD_PROTON_RUN};
-use crosshook_core::profile::GamescopeConfig;
+use crosshook_core::profile::{GamescopeConfig, HookStage, LaunchHook};
 use crosshook_core::settings::UmuPreference;
 
 use super::super::{gamescope_required, pid_capture_required, LaunchEnv};
@@ -119,6 +120,129 @@ async fn flatpak_steam_trainer_matches_proton_twin_env_directory_and_gamescope()
     );
     // Steam requests slug on the shared app id, so logs may coincide with
     // another parity test's file; only the captured commands are asserted.
+    let _ = fs::remove_file(steam_log);
+    let _ = fs::remove_file(proton_log);
+}
+
+/// Adds a hook at `stage` that writes its sorted environment to `<dir>/<name>.env`.
+fn add_env_dump_hook(
+    request: &mut LaunchRequest,
+    stage: HookStage,
+    dir: &Path,
+    name: &str,
+) -> PathBuf {
+    let dump = dir.join(format!("{name}.env"));
+    let script = dir.join(format!("{name}-hook.sh"));
+    fs::write(
+        &script,
+        format!("#!/bin/sh\nenv | LC_ALL=C sort > '{}'\n", dump.display()),
+    )
+    .unwrap();
+    fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).unwrap();
+    let hook = LaunchHook {
+        id: format!("{name}-env-dump"),
+        name: format!("{name} env dump"),
+        path: script.to_string_lossy().into_owned(),
+        stage,
+        enabled: true,
+        ..Default::default()
+    };
+    match stage {
+        HookStage::PreLaunch => request.pre_launch_hooks.push(hook),
+        HookStage::PostExit => request.post_exit_hooks.push(hook),
+    }
+    dump
+}
+
+/// Parses `env` output into a map; keys only ever reach assertion messages.
+fn read_env_dump(path: &Path) -> BTreeMap<String, String> {
+    fs::read_to_string(path)
+        .unwrap_or_else(|_| panic!("hook did not write {}", path.display()))
+        .lines()
+        .filter_map(|line| line.split_once('='))
+        .map(|(key, value)| (key.to_string(), value.to_string()))
+        .collect()
+}
+
+/// Key names of `left` and `right` whose values differ. Values are never
+/// reported: the dumps hold the runner's whole environment.
+fn differing_keys<'a>(
+    left: &'a BTreeMap<String, String>,
+    right: &'a BTreeMap<String, String>,
+) -> Vec<&'a String> {
+    left.keys()
+        .chain(right.keys())
+        .filter(|key| left.get(*key) != right.get(*key))
+        .collect()
+}
+
+/// YAN-1611: a Flatpak Steam trainer runs as `proton_run`, so its pre-launch
+/// and post-exit hooks must see the proton_run twin's environment and
+/// working directory, without the game's launch optimizations.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn flatpak_steam_trainer_hooks_see_the_proton_twin_environment() {
+    if Path::new("/.flatpak-info").exists() {
+        return;
+    }
+    let harness = Harness::new(Metadata::Disabled);
+    let service = harness.service.clone().with_env(LaunchEnv {
+        is_flatpak: true,
+        inside_gamescope_session: false,
+    });
+    let (mut steam, mut proton, working_directory) = twin_requests(&harness);
+    let hooks_dir = harness.root.path().join("hook-parity");
+    fs::create_dir_all(&hooks_dir).unwrap();
+    for request in [&mut steam, &mut proton] {
+        // The trainer ignores game optimizations; an unresolvable one must
+        // neither reach the hooks nor fail the trainer start.
+        request.optimizations.enabled_option_ids = vec![
+            "disable_steam_input".into(),
+            "not_a_real_optimization".into(),
+        ];
+    }
+    let steam_dump = add_env_dump_hook(&mut steam, HookStage::PreLaunch, &hooks_dir, "steam");
+    let proton_dump = add_env_dump_hook(&mut proton, HookStage::PreLaunch, &hooks_dir, "proton");
+    let steam_post = add_env_dump_hook(&mut steam, HookStage::PostExit, &hooks_dir, "steam-post");
+
+    let steam_session = service.start_trainer(steam).await.unwrap();
+    let proton_session = service.start_trainer(proton).await.unwrap();
+    let steam_log = steam_session.log_path.clone();
+    let proton_log = proton_session.log_path.clone();
+    tokio::join!(
+        Harness::collect(steam_session),
+        Harness::collect(proton_session)
+    );
+
+    let steam_env = read_env_dump(&steam_dump);
+    let proton_env = read_env_dump(&proton_dump);
+    let differing = differing_keys(&steam_env, &proton_env);
+    assert!(differing.is_empty(), "hook env keys differ: {differing:?}");
+    let post_env = read_env_dump(&steam_post);
+    let differing = differing_keys(&steam_env, &post_env);
+    assert!(
+        differing.is_empty(),
+        "post-exit hook env keys differ: {differing:?}"
+    );
+    assert!(
+        !steam_env.contains_key("PROTON_NO_STEAMINPUT"),
+        "game optimization leaked into the trainer hook env"
+    );
+    for key in [
+        "STEAM_COMPAT_DATA_PATH",
+        "WINEPREFIX",
+        "STEAM_COMPAT_LIBRARY_PATHS",
+        "PRESSURE_VESSEL_FILESYSTEMS_RW",
+    ] {
+        assert!(
+            steam_env.contains_key(key),
+            "{key} missing from the hook env"
+        );
+    }
+    assert!(
+        steam_env.get("PWD").map(String::as_str)
+            == Some(working_directory.to_string_lossy().as_ref()),
+        "hook working directory"
+    );
     let _ = fs::remove_file(steam_log);
     let _ = fs::remove_file(proton_log);
 }

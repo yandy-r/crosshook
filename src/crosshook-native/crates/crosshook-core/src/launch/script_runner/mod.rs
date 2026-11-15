@@ -13,7 +13,10 @@ mod tests;
 pub use common::gamescope_pid_capture_path;
 pub use native::build_native_game_command;
 pub use proton_game::build_proton_game_command;
-pub use proton_trainer::{build_flatpak_steam_trainer_command, build_proton_trainer_command};
+pub use proton_trainer::{
+    build_flatpak_steam_trainer_command, build_proton_trainer_command,
+    flatpak_steam_trainer_request,
+};
 pub use steam_helpers::{build_helper_command, build_trainer_command};
 
 pub(crate) use proton_resolution::resolve_launch_proton_path;

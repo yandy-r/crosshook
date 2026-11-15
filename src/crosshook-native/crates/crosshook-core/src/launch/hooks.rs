@@ -96,8 +96,13 @@ fn resolve_launch_hook_directives(
     request: &LaunchRequest,
     method: &str,
 ) -> Result<LaunchDirectives, crate::launch::request::ValidationError> {
+    // A trainer never applies the game's launch optimizations, so its hooks
+    // must not see them, and an optimization the trainer ignores must not
+    // fail the trainer start.
+    if request.launch_trainer_only {
+        return Ok(LaunchDirectives::default());
+    }
     match method {
-        METHOD_STEAM_APPLAUNCH if request.launch_trainer_only => Ok(LaunchDirectives::default()),
         METHOD_STEAM_APPLAUNCH => resolve_launch_directives_for_method(
             &request.optimizations.enabled_option_ids,
             METHOD_PROTON_RUN,
@@ -425,6 +430,27 @@ mod tests {
         );
         assert_eq!(context.env.get("PROTON_NO_STEAMINPUT"), None);
         assert_eq!(context.env.get("DXVK_ASYNC"), None);
+    }
+
+    #[test]
+    fn proton_trainer_hook_context_ignores_game_launch_optimizations() {
+        let mut request = steam_hook_request();
+        request.method = METHOD_PROTON_RUN.to_string();
+        request.runtime.prefix_path = "/tmp/compat".to_string();
+        request.launch_trainer_only = true;
+        request.optimizations.enabled_option_ids = vec![
+            "disable_steam_input".to_string(),
+            "enable_dxvk_async".to_string(),
+            // Unresolvable for a game launch; a trainer must not trip on it.
+            "not_a_real_optimization".to_string(),
+        ];
+
+        let context =
+            build_launch_hook_execution_context(&request).expect("proton trainer hook context");
+
+        assert_eq!(context.env.get("PROTON_NO_STEAMINPUT"), None);
+        assert_eq!(context.env.get("DXVK_ASYNC"), None);
+        assert!(context.env.contains_key("PRESSURE_VESSEL_FILESYSTEMS_RW"));
     }
 
     fn steam_hook_request() -> LaunchRequest {

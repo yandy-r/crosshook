@@ -286,8 +286,16 @@ fn steam_flatpak_trainer_matches_equivalent_proton_run_trainer() {
         steam_request.resolved_trainer_gamescope(),
         proton_request.resolved_trainer_gamescope()
     );
-    let steam_command = build_flatpak_steam_trainer_command(&steam_request).expect("steam trainer");
-    let proton_command = build_proton_trainer_command(&proton_request).expect("proton trainer");
+    let steam_command = build_flatpak_steam_trainer_command(
+        &steam_request,
+        std::path::Path::new("/tmp/crosshook-test-trainer.log"),
+    )
+    .expect("steam trainer");
+    let proton_command = build_proton_trainer_command(
+        &proton_request,
+        std::path::Path::new("/tmp/crosshook-test-trainer.log"),
+    )
+    .expect("proton trainer");
     let steam_shape = shape(&steam_command);
     assert_eq!(steam_shape, shape(&proton_command));
     assert_eq!(steam_shape.current_dir, Some(working_directory));

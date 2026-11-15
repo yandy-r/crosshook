@@ -124,8 +124,7 @@ const TABLE: [Block; 12] = [
         required: WRAPPED,
         capture: WRAPPED,
     },
-    // Trainer, proton_run. Flatpak capture is a kept divergence: the path
-    // reaches the watchdog but the trainer builder never writes the file.
+    // Trainer, proton_run: the builder writes the capture file in Flatpak.
     Block {
         method: METHOD_PROTON_RUN,
         kind: SessionKind::Trainer,
@@ -549,9 +548,10 @@ async fn drain_consumer_records_the_cancel_reason_without_a_kill() {
 }
 
 #[tokio::test]
-async fn watchdog_with_an_empty_exe_name_drops_the_cancel_channel() {
-    // Kept divergence: nothing consumes the receiver, so the
-    // cancel is never attributed.
+async fn watchdog_with_an_empty_exe_name_still_records_the_cancel_reason() {
+    // YAN-1610: without an executable basename the watchdog cannot run, but
+    // the session must still consume its cancel channel so a cascade from the
+    // parent game is attributed.
     let registry = LaunchSessionRegistry::new();
     let (id, rx) = registry.register(
         SessionKind::Trainer,
@@ -571,8 +571,14 @@ async fn watchdog_with_an_empty_exe_name_drops_the_cancel_channel() {
         None,
     );
     assert!(registry.cancel_session(id, TeardownReason::LinkedSessionExit));
-    tokio::time::sleep(Duration::from_millis(50)).await;
 
-    assert_eq!(outcome.reason(), None);
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while outcome.reason().is_none() {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("the empty-exe session records the cascade reason");
+    assert_eq!(outcome.reason(), Some(TeardownReason::LinkedSessionExit));
     assert!(!outcome.was_killed());
 }
