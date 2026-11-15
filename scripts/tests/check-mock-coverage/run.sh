@@ -84,7 +84,8 @@ expect "backend event without a mock fails" "$r" 1 $'(add an emitter or an unmoc
 r="$(new_repo tauri-event)"
 printf 'const DELTA_EVENT: &str = "delta-done";\n' > "$r/$TAURI/events.rs"
 sed -i "s/^}$/  'delta-done': unknown;\n}/" "$r/$TYPES/backend-events.ts"
-expect "src-tauri event constants are scanned" "$r" 1 $'(1)\ndelta-done'
+expect "src-tauri event constants are scanned" "$r" 1 \
+  $'(add an emitter or an unmocked-events.txt entry) (1)\ndelta-done'
 
 r="$(new_repo allowlisted-event)"
 add_backend_event "$r" GAMMA_EVENT gamma-done
@@ -134,6 +135,7 @@ expect "WireEvent::new with a *_EVENT constant or name binding passes" "$r" 0 "m
 r="$(new_repo struct-literal)"
 printf 'fn f() -> WireEvent { WireEvent { name: "sneaky", payload: String::new() } }\n' > "$r/$APP/sneaky.rs"
 printf 'fn t() -> WireEvent { WireEvent { name: "x", payload: String::new() } }\n' > "$r/$APP/tests.rs"
+printf 'impl From<()> for WireEvent {\n    fn from(_: ()) -> WireEvent { unimplemented!() }\n}\n' > "$r/$APP/impls.rs"
 expect "WireEvent struct literal outside tests fails" "$r" 1 \
   $'(string-literal emit or WireEvent { … }) (1)\nsrc/crosshook-native/crates/crosshook-app/src/sneaky.rs'
 

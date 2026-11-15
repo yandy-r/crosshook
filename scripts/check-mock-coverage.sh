@@ -146,7 +146,7 @@ UNNAMED_EVENT_ARGS="$(rg_or_empty -U --multiline --no-filename -o -r '$1' \
   | { grep -vxE '[A-Z][A-Z0-9_]*_EVENT|name' || true; } | sort -u)"
 INLINE_EVENT_LITERALS="$( {
   rg_or_empty -U --multiline -l '\.emit(_str|_to|_filter)?\(\s*"' "${EXISTING_EVENT_DIRS[@]}"
-  rg_or_empty -l 'WireEvent\s*\{' -g '!wire.rs' -g '!tests.rs' -g '!**/tests/**' "${EXISTING_EVENT_DIRS[@]}"
+  rg_or_empty -U --multiline -l 'WireEvent\s*\{\s*(name|payload)\s*[:,}]' -g '!wire.rs' -g '!tests.rs' -g '!**/tests/**' "${EXISTING_EVENT_DIRS[@]}"
 } | sort -u)"
 
 # Mock emitters: a string literal, or an identifier resolved through its
