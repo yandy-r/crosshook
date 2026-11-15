@@ -11,13 +11,19 @@
 //!   the owner-checked cancel/stop commands.
 //! - [`owned`] is the shared start/body/finish of an owner-bound run whose
 //!   completion is the child's exit code or signal (update, run-executable).
-//! - Every prefix-touching job holds [`prefix_job_key`].
+//! - Every prefix-touching job holds [`prefix_job_key`] and, after its child
+//!   was cancelled or stopped, runs [`sweep::sweep_after_cancel`] on the
+//!   prefix: Wine processes that left the job's process group are only
+//!   reachable that way.
 
 pub(crate) mod child;
 pub(crate) mod owned;
 pub(crate) mod owner;
 pub(crate) mod run;
+pub(crate) mod sweep;
 pub(crate) mod tee;
+#[cfg(test)]
+pub(crate) mod test_support;
 
 use std::path::Path;
 

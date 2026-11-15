@@ -1,21 +1,19 @@
 //! Owner-checked `cancel` (TERM → grace → KILL) and `stop` (immediate group
-//! KILL plus prefix sweep); the throwaway prefix is removed either way.
+//! KILL), each followed by the prefix sweep; the throwaway prefix is removed
+//! only when nothing survived the sweep.
 
-use std::io::Read;
 use std::path::Path;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
-use nix::sys::signal::{kill, Signal};
-use nix::unistd::Pid;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use super::{key_of, open_gate, Fixture, GATED};
-use crate::jobs::DEFAULT_KILL_GRACE;
+use crate::jobs::{processes_using_prefix, PrefixSweep, DEFAULT_KILL_GRACE};
+use crate::services::process::test_support::EscapeeFiles;
 use crate::services::process::JobOwner;
+use crate::services::run_executable::cleanup::CleanupOutcome;
 use crate::services::run_executable::RunCompletion;
-
-/// Upper bound for the escaped process to die after a stop; only reached
-/// when the sweep is broken (the test then fails instead of hanging).
-const ESCAPEE_DEATH_BOUND: Duration = Duration::from_secs(30);
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cancel_own_terminates_and_removes_the_throwaway_prefix() {
@@ -51,39 +49,18 @@ async fn cancel_own_terminates_and_removes_the_throwaway_prefix() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn stop_own_kills_at_once_sweeps_the_prefix_and_removes_it() {
     let fixture = Fixture::new();
-    // Rendezvous files live outside the prefix, which cleanup deletes.
-    let alive = fixture.root.join("alive");
-    let hold = fixture.root.join("hold");
-    let pid_file = fixture.root.join("escapee.pid");
     // TERM is ignored, so only an immediate KILL ends the run before the
-    // grace period. A descendant leaves the group (setsid) but keeps the
-    // prefix in its environment: only the prefix sweep can reach it. It
-    // records its pid and holds `alive` open for writing until it dies.
+    // grace period.
     fixture.install_proton(&format!(
-        "trap '' TERM\n\
-         mkfifo '{alive}' '{hold}'\n\
-         setsid sh -c 'echo $$ > \"$0\"; exec 3>\"$1\"; read x < \"$2\"' '{pid}' '{alive}' '{hold}' &\n\
-         {GATED}",
-        alive = alive.display(),
-        hold = hold.display(),
-        pid = pid_file.display(),
+        "trap '' TERM\n{}\n{GATED}",
+        EscapeeFiles::in_dir(&fixture.root).script()
     ));
     let owner = JobOwner::new("main");
     let (response, mut run) = fixture.start("main", fixture.request()).await;
     let prefix = response.result.resolved_prefix_path.clone();
     let key = key_of(&prefix);
     run.wait_ready(&prefix).await;
-    // Rendezvous with the escapee's writer: it is alive, outside the group,
-    // and its pid is recorded from here on.
-    let mut alive_reader = tokio::task::spawn_blocking(move || std::fs::File::open(alive))
-        .await
-        .unwrap()
-        .unwrap();
-    let escapee: i32 = std::fs::read_to_string(&pid_file)
-        .unwrap()
-        .trim()
-        .parse()
-        .unwrap();
+    let escapee = EscapeeFiles::in_dir(&fixture.root).attach().await;
 
     let stopped_at = Instant::now();
     assert!(fixture.service.stop(&owner));
@@ -103,22 +80,103 @@ async fn stop_own_kills_at_once_sweeps_the_prefix_and_removes_it() {
     assert!(!Path::new(&prefix).exists());
     assert!(!fixture.jobs.is_key_held(&key));
     assert_eq!(fixture.jobs.job_counts(), (0, 0));
+    assert!(
+        escapee.died().await,
+        "the escaped descendant survived the stop: no prefix sweep"
+    );
+}
 
-    // EOF on `alive`: the escaped descendant is dead (killed by the sweep).
-    let eof = tokio::time::timeout(
-        ESCAPEE_DEATH_BOUND,
-        tokio::task::spawn_blocking(move || {
-            let mut rest = Vec::new();
-            alive_reader.read_to_end(&mut rest).map(|_| rest)
-        }),
-    )
-    .await;
-    let Ok(eof) = eof else {
-        // Unblock the reader so the runtime can shut down, then fail.
-        let _ = kill(Pid::from_raw(escapee), Signal::SIGKILL);
-        panic!("the escaped descendant survived the stop: no prefix sweep");
-    };
-    assert!(eof.unwrap().unwrap().is_empty());
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cancel_sweeps_a_setsid_descendant_before_removing_the_prefix() {
+    let fixture = Fixture::new();
+    fixture.install_proton(&format!(
+        "{}\n{GATED}",
+        EscapeeFiles::in_dir(&fixture.root).script()
+    ));
+    let owner = JobOwner::new("main");
+    let (response, mut run) = fixture.start("main", fixture.request()).await;
+    let prefix = response.result.resolved_prefix_path.clone();
+    let key = key_of(&prefix);
+    run.wait_ready(&prefix).await;
+    let escapee = EscapeeFiles::in_dir(&fixture.root).attach().await;
+
+    assert!(fixture.service.cancel(&owner));
+    let (lines, completion) = run.drain().await;
+
+    assert!(lines.is_empty(), "nothing is left to report: {lines:?}");
+    assert_eq!(
+        completion,
+        Some(RunCompletion {
+            code: None,
+            signal: Some(15)
+        })
+    );
+    assert!(processes_using_prefix(Path::new(&prefix)).is_empty());
+    assert!(!Path::new(&prefix).exists());
+    assert!(!fixture.jobs.is_key_held(&key));
+    assert!(
+        escapee.died().await,
+        "the escaped descendant survived the cancel: no prefix sweep"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cancel_with_survivors_keeps_the_throwaway_prefix_and_says_so() {
+    let mut fixture = Fixture::new();
+    let removals = Arc::new(AtomicUsize::new(0));
+    let counted = Arc::clone(&removals);
+    fixture.service = fixture
+        .service
+        .clone()
+        .with_sweep(|_| PrefixSweep::Incomplete { survivors: 2 })
+        .with_cleanup(move |_, _| {
+            counted.fetch_add(1, Ordering::SeqCst);
+            CleanupOutcome::Removed
+        });
+    fixture.install_proton(GATED);
+    let owner = JobOwner::new("main");
+    let (response, mut run) = fixture.start("main", fixture.request()).await;
+    let prefix = response.result.resolved_prefix_path.clone();
+    run.wait_ready(&prefix).await;
+
+    assert!(fixture.service.cancel(&owner));
+    let (lines, _) = run.drain().await;
+
+    assert_eq!(
+        lines,
+        vec![
+            "2 process(es) still use the prefix after the run ended.".to_string(),
+            "The temporary prefix was not cleaned up because processes still use it.".to_string(),
+        ]
+    );
+    assert!(Path::new(&prefix).exists(), "the prefix was deleted");
+    assert_eq!(removals.load(Ordering::SeqCst), 0);
+    assert!(!fixture.jobs.is_key_held(&key_of(&prefix)));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cancel_on_a_user_prefix_sweeps_it_and_never_deletes_it() {
+    let fixture = Fixture::new();
+    let user_prefix = fixture.root.join("user-prefix");
+    std::fs::create_dir(&user_prefix).unwrap();
+    fixture.install_proton(&format!(
+        "{}\n{GATED}",
+        EscapeeFiles::in_dir(&fixture.root).script()
+    ));
+    let owner = JobOwner::new("main");
+    let (response, mut run) = fixture
+        .start("main", fixture.request_with_prefix(&user_prefix))
+        .await;
+    let prefix = response.result.resolved_prefix_path.clone();
+    run.wait_ready(&prefix).await;
+    let escapee = EscapeeFiles::in_dir(&fixture.root).attach().await;
+
+    assert!(fixture.service.cancel(&owner));
+    let (_, completion) = run.drain().await;
+
+    assert_eq!(completion.and_then(|done| done.signal), Some(15));
+    assert!(user_prefix.exists(), "a user prefix is never deleted");
+    assert!(escapee.died().await, "the user prefix was not swept");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

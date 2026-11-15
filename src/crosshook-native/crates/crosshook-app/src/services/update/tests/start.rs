@@ -7,8 +7,9 @@ use crosshook_core::update::UpdateGameResult;
 use tokio::sync::oneshot;
 
 use super::{drain, next_line, open_gate, Fixture};
-use crate::jobs::{JobSpec, Outcome};
+use crate::jobs::{processes_using_prefix, JobSpec, Outcome};
 use crate::services::process::owner::MSG_OWNER_BUSY;
+use crate::services::process::test_support::EscapeeFiles;
 use crate::services::process::{
     prefix_job_key, prefix_job_key_for_path, JobOwner, MSG_PREFIX_BUSY,
 };
@@ -105,6 +106,36 @@ async fn cancel_by_owner_terminates_with_sigterm() {
     assert_eq!(fixture.jobs.job_counts(), (0, 0));
     // The slot is gone with the job: a second cancel has nothing to cancel.
     assert!(!fixture.service.cancel(&owner));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cancel_sweeps_a_setsid_descendant_left_on_the_prefix() {
+    let fixture = Fixture::new();
+    let fifo = fixture.fifo();
+    let escapee = EscapeeFiles::in_dir(fixture.dir.path());
+    fixture.install_proton(&format!(
+        "{}\n{}",
+        escapee.script(),
+        gate_script(&fifo, "echo ready", "echo unreachable")
+    ));
+    let owner = JobOwner::new("main");
+
+    let (_, mut run) = fixture
+        .service
+        .start(owner.clone(), fixture.request())
+        .await
+        .unwrap();
+    assert_eq!(next_line(&mut run).await, "ready");
+    let escapee = escapee.attach().await;
+
+    assert!(fixture.service.cancel(&owner));
+    let (lines, completion) = drain(&mut run).await;
+
+    assert!(lines.is_empty(), "unexpected output: {lines:?}");
+    assert_eq!(completion.and_then(|done| done.signal), Some(15));
+    assert!(processes_using_prefix(&fixture.prefix).is_empty());
+    assert!(fixture.prefix.exists(), "the user prefix is never deleted");
+    assert!(escapee.died().await, "the escapee survived the cancel");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

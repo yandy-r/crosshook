@@ -12,6 +12,7 @@ use crate::events::{EventBus, EventReceiver, DEFAULT_EVENT_CAPACITY};
 use crate::jobs::{JobRegistry, DEFAULT_KILL_GRACE};
 use crate::runtime::AppRuntime;
 use crate::services::process::child::DRAIN_GRACE;
+use crate::services::process::sweep::SWEEP_GRACE;
 
 /// Shared state behind every [`App`] clone.
 struct Inner {
@@ -68,11 +69,13 @@ impl Clone for App {
 impl App {
     /// Default bound for [`App::shutdown`]: the process-group kill grace
     /// ([`DEFAULT_KILL_GRACE`]), the bounded log-pipe drain after the group
-    /// exited ([`DRAIN_GRACE`]), plus one second for supervised jobs to reap
+    /// exited ([`DRAIN_GRACE`]), the prefix sweep of processes that left the
+    /// group ([`SWEEP_GRACE`]), plus one second for supervised jobs to reap
     /// their children and publish `Finished`. Quitting while a process job
-    /// runs can therefore delay the exit by up to this long.
+    /// runs can therefore delay the exit by up to this long (9 s).
     pub const DEFAULT_SHUTDOWN_TIMEOUT: Duration = DEFAULT_KILL_GRACE
         .saturating_add(DRAIN_GRACE)
+        .saturating_add(SWEEP_GRACE)
         .saturating_add(Duration::from_secs(1));
 
     /// Creates an app owning a new multi-thread Tokio runtime with the

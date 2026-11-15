@@ -8,7 +8,9 @@ mod sweep;
 pub(crate) use logs::LOG_DIR;
 pub use logs::{create_log_file_in, create_log_path_in, secure_log_dir, slugify_target};
 pub use supervise::{supervise_child, supervise_child_with_kill, ChildExit, DEFAULT_KILL_GRACE};
-pub use sweep::{kill_processes_using_prefix, processes_using_prefix};
+pub use sweep::{
+    kill_processes_using_prefix, processes_using_prefix, sweep_prefix_until_clear, PrefixSweep,
+};
 
 #[cfg(test)]
 mod tests;

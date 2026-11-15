@@ -162,7 +162,7 @@ time (they share one app-id and the same stores).
   `handoff_pending()` reports the state; a second call returns
   `HandoffError::AlreadyPending` without spawning. A failed spawn keeps both
   the lock and the bus name and clears the pending state. The new process removes the variable in Phase A and
-  waits up to `HANDOFF_WAIT` (10 s, above Classic's ~8 s worst-case exit:
+  waits up to `HANDOFF_WAIT` (12 s, above Classic's ~9 s worst-case exit:
   the `[ui]` flush plus `App::DEFAULT_SHUTDOWN_TIMEOUT`) with an inotify
   `IN_CLOSE` watch on the lock files it opened and `poll` (no sleeps). The
   wait fails closed: if the watch cannot be set up while the lock is held,
@@ -561,16 +561,40 @@ for prefix: …` for prefix deps); different prefixes run in parallel.
   still being prepared ends it `Cancelled` with nothing spawned. Cancel sends
   `SIGTERM` to the process group and `SIGKILL` after `DEFAULT_KILL_GRACE`,
   and output written after the exit is still drained for up to
-  `DRAIN_GRACE`; stop `SIGKILL`s the group at once, then sweeps the prefix
-  with `kill_processes_using_prefix` (see _Jobs_). No stored PID is
-  signalled. Install-game and prefix-deps installs have no cancel IPC; only
-  app shutdown cancels them.
+  `DRAIN_GRACE`; stop `SIGKILL`s the group at once. After either, the job
+  sweeps the prefix (see _Supervision rule_). No stored PID is signalled.
+  Install-game and prefix-deps installs have no cancel IPC; only app
+  shutdown cancels them, and they sweep the same way.
+- **Supervision rule: the process group is not the run.** A job's
+  `SIGTERM`/`SIGKILL` only reaches its own process group, and the Wine stack
+  leaves it on purpose: wineserver daemonizes with `setsid()`, Wine starts
+  GUI processes (the executable, `explorer.exe`, `services.exe`,
+  `winedevice.exe`, …) double-forked into new sessions (`spawn_process` in
+  `ntdll/unix/process.c`), umu-run starts its child with
+  `Popen(start_new_session=True)` and pressure-vessel runs bwrap with
+  `--new-session` (unless `--terminal=tty` or devel mode). So after a cancel,
+  stop or supervision failure of `install-game`, `update-game`,
+  `run-executable` or `prefix-deps-install`, the job runs
+  `sweep_prefix_until_clear` on its prefix before the completion: it
+  `SIGKILL`s every process whose `WINEPREFIX`/`STEAM_COMPAT_DATA_PATH` names
+  the prefix and rescans every 50 ms until none is left or `SWEEP_GRACE`
+  (1 s) elapsed. This also kills processes on that prefix that CrossHook did
+  not start (a game running on it, a manual `winecfg`). Survivors are
+  reported in the run log as a count of processes that still use the
+  prefix. The safety rules of `kill_processes_using_prefix` apply
+  (see _Jobs_): never CrossHook or its ancestors, skipped under Flatpak,
+  where only `--watch-bus` tears down the host side.
 - **Throwaway prefixes.** A run without a prefix gets a unique
   `_run-adhoc/<slug>-<suffix>` directory, so same-stem runs never share or
-  delete one prefix. The job removes it before sending its completion, still
-  holding the key: only a direct child of the `_run-adhoc` root is deleted,
-  symlinks are never followed, and a failed attempt gets a kill sweep and at
-  most two retries (no shell `rm`).
+  delete one prefix. The job sweeps it (also after a natural exit, since a
+  lingering wineserver must not outlive its prefix) and removes it before
+  sending its completion, still holding the key. If processes survive the
+  sweep, the prefix is kept and the run log says `The temporary prefix was
+not cleaned up because processes still use it.`; under Flatpak the sweep is
+  skipped and the prefix is removed as before. Only a direct child of the
+  `_run-adhoc` root is deleted, symlinks are never followed, and a failed
+  attempt gets a kill sweep and at most two retries (no shell `rm`); if all
+  fail, the log says the prefix could not be removed.
 - **Windows-version journal.** `PrefixVersionJournal` (seams `JournalStore`,
   `PrefixVersionRestorer`, `PrefixInUse`) writes the `pending` row before the
   install child spawns. The restore runs on its own 90 s timeout, also after
@@ -616,7 +640,8 @@ app shutdown token, so app shutdown cancels every job. `App::shutdown(timeout)`
 cancels the app shutdown token (every job and every `App::spawn` task), then
 waits on `wait_idle()` up to `timeout` and returns whether every job finished;
 `App::DEFAULT_SHUTDOWN_TIMEOUT` is `DEFAULT_KILL_GRACE` plus `DRAIN_GRACE`
-plus one second (8 s), so cancelled process groups are reaped before exit.
+plus `SWEEP_GRACE` plus one second (9 s), so cancelled process groups are
+reaped and their prefixes swept before exit.
 Quitting while a job runs can delay the exit by up to that bound; a job that
 ignores cancel (a legacy `protonup_install_version`, a restore already
 running) is left behind when it elapses. `src-tauri` calls it on
@@ -668,8 +693,11 @@ a group/world-accessible one of ours to `0700`; then creates
 plus the open handle the child's stdio is attached to), `create_log_path_in`
 (the same, path only; `LaunchService` uses it as its log-dir seam),
 `slugify_target`, `processes_using_prefix` (`/proc/*/environ` scan, no
-signals) and `kill_processes_using_prefix` (run-executable stop and
-throwaway-prefix retries). The scan matches only the values of `WINEPREFIX`
+signals), `kill_processes_using_prefix` (one pass, between throwaway-prefix
+removal retries) and `sweep_prefix_until_clear(prefix, grace)` (kill and
+rescan until clear; returns `PrefixSweep::{Clear, Incomplete { survivors },
+Skipped}`, used after every process-job cancel or stop and before a
+throwaway prefix is deleted). The scan matches only the values of `WINEPREFIX`
 and `STEAM_COMPAT_DATA_PATH`, compared as canonical paths: the prefix itself
 or a compat-data root whose `pfx` is the prefix (symlinked aliases match;
 siblings, relative values and variables such as `HOME` never do). The sweep

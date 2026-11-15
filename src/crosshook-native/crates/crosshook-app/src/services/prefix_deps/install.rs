@@ -2,7 +2,7 @@
 //! the supervised install child, the restore (skipped on app shutdown) and
 //! the journal resolution, all under the prefix key (I6).
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::prefix_deps::runner::{prepare_install_packages, sanitize_output_for_ui};
@@ -24,6 +24,7 @@ use crate::jobs::{create_log_file_in, slugify_target, ChildExit, JobContext, Job
 use crate::log_tail::LogBatch;
 use crate::services::process::child::{run_child, ChildError, ChildOutput, LogFile};
 use crate::services::process::run::start_run;
+use crate::services::process::sweep::{child_was_stopped, sweep_after_cancel};
 use crate::services::process::{
     conflict_as, prefix_job_key, prefix_job_key_for_path, remove_unused_log, ProcessRun,
 };
@@ -54,7 +55,9 @@ impl PrefixDepsService {
     /// the journal resolution (I2/I3) and the completion. A failure before
     /// the child spawned (spawn failure included) is returned here and leaves
     /// a recorded row `pending`. A cancelled install (only app shutdown
-    /// cancels it) skips the restore, leaves the row `pending` for startup
+    /// cancels it) sweeps every process still using the prefix (Wine helpers
+    /// that left the child's process group), skips the restore, leaves the
+    /// row `pending` for startup
     /// recovery and ends `Cancelled` with its completion still sent
     /// (`restore_state` pending).
     ///
@@ -187,7 +190,11 @@ async fn run_install(
         Err(error) => return Outcome::Failed(error),
     };
 
-    let exit = match run_install_child(&ctx, command, log, started).await {
+    let result = run_install_child(&ctx, command, log, started).await;
+    if child_was_stopped(&result) || (result.is_ok() && ctx.is_cancelled()) {
+        sweep_after_cancel(&ctx, PathBuf::from(&canonical)).await;
+    }
+    let exit = match result {
         // Nothing ran: the error becomes the caller's, and a recorded
         // `pending` row stays for pre-install or startup recovery (I1).
         Err(ChildError::Cancelled) => return Outcome::Cancelled,
