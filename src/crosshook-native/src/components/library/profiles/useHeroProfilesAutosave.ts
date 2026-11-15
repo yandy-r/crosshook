@@ -1,13 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { launchOptimizationsAutosaveDelayMs } from '@/hooks/profile/constants';
 import type { PersistProfileDraft } from '@/hooks/profile/useProfileCrud';
 import type { LaunchAutoSaveStatus } from '@/types/launch';
 import type { GameProfile } from '@/types/profile';
 
-const idleStatus: LaunchAutoSaveStatus = {
-  tone: 'idle',
-  label: 'Saved',
-};
+const idleStatus: LaunchAutoSaveStatus = { tone: 'idle', label: 'Saved' };
+const savingStatus: LaunchAutoSaveStatus = { tone: 'saving', label: 'Saving profile…' };
+const savedStatus: LaunchAutoSaveStatus = { tone: 'success', label: 'Profile saved' };
 
 export interface UseHeroProfilesAutosaveOptions {
   profile: GameProfile;
@@ -42,7 +41,9 @@ export function useHeroProfilesAutosave({
   persistProfileDraft,
   selectProfile,
 }: UseHeroProfilesAutosaveOptions): UseHeroProfilesAutosaveResult {
-  const [autoSaveStatus, setAutoSaveStatus] = useState<LaunchAutoSaveStatus>(idleStatus);
+  // True once an autosave for the current profile has succeeded; reset on
+  // profile switch. "Profile saved" is only shown while the draft is clean.
+  const [savedOnce, setSavedOnce] = useState(false);
 
   const selectedTrimmed = selectedProfile.trim();
   const profileNameTrimmed = profileName.trim();
@@ -51,64 +52,90 @@ export function useHeroProfilesAutosave({
 
   const latestProfileNameRef = useRef(selectedTrimmed);
   const latestProfileRef = useRef(profile);
+  const dirtyRef = useRef(dirty);
+  const persistProfileDraftRef = useRef(persistProfileDraft);
+  const timerRef = useRef<number | null>(null);
+  // At most one autosave runs at a time; a debounce that fires during it is
+  // queued and re-armed once it settles, so the newest draft is saved after it.
+  const saveInFlightRef = useRef(false);
+  const saveQueuedRef = useRef(false);
 
-  useEffect(() => {
-    latestProfileNameRef.current = selectedTrimmed;
-  }, [selectedTrimmed]);
+  latestProfileNameRef.current = selectedTrimmed;
+  latestProfileRef.current = profile;
+  dirtyRef.current = dirty;
+  persistProfileDraftRef.current = persistProfileDraft;
 
-  useEffect(() => {
-    latestProfileRef.current = profile;
-  }, [profile]);
-
-  // Reflect save state in the autosave chip
-  useEffect(() => {
-    if (saving) {
-      setAutoSaveStatus({ tone: 'saving', label: 'Saving profile…' });
-      return;
+  const clearTimer = useCallback(() => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
     }
+  }, []);
 
-    if (error) {
-      setAutoSaveStatus({ tone: 'error', label: 'Profile save failed', detail: error });
-      return;
-    }
-
-    if (!dirty) {
-      setAutoSaveStatus(idleStatus);
-    }
-  }, [dirty, error, saving]);
-
-  // Debounced autosave: fires after launchOptimizationsAutosaveDelayMs when dirty
-  useEffect(() => {
-    if (!dirty || !hasSavedSelectedProfile) {
-      return;
-    }
-
-    const scheduledProfileName = selectedTrimmed;
-    let cancelled = false;
-    const timer = window.setTimeout(() => {
-      if (cancelled || latestProfileNameRef.current !== scheduledProfileName) {
-        return;
-      }
-
-      setAutoSaveStatus({ tone: 'saving', label: 'Saving profile…' });
-      void persistProfileDraft(scheduledProfileName, latestProfileRef.current).then((result) => {
-        if (cancelled || latestProfileNameRef.current !== scheduledProfileName) {
+  const scheduleAutosave = useCallback(
+    (profileNameToSave: string) => {
+      clearTimer();
+      timerRef.current = window.setTimeout(() => {
+        timerRef.current = null;
+        if (latestProfileNameRef.current !== profileNameToSave || !dirtyRef.current) {
+          return;
+        }
+        if (saveInFlightRef.current) {
+          saveQueuedRef.current = true;
           return;
         }
 
-        setAutoSaveStatus(
-          result.ok
-            ? { tone: 'success', label: 'Profile saved' }
-            : { tone: 'error', label: 'Profile save failed', detail: result.error }
-        );
-      });
-    }, launchOptimizationsAutosaveDelayMs);
+        saveInFlightRef.current = true;
+        void persistProfileDraftRef
+          .current(profileNameToSave, latestProfileRef.current)
+          .then((result) => {
+            if (result.ok && latestProfileNameRef.current === profileNameToSave) {
+              setSavedOnce(true);
+            }
+          })
+          .finally(() => {
+            saveInFlightRef.current = false;
+            if (saveQueuedRef.current) {
+              saveQueuedRef.current = false;
+              scheduleAutosave(profileNameToSave);
+            }
+          });
+      }, launchOptimizationsAutosaveDelayMs);
+    },
+    [clearTimer]
+  );
 
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [dirty, hasSavedSelectedProfile, persistProfileDraft, selectedTrimmed]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: trigger-only dep — reset save state when the selected profile changes
+  useEffect(() => {
+    setSavedOnce(false);
+    saveQueuedRef.current = false;
+  }, [selectedTrimmed]);
+
+  // Debounced autosave: every draft change while dirty restarts the timer.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `profile` is a trigger-only dep — each edit re-arms the debounce
+  useEffect(() => {
+    if (!dirty || !hasSavedSelectedProfile) {
+      clearTimer();
+      return;
+    }
+    scheduleAutosave(selectedTrimmed);
+  }, [clearTimer, dirty, hasSavedSelectedProfile, profile, scheduleAutosave, selectedTrimmed]);
+
+  useEffect(() => clearTimer, [clearTimer]);
+
+  const autoSaveStatus = useMemo<LaunchAutoSaveStatus>(() => {
+    if (saving) {
+      return savingStatus;
+    }
+    if (error) {
+      return { tone: 'error', label: 'Profile save failed', detail: error };
+    }
+    if (dirty) {
+      // A save is pending (debounce armed or queued); never claim "saved".
+      return hasSavedSelectedProfile ? savingStatus : idleStatus;
+    }
+    return savedOnce ? savedStatus : idleStatus;
+  }, [dirty, error, hasSavedSelectedProfile, savedOnce, saving]);
 
   // Flush dirty draft before switching profile cards, then select the new card
   const selectCard = useCallback(
@@ -118,16 +145,17 @@ export function useHeroProfilesAutosave({
       }
 
       if (dirty && hasSavedSelectedProfile) {
-        const result = await persistProfileDraft(selectedTrimmed, profile);
+        clearTimer();
+        saveQueuedRef.current = false;
+        const result = await persistProfileDraft(selectedTrimmed, latestProfileRef.current);
         if (!result.ok) {
-          setAutoSaveStatus({ tone: 'error', label: 'Profile save failed', detail: result.error });
           return;
         }
       }
 
       await selectProfile(cardName);
     },
-    [dirty, hasSavedSelectedProfile, persistProfileDraft, profile, selectProfile, selectedTrimmed]
+    [clearTimer, dirty, hasSavedSelectedProfile, persistProfileDraft, selectProfile, selectedTrimmed]
   );
 
   return { autoSaveStatus, selectCard };

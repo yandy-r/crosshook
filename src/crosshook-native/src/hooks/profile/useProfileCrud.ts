@@ -28,6 +28,12 @@ export interface ProfileLoadOptions {
   collectionId?: string;
   loadErrorContext?: string;
   throwOnFailure?: boolean;
+  /**
+   * Editor-draft revision the caller saved. When the draft has been edited
+   * since (the user kept typing during a save), the load leaves the newer draft
+   * and `dirty` alone instead of overwriting them with the on-disk profile.
+   */
+  keepDraftEditedSince?: number;
 }
 
 interface UseProfileCrudOptions {
@@ -66,6 +72,9 @@ export function useProfileCrud({
 
   const profileRef = useRef(profile);
   profileRef.current = profile;
+  // Bumped synchronously on every editor-draft edit, so a save or reload can
+  // tell whether the draft changed while it awaited IPC.
+  const draftRevisionRef = useRef(0);
   const selectedProfileRef = useRef(selectedProfile);
   selectedProfileRef.current = selectedProfile;
   // Monotonic request id for `loadProfile`. Only the latest request may change
@@ -152,6 +161,12 @@ export function useProfileCrud({
           collectionId,
         });
         if (isStale()) {
+          return;
+        }
+        if (
+          loadOptions?.keepDraftEditedSince !== undefined &&
+          draftRevisionRef.current !== loadOptions.keepDraftEditedSince
+        ) {
           return;
         }
         const normalized = normalizeProfileForEdit(loaded, optionsById, catalogLoaded);
@@ -278,11 +293,13 @@ export function useProfileCrud({
   );
 
   const updateProfile = useCallback((updater: (current: GameProfile) => GameProfile) => {
+    draftRevisionRef.current += 1;
     setProfile((current: GameProfile) => updater(current));
     setDirty(true);
   }, []);
 
   const updateLaunchSetting = useCallback((updater: (current: GameProfile) => GameProfile) => {
+    draftRevisionRef.current += 1;
     setProfile((current: GameProfile) => updater(current));
     setDirty((currentDirty: boolean) => currentDirty || !hasExistingSavedProfileRef.current);
   }, []);
@@ -304,6 +321,7 @@ export function useProfileCrud({
 
       setSaving(true);
       setError(null);
+      const savedDraftRevision = draftRevisionRef.current;
 
       try {
         if (flushPendingLaunchSectionSaves) {
@@ -326,7 +344,7 @@ export function useProfileCrud({
         setLastSavedProfileSnapshot(normalizedProfile);
         await syncProfileMetadata(trimmedName, normalizedProfile);
         await refreshProfiles();
-        await loadProfile(trimmedName);
+        await loadProfile(trimmedName, { keepDraftEditedSince: savedDraftRevision });
         return { ok: true };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
