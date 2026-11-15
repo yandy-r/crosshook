@@ -20,7 +20,7 @@ fn paths(inputs: &RuntimeDirInputs) -> Vec<PathBuf> {
 }
 
 #[test]
-fn flatpak_with_runtime_prefers_the_app_scoped_directory() {
+fn flatpak_lists_only_host_visible_candidates() {
     let candidates = resolve(&inputs(Some("/run/user/1000"), Some("/state"), true));
     assert_eq!(
         candidates,
@@ -28,11 +28,6 @@ fn flatpak_with_runtime_prefers_the_app_scoped_directory() {
             LogDirCandidate {
                 root: Path::new("/run/user/1000/app").join(FLATPAK_APP_ID),
                 relative: vec![LOG_SUBDIR],
-                kind: CandidateRoot::Runtime,
-            },
-            LogDirCandidate {
-                root: PathBuf::from("/run/user/1000"),
-                relative: vec![NATIVE_SUBDIR, LOG_SUBDIR],
                 kind: CandidateRoot::Runtime,
             },
             LogDirCandidate {

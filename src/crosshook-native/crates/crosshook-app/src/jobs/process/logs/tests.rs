@@ -89,3 +89,9 @@ fn slugify_target_lowercases_and_trims_separators() {
     assert_eq!(slugify_target("  My Game: 2!! ", "fallback"), "my-game--2");
     assert_eq!(slugify_target("***", "fallback"), "fallback");
 }
+
+#[test]
+fn slugify_target_caps_long_names() {
+    let slug = slugify_target(&"a".repeat(500), "x");
+    assert_eq!(slug.len(), 64);
+}

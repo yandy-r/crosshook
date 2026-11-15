@@ -421,7 +421,7 @@ ensure_standard_path
 [[ -n "$trainer_host_path" ]] || fail "Missing trainer host path."
 [[ -n "$log_file" ]] || fail "Missing helper log path."
 
-[[ -f "$log_file" && ! -L "$log_file" ]] || fail "Log file missing or unsafe."
+[[ -f "$log_file" && ! -L "$log_file" && -O "$log_file" ]] || fail "Log file missing or unsafe."
 exec >>"$log_file" 2>&1
 
 compatdata="$(host_realpath "$compatdata")" || fail "Failed to resolve compatdata path: $compatdata"

@@ -73,7 +73,10 @@ impl LogDirCandidate {
 
 /// Returns the candidate log directories in preference order.
 ///
-/// Non-absolute inputs are dropped.
+/// Non-absolute inputs are dropped. Under Flatpak only host-visible locations
+/// are listed (the shared `app/<id>` runtime directory, then the state
+/// directory): the sandbox's own `$XDG_RUNTIME_DIR/crosshook` is invisible to
+/// the host-side helper scripts and the gamescope PID capture.
 pub fn resolve(inputs: &RuntimeDirInputs) -> Vec<LogDirCandidate> {
     let runtime = inputs
         .runtime_dir
@@ -89,7 +92,7 @@ pub fn resolve(inputs: &RuntimeDirInputs) -> Vec<LogDirCandidate> {
             kind: CandidateRoot::Runtime,
         });
     }
-    if let Some(runtime) = runtime {
+    if let (false, Some(runtime)) = (inputs.flatpak, runtime) {
         candidates.push(LogDirCandidate {
             root: runtime.clone(),
             relative: vec![NATIVE_SUBDIR, LOG_SUBDIR],

@@ -76,9 +76,8 @@ fn flatpak_candidates_are_not_duplicated() {
     let paths = launch_log_dir_candidates_from(&inputs);
     assert_eq!(
         paths,
-        vec![
-            PathBuf::from(format!("/run/user/1000/app/{FLATPAK_APP_ID}/logs")),
-            PathBuf::from("/run/user/1000/crosshook/logs"),
-        ]
+        vec![PathBuf::from(format!(
+            "/run/user/1000/app/{FLATPAK_APP_ID}/logs"
+        )),]
     );
 }

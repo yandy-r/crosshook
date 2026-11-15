@@ -103,11 +103,17 @@ pub(crate) fn unusable_log_dir() -> LogDir {
     Err(Arc::new(RuntimeDirError::NoUsableDir))
 }
 
-/// Lowercases ASCII alphanumerics, maps everything else to `-`, trims `-`;
-/// returns `fallback` when nothing remains.
+/// Longest slug kept, so `<prefix>-<slug>-<millis>-N.log.gamescope.pid` stays
+/// well under the 255-byte file name limit.
+const MAX_SLUG_CHARS: usize = 64;
+
+/// Lowercases ASCII alphanumerics, maps everything else to `-`, keeps at most
+/// [`MAX_SLUG_CHARS`] characters and trims `-`; returns `fallback` when nothing
+/// remains.
 pub fn slugify_target(name: &str, fallback: &str) -> String {
     let slug: String = name
         .chars()
+        .take(MAX_SLUG_CHARS)
         .map(|character| {
             if character.is_ascii_alphanumeric() {
                 character.to_ascii_lowercase()

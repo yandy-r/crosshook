@@ -2,12 +2,12 @@ use std::error::Error;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::SystemTime;
 
 use crate::args::{GlobalOptions, LaunchCommand};
 use crate::cli_error::CliError;
 use crate::store::profile_store;
-use crosshook_app::jobs::slugify_target;
+use crosshook_app::jobs::{create_log_path_in, slugify_target};
 use crosshook_app::log_tail::LogBatch;
 use crosshook_app::services::launch::{read_log_tail, stream_child_log};
 use crosshook_core::launch::diagnostics::MAX_LOG_TAIL_BYTES;
@@ -17,9 +17,7 @@ use crosshook_core::launch::{
 };
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::resolve_launch_method;
-use crosshook_core::runtime_files::{
-    create_unique_log_file, launch_log_dir, prune_stale, RetentionPolicy,
-};
+use crosshook_core::runtime_files::{launch_log_dir, prune_stale, RetentionPolicy};
 use crosshook_core::runtime_helpers::{self, RuntimeHelper};
 use crosshook_core::settings::SettingsStore;
 use crosshook_core::umu_database;
@@ -261,18 +259,11 @@ fn validate_explicit_helper(helper: &Path) -> Result<(), CliError> {
 ///
 /// Builders and the log tail reopen it by path, so the handle is dropped here.
 fn create_launch_log(profile_name: &str) -> Result<PathBuf, CliError> {
-    let dir = launch_log_dir()
-        .map_err(|_| CliError::LaunchFailure("no private log directory available".to_owned()))?;
+    // `RuntimeDirError` text is path-free, so it is safe to show.
+    let dir = launch_log_dir().map_err(|e| CliError::LaunchFailure(e.to_string()))?;
     prune_stale(&dir, &RetentionPolicy::default(), SystemTime::now());
-    let millis = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |elapsed| elapsed.as_millis());
-    let (log_path, _file) = create_unique_log_file(
-        &dir,
-        &format!("cli-{}-{millis}", slugify_target(profile_name, "profile")),
-    )
-    .map_err(|e| CliError::LaunchFailure(format!("failed to create launch log: {e}")))?;
-    Ok(log_path)
+    create_log_path_in(&dir, "cli", &slugify_target(profile_name, "profile"))
+        .map_err(|e| CliError::LaunchFailure(format!("failed to create launch log: {e}")))
 }
 
 fn spawn_helper(

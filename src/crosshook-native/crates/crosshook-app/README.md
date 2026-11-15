@@ -49,7 +49,8 @@ compile error.
    nag sync), then schedules the startup jobs. Fatal failures are typed
    `BootstrapError`s (`StoreInit`, `Runtime`, `AlreadyRunning`) — never
    `process::exit`. Degraded facilities (metadata DB, unreadable settings,
-   logging) continue and are flagged in the report.
+   logging) continue and are flagged in the report; an unusable run-log
+   directory is only logged and surfaces when a job needs a log.
 
 ### Step log
 
@@ -634,7 +635,12 @@ requires Windows version repair before installing dependencies.` while one
   of the returned handle (prefix-deps output goes through the lossy pipe tee and
   is sanitized before it reaches subscribers), never reopened by path. An
   unusable directory fails job starts with the error text
-  `no private log directory available`; bootstrap continues. The live tail uses
+  `no private log directory available`; bootstrap continues. The directory is
+  verified once, so deleting it while the app runs fails log-writing jobs until
+  restart. Path-based reopens (helper scripts, `attach_log_stdio`, the capture
+  file) check only the final file (`O_NOFOLLOW`, regular, owned), so they rely
+  on the verified directory not being replaced; a group-writable state root
+  weakens that. The live tail uses
   `log_tail::follow_file`, pinned to that handle's device and inode.
 
 ## Jobs

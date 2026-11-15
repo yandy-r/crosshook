@@ -32,7 +32,8 @@ const SECONDS_PER_DAY: u64 = 24 * 60 * 60;
 pub struct RetentionPolicy {
     /// Files older than this are removed.
     pub max_age: Duration,
-    /// Only this many of the newest files are kept.
+    /// Only this many of the newest files are kept. `.log` and
+    /// `.gamescope.pid` files share this one budget.
     pub max_files: usize,
 }
 

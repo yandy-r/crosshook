@@ -410,3 +410,18 @@ fn pid_capture_script_refuses_dangling_symlink_without_creating_target() {
         assert!(!victim.exists());
     }
 }
+
+#[test]
+fn pid_capture_script_refuses_symlink_to_fifo_without_blocking() {
+    for shell in ["bash", "sh"] {
+        let dir = tempfile::tempdir().unwrap();
+        let fifo = dir.path().join("fifo");
+        nix::unistd::mkfifo(&fifo, nix::sys::stat::Mode::from_bits_truncate(0o600)).unwrap();
+        let capture = dir.path().join("game.gamescope.pid");
+        std::os::unix::fs::symlink(&fifo, &capture).unwrap();
+
+        let status = run_pid_capture(shell, &capture);
+
+        assert_eq!(status.code(), Some(125), "{shell}");
+    }
+}

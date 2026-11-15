@@ -33,6 +33,35 @@ fn logs_for_slug_in(dir: &Path, slug: &str) -> Vec<PathBuf> {
 }
 
 #[tokio::test]
+async fn an_unusable_log_directory_fails_the_start_before_any_spawn() {
+    let harness = Harness::with_unusable_log_dir(Metadata::Enabled);
+    for trainer in [false, true] {
+        let request = harness.proton_request("no-log-dir");
+        let error = if trainer {
+            harness.service.start_trainer(request).await
+        } else {
+            harness.service.start_game(request).await
+        }
+        .expect_err("start fails without a log directory");
+
+        assert!(
+            error
+                .error
+                .to_string()
+                .contains("no private log directory available"),
+            "{}",
+            error.error
+        );
+        assert!(harness.spawner.captured().is_empty());
+        assert!(harness
+            .service
+            .running_sessions_snapshot()
+            .sessions
+            .is_empty());
+    }
+}
+
+#[tokio::test]
 async fn invalid_requests_fail_before_any_side_effect() {
     let harness = Harness::new(Metadata::Enabled);
     for trainer in [false, true] {

@@ -6,7 +6,10 @@ use tokio::time;
 
 use super::descendants::collect_descendant_pids_from_children_map;
 use super::{
-    capture::{pid_is_owned_gamescope, read_pid_capture_file_blocking, CaptureOwner, CaptureRead},
+    capture::{
+        match_captured_pid, read_pid_capture_file_blocking, CaptureOwner, CaptureRead,
+        CapturedPidMatch,
+    },
     host::{collect_host_process_entries, host_process_entry_matches_candidates, HostProcessEntry},
     process::{is_pid_alive, process_name_candidates},
     ShutdownTarget, GAMESCOPE_HOST_PID_CAPTURE_WAIT_INTERVAL,
@@ -144,18 +147,31 @@ where
             let entries = tokio::task::spawn_blocking(snapshot.clone())
                 .await
                 .unwrap_or_default();
-            if pid_is_owned_gamescope(&entries, pid, owner) {
-                tracing::info!(
-                    fallback = "capture_file",
-                    discovered_pid = pid,
-                    game_exe = %exe_name,
-                    observed_gamescope_pid,
-                    "gamescope watchdog: resolved target via capture file"
-                );
-                return Some(ShutdownTarget {
-                    pid,
-                    host_namespace: true,
-                });
+            match match_captured_pid(&entries, pid, owner) {
+                CapturedPidMatch::NotYet => {}
+                CapturedPidMatch::UidUnknown => {
+                    tracing::warn!(
+                        reason = "uid_unknown",
+                        discovered_pid = pid,
+                        game_exe = %exe_name,
+                        observed_gamescope_pid,
+                        "gamescope watchdog: host process table has no uids; cannot verify the captured PID"
+                    );
+                    return None;
+                }
+                CapturedPidMatch::Owned => {
+                    tracing::info!(
+                        fallback = "capture_file",
+                        discovered_pid = pid,
+                        game_exe = %exe_name,
+                        observed_gamescope_pid,
+                        "gamescope watchdog: resolved target via capture file"
+                    );
+                    return Some(ShutdownTarget {
+                        pid,
+                        host_namespace: true,
+                    });
+                }
             }
         }
         time::sleep(budget.interval).await;
@@ -258,10 +274,7 @@ mod tests {
 
     use super::*;
 
-    const OWNER: CaptureOwner = CaptureOwner {
-        uid: 1000,
-        self_pid: 50,
-    };
+    const OWNER: CaptureOwner = CaptureOwner { uid: 1000 };
     const BUDGET: CaptureBudget = CaptureBudget {
         iterations: 3,
         interval: Duration::from_millis(1),
@@ -313,6 +326,36 @@ mod tests {
         let path = dir.path().join("pid");
         fs::write(&path, "4242").unwrap();
         assert_eq!(await_with(&path, || gamescope(4242, 1001)).await, None);
+    }
+
+    #[tokio::test]
+    async fn snapshot_without_uids_stops_early() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("pid");
+        fs::write(&path, "4242").unwrap();
+        let budget = CaptureBudget {
+            iterations: 1_000,
+            interval: Duration::from_secs(1),
+        };
+        let started = std::time::Instant::now();
+        let target = await_captured_gamescope(
+            &path,
+            budget,
+            OWNER,
+            || {
+                vec![HostProcessEntry {
+                    pid: 4242,
+                    ppid: 1,
+                    uid: None,
+                    comm: "gamescope".to_string(),
+                }]
+            },
+            "game.exe",
+            7,
+        )
+        .await;
+        assert_eq!(target, None);
+        assert!(started.elapsed() < Duration::from_secs(5));
     }
 
     #[tokio::test]

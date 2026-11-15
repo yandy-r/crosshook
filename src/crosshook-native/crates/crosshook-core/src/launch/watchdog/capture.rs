@@ -98,38 +98,54 @@ fn parse_capture_pid(content: &[u8]) -> Option<u32> {
     text.parse::<u32>().ok().filter(|pid| *pid > 1)
 }
 
-/// Who the captured PID must belong to: the current user, and not this process.
+/// Who the captured PID must belong to: the current user.
+///
+/// The host snapshot uses host PIDs, while this process sits in the Flatpak PID
+/// namespace, so comparing against our own PID would mean nothing; the uid and
+/// the `gamescope` command name are the checks.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct CaptureOwner {
     pub(super) uid: u32,
-    pub(super) self_pid: u32,
 }
 
 impl CaptureOwner {
     pub(super) fn current() -> Self {
         Self {
             uid: nix::unistd::geteuid().as_raw(),
-            self_pid: std::process::id(),
         }
     }
 }
 
-/// Whether `pid` is a gamescope process of `owner` in the given host snapshot.
-///
-/// A missing pid or a different `comm` (for example `bash` before `exec`) both
-/// read as "not ready" so the caller can retry within its budget. An unknown
-/// uid (the `/proc` fallback snapshot) never matches: the caller then uses the
-/// host-ancestor search instead.
-pub(super) fn pid_is_owned_gamescope(
+/// How the captured PID compares with one host snapshot.
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum CapturedPidMatch {
+    /// A gamescope process of the owner.
+    Owned,
+    /// A gamescope process whose uid the snapshot does not carry (the `/proc`
+    /// fallback); it can never be verified.
+    UidUnknown,
+    /// Missing, another command (for example `bash` before `exec`) or another
+    /// user's process; retry within the budget.
+    NotYet,
+}
+
+/// Classifies `pid` against a host snapshot for `owner`.
+pub(super) fn match_captured_pid(
     entries: &[HostProcessEntry],
     pid: u32,
     owner: CaptureOwner,
-) -> bool {
-    pid > 1
-        && pid != owner.self_pid
-        && entries.iter().any(|entry| {
-            entry.pid == pid && entry.uid == Some(owner.uid) && entry.comm == GAMESCOPE_COMM
-        })
+) -> CapturedPidMatch {
+    let Some(entry) = entries
+        .iter()
+        .find(|entry| pid > 1 && entry.pid == pid && entry.comm == GAMESCOPE_COMM)
+    else {
+        return CapturedPidMatch::NotYet;
+    };
+    match entry.uid {
+        Some(uid) if uid == owner.uid => CapturedPidMatch::Owned,
+        Some(_) => CapturedPidMatch::NotYet,
+        None => CapturedPidMatch::UidUnknown,
+    }
 }
 
 #[cfg(test)]
@@ -140,10 +156,7 @@ mod tests {
 
     use super::*;
 
-    const OWNER: CaptureOwner = CaptureOwner {
-        uid: 1000,
-        self_pid: 50,
-    };
+    const OWNER: CaptureOwner = CaptureOwner { uid: 1000 };
 
     fn entry(pid: u32, uid: u32, comm: &str) -> HostProcessEntry {
         HostProcessEntry {
@@ -154,31 +167,43 @@ mod tests {
         }
     }
 
+    fn owned(entries: &[HostProcessEntry], pid: u32) -> bool {
+        match_captured_pid(entries, pid, OWNER) == CapturedPidMatch::Owned
+    }
+
     #[test]
     fn predicate_accepts_only_gamescope_comm() {
         let entries = [entry(100, 1000, "bash"), entry(200, 1000, "gamescope")];
-        assert!(pid_is_owned_gamescope(&entries, 200, OWNER));
-        assert!(!pid_is_owned_gamescope(&entries, 100, OWNER));
-        assert!(!pid_is_owned_gamescope(&entries, 300, OWNER));
+        assert!(owned(&entries, 200));
+        assert!(!owned(&entries, 100));
+        assert!(!owned(&entries, 300));
     }
 
     #[test]
-    fn predicate_rejects_pid_zero_one_and_self() {
-        let entries = [
-            entry(0, 1000, "gamescope"),
-            entry(1, 1000, "gamescope"),
-            entry(50, 1000, "gamescope"),
-        ];
-        assert!(!pid_is_owned_gamescope(&entries, 0, OWNER));
-        assert!(!pid_is_owned_gamescope(&entries, 1, OWNER));
-        assert!(!pid_is_owned_gamescope(&entries, 50, OWNER));
-        assert!(!pid_is_owned_gamescope(&[], 200, OWNER));
+    fn predicate_rejects_pid_zero_and_one() {
+        let entries = [entry(0, 1000, "gamescope"), entry(1, 1000, "gamescope")];
+        assert!(!owned(&entries, 0));
+        assert!(!owned(&entries, 1));
+        assert!(!owned(&[], 200));
     }
 
     #[test]
-    fn predicate_rejects_another_users_gamescope() {
+    fn another_users_gamescope_is_not_yet() {
         let entries = [entry(200, 1001, "gamescope")];
-        assert!(!pid_is_owned_gamescope(&entries, 200, OWNER));
+        assert_eq!(
+            match_captured_pid(&entries, 200, OWNER),
+            CapturedPidMatch::NotYet
+        );
+    }
+
+    #[test]
+    fn snapshot_without_uid_is_uid_unknown() {
+        let mut gamescope = entry(200, 1000, "gamescope");
+        gamescope.uid = None;
+        assert_eq!(
+            match_captured_pid(&[gamescope], 200, OWNER),
+            CapturedPidMatch::UidUnknown
+        );
     }
 
     #[test]
