@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use crate::platform;
 
 use super::super::models::ProtonInstall;
+use super::super::paths::canonical_or_raw;
 use super::super::vdf::parse_vdf;
 use super::matching::{normalize_alias, push_alias};
 use super::types::{CompatToolMappings, SYSTEM_COMPAT_TOOL_ROOTS};
@@ -221,10 +222,9 @@ fn try_add_compat_tool_install(
     } else {
         proton_path.is_file()
     };
-    if !proton_ok || !seen_proton_paths.insert(proton_path.clone()) {
+    if !proton_ok {
         return;
     }
-
     let Some(name) = tool_directory_path
         .file_name()
         .and_then(|value| value.to_str())
@@ -232,6 +232,17 @@ fn try_add_compat_tool_install(
     else {
         return;
     };
+    // Resolve only the tool root, so one root reached through a symlinked
+    // Steam root collapses to one install while a symlinked tool directory
+    // (`GE-current -> GE-Proton9-4`) keeps its own name for mappings.
+    // Host-side paths cannot be resolved from inside the Flatpak sandbox.
+    let proton_key = match tool_directory_path.parent() {
+        Some(tool_root) if !use_host_fs => canonical_or_raw(tool_root).join(&name).join("proton"),
+        _ => proton_path.clone(),
+    };
+    if !seen_proton_paths.insert(proton_key) {
+        return;
+    }
 
     let mut aliases = Vec::new();
     let mut seen_aliases = HashSet::new();

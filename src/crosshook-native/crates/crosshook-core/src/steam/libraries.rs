@@ -3,6 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::models::SteamLibrary;
+use super::paths::{canonical_or_raw, trim_path};
 use super::vdf::{parse_vdf, VdfNode};
 
 pub fn discover_steam_libraries(
@@ -10,7 +11,7 @@ pub fn discover_steam_libraries(
     diagnostics: &mut Vec<String>,
 ) -> Vec<SteamLibrary> {
     let mut libraries = Vec::new();
-    let mut seen_paths = HashSet::new();
+    let mut seen_paths: HashSet<PathBuf> = HashSet::new();
 
     for steam_root in steam_roots {
         add_library_candidate(
@@ -81,38 +82,31 @@ fn extract_library_path(entry_node: &VdfNode) -> Option<PathBuf> {
 
 fn add_library_candidate(
     libraries: &mut Vec<SteamLibrary>,
-    seen_paths: &mut HashSet<String>,
+    seen_paths: &mut HashSet<PathBuf>,
     path: impl AsRef<Path>,
     diagnostics: &mut Vec<String>,
     source: &str,
 ) {
-    let library_path = normalize_path(path.as_ref());
-    if library_path.as_os_str().is_empty() {
+    let raw_path = trim_path(path.as_ref());
+    if raw_path.as_os_str().is_empty() {
         return;
     }
 
+    if !raw_path.join("steamapps").is_dir() {
+        return;
+    }
+
+    // A root reached through a symlink and its `libraryfolders.vdf` entry are
+    // the same library; key and store the canonical path.
+    let library_path = canonical_or_raw(&raw_path);
     let steamapps_path = library_path.join("steamapps");
-    if !steamapps_path.is_dir() {
-        return;
-    }
-
-    let key = library_path.to_string_lossy().to_string();
-    if seen_paths.insert(key) {
+    if seen_paths.insert(library_path.clone()) {
         diagnostics.push(format!("{source}: {}", library_path.display()));
         libraries.push(SteamLibrary {
             path: library_path.clone(),
             steamapps_path,
         });
     }
-}
-
-fn normalize_path(path: &Path) -> PathBuf {
-    let trimmed = path.as_os_str().to_string_lossy().trim().to_string();
-    if trimmed.is_empty() {
-        return PathBuf::new();
-    }
-
-    PathBuf::from(trimmed)
 }
 
 #[cfg(test)]
