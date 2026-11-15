@@ -165,7 +165,8 @@ export function useProfileCrud({
         }
         if (
           loadOptions?.keepDraftEditedSince !== undefined &&
-          draftRevisionRef.current !== loadOptions.keepDraftEditedSince
+          draftRevisionRef.current !== loadOptions.keepDraftEditedSince &&
+          selectedProfileRef.current === trimmed
         ) {
           return;
         }
@@ -291,6 +292,18 @@ export function useProfileCrud({
     },
     [catalogLoaded, optionsById, profiles, setLastSavedProfileSnapshot]
   );
+
+  // Exposed setters bump the draft revision too, so edits through them during a
+  // save are kept by its reload. Internal loads use the raw setters.
+  const setProfileDraft = useCallback<typeof setProfile>((next) => {
+    draftRevisionRef.current += 1;
+    setProfile(next);
+  }, []);
+
+  const setProfileNameDraft = useCallback((next: string) => {
+    draftRevisionRef.current += 1;
+    setProfileName(next);
+  }, []);
 
   const updateProfile = useCallback((updater: (current: GameProfile) => GameProfile) => {
     draftRevisionRef.current += 1;
@@ -483,8 +496,8 @@ export function useProfileCrud({
     profileExists,
     pendingDelete,
     hasExistingSavedProfile,
-    setProfileName,
-    setProfile,
+    setProfileName: setProfileNameDraft,
+    setProfile: setProfileDraft,
     setDirty,
     setError,
     loadFavorites,

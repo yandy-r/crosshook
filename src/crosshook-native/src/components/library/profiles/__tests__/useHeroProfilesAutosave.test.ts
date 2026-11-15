@@ -204,6 +204,33 @@ describe('useHeroProfilesAutosave (YAN-1987)', () => {
     expect(hook.result.current.autosave.autoSaveStatus.label).toBe('Profile saved');
   });
 
+  it('queues a debounce that fires during a save and saves the newest draft after it', async () => {
+    const hook = await renderLoaded();
+
+    saveGate = deferred();
+    editAppId(hook, '111');
+    await advance(launchOptimizationsAutosaveDelayMs);
+    expect(saveCalls).toHaveLength(1);
+
+    // The next debounce fires while the first save is still held.
+    editAppId(hook, '222');
+    await advance(launchOptimizationsAutosaveDelayMs);
+    expect(saveCalls).toHaveLength(1);
+
+    const gate = saveGate;
+    saveGate = null;
+    await act(async () => {
+      gate.resolve();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await advance(launchOptimizationsAutosaveDelayMs);
+
+    expect(saveCalls).toHaveLength(2);
+    expect(diskAppId()).toBe('222');
+    expect(hook.result.current.crud.dirty).toBe(false);
+    expect(hook.result.current.autosave.autoSaveStatus.label).toBe('Profile saved');
+  });
+
   it('never shows "Profile saved" while the draft differs from disk', async () => {
     const hook = await renderLoaded();
 

@@ -59,6 +59,7 @@ export function useHeroProfilesAutosave({
   // queued and re-armed once it settles, so the newest draft is saved after it.
   const saveInFlightRef = useRef(false);
   const saveQueuedRef = useRef(false);
+  const mountedRef = useRef(true);
 
   latestProfileNameRef.current = selectedTrimmed;
   latestProfileRef.current = profile;
@@ -95,9 +96,11 @@ export function useHeroProfilesAutosave({
           })
           .finally(() => {
             saveInFlightRef.current = false;
-            if (saveQueuedRef.current) {
+            if (saveQueuedRef.current && mountedRef.current) {
               saveQueuedRef.current = false;
-              scheduleAutosave(profileNameToSave);
+              // The queued debounce may belong to a profile selected while
+              // this save ran, so re-arm for the current selection.
+              scheduleAutosave(latestProfileNameRef.current);
             }
           });
       }, launchOptimizationsAutosaveDelayMs);
@@ -121,7 +124,13 @@ export function useHeroProfilesAutosave({
     scheduleAutosave(selectedTrimmed);
   }, [clearTimer, dirty, hasSavedSelectedProfile, profile, scheduleAutosave, selectedTrimmed]);
 
-  useEffect(() => clearTimer, [clearTimer]);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      clearTimer();
+    };
+  }, [clearTimer]);
 
   const autoSaveStatus = useMemo<LaunchAutoSaveStatus>(() => {
     if (saving) {
