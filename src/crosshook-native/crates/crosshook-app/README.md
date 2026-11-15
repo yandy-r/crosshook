@@ -321,7 +321,8 @@ kind, env)` (plus `execution_method` and `pid_capture_required`), decides
   `killpg`, `kill_processes_using_prefix`, `JobRegistry` jobs, or a kill
   method on the spawner. Teardown goes through the core gamescope watchdog
   and the registry's cancel channel; the cancel consumer is a watchdog only
-  when gamescope is required and the child has a PID, a Steam game watch for
+  when gamescope is required, the child has a PID and the executable has a
+  basename, a Steam game watch for
   `steam_applaunch` game sessions (below), else a drain.
 - **Running-session events.** `LaunchService::new` takes the app `EventBus`
   and builds the registry `with_observer`: every insert and every actual

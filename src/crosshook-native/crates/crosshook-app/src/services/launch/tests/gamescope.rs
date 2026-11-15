@@ -484,7 +484,7 @@ fn watchdog_receives_the_plan_capture_path() {
 }
 
 #[test]
-fn exe_name_is_empty_when_the_path_has_no_file_name() {
+fn consumer_is_drain_when_the_path_has_no_file_name() {
     let mut req = enabled_game_request();
     req.game_path = String::new();
     req.trainer_host_path = "/".to_string();
@@ -492,11 +492,7 @@ fn exe_name_is_empty_when_the_path_has_no_file_name() {
     for kind in [SessionKind::Game, SessionKind::Trainer] {
         assert_eq!(
             choose_cancel_consumer(&required_plan(None), &req, kind, Some(1)),
-            CancelConsumer::Watchdog {
-                pid: 1,
-                exe_name: String::new(),
-                capture: None,
-            }
+            CancelConsumer::Drain
         );
     }
 }
@@ -508,11 +504,7 @@ fn the_game_exe_name_is_not_used_for_a_trainer_and_vice_versa() {
 
     assert_eq!(
         choose_cancel_consumer(&required_plan(None), &req, SessionKind::Trainer, Some(3)),
-        CancelConsumer::Watchdog {
-            pid: 3,
-            exe_name: String::new(),
-            capture: None,
-        }
+        CancelConsumer::Drain
     );
     assert_eq!(
         choose_cancel_consumer(&required_plan(None), &req, SessionKind::Game, Some(3)),
@@ -548,10 +540,14 @@ async fn drain_consumer_records_the_cancel_reason_without_a_kill() {
 }
 
 #[tokio::test]
-async fn watchdog_with_an_empty_exe_name_still_records_the_cancel_reason() {
+async fn empty_exe_name_session_still_records_the_cascade_reason() {
     // YAN-1610: without an executable basename the watchdog cannot run, but
     // the session must still consume its cancel channel so a cascade from the
     // parent game is attributed.
+    let mut req = enabled_game_request();
+    req.trainer_host_path = "/".to_string();
+    let consumer =
+        choose_cancel_consumer(&required_plan(None), &req, SessionKind::Trainer, Some(1));
     let registry = LaunchSessionRegistry::new();
     let (id, rx) = registry.register(
         SessionKind::Trainer,
@@ -559,17 +555,7 @@ async fn watchdog_with_an_empty_exe_name_still_records_the_cancel_reason() {
     );
     let outcome = WatchdogOutcome::new();
 
-    spawn_cancel_consumer(
-        CancelConsumer::Watchdog {
-            pid: 1,
-            exe_name: String::new(),
-            capture: None,
-        },
-        id,
-        outcome.clone(),
-        rx,
-        None,
-    );
+    spawn_cancel_consumer(consumer, id, outcome.clone(), rx, None);
     assert!(registry.cancel_session(id, TeardownReason::LinkedSessionExit));
 
     tokio::time::timeout(Duration::from_secs(5), async {

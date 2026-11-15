@@ -1,4 +1,4 @@
-use super::support::{steam_request, write_executable_file};
+use super::support::{steam_request, test_trainer_log_path, write_executable_file};
 use crate::launch::script_runner::{build_proton_trainer_command, build_trainer_command};
 use crate::launch::LaunchRequest;
 
@@ -50,11 +50,8 @@ fn proton_trainer_command_prefers_enabled_trainer_gamescope() {
         ..Default::default()
     };
 
-    let command = build_proton_trainer_command(
-        &request,
-        std::path::Path::new("/tmp/crosshook-test-trainer.log"),
-    )
-    .expect("trainer command");
+    let command =
+        build_proton_trainer_command(&request, test_trainer_log_path()).expect("trainer command");
     let args = command
         .as_std()
         .get_args()
@@ -183,11 +180,8 @@ fn proton_trainer_command_prepends_unshare_net_when_isolation_enabled() {
         ..Default::default()
     };
 
-    let command = build_proton_trainer_command(
-        &request,
-        std::path::Path::new("/tmp/crosshook-test-trainer.log"),
-    )
-    .expect("trainer command");
+    let command =
+        build_proton_trainer_command(&request, test_trainer_log_path()).expect("trainer command");
     assert_eq!(
         command.as_std().get_program().to_string_lossy(),
         "unshare",
@@ -243,11 +237,8 @@ fn proton_trainer_command_skips_unshare_when_isolation_disabled() {
         ..Default::default()
     };
 
-    let command = build_proton_trainer_command(
-        &request,
-        std::path::Path::new("/tmp/crosshook-test-trainer.log"),
-    )
-    .expect("trainer command");
+    let command =
+        build_proton_trainer_command(&request, test_trainer_log_path()).expect("trainer command");
     let program = command
         .as_std()
         .get_program()

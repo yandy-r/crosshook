@@ -2,7 +2,7 @@ use std::path::Path;
 
 use tokio::process::Command;
 
-use super::common::{gamescope_pid_capture_path, prepare_gamescope_launch, should_skip_gamescope};
+use super::common::{gamescope_pid_capture_for, prepare_gamescope_launch, should_skip_gamescope};
 use super::proton_resolution::resolve_launch_proton_path;
 use super::trainer_staging::stage_trainer_into_prefix;
 use super::umu::{
@@ -66,8 +66,9 @@ pub fn build_proton_trainer_command(
     )
 }
 
-/// Shared trainer builder; `flatpak` selects the sandbox command shape so
-/// tests can cover both without a real sandbox.
+/// Shared trainer builder. `flatpak` decides whether a gamescope-wrapped
+/// trainer runs through the PID-capture shell, so tests can cover both shapes
+/// without a sandbox; the non-gamescope branch still detects the real sandbox.
 pub(super) fn build_proton_trainer_command_inner(
     request: &LaunchRequest,
     log_path: &Path,
@@ -165,9 +166,7 @@ pub(super) fn build_proton_trainer_command_inner(
     let mut command = if gamescope_active {
         let (gamescope_args, filtered_wrappers) =
             prepare_gamescope_launch(&trainer_gamescope, &effective_wrappers);
-        // Same rule as the game builder: only a sandboxed launch needs the
-        // capture file, because only there is gamescope's host PID unknown.
-        let pid_capture_path = flatpak.then(|| gamescope_pid_capture_path(log_path));
+        let pid_capture_path = gamescope_pid_capture_for(log_path, flatpak);
         build_proton_command_with_gamescope_pid_capture_in_directory_inner(
             program_path.as_str(),
             &filtered_wrappers,

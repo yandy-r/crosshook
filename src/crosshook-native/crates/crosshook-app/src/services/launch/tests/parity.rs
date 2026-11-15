@@ -135,7 +135,7 @@ fn add_env_dump_hook(
     let script = dir.join(format!("{name}-hook.sh"));
     fs::write(
         &script,
-        format!("#!/bin/sh\nenv | LC_ALL=C sort > '{}'\n", dump.display()),
+        format!("#!/bin/sh\nenv -0 > '{}'\n", dump.display()),
     )
     .unwrap();
     fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).unwrap();
@@ -154,12 +154,13 @@ fn add_env_dump_hook(
     dump
 }
 
-/// Parses `env` output into a map; keys only ever reach assertion messages.
+/// Parses NUL-separated `env -0` output, so multi-line values cannot turn
+/// into bogus keys; keys only ever reach assertion messages.
 fn read_env_dump(path: &Path) -> BTreeMap<String, String> {
     fs::read_to_string(path)
         .unwrap_or_else(|_| panic!("hook did not write {}", path.display()))
-        .lines()
-        .filter_map(|line| line.split_once('='))
+        .split('\0')
+        .filter_map(|entry| entry.split_once('='))
         .map(|(key, value)| (key.to_string(), value.to_string()))
         .collect()
 }
@@ -223,8 +224,10 @@ async fn flatpak_steam_trainer_hooks_see_the_proton_twin_environment() {
         differing.is_empty(),
         "post-exit hook env keys differ: {differing:?}"
     );
-    assert!(
-        !steam_env.contains_key("PROTON_NO_STEAMINPUT"),
+    // The runner may export it itself; the hook must not add it.
+    assert_eq!(
+        steam_env.contains_key("PROTON_NO_STEAMINPUT"),
+        std::env::var_os("PROTON_NO_STEAMINPUT").is_some(),
         "game optimization leaked into the trainer hook env"
     );
     for key in [
@@ -238,9 +241,9 @@ async fn flatpak_steam_trainer_hooks_see_the_proton_twin_environment() {
             "{key} missing from the hook env"
         );
     }
-    assert!(
-        steam_env.get("PWD").map(String::as_str)
-            == Some(working_directory.to_string_lossy().as_ref()),
+    assert_eq!(
+        steam_env.get("PWD").map(String::as_str),
+        Some(working_directory.to_string_lossy().as_ref()),
         "hook working directory"
     );
     let _ = fs::remove_file(steam_log);

@@ -23,6 +23,9 @@ fn steam_runs_as_proton_run(request: &LaunchRequest, execution_method: &str) -> 
 
 /// The request the session's process executes as, which its hooks share.
 ///
+/// Called for every session kind; only a trainer can pair a `steam_applaunch`
+/// request with a `proton_run` execution method, so games always borrow.
+///
 /// A Steam trainer inside Flatpak runs as [`flatpak_steam_trainer_request`],
 /// so its pre-launch and post-exit hooks see the same `proton_run`
 /// environment as the trainer. Every other session runs its own request.
