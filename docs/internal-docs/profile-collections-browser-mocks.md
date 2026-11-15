@@ -63,9 +63,7 @@ If any sentinel is found, the release workflow fails with a `CRITICAL security f
 
 ## Mock coverage drift
 
-`scripts/check-mock-coverage.sh` is a contributor convenience tool that diffs `#[tauri::command]` handlers in Rust source against the mock handler registry. It reports commands that exist in Rust but have no mock handler, and vice versa.
-
-The script always exits `0` — it is advisory, not a CI gate. Run it with:
+`scripts/check-mock-coverage.sh` is a CI gate (`lint.yml`). It diffs `#[tauri::command]` handlers against the mock handler registry and backend events against the mock emitters and `src/lib/mocks/unmocked-events.txt`, and exits `1` on any drift. The rules are listed in `src/lib/mocks/README.md` § _Keeping mocks in sync with IPC_. Run it with:
 
 ```bash
 ./scripts/check-mock-coverage.sh
