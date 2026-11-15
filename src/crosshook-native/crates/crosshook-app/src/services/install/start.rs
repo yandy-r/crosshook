@@ -15,6 +15,7 @@ use super::{install_error, InstallService, INSTALL_GAME_JOB_KIND};
 use crate::jobs::{create_log_file_in, slugify_target, JobContext, JobKey, JobSpec, Outcome};
 use crate::services::process::child::{run_child, ChildError, ChildOutput, LogFile};
 use crate::services::process::run::start_run;
+use crate::services::process::sweep::{child_was_stopped, sweep_after_cancel};
 use crate::services::process::{
     conflict_as, prefix_job_key, remove_unused_log, ProcessRun, MSG_PREFIX_BUSY,
 };
@@ -43,7 +44,7 @@ impl InstallService {
     /// completion is the reviewable result after a successful exit, the core
     /// failure text (`Io`) after a non-zero exit, or `Cancelled` when the job
     /// was cancelled (app shutdown), which also ends the installer's process
-    /// group.
+    /// group and then sweeps every process still using the prefix.
     ///
     /// # Errors
     /// `Validation { field }` for an invalid request, `Io` when the prefix or
@@ -146,6 +147,9 @@ async fn run_installer(
         move |batch| sink_ctx.log_batch(batch),
     )
     .await;
+    if child_was_stopped(&exit) {
+        sweep_after_cancel(&ctx, prefix_path.clone()).await;
+    }
     let result = match exit {
         // Nothing was spawned and `started` was not sent: the outcome
         // becomes the error of `start` itself, no completion is read.

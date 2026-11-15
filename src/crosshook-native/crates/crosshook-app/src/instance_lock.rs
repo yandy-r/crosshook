@@ -40,9 +40,9 @@ pub const HANDOFF_ENV: &str = "CROSSHOOK_INSTANCE_HANDOFF";
 ///
 /// The spec says 5 s, but the handing-off process keeps its lock until it
 /// exits (so it never races the new process on the stores), and the Classic
-/// exit path can take about 8 s (the `[ui]` flush plus
-/// `App::DEFAULT_SHUTDOWN_TIMEOUT`). 10 s covers that worst case.
-pub const HANDOFF_WAIT: Duration = Duration::from_secs(10);
+/// exit path can take about 9 s (the `[ui]` flush plus
+/// `App::DEFAULT_SHUTDOWN_TIMEOUT`). 12 s covers that worst case.
+pub const HANDOFF_WAIT: Duration = Duration::from_secs(12);
 /// Budget for a second instance to activate the running one.
 pub const ACTIVATE_TIMEOUT: Duration = Duration::from_secs(2);
 

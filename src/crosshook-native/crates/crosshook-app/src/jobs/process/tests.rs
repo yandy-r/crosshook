@@ -11,10 +11,12 @@ use tokio::process::{Child, ChildStdout, Command};
 use tokio_util::sync::CancellationToken;
 
 use super::sweep::{
-    environ_references_prefix, kill_processes_using_prefix_with, protected_pids, PrefixTarget,
+    environ_references_prefix, kill_processes_using_prefix_with, protected_pids,
+    sweep_prefix_until_clear_with, PrefixTarget,
 };
 use super::{
     processes_using_prefix, slugify_target, supervise_child, supervise_child_with_kill, ChildExit,
+    PrefixSweep,
 };
 
 const GRACE: Duration = Duration::from_millis(200);
@@ -398,4 +400,81 @@ fn protected_pids_cover_the_process_and_its_ancestors() {
         protected.contains(&parent),
         "parent {parent} in {protected:?}"
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn sweep_until_clear_kills_a_process_that_left_its_session() {
+    let dir = tempfile::tempdir().unwrap();
+    let (prefix, _) = prefix_with_alias(dir.path());
+    let pid_file = dir.path().join("escapee.pid");
+    // Like wineserver: a new session (`setsid`), reparented away from us,
+    // with only the prefix in its environment to find it by.
+    let status = Command::new("sh")
+        .arg("-c")
+        .arg("WINEPREFIX=\"$1\" setsid sh -c 'echo $$ > \"$0\"; exec sleep 60' \"$2\" &")
+        .arg("sh")
+        .arg(&prefix)
+        .arg(&pid_file)
+        .status()
+        .await
+        .unwrap();
+    assert!(status.success());
+    let escapee = wait_for_pid_file(&pid_file).await;
+    assert!(processes_using_prefix(&prefix).contains(&escapee));
+
+    let sweep = tokio::task::spawn_blocking({
+        let prefix = prefix.clone();
+        move || sweep_prefix_until_clear_with(&prefix, false, &protected_pids(), TIMEOUT)
+    })
+    .await
+    .unwrap();
+
+    assert_eq!(sweep, PrefixSweep::Clear);
+    assert!(!processes_using_prefix(&prefix).contains(&escapee));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn sweep_until_clear_reports_survivors_when_the_grace_runs_out() {
+    let dir = tempfile::tempdir().unwrap();
+    let (prefix, _) = prefix_with_alias(dir.path());
+    let mut user = spawn_with_env("WINEPREFIX", &prefix).await;
+    let protected = std::collections::HashSet::from([std::process::id()]);
+
+    // No grace: the scan finds the process and reports it without a kill.
+    let sweep = sweep_prefix_until_clear_with(&prefix, false, &protected, Duration::ZERO);
+    assert_eq!(sweep, PrefixSweep::Incomplete { survivors: 1 });
+    assert!(user.try_wait().unwrap().is_none());
+
+    // Protected pids never count as survivors.
+    let user_pid = std::collections::HashSet::from([user.id().expect("pid")]);
+    let sweep = sweep_prefix_until_clear_with(&prefix, false, &user_pid, Duration::ZERO);
+    assert_eq!(sweep, PrefixSweep::Clear);
+    assert!(user.try_wait().unwrap().is_none());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn sweep_until_clear_is_skipped_under_flatpak() {
+    let dir = tempfile::tempdir().unwrap();
+    let (prefix, _) = prefix_with_alias(dir.path());
+    let mut user = spawn_with_env("WINEPREFIX", &prefix).await;
+
+    let sweep = sweep_prefix_until_clear_with(&prefix, true, &Default::default(), TIMEOUT);
+
+    assert_eq!(sweep, PrefixSweep::Skipped);
+    assert!(user.try_wait().unwrap().is_none(), "swept under Flatpak");
+}
+
+/// Polls until `path` holds a pid written by a detached shell.
+async fn wait_for_pid_file(path: &Path) -> u32 {
+    let deadline = Instant::now() + TIMEOUT;
+    loop {
+        if let Some(pid) = fs::read_to_string(path)
+            .ok()
+            .and_then(|text| text.trim().parse().ok())
+        {
+            return pid;
+        }
+        assert!(Instant::now() < deadline, "no pid in {}", path.display());
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
 }

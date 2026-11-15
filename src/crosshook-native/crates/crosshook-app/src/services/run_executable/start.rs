@@ -1,6 +1,7 @@
 //! `RunExecutableService::start`: prepare off the executor, then one
 //! supervised job keyed on the resolved prefix that runs the executable,
-//! sweeps after a stop and removes a throwaway prefix before completing.
+//! sweeps the prefix after a cancel or stop, and removes a throwaway prefix
+//! before completing once no process uses it.
 
 use std::path::{Path, PathBuf};
 
@@ -10,13 +11,13 @@ use crosshook_core::run_executable::{
     RunExecutableValidationError,
 };
 
+use super::cleanup::CleanupOutcome;
 use super::types::{RunCompletion, RunExecutableResponse, RunExecutableStartError};
-use super::{CleanupFn, RunExecutableService, RUN_EXECUTABLE_JOB_KIND};
-use crate::jobs::{
-    create_log_file_in, kill_processes_using_prefix, slugify_target, JobKey, JobSpec,
-};
+use super::{CleanupFn, RunExecutableService, SweepFn, RUN_EXECUTABLE_JOB_KIND};
+use crate::jobs::{create_log_file_in, slugify_target, JobContext, JobKey, JobSpec, PrefixSweep};
 use crate::services::process::child::LogFile;
 use crate::services::process::owned::{start_owned, FailureText, OwnedRun};
+use crate::services::process::sweep::{log_survivors, sweep_prefix_using};
 use crate::services::process::{prefix_job_key, JobOwner, ProcessRun};
 use crate::services::run_blocking;
 use crate::{AppError, AppErrorKind};
@@ -34,6 +35,15 @@ const RUNNER_TEXT: FailureText = FailureText {
     exited: |status| RunExecutableError::RunnerExitedWithFailure { status }.message(),
 };
 
+/// Console line when a throwaway prefix is kept because processes survived
+/// the sweep (no path: the line reaches the UI).
+const MSG_PREFIX_KEPT: &str =
+    "The temporary prefix was not cleaned up because processes still use it.";
+
+/// Console line when removing a throwaway prefix failed.
+const MSG_PREFIX_NOT_REMOVED: &str =
+    "The temporary prefix could not be removed; you can delete it manually.";
+
 /// Where a run's prefix lives and whether the job must delete it.
 #[derive(Clone)]
 struct RunPrefix {
@@ -44,40 +54,55 @@ struct RunPrefix {
     throwaway_root: Option<PathBuf>,
     /// The service's throwaway-prefix removal.
     cleanup: CleanupFn,
+    /// The service's prefix sweep.
+    sweep: SweepFn,
 }
 
 impl RunPrefix {
     /// Removes a throwaway prefix (blocking); a user prefix is left alone.
-    fn cleanup_blocking(&self) {
-        if let Some(root) = &self.throwaway_root {
-            let outcome = (self.cleanup)(&self.path, root);
-            tracing::debug!(?outcome, prefix = %self.path.display(), "throwaway prefix cleanup");
-        }
+    fn cleanup_blocking(&self) -> Option<CleanupOutcome> {
+        let root = self.throwaway_root.as_ref()?;
+        let outcome = (self.cleanup)(&self.path, root);
+        tracing::debug!(?outcome, prefix = %self.path.display(), "throwaway prefix cleanup");
+        Some(outcome)
     }
 
     /// [`Self::cleanup_blocking`] on the blocking pool.
-    async fn cleanup(&self) {
-        if self.throwaway_root.is_none() {
-            return;
-        }
+    async fn cleanup(&self) -> Option<CleanupOutcome> {
+        self.throwaway_root.as_ref()?;
         let prefix = self.clone();
-        if let Err(error) = tokio::task::spawn_blocking(move || prefix.cleanup_blocking()).await {
-            tracing::warn!(%error, "throwaway prefix cleanup task failed");
+        match tokio::task::spawn_blocking(move || prefix.cleanup_blocking()).await {
+            Ok(outcome) => outcome,
+            Err(error) => {
+                tracing::warn!(%error, "throwaway prefix cleanup task failed");
+                Some(CleanupOutcome::Failed)
+            }
         }
     }
 
-    /// After the child: a stop also kills the Wine processes outside the
-    /// group (wineserver); then a throwaway prefix is removed.
-    async fn finish(self, killed: bool) {
-        if killed {
-            let swept = self.path.clone();
-            if let Err(error) =
-                tokio::task::spawn_blocking(move || kill_processes_using_prefix(&swept)).await
-            {
-                tracing::warn!(%error, "run-executable stop sweep task failed");
-            }
+    /// After the child: a cancel or stop sweeps the Wine processes that left
+    /// the group (wineserver, the executable, Wine services). A throwaway
+    /// prefix is always swept, then removed only when nothing survived;
+    /// otherwise it is kept and the console says so.
+    async fn finish(self, ctx: JobContext, stopped: bool) {
+        let throwaway = self.throwaway_root.is_some();
+        if !stopped && !throwaway {
+            return;
         }
-        self.cleanup().await;
+        let sweep = self.sweep.clone();
+        let swept = sweep_prefix_using(self.path.clone(), move |prefix| sweep(prefix)).await;
+        log_survivors(&ctx, swept);
+        if !throwaway {
+            return;
+        }
+        if matches!(swept, PrefixSweep::Incomplete { .. }) {
+            tracing::warn!(prefix = %self.path.display(), "throwaway prefix kept: processes still use it");
+            ctx.log(vec![MSG_PREFIX_KEPT.to_string()]);
+            return;
+        }
+        if self.cleanup().await == Some(CleanupOutcome::Failed) {
+            ctx.log(vec![MSG_PREFIX_NOT_REMOVED.to_string()]);
+        }
     }
 }
 
@@ -90,8 +115,9 @@ impl RunExecutableService {
     /// Returns once the executable was spawned: the response carries the log
     /// path, the resolved prefix and the run id; the run streams the log,
     /// then finishes with the exit code or terminating signal. A throwaway
-    /// prefix is removed before the completion is sent, whichever way the
-    /// run ended.
+    /// prefix is swept and then removed before the completion is sent,
+    /// whichever way the run ended, unless processes survived the sweep:
+    /// it is then kept and the log says so.
     ///
     /// # Errors
     /// Nothing runs on any error, and a throwaway prefix created by this
@@ -113,17 +139,17 @@ impl RunExecutableService {
         let slot = self.active.claim(owner)?;
         let log_dir = self.log_dir.clone();
         let adhoc_root = self.adhoc_root.clone();
-        let cleanup = self.cleanup.clone();
+        let seams = (self.cleanup.clone(), self.sweep.clone());
         let (key, prefix, run) =
-            run_blocking(move || Ok(prepare(&request, adhoc_root, log_dir, cleanup)))
+            run_blocking(move || Ok(prepare(&request, adhoc_root, log_dir, seams)))
                 .await
                 .map_err(RunExecutableStartError::Failed)??;
         let log_path = run.log.path.display().to_string();
         let resolved_prefix_path = prefix.path.display().to_string();
         let spec = JobSpec::new(RUN_EXECUTABLE_JOB_KIND).with_key(key);
         let job_prefix = prefix.clone();
-        let run = match start_owned(&self.jobs, spec, slot, run, move |killed| {
-            job_prefix.finish(killed)
+        let run = match start_owned(&self.jobs, spec, slot, run, move |ctx, stopped| {
+            job_prefix.finish(ctx, stopped)
         })
         .await
         {
@@ -155,7 +181,7 @@ fn prepare(
     request: &RunExecutableRequest,
     adhoc_root: Option<PathBuf>,
     log_dir: PathBuf,
-    cleanup: CleanupFn,
+    (cleanup, sweep): (CleanupFn, SweepFn),
 ) -> Result<(JobKey, RunPrefix, OwnedRun), RunExecutableStartError> {
     validate_run_executable_request(request)?;
     let adhoc_root = match adhoc_root {
@@ -173,6 +199,7 @@ fn prepare(
         path: prefix_path,
         throwaway_root: is_throwaway.then_some(adhoc_root),
         cleanup,
+        sweep,
     };
     match key_and_log(request, &prefix, log_dir) {
         Ok((key, log)) => Ok((
@@ -185,6 +212,7 @@ fn prepare(
             },
         )),
         Err(error) => {
+            // Nothing ran on the fresh prefix: no sweep is needed.
             prefix.cleanup_blocking();
             Err(error)
         }

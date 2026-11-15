@@ -1,5 +1,5 @@
 //! `/proc/*/environ` scan for processes whose Wine prefix is a given prefix,
-//! and the local `SIGKILL` sweep built on it.
+//! and the local `SIGKILL` sweeps built on it (one pass, or until clear).
 //!
 //! Only the values of `WINEPREFIX` and `STEAM_COMPAT_DATA_PATH` are
 //! considered, compared as canonical paths (symlinked aliases such as
@@ -10,6 +10,7 @@ use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 use crosshook_core::platform::is_flatpak;
 use nix::errno::Errno;
@@ -136,6 +137,95 @@ fn parent_pid(pid: u32) -> Option<u32> {
         .ok()
 }
 
+/// What [`sweep_prefix_until_clear`] found once it stopped.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PrefixSweep {
+    /// No process (other than CrossHook and its ancestors) uses the prefix.
+    Clear,
+    /// `survivors` processes still used the prefix when the grace ran out.
+    Incomplete {
+        /// How many processes were still using the prefix.
+        survivors: usize,
+    },
+    /// Not run: under Flatpak the sandbox cannot see or signal host pids.
+    Skipped,
+}
+
+/// How often [`sweep_prefix_until_clear`] rescans `/proc`.
+const SWEEP_POLL_INTERVAL: Duration = Duration::from_millis(50);
+
+/// `SIGKILL`s every process using the prefix (see
+/// [`kill_processes_using_prefix`]) and rescans until none is left or
+/// `grace` elapsed, killing late arrivals on each pass.
+///
+/// Processes that left the job's process group (`setsid`: wineserver, Wine
+/// GUI processes, umu-run and pressure-vessel children) are only reachable
+/// this way. Never signals CrossHook or its ancestors. Blocking; call it on
+/// the blocking pool.
+pub fn sweep_prefix_until_clear(prefix_path: &Path, grace: Duration) -> PrefixSweep {
+    sweep_prefix_until_clear_with(prefix_path, is_flatpak(), &protected_pids(), grace)
+}
+
+/// [`sweep_prefix_until_clear`] with an explicit Flatpak decision and set of
+/// pids that are never signalled.
+pub(super) fn sweep_prefix_until_clear_with(
+    prefix_path: &Path,
+    flatpak: bool,
+    protected: &HashSet<u32>,
+    grace: Duration,
+) -> PrefixSweep {
+    if flatpak {
+        tracing::debug!("prefix sweep: skipped under Flatpak");
+        return PrefixSweep::Skipped;
+    }
+    let deadline = Instant::now() + grace;
+    loop {
+        let survivors = live_pids(prefix_path, protected);
+        if survivors.is_empty() {
+            return PrefixSweep::Clear;
+        }
+        if Instant::now() >= deadline {
+            tracing::warn!(
+                survivors = survivors.len(),
+                prefix = %prefix_path.display(),
+                "prefix sweep: processes still use the prefix after the grace"
+            );
+            return PrefixSweep::Incomplete {
+                survivors: survivors.len(),
+            };
+        }
+        kill_pids(prefix_path, &survivors);
+        std::thread::sleep(
+            SWEEP_POLL_INTERVAL.min(deadline.saturating_duration_since(Instant::now())),
+        );
+    }
+}
+
+/// [`processes_using_prefix`] minus `protected`.
+fn live_pids(prefix_path: &Path, protected: &HashSet<u32>) -> Vec<u32> {
+    processes_using_prefix(prefix_path)
+        .into_iter()
+        .filter(|pid| !protected.contains(pid))
+        .collect()
+}
+
+/// `SIGKILL`s `pids`; a pid that is already gone is not an error.
+fn kill_pids(prefix_path: &Path, pids: &[u32]) {
+    let target_str = prefix_path.to_string_lossy();
+    for pid in pids {
+        let Ok(raw) = i32::try_from(*pid) else {
+            continue;
+        };
+        tracing::info!(pid = %pid, prefix = %target_str, "kill_processes_using_prefix: SIGKILL");
+        match kill(Pid::from_raw(raw), Signal::SIGKILL) {
+            Ok(()) | Err(Errno::ESRCH) => {}
+            Err(error) => {
+                tracing::warn!(pid = %pid, %error, "kill_processes_using_prefix: kill failed");
+            }
+        }
+    }
+}
+
 /// `SIGKILL`s every process found by [`processes_using_prefix`], locally,
 /// except CrossHook itself and its ancestors. Skipped under Flatpak, where
 /// the scan sees only the sandbox and host pids cannot be addressed.
@@ -154,29 +244,14 @@ pub(super) fn kill_processes_using_prefix_with(
         tracing::debug!("kill_processes_using_prefix: skipped under Flatpak");
         return;
     }
-    let pids: Vec<u32> = processes_using_prefix(prefix_path)
-        .into_iter()
-        .filter(|pid| !protected.contains(pid))
-        .collect();
+    let pids = live_pids(prefix_path, protected);
     if pids.is_empty() {
         return;
     }
-    let target_str = prefix_path.to_string_lossy();
-    for pid in &pids {
-        let Ok(raw) = i32::try_from(*pid) else {
-            continue;
-        };
-        tracing::info!(pid = %pid, prefix = %target_str, "kill_processes_using_prefix: SIGKILL");
-        match kill(Pid::from_raw(raw), Signal::SIGKILL) {
-            Ok(()) | Err(Errno::ESRCH) => {}
-            Err(error) => {
-                tracing::warn!(pid = %pid, %error, "kill_processes_using_prefix: kill failed");
-            }
-        }
-    }
+    kill_pids(prefix_path, &pids);
     tracing::info!(
         killed = pids.len(),
-        prefix = %target_str,
+        prefix = %prefix_path.to_string_lossy(),
         "kill_processes_using_prefix: kill sweep complete"
     );
 }

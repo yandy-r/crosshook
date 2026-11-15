@@ -68,8 +68,9 @@ impl UpdateService {
     }
 
     /// Cancels `owner`'s active update: `SIGTERM` to its process group, then
-    /// `SIGKILL` after the grace period; an update still being prepared ends
-    /// without starting the updater.
+    /// `SIGKILL` after the grace period, then (inside the job) a sweep of
+    /// every process still using the prefix; an update still being prepared
+    /// ends without starting the updater.
     ///
     /// Returns `false` when `owner` has no active update; no other job is
     /// touched.

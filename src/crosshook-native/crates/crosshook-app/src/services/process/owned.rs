@@ -9,6 +9,7 @@ use tokio::sync::oneshot;
 use super::child::{exit_code_and_signal, run_child, ChildError, ChildOutput, LogFile};
 use super::owner::OwnerSlot;
 use super::run::start_run;
+use super::sweep::child_was_stopped;
 use super::{conflict_as, remove_unused_log, ProcessRun, MSG_PREFIX_BUSY};
 use crate::jobs::{ChildExit, JobContext, JobRegistry, JobSpec, Outcome};
 use crate::{AppError, AppErrorKind};
@@ -47,10 +48,12 @@ pub(crate) struct OwnedRun {
 ///
 /// The body binds `slot` to the job, runs the child with the slot's kill
 /// token ([`run_child`], output straight into the log file), then awaits
-/// `after_exit(killed)` still holding the job's key, and only then releases
-/// the slot and sends the completion. `killed` is `true` when the slot's
-/// kill token fired while a child ran. `after_exit` also runs (with `false`)
-/// when no child was started.
+/// `after_exit(ctx, stopped)` still holding the job's key, and only then
+/// releases the slot and sends the completion. `stopped` is `true` when a
+/// child ran and was cancelled (job token) or stopped (the slot's kill
+/// token), or when supervising it failed: `after_exit` must then sweep the
+/// prefix. `after_exit` also runs (with `false`) when no child was started.
+/// Lines it logs through `ctx` precede the completion.
 ///
 /// # Errors
 /// Nothing ran and the run's log was removed:
@@ -66,7 +69,7 @@ pub(crate) async fn start_owned<F, Fut>(
     after_exit: F,
 ) -> Result<ProcessRun<ProcessCompletion>, AppError>
 where
-    F: FnOnce(bool) -> Fut + Send + 'static,
+    F: FnOnce(JobContext, bool) -> Fut + Send + 'static,
     Fut: Future<Output = ()> + Send + 'static,
 {
     let log_path = run.log.path.clone();
@@ -91,7 +94,7 @@ async fn owned_body<F, Fut>(
     after_exit: F,
 ) -> Outcome
 where
-    F: FnOnce(bool) -> Fut,
+    F: FnOnce(JobContext, bool) -> Fut,
     Fut: Future<Output = ()>,
 {
     let OwnedRun { command, log, text } = run;
@@ -99,7 +102,7 @@ where
     if slot.bind(ctx.id()) || kill.is_cancelled() {
         // Cancelled or stopped while the run was being prepared: spawn
         // nothing (`started` is dropped unsent).
-        after_exit(false).await;
+        after_exit(ctx, false).await;
         return Outcome::Cancelled;
     }
     let sink_ctx = ctx.clone();
@@ -113,8 +116,8 @@ where
         move |batch| sink_ctx.log_batch(batch),
     )
     .await;
-    let ran = matches!(result, Ok(_) | Err(ChildError::Supervise(_)));
-    after_exit(ran && kill.is_cancelled()).await;
+    let stopped = child_was_stopped(&result) || (result.is_ok() && kill.is_cancelled());
+    after_exit(ctx.clone(), stopped).await;
     drop(slot);
     match result {
         Ok(exit) => {
