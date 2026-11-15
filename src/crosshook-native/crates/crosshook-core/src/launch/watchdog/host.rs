@@ -3,6 +3,8 @@ use std::path::Path;
 
 use crate::platform::host_std_command;
 
+use super::host_table::collect_host_process_table;
+pub(super) use super::host_table::HostProcessEntry;
 use super::{
     descendants::collect_descendant_pids_from_children_map,
     process::{comm_matches_candidates, process_name_candidates},
@@ -11,7 +13,6 @@ use super::{
 
 #[derive(Debug, Default)]
 pub(super) struct HostProcessProbe {
-    pub(super) visible_count: usize,
     pub(super) exact_matches: Vec<String>,
     pub(super) truncated_matches: Vec<String>,
 }
@@ -20,13 +21,6 @@ impl HostProcessProbe {
     pub(super) fn has_match(&self) -> bool {
         !self.exact_matches.is_empty() || !self.truncated_matches.is_empty()
     }
-}
-
-#[derive(Clone, Debug)]
-pub(super) struct HostProcessEntry {
-    pub(super) pid: u32,
-    pub(super) ppid: u32,
-    pub(super) comm: String,
 }
 
 pub(super) fn read_host_text_file(path: &Path) -> Option<String> {
@@ -46,52 +40,8 @@ pub(super) fn is_host_pid_alive(pid: u32) -> bool {
         .unwrap_or(false)
 }
 
-pub(super) fn parse_host_pid_and_ppid(line: &str) -> Option<(u32, u32)> {
-    let mut fields = line.split('\t');
-    let pid = fields.next()?.trim().parse().ok()?;
-    let ppid = fields.next()?.trim().parse().ok()?;
-    Some((pid, ppid))
-}
-
-pub(super) fn parse_host_process_entry(line: &str) -> Option<HostProcessEntry> {
-    let mut fields = line.split('\t');
-    let pid = fields.next()?.trim().parse().ok()?;
-    let ppid = fields.next()?.trim().parse().ok()?;
-    let comm = fields.next()?.trim();
-    if comm.is_empty() {
-        return None;
-    }
-    Some(HostProcessEntry {
-        pid,
-        ppid,
-        comm: comm.to_string(),
-    })
-}
-
 pub(super) fn collect_host_process_entries() -> Vec<HostProcessEntry> {
-    let output = match host_std_command("ps")
-        .args([
-            "-ww",
-            "-eo",
-            "pid=",
-            "-o",
-            "ppid=",
-            "-o",
-            "comm=",
-            "--delimiter",
-            "\t",
-        ])
-        .output()
-    {
-        Ok(output) if output.status.success() => output,
-        _ => return Vec::new(),
-    };
-    String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty())
-        .filter_map(parse_host_process_entry)
-        .collect()
+    collect_host_process_table().unwrap_or_default()
 }
 
 pub(super) fn host_process_entry_matches_candidates(
@@ -109,35 +59,11 @@ pub(super) fn host_process_entry_matches_candidates(
 }
 
 pub(super) fn collect_host_descendant_pids(root_pid: u32) -> Vec<u32> {
-    let output = match host_std_command("ps")
-        .args(["-eo", "pid=", "-o", "ppid=", "--delimiter", "\t"])
-        .output()
-    {
-        Ok(output) if output.status.success() => output,
-        _ => return Vec::new(),
-    };
-    let stdout = String::from_utf8_lossy(&output.stdout);
     let mut children_map: HashMap<u32, Vec<u32>> = HashMap::new();
-    for line in stdout
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty())
-    {
-        if let Some((pid, ppid)) = parse_host_pid_and_ppid(line) {
-            children_map.entry(ppid).or_default().push(pid);
-        }
+    for entry in collect_host_process_entries() {
+        children_map.entry(entry.ppid).or_default().push(entry.pid);
     }
     collect_descendant_pids_from_children_map(root_pid, &children_map)
-}
-
-pub(super) fn host_process_line_parts(line: &str) -> Option<(u32, &str)> {
-    let (pid, comm) = line.split_once('\t')?;
-    let pid = pid.trim().parse().ok()?;
-    let comm = comm.trim();
-    if comm.is_empty() {
-        return None;
-    }
-    Some((pid, comm))
 }
 
 pub(super) fn read_host_process_cmdline(pid: u32) -> Option<String> {
@@ -151,29 +77,14 @@ pub(super) fn read_host_process_cmdline(pid: u32) -> Option<String> {
     Some(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
-/// Scans the host process table for `candidates`. `None` means the host
-/// `ps` query could not be spawned or exited unsuccessfully, so nothing is
-/// known about the host processes (distinct from "no match").
+/// Scans the host process table for `candidates`. `None` means neither host
+/// `ps` nor the host `/proc` fallback listed any process, so nothing is known
+/// about the host processes (distinct from "no match").
 pub(super) fn probe_host_processes(candidates: &[String]) -> Option<HostProcessProbe> {
-    let output = host_std_command("ps")
-        .args(["-ww", "-eo", "pid=", "-o", "comm=", "--delimiter", "\t"])
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let entries = collect_host_process_table()?;
     let mut probe = HostProcessProbe::default();
-    for line in stdout
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty())
-    {
-        probe.visible_count += 1;
-        let Some((pid, comm)) = host_process_line_parts(line) else {
-            continue;
-        };
-
+    for entry in &entries {
+        let (pid, comm) = (entry.pid, entry.comm.as_str());
         if probe.exact_matches.len() < 3 && candidates.iter().any(|candidate| candidate == comm) {
             probe.exact_matches.push(comm.to_string());
             continue;
