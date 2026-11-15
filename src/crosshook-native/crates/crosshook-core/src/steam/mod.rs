@@ -7,6 +7,7 @@ pub mod discovery;
 pub mod libraries;
 pub mod manifest;
 mod models;
+mod paths;
 pub mod proton;
 pub mod vdf;
 
@@ -19,3 +20,6 @@ pub use models::{
     SteamGameMatch, SteamLibrary,
 };
 pub use proton::discover_compat_tools;
+
+#[cfg(test)]
+mod symlinked_root_tests;

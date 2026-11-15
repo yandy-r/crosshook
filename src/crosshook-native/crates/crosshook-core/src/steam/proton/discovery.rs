@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use crate::platform;
 
 use super::super::models::ProtonInstall;
+use super::super::paths::canonical_or_raw;
 use super::super::vdf::parse_vdf;
 use super::matching::{normalize_alias, push_alias};
 use super::types::{CompatToolMappings, SYSTEM_COMPAT_TOOL_ROOTS};
@@ -221,7 +222,16 @@ fn try_add_compat_tool_install(
     } else {
         proton_path.is_file()
     };
-    if !proton_ok || !seen_proton_paths.insert(proton_path.clone()) {
+    if !proton_ok {
+        return;
+    }
+    // Host-side paths cannot be resolved from inside the Flatpak sandbox.
+    let proton_key = if use_host_fs {
+        proton_path.clone()
+    } else {
+        canonical_or_raw(&proton_path)
+    };
+    if !seen_proton_paths.insert(proton_key) {
         return;
     }
 

@@ -2,6 +2,8 @@ use std::collections::HashSet;
 use std::env;
 use std::path::{Path, PathBuf};
 
+use super::paths::{canonical_or_raw, trim_path};
+
 /// Discover Steam roots in priority order.
 ///
 /// The explicit Steam client path wins if it resolves to a valid root. If not,
@@ -18,13 +20,13 @@ pub fn discover_steam_root_candidates(
     )
 }
 
-fn discover_steam_root_candidates_with_home(
+pub(super) fn discover_steam_root_candidates_with_home(
     steam_client_install_path: impl AsRef<Path>,
     home_path: Option<PathBuf>,
     diagnostics: &mut Vec<String>,
 ) -> Vec<PathBuf> {
     let mut candidates = Vec::new();
-    let mut seen_paths = HashSet::new();
+    let mut seen_paths: HashSet<PathBuf> = HashSet::new();
 
     add_directory_candidate(
         &mut candidates,
@@ -69,37 +71,30 @@ fn discover_steam_root_candidates_with_home(
 
 fn add_directory_candidate(
     candidates: &mut Vec<PathBuf>,
-    seen_paths: &mut HashSet<String>,
+    seen_paths: &mut HashSet<PathBuf>,
     path: impl AsRef<Path>,
     diagnostics: &mut Vec<String>,
     source_description: &str,
 ) {
-    let candidate_path = normalize_path(path.as_ref());
-    if candidate_path.as_os_str().is_empty() {
+    let raw_path = trim_path(path.as_ref());
+    if raw_path.as_os_str().is_empty() {
         return;
     }
 
-    if !candidate_path.join("steamapps").is_dir() {
+    if !raw_path.join("steamapps").is_dir() {
         return;
     }
 
-    let key = candidate_path.to_string_lossy().to_string();
-    if seen_paths.insert(key) {
+    // `~/.steam/root` is usually a symlink to `~/.local/share/Steam`; keep one
+    // canonical root so libraries and Proton installs are not found twice.
+    let candidate_path = canonical_or_raw(&raw_path);
+    if seen_paths.insert(candidate_path.clone()) {
         diagnostics.push(format!(
             "{source_description}: {}",
             candidate_path.display()
         ));
         candidates.push(candidate_path);
     }
-}
-
-fn normalize_path(path: &Path) -> PathBuf {
-    let trimmed = path.as_os_str().to_string_lossy().trim().to_string();
-    if trimmed.is_empty() {
-        return PathBuf::new();
-    }
-
-    PathBuf::from(trimmed)
 }
 
 #[cfg(test)]

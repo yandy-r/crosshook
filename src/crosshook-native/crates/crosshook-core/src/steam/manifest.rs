@@ -2,6 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::models::{SteamAutoPopulateFieldState, SteamGameMatch, SteamLibrary};
+use super::paths::{canonical_or_raw, trim_path};
 use super::vdf::parse_vdf;
 
 #[derive(Debug, Clone)]
@@ -21,18 +22,21 @@ pub fn find_game_match(
     libraries: &[SteamLibrary],
     diagnostics: &mut Vec<String>,
 ) -> SteamGameMatchSelection {
-    let game_path = normalize_path(game_path.as_ref());
+    let game_path = trim_path(game_path.as_ref());
     if game_path.as_os_str().is_empty() {
         diagnostics.push("No game executable path was provided.".to_string());
         return SteamGameMatchSelection::default();
     }
+    // Discovered libraries are canonical, so an executable picked through a
+    // symlinked root (`~/.steam/root/...`) must be compared canonically too.
+    let canonical_game_path = canonical_or_raw(&game_path);
 
     let mut matches = Vec::new();
 
     for library in libraries {
         let manifest_paths = safe_manifest_paths(&library.steamapps_path, diagnostics);
         for manifest_path in manifest_paths {
-            let normalized_manifest_path = normalize_path(&manifest_path);
+            let normalized_manifest_path = trim_path(&manifest_path);
 
             match parse_manifest(&manifest_path) {
                 Ok((steam_app_id, install_dir_name)) => {
@@ -45,7 +49,9 @@ pub fn find_game_match(
                         .join("common")
                         .join(&install_dir_name);
 
-                    if !path_is_same_or_child(&game_path, &install_dir_path) {
+                    if !path_is_same_or_child(&game_path, &install_dir_path)
+                        && !path_is_same_or_child(&canonical_game_path, &install_dir_path)
+                    {
                         continue;
                     }
 
@@ -227,15 +233,6 @@ fn path_is_same_or_child(path: &Path, root: &Path) -> bool {
     }
 
     path.starts_with(root)
-}
-
-fn normalize_path(path: &Path) -> PathBuf {
-    let trimmed = path.as_os_str().to_string_lossy().trim().to_string();
-    if trimmed.is_empty() {
-        return PathBuf::new();
-    }
-
-    PathBuf::from(trimmed)
 }
 
 fn dedupe_matches(matches: Vec<SteamGameMatch>) -> Vec<SteamGameMatch> {

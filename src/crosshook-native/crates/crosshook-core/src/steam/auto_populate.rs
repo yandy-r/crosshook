@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use super::diagnostics::DiagnosticCollector;
 use super::discovery::discover_steam_root_candidates;
 use super::libraries::discover_steam_libraries;
@@ -7,11 +5,12 @@ use super::manifest::{compatdata_path_for_match, find_game_match};
 use super::models::{
     SteamAutoPopulateFieldState, SteamAutoPopulateRequest, SteamAutoPopulateResult, SteamLibrary,
 };
+use super::paths::trim_path;
 use super::proton::resolve_proton_path;
 
 pub fn attempt_auto_populate(request: &SteamAutoPopulateRequest) -> SteamAutoPopulateResult {
     let mut collector = DiagnosticCollector::default();
-    let normalized_game_path = normalize_path(&request.game_path);
+    let normalized_game_path = trim_path(&request.game_path);
 
     if normalized_game_path.as_os_str().is_empty() {
         collector.add_diagnostic("No game executable path was provided for Steam auto-populate.");
@@ -199,15 +198,6 @@ fn add_default_manual_hints(
             "If Steam matched the game, the App ID should be {steam_app_id}."
         ));
     }
-}
-
-fn normalize_path(path: &Path) -> std::path::PathBuf {
-    let trimmed = path.as_os_str().to_string_lossy().trim().to_string();
-    if trimmed.is_empty() {
-        return Default::default();
-    }
-
-    trimmed.into()
 }
 
 #[cfg(test)]
