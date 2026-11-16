@@ -8,6 +8,8 @@ import subprocess
 import time
 from pathlib import Path
 
+from bench_session import PRESENTATION_HINT, session_locked
+
 
 class CaptureError(RuntimeError):
     """Missing evidence, invalid capture, or unsuccessful application run."""
@@ -70,6 +72,8 @@ def ready(command: list[str], env: dict[str, str], timeout: float,
     command = list(command)
     if command[0] == "flatpak":
         command.insert(-1, f"--env=CROSSHOOK_BENCH_EXIT_AFTER_READY={int(exit_after)}")
+    if session_locked():
+        raise CaptureError(f"SESSION_LOCKED: {PRESENTATION_HINT}")
     start = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
     proc = subprocess.Popen(command, env=child_env, start_new_session=True,
                             stderr=subprocess.PIPE, stdout=subprocess.DEVNULL)
@@ -110,7 +114,10 @@ def ready(command: list[str], env: dict[str, str], timeout: float,
                             return proc, (ns-start)/1_000_000
                     if len(pending) > 65536:
                         raise CaptureError("UNBOUNDED_STDERR_LINE")
-        raise CaptureError("READY_TIMEOUT: " + " | ".join(recent[-5:]))
+        if session_locked():
+            raise CaptureError(f"SESSION_LOCKED: the session locked while waiting for READY; {PRESENTATION_HINT}")
+        raise CaptureError(f"READY_TIMEOUT: no READY within {timeout:g} s; {PRESENTATION_HINT}. "
+                           "Last stderr: " + " | ".join(recent[-5:]))
     except BaseException:
         stop(proc)
         proc.stderr.close()
@@ -231,6 +238,8 @@ def capture(metric: str, args, command: list[str], env: dict[str, str]) -> list[
                 elapsed = time.monotonic()-start
                 if proc.poll() is not None:
                     raise CaptureError(f"APP_EXIT: {proc.returncode}")
+                if session_locked():
+                    raise CaptureError(f"SESSION_LOCKED: the session locked during {metric}; {PRESENTATION_HINT}")
                 if metric == "G3":
                     pss, uss = memory(proc.pid)
                     rows.append({"elapsed_s": elapsed, "pss_mb": pss, "uss_mb": uss,

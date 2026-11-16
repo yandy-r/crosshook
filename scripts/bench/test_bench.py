@@ -10,6 +10,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bench
+import bench_capture
+import bench_session
 from bench_capture import CaptureError, ready, stats, stop
 from bench_guard import GuardError, Originals, build_env, check_path, preflight
 
@@ -136,7 +138,69 @@ class InstrumentTests(unittest.TestCase):
             instruments.wakeup_events({10}, 1)
 
 
+class SessionTests(unittest.TestCase):
+    def probes(self, logind, screensaver):
+        replies = {tuple(bench_session.LOCKED_HINT): logind, tuple(bench_session.SCREENSAVER_ACTIVE): screensaver,
+                   tuple(bench_session.SCREENSAVER_OWNED): None if screensaver is None else "(true,)"}
+
+        def run(command, **_):
+            reply = replies[tuple(command)]
+            if reply is None:
+                raise FileNotFoundError(command[0])
+            return bench_session.subprocess.CompletedProcess(command, 0, reply + "\n", "")
+        return patch.object(bench_session.subprocess, "run", side_effect=run)
+
+    def test_lock_state(self):
+        cases = [("yes", "(false,)", True), ("no", "(true,)", True), ("no", "(false,)", False),
+                 ("no", None, False), (None, "(true,)", True), (None, None, None), ("garbage", None, None)]
+        for logind, screensaver, expected in cases:
+            with self.subTest(logind=logind, screensaver=screensaver), self.probes(logind, screensaver):
+                self.assertIs(bench_session.session_locked(), expected)
+
+    def test_unowned_screensaver_is_not_called(self):
+        def run(command, **_):
+            if command == bench_session.SCREENSAVER_ACTIVE:
+                raise AssertionError("GetActive called on an unowned name")
+            reply = "(false,)" if command == bench_session.SCREENSAVER_OWNED else "no"
+            return bench_session.subprocess.CompletedProcess(command, 0, reply + "\n", "")
+        with patch.object(bench_session.subprocess, "run", side_effect=run):
+            self.assertIs(bench_session.session_locked(), False)
+
+    def test_hung_probe_is_unknown(self):
+        hung = bench_session.subprocess.TimeoutExpired(["loginctl"], 2)
+        with patch.object(bench_session.subprocess, "run", side_effect=hung):
+            self.assertIsNone(bench_session.session_locked())
+
+    def test_failed_probe_is_unknown(self):
+        failed = bench_session.subprocess.CompletedProcess([], 1, "yes\n", "")
+        with patch.object(bench_session.subprocess, "run", return_value=failed):
+            self.assertIsNone(bench_session.session_locked())
+
+
 class CaptureTests(unittest.TestCase):
+    def setUp(self):
+        unlocked = patch.object(bench_capture, "session_locked", return_value=False)
+        unlocked.start()
+        self.addCleanup(unlocked.stop)
+
+    def test_locked_session_refused_before_launch(self):
+        with patch.object(bench_capture, "session_locked", return_value=True), \
+                patch.object(bench_capture.subprocess, "Popen") as popen, \
+                self.assertRaisesRegex(CaptureError, "^SESSION_LOCKED: .*unlock the session"):
+            ready([sys.executable, "-c", "pass"], dict(os.environ), 1, True)
+        popen.assert_not_called()
+
+    def test_lock_during_wait_reported(self):
+        states = iter([False])
+        with patch.object(bench_capture, "session_locked", side_effect=lambda: next(states, True)), \
+                self.assertRaisesRegex(CaptureError, "^SESSION_LOCKED: the session locked while waiting"):
+            ready([sys.executable, "-c", "import time;time.sleep(30)"], dict(os.environ), .2, True)
+
+    def test_timeout_names_presentation_requirement(self):
+        code = "import sys,time;print('booted',file=sys.stderr,flush=True);time.sleep(30)"
+        with self.assertRaisesRegex(CaptureError, "^READY_TIMEOUT: no READY within 0.5 s; .*minimize.*Last stderr: booted$"):
+            ready([sys.executable, "-c", code], dict(os.environ), .5, True)
+
     def test_percentiles(self):
         self.assertEqual(stats([1, 2, 3])["p50_ms"], 2)
         self.assertAlmostEqual(stats([1, 2, 3])["p95_ms"], 2.9)
