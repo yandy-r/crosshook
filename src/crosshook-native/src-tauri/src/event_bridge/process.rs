@@ -69,10 +69,23 @@ pub(crate) fn relay_protonup_progress(
     }));
 }
 
+/// The emit closure both bench replays share: delivers each wire event to the webview.
+fn bench_emitter(handle: AppHandle) -> impl FnMut(WireEvent) -> bool + Send + 'static {
+    move |wire| emit(&handle, wire)
+}
+
 /// Replays the benchmark log as `launch-log` events.
 pub(crate) fn relay_bench_replay(handle: AppHandle, plan: ReplayPlan) {
     drop(tauri::async_runtime::spawn(bench::replay_log(
         plan,
-        move |wire| emit(&handle, wire),
+        bench_emitter(handle),
+    )));
+}
+
+/// Replays the benchmark log after the runner's `GO` line, as `launch-log` events.
+pub(crate) fn relay_bench_replay_after_go(handle: AppHandle, plan: ReplayPlan) {
+    drop(tauri::async_runtime::spawn(bench::replay_after_go(
+        plan,
+        bench_emitter(handle),
     )));
 }

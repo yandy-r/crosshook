@@ -19,8 +19,8 @@ use tauri::{AppHandle, Emitter as _};
 
 pub(crate) use self::launch::{relay_launch, replay_launch_start_error};
 pub(crate) use self::process::{
-    relay_bench_replay, relay_prefix_deps, relay_protonup_progress, relay_run_executable,
-    relay_update,
+    relay_bench_replay, relay_bench_replay_after_go, relay_prefix_deps, relay_protonup_progress,
+    relay_run_executable, relay_update,
 };
 
 /// Delivers one wire event to every webview; a failure is logged, never fatal.

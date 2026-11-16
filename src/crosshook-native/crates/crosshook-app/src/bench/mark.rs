@@ -27,6 +27,15 @@ const MAX_T_PERF_MS: f64 = 86_400_000.0;
 const MARKER_CAP: u64 = 100_000;
 const CAP_REACHED_LINE: &str = "BENCH_ERROR: marker cap reached";
 
+const ALL_PHASES: [Phase; 6] = [
+    Phase::Armed,
+    Phase::Render,
+    Phase::FocusLost,
+    Phase::ConsoleHidden,
+    Phase::FollowOn,
+    Phase::FollowOff,
+];
+
 /// Closed phase set; the emitted token is the variant, never the input.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -34,6 +43,9 @@ pub(super) enum Phase {
     Armed,
     Render,
     FocusLost,
+    ConsoleHidden,
+    FollowOn,
+    FollowOff,
 }
 
 impl Phase {
@@ -42,13 +54,14 @@ impl Phase {
             Self::Armed => "armed",
             Self::Render => "render",
             Self::FocusLost => "focus_lost",
+            Self::ConsoleHidden => "console_hidden",
+            Self::FollowOn => "follow_on",
+            Self::FollowOff => "follow_off",
         }
     }
 
     pub(super) fn parse(raw: &str) -> Option<Self> {
-        [Self::Armed, Self::Render, Self::FocusLost]
-            .into_iter()
-            .find(|phase| phase.name() == raw)
+        ALL_PHASES.into_iter().find(|phase| phase.name() == raw)
     }
 }
 

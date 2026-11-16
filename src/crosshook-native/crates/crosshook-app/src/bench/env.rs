@@ -7,6 +7,11 @@ pub(super) const ENV_LOG: &str = "CROSSHOOK_BENCH_LOG";
 pub(super) const ENV_RATE: &str = "CROSSHOOK_BENCH_LOG_RATE";
 pub(super) const ENV_SCENARIO: &str = "CROSSHOOK_BENCH_SCENARIO";
 
+/// How long a deferred replay waits for the runner's `GO` line on stdin before it gives up
+/// (`BENCH_ERROR: GO_SIGNAL_FAILED`). It covers the runner's clock sync and baseline sampling
+/// plus the Flatpak busy period after READY.
+pub(super) const GO_TIMEOUT_S: u64 = 120;
+
 /// True when benchmark mode is on (`CROSSHOOK_BENCH=1`).
 pub fn bench_enabled() -> bool {
     std::env::var(ENV_BENCH).is_ok_and(|v| v == "1")

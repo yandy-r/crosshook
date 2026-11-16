@@ -126,6 +126,18 @@ describe('startBenchProbe', () => {
     }
   });
 
+  it('dispatches replay_scroll to the replay probe: no clock sync, follow mark, then bench_begin', async () => {
+    document.body.innerHTML = `
+      <section data-testid="console-drawer" class="crosshook-console-drawer">
+        <button aria-expanded="true"></button>
+        <div class="crosshook-console__body"></div>
+      </section>`;
+    await startBenchProbe('replay_scroll', { signal: controller.signal });
+    expect(calls.map((c) => c.name)).toEqual(['bench_mark', 'bench_begin']);
+    expect(phases()).toEqual(['follow_on:0']);
+    expect(marks()[0].scenario).toBe('replay_scroll');
+  });
+
   it('does nothing for an unsupported scenario', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     await startBenchProbe('bogus', { signal: controller.signal });

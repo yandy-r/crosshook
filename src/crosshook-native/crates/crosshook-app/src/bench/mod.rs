@@ -12,7 +12,8 @@
 //! - `CROSSHOOK_BENCH_LOG`                absolute log file under the root; replayed as `launch-log`
 //! - `CROSSHOOK_BENCH_LOG_RATE`           lines/s, 1..=5000 (default 5000)
 //! - `CROSSHOOK_BENCH_SCENARIO`           G5 scenario: `search`, `toggle_favorite`,
-//!   `toggle_optimization`, `dpad`, `route_switch` (anything else: `BENCH_ERROR:`, no scenario)
+//!   `toggle_optimization`, `dpad`, `route_switch`; G8 scenario: `replay_scroll`, which defers
+//!   the replay (anything else: `BENCH_ERROR:`, no scenario)
 //!
 //! READY marker: one `READY <CLOCK_MONOTONIC ns>` line on stderr, once per process.
 //!
@@ -21,13 +22,25 @@
 //!   returns [`ReadyAction`]), so the shell asks for the scenario separately.
 //! - [`bench_begin`]: `BENCH_BEGIN <ns> <scenario>`, once per process.
 //! - [`bench_mark`]: `BENCH_MARK <ns> <scenario> <seq> <phase> <t_perf_us>`; the scenario
-//!   must be the active one, `phase` is `armed`/`render`/`focus_lost`, `seq <= 1_000_000`,
+//!   must be the active one, `phase` is `armed`/`render`/`focus_lost`/`console_hidden`/`follow_on`/`follow_off`, `seq <= 1_000_000`,
 //!   `t_perf_ms` finite within `0..=86_400_000` (emitted as integer microseconds).
 //! - [`bench_clock`]: `BENCH_CLOCK <ns> <seq> <t_perf_us>`, returns `ns` (`0` when off).
+//! - Deferred replay (`CROSSHOOK_BENCH_SCENARIO=replay_scroll`, with `_LOG`): READY does not
+//!   start the replay; it parks the plan. After a successful [`bench_begin`] the shell calls
+//!   [`take_deferred_replay`] (once) and spawns [`replay_after_go`]. That waits up to
+//!   `GO_TIMEOUT_S` (120 s) for exactly `GO\n` on stdin, read on a plain thread with `poll(2)`
+//!   and only in this case, then replays at the configured rate, writing
+//!   `BENCH_REPLAY <ns> start <total_lines>` before the first line and
+//!   `BENCH_REPLAY <ns> done <sent>` after the last (integers only, each one write). A missing
+//!   or wrong go line writes one `BENCH_ERROR: GO_SIGNAL_FAILED: <reason>` and replays nothing.
+//!   Without the scenario (G4 `console`) the replay still starts at READY and writes no
+//!   `BENCH_REPLAY` lines.
 //! - Marks and clock samples are each capped at 100_000 per process: one
 //!   `BENCH_ERROR: marker cap reached`, then further samples are dropped with `Ok`.
 
+mod deferred;
 mod env;
+mod go;
 mod mark;
 mod plan;
 mod ready;
@@ -35,9 +48,10 @@ mod replay;
 mod scenario;
 mod util;
 
+pub use deferred::take_deferred_replay;
 pub use env::bench_enabled;
 pub use mark::{bench_begin, bench_clock, bench_mark};
 pub use plan::ReplayPlan;
 pub use ready::{signal_ready, ReadyAction};
-pub use replay::replay_log;
+pub use replay::{replay_after_go, replay_log};
 pub use scenario::{active_scenario, BenchScenario};
