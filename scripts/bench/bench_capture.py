@@ -1,6 +1,7 @@
 """Linux benchmark captures. No synthetic measurement values."""
 from __future__ import annotations
 
+import contextlib
 import csv
 import os
 import signal
@@ -43,7 +44,39 @@ def over_interval_percent(values: list[float], refresh_hz: float) -> float:
     return 100 * sum(v > limit for v in values) / len(values)
 
 
+_UNWIND_SIGNALS = (signal.SIGTERM, signal.SIGHUP, signal.SIGINT)
+
+
+@contextlib.contextmanager
+def _signals_deferred():
+    """Hold SIGTERM, SIGHUP and SIGINT while an app is torn down, then deliver the first one.
+
+    A signal that arrives while a first one is already unwinding the run would otherwise raise
+    out of `stop()` and leave the app's process group alive. Handlers can only be installed from
+    the main thread; elsewhere there is nothing to defer.
+    """
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+    caught: list[int] = []
+    previous = {number: signal.signal(number, lambda signum, _frame: caught.append(signum))
+                for number in _UNWIND_SIGNALS}
+    try:
+        yield
+    finally:
+        for number, handler in previous.items():
+            signal.signal(number, handler if handler is not None else signal.SIG_DFL)
+        if caught:
+            signal.raise_signal(caught[0])  # the restored handler decides: abort, ignore or default
+
+
 def stop(proc: subprocess.Popen) -> None:
+    """Terminate the app's whole process group and reap it; a signal received meanwhile waits."""
+    with _signals_deferred():
+        _terminate(proc)
+
+
+def _terminate(proc: subprocess.Popen) -> None:
     # Child owns a new process group; never match or kill by application name.
     for sig in (signal.SIGTERM, signal.SIGKILL):
         try:
@@ -203,7 +236,8 @@ def numeric(rows: list[dict[str, str]], field: str) -> list[float]:
     return values
 
 
-def capture(metric: str, args, command: list[str], env: dict[str, str], command_for=None) -> list[dict]:
+def capture(metric: str, args, command: list[str], env: dict[str, str], command_for=None,
+            evidence: dict | None = None) -> list[dict]:
     if metric in ("G1", "G2"):
         if metric == "G1" and not args.cold_cache_ack:
             raise CaptureError("NEEDS_COLD_CACHE_PREP: G1 requires --cold-cache-ack; never label warm runs cold")
@@ -286,6 +320,9 @@ def capture(metric: str, args, command: list[str], env: dict[str, str], command_
         if not args.binary or not args.bundle or args.runtime_delta_mb is None:
             raise CaptureError("SIZE_INPUT_REQUIRED: --binary, --bundle, --runtime-delta-mb (measured download delta)")
         return [sizes(Path(args.binary), Path(args.bundle), args.branch, args.runtime_delta_mb)]
+    if metric in ("G4", "G9") and getattr(args, "collect", "csv") == "presentation":
+        from bench_collect import driven_rows
+        return driven_rows(args, metric, command_for or (lambda _env: command), env, evidence)
     # External captures are raw observations, not invented samples or compositor rAF proxies.
     field = "stall_ms" if metric == "G6" else "latency_ms" if metric == "G5" else "frame_ms"
     rows = artifact_rows(Path(args.capture_csv) if args.capture_csv else None, field)
@@ -298,5 +335,5 @@ def capture(metric: str, args, command: list[str], env: dict[str, str], command_
         return [{"scenario": row.get("scenario", "unspecified"), "latency_ms": value, "status": "measured"}
                 for row, value in zip(rows, values)] + [{"scenario": "summary", "p95_ms": result["p95_ms"], "status": "measured"}]
     result["over_interval_percent"] = over_interval_percent(values, args.refresh_hz)
-    result["status"] = "measured"
+    result.update(scenario="external", frames=len(values), status="measured")
     return [result]

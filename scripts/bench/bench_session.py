@@ -13,9 +13,10 @@ from pathlib import Path
 
 LOCKED_HINT = ["loginctl", "show-session", "auto", "-p", "Type", "-p", "LockedHint"]
 GRAPHICAL_TYPES = ("wayland", "x11")
-SCREENSAVER_OWNED = ["gdbus", "call", "--session", "--dest", "org.freedesktop.DBus",
-                     "--object-path", "/org/freedesktop/DBus",
-                     "--method", "org.freedesktop.DBus.NameHasOwner", "org.freedesktop.ScreenSaver"]
+NAME_HAS_OWNER = ["gdbus", "call", "--session", "--dest", "org.freedesktop.DBus",
+                  "--object-path", "/org/freedesktop/DBus",
+                  "--method", "org.freedesktop.DBus.NameHasOwner"]
+SCREENSAVER_OWNED = [*NAME_HAS_OWNER, "org.freedesktop.ScreenSaver"]
 SCREENSAVER_ACTIVE = ["gdbus", "call", "--session", "--dest", "org.freedesktop.ScreenSaver",
                       "--object-path", "/org/freedesktop/ScreenSaver",
                       "--method", "org.freedesktop.ScreenSaver.GetActive"]
@@ -46,6 +47,13 @@ def _session_bus_available() -> bool:
     # Without a bus address gdbus would autolaunch a stray dbus-daemon.
     runtime = os.environ.get("XDG_RUNTIME_DIR")
     return bool(os.environ.get("DBUS_SESSION_BUS_ADDRESS")) or bool(runtime and Path(runtime, "bus").exists())
+
+
+def name_has_owner(name: str) -> bool | None:
+    """Whether `name` has an owner on the session bus; None when there is no bus or no answer."""
+    if not _session_bus_available():
+        return None
+    return {"(true,)": True, "(false,)": False}.get(_probe([*NAME_HAS_OWNER, name]) or "")
 
 
 def _screensaver_active() -> bool | None:

@@ -2,11 +2,11 @@
 """Isolated CrossHook benchmark runner. Dry-run schemas are never measurements."""
 from __future__ import annotations
 
-import argparse
 import csv
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -15,6 +15,7 @@ from pathlib import Path
 
 import bench_guard
 from bench_capture import CaptureError, capture
+from bench_cli import SCHEMAS, arguments
 from bench_guard import (
     FLATPAK_APP_ID,
     GuardError,
@@ -22,6 +23,7 @@ from bench_guard import (
     build_env,
     make_dirs,
     preflight,
+    require_no_instance,
 )
 from bench_instruments import InstrumentError
 from bench_provenance import (
@@ -36,73 +38,23 @@ from bench_provenance import (
 )
 
 REPO = Path(__file__).resolve().parents[2]
-SCHEMAS = {
-    "G1": "iteration,ready_ms,first_present_ms,p50_ms,p95_ms,first_present_p50_ms,first_present_p95_ms,status",
-    "G2": "iteration,ready_ms,first_present_ms,p50_ms,p95_ms,first_present_p50_ms,first_present_p95_ms,status",
-    "G3": "elapsed_s,pss_mb,uss_mb,growth_mb,gpu_mb,status",
-    "G4": "p50_ms,p95_ms,p99_ms,stddev_ms,over_interval_percent,status",
-    "G5": "scenario,latency_ms,p95_ms,status",
-    "G6": "stalls_over_16ms,stalls_over_50ms,duration_s,status",
-    "G7": "elapsed_s,cpu_percent,wakeups_s,power_w,status",
-    "G8": "p50_ms,p95_ms,p99_ms,stddev_ms,over_interval_percent,memory_growth_mb,status",
-    "G9": "p50_ms,p95_ms,p99_ms,stddev_ms,over_interval_percent,status",
-    "G10": "binary_mb,bundle_mb,installed_mb,runtime_delta_mb,status",
-}
-TOOLS = ("hyperfine", "ydotool", "gpu-screen-recorder", "perf", "pidstat", "upower", "flatpak", "ffmpeg", "cc")
+TOOLS = ("hyperfine", "ydotool", "gpu-screen-recorder", "perf", "pidstat", "upower", "flatpak", "ffmpeg", "cc",
+         "gdbus")
+INPUT_DRIVEN = ("G4", "G9")  # presentation runs of these launch the app and inject input
+EXIT_PRESENTATION = ("NO_PRESENTATION_GLOBAL", "PRESENTATION_CLOCK", "REFRESH_MISMATCH",
+                     "UNSUPPORTED_COMPOSITOR", "INPUT_DEVICE_DENIED")
 
 
-def positive(raw: str) -> float:
-    import math
-    value = float(raw)
-    if not math.isfinite(value) or value <= 0:
-        raise argparse.ArgumentTypeError("must be finite and positive")
-    return value
+class BenchAborted(BaseException):
+    """SIGTERM/SIGHUP while a run is in flight; BaseException so no `except Exception` swallows it."""
+
+    def __init__(self, signal_name: str):
+        super().__init__(signal_name)
+        self.signal_name = signal_name
 
 
-def arguments(argv: list[str] | None = None):
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--variant", choices=("A", "B", "C", "C-iced", "C-gpui"), required=True)
-    parser.add_argument("--env", choices=("E1", "E2-D", "E2-G", "E3", "E3-sw"), required=True)
-    parser.add_argument("--metric", choices=tuple(SCHEMAS), action="append")
-    parser.add_argument("--metrics", default="all")
-    parser.add_argument("--iterations", type=int, default=10)
-    parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--binary")
-    parser.add_argument("--bundle")
-    parser.add_argument("--runtime-delta-mb", type=float)
-    parser.add_argument("--flatpak", action="store_true")
-    parser.add_argument("--branch", default="master")
-    parser.add_argument("--fixtures")
-    parser.add_argument("--output", default="results")
-    parser.add_argument("--tmp-root", default=tempfile.gettempdir())
-    parser.add_argument("--timeout", type=positive, default=60)
-    parser.add_argument("--duration", type=positive, default=None)
-    parser.add_argument("--refresh-hz", type=positive, default=120)
-    parser.add_argument("--capture-csv")
-    parser.add_argument("--collect", choices=("csv", "presentation"), default="csv")
-    parser.add_argument("--cold-cache-ack", action="store_true")
-    parser.add_argument("--keep", action="store_true")
-    args = parser.parse_args(argv)
-    args.selected = args.metric or (list(SCHEMAS) if args.metrics == "all" else args.metrics.split(","))
-    if args.duration is None:
-        args.duration = 600
-        if not args.dry_run and "G6" in args.selected and len(args.selected) > 1:
-            parser.error("G6 uses a 300 s session; run it separately or pass --duration")
-        if args.selected == ["G6"]:
-            args.duration = 300
-    if not args.selected or any(m not in SCHEMAS for m in args.selected):
-        parser.error("--metrics requires all or comma-separated G1..G10")
-    if not 1 <= args.iterations <= 1000:
-        parser.error("--iterations requires 1..1000")
-    if args.collect == "presentation":
-        if any(m not in ("G1", "G2") for m in args.selected):
-            parser.error("--collect presentation supports G1/G2 in this release; "
-                         "G4/G5/G8/G9 producers are not implemented yet")
-        if args.capture_csv:
-            parser.error("--collect presentation cannot be combined with --capture-csv")
-    if not args.branch or args.branch.startswith("-"):
-        parser.error("invalid Flatpak branch")
-    return args
+def _abort(signum, _frame):
+    raise BenchAborted(signal.Signals(signum).name)
 
 
 def launch_command(args, env: dict[str, str]) -> list[str]:
@@ -161,6 +113,31 @@ def _binary_changed(binary: Path, expected: str) -> bool:
         return True
 
 
+def _require_gates(args, driven: list[str]) -> None:
+    """Refuse a real run whose tools, session or inputs are missing, before anything is written."""
+    required = {"G7": ("perf", "upower"),
+                "G10": ("strip", "flatpak")}
+    if driven:
+        required.update({metric: ("gdbus",) for metric in driven})
+    missing = {tool for metric in args.selected for tool in required.get(metric, ())
+               if shutil.which(tool) is None}
+    if missing:
+        raise CaptureError("MISSING_TOOL: " + ", ".join(sorted(missing)))
+    if driven:
+        require_no_instance()
+    if "G1" in args.selected and not args.cold_cache_ack:
+        raise CaptureError("NEEDS_COLD_CACHE_PREP: G1 requires --cold-cache-ack")
+    for metric in args.selected:
+        if metric in ("G4", "G5", "G6", "G8", "G9") and not args.capture_csv and metric not in driven:
+            if metric == "G6" and shutil.which("perf") is None:
+                raise CaptureError("MISSING_TOOL: perf")
+            raise CaptureError(f"CAPTURE_REQUIRED: --capture-csv for {metric}")
+    if "G8" in args.selected and not args.fixtures:
+        raise CaptureError("FIXTURES_REQUIRED: G8 needs the 50k-line replay fixture")
+    if "G4" in driven and "console" in args.scenarios["G4"] and not args.fixtures:
+        raise CaptureError("FIXTURES_REQUIRED: the G4 console scenario needs the 50k-line replay fixture")
+
+
 def _run(args, outcome: dict[str, bool]) -> int:
     root: Path | None = None
     meta_path: Path | None = None
@@ -172,6 +149,9 @@ def _run(args, outcome: dict[str, bool]) -> int:
     lock_fd: int | None = None
     binary: Path | None = None
     binary_sha256: str | None = None  # hashed before launch: what ran must be what is recorded
+    driven = [m for m in args.selected if args.collect == "presentation" and m in INPUT_DRIVEN]
+    previous = {number: signal.signal(number, _abort) for number in (signal.SIGTERM, signal.SIGHUP)}
+    sealing_signals = (signal.SIGTERM, signal.SIGHUP, signal.SIGINT)
     try:
         original = Originals.capture()
         paths = preflight(original, output=args.output, fixtures=args.fixtures,
@@ -185,21 +165,7 @@ def _run(args, outcome: dict[str, bool]) -> int:
         if args.bundle:
             preflight(original, bundle=args.bundle)
         if not args.dry_run:
-            required = {"G7": ("perf", "upower"),
-                        "G10": ("strip", "flatpak")}
-            missing = {tool for metric in args.selected for tool in required.get(metric, ())
-                       if shutil.which(tool) is None}
-            if missing:
-                raise CaptureError("MISSING_TOOL: " + ", ".join(sorted(missing)))
-            if "G1" in args.selected and not args.cold_cache_ack:
-                raise CaptureError("NEEDS_COLD_CACHE_PREP: G1 requires --cold-cache-ack")
-            for metric in args.selected:
-                if metric in ("G4", "G5", "G6", "G8", "G9") and not args.capture_csv:
-                    if metric == "G6" and shutil.which("perf") is None:
-                        raise CaptureError("MISSING_TOOL: perf")
-                    raise CaptureError(f"CAPTURE_REQUIRED: --capture-csv for {metric}")
-            if "G8" in args.selected and not args.fixtures:
-                raise CaptureError("FIXTURES_REQUIRED: G8 needs the 50k-line replay fixture")
+            _require_gates(args, driven)
         meta = metadata(args)
         # No filesystem mutation before all path/schema preflights succeed.
         output = paths["output"] / args.variant / args.env
@@ -224,9 +190,14 @@ def _run(args, outcome: dict[str, bool]) -> int:
                           "dirty": meta["dirty"],
                           "variant": args.variant, "environment": args.env, "boot_id": boot_id(),
                           "flatpak": args.flatpak, "fixtures_seed": meta["seed"], "shim": None}
+            if driven:
+                provenance["drivers"] = "uinput+kwin/1"
+                provenance["drive_stats"] = {}  # filled by the collector: injected events and driven span
+                provenance["scenarios"] = {metric: args.scenarios[metric] for metric in driven}
             if binary_sha256 is not None:
                 provenance["binary_sha256"] = binary_sha256
-        external_only = all(m in ("G4", "G5", "G6", "G9", "G10") for m in args.selected)
+        external_only = all(m in ("G5", "G6", "G10") or (m in INPUT_DRIVEN and m not in driven)
+                            for m in args.selected)
         command: list[str] = []
         env: dict[str, str] = {}
         if not args.dry_run and not external_only:
@@ -266,8 +237,11 @@ def _run(args, outcome: dict[str, bool]) -> int:
                 env.pop("CROSSHOOK_BENCH_LOG_RATE", None)
                 if command:
                     command = launch_command(args, env)
-            rows = [{"status": "dry-run"}] if args.dry_run else capture(metric, args, command, env,
-                                                                 command_for=lambda e: launch_command(args, e))
+            if args.dry_run:
+                rows = [{"status": "dry-run"}]
+            else:
+                extra = {"evidence": provenance["drive_stats"]} if metric in driven else {}
+                rows = capture(metric, args, command, env, command_for=lambda e: launch_command(args, e), **extra)
             partial |= any(row.get("status") == "partial" for row in rows)
             path = output / f"{metric}.csv"
             with path.open("w", newline="") as stream:
@@ -280,41 +254,57 @@ def _run(args, outcome: dict[str, bool]) -> int:
         return 0
     except GuardError as error:
         print(f"BENCH_REFUSE: {error}", file=sys.stderr)
+        meta["status"] = "failed"
+        meta["error"] = provenance["error"] = str(error)
         return 10
+    except (BenchAborted, KeyboardInterrupt) as interrupt:
+        name = interrupt.signal_name if isinstance(interrupt, BenchAborted) else "SIGINT"
+        meta["status"] = "aborted"
+        meta["error"] = provenance["error"] = f"ABORTED: {name}"
+        print(meta["error"], file=sys.stderr)
+        return 130
     except (CaptureError, InstrumentError, OSError, ValueError, subprocess.SubprocessError) as error:
         print(str(error), file=sys.stderr)
         meta["status"] = "failed"
         meta["error"] = str(error)
         if str(error).startswith("NEEDS_COLD_CACHE_PREP"):
             return 20
-        if str(error).startswith(("NO_PRESENTATION_GLOBAL", "PRESENTATION_CLOCK", "REFRESH_MISMATCH")):
+        if str(error).startswith(EXIT_PRESENTATION):
             return 40
         return 30 if str(error).startswith("MISSING_TOOL") else 1
     finally:
-        if binary is not None and binary_sha256 is not None and _binary_changed(binary, binary_sha256):
-            outcome["binary_changed"] = True
-            meta["status"] = "failed"
-            meta["error"] = f"BINARY_CHANGED: {binary} changed while the capture ran"
-            provenance["error"] = meta["error"]
-            print(meta["error"], file=sys.stderr)
-        if meta.get("status") == "pending":
-            meta["status"] = "failed"
-        if meta_path:
-            meta_path.write_text(json.dumps(meta, indent=2)+"\n")
+        # A second signal while sealing would abort the seal and leak the isolated root.
+        handlers = {number: signal.signal(number, signal.SIG_IGN) for number in sealing_signals}
         try:
-            if raw is not None:
-                provenance["status"] = meta.get("status", "failed")
-                finalize_raw(raw, root, output, written, provenance, binary_sha256)
-        except (OSError, CaptureError, ValueError) as error:
-            print(f"RAW_FINALIZE_FAILED: {error}", file=sys.stderr)
-        finally:
-            if lock_fd is not None:
-                os.close(lock_fd)
-            if root:
-                if args.keep:
-                    print(f"Retained isolated root: {root}")
-                else:
-                    shutil.rmtree(root)
+            if binary is not None and binary_sha256 is not None and _binary_changed(binary, binary_sha256):
+                outcome["binary_changed"] = True
+                meta["status"] = "failed"
+                meta["error"] = f"BINARY_CHANGED: {binary} changed while the capture ran"
+                provenance["error"] = meta["error"]
+                print(meta["error"], file=sys.stderr)
+            if meta.get("status") == "pending":
+                meta["status"] = "failed"
+            if meta_path:
+                meta_path.write_text(json.dumps(meta, indent=2)+"\n")
+            try:
+                if raw is not None:
+                    provenance["status"] = meta.get("status", "failed")
+                    finalize_raw(raw, root, output, written, provenance, binary_sha256)
+            except (OSError, CaptureError, ValueError) as error:
+                print(f"RAW_FINALIZE_FAILED: {error}", file=sys.stderr)
+        finally:  # whatever a sealing step raised: the lock, the root and the handlers are always released
+            try:
+                if lock_fd is not None:
+                    os.close(lock_fd)
+                if root:
+                    if args.keep:
+                        print(f"Retained isolated root: {root}")
+                    else:
+                        shutil.rmtree(root)
+            finally:
+                handlers.update(previous)  # SIGTERM/SIGHUP go back to what they were before the run
+                for number, handler in handlers.items():
+                    signal.signal(number, handler or signal.SIG_DFL)
 
 
 if __name__ == "__main__":

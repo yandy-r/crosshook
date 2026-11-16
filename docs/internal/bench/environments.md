@@ -20,7 +20,7 @@ E1 is inventoried on hardware (values below observed directly). E2 and E3 are **
 
 The earlier 2026-10-08 inventory (CachyOS, driver 615.71.09, KWin 6.7.5) is superseded.
 
-Frame captures (G4/G5/G8/G9) need the 120 Hz-class mode: switch the panel to 3840×2160 @ 119.88 Hz and pass `--refresh-hz 119.88`. The presentation collector checks the compositor's reported refresh against `--refresh-hz` and refuses a mismatch (`REFRESH_MISMATCH`). Record the mode actually used per capture.
+Frame captures use whatever mode is active: pass the matching `--refresh-hz` (180.06 for the current E1 mode; 119.88 after switching the panel to the 120 Hz-class mode). The presentation collector checks the compositor's reported refresh against `--refresh-hz` and refuses a mismatch (`REFRESH_MISMATCH`). Record the mode actually used per capture.
 
 E1 target metrics: G1–G10 (see [`README.md`](README.md)).
 
