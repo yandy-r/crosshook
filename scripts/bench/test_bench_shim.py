@@ -61,6 +61,9 @@ class BuildTests(unittest.TestCase):
                      *bench_shim.CFLAGS):
             self.assertIn(flag, cc)
         self.assertNotIn("-Werror", cc)  # a new compiler warning must not break a measurement
+        for source in bench_shim.SOURCES:
+            self.assertIn(str(source), cc)
+        self.assertEqual([path.name for path in bench_shim.SOURCES], ["wlpresent.c", "wlfocus.c"])
         self.assertEqual(cc[-1], "-ldl")
         self.assertTrue(all(call[1]["timeout"] == 120 for call in runner.calls))
         self.assertEqual((result.built_in, result.path), ("host", self.out / "libwlpresent.so"))
@@ -77,7 +80,7 @@ class BuildTests(unittest.TestCase):
         self.assertIn(f"--filesystem={bench_shim.SOURCE_DIR}:ro", run)
         self.assertEqual(run[run.index("-c") + 1], bench_shim.SCRIPT)
         self.assertEqual(run[run.index("sh", run.index("-c")):],
-                         ["sh", str(bench_shim.PROTOCOL_XML), str(bench_shim.SOURCE), str(self.out),
+                         ["sh", str(bench_shim.PROTOCOL_XML), *map(str, bench_shim.SOURCES), str(self.out),
                           *bench_shim.CFLAGS])
         self.assertNotIn("-Werror", run)
         self.assertNotIn(str(self.out), bench_shim.SCRIPT)
@@ -98,7 +101,7 @@ class BuildTests(unittest.TestCase):
                 patch.object(bench_shim.shutil, "which", lambda tool: f"/usr/bin/{tool}"):
             self.assertEqual(bench_shim.check(), 0)
         cc = next(call[0] for call in runner.calls if call[0][0] == "cc")
-        for flag in ("-fsyntax-only", "-Werror", *bench_shim.CFLAGS):
+        for flag in ("-fsyntax-only", "-Werror", *bench_shim.CFLAGS, *map(str, bench_shim.SOURCES)):
             self.assertIn(flag, cc)
 
     def test_missing_tool(self):
@@ -162,6 +165,26 @@ class RealBuildTests(unittest.TestCase):
             self.assertRegex(result.so_sha256, r"^[0-9a-f]{64}$")
             self.assertRegex(result.source_sha256, r"^[0-9a-f]{64}$")
             self.assertEqual(result.built_in, "host")
+
+
+class SourceDigestTests(unittest.TestCase):
+    def test_digest_covers_both_sources_and_the_header(self):
+        baseline = bench_shim.source_sha256()
+        self.assertRegex(baseline, r"^[0-9a-f]{64}$")
+        with tempfile.TemporaryDirectory() as tmp:
+            for name in ("wlpresent.c", "wlfocus.c", "wlpresent.h"):
+                copy = Path(tmp) / name
+                copy.write_bytes((bench_shim.SOURCE_DIR / name).read_bytes())
+            sources = tuple(Path(tmp) / path.name for path in bench_shim.SOURCES)
+            header = Path(tmp) / "wlpresent.h"
+            with patch.object(bench_shim, "SOURCES", sources), patch.object(bench_shim, "HEADER", header):
+                self.assertEqual(bench_shim.source_sha256(), baseline)
+                for path in (*sources, header):
+                    with self.subTest(path=path.name):
+                        original = path.read_bytes()
+                        path.write_bytes(original + b"\n/* edit */\n")
+                        self.assertNotEqual(bench_shim.source_sha256(), baseline)
+                        path.write_bytes(original)
 
 
 class ShippingGuardTests(unittest.TestCase):

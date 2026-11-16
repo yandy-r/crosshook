@@ -335,6 +335,27 @@ class SessionTests(unittest.TestCase):
             self.assertIsNone(bench_session.session_locked())
 
 
+class NameHasOwnerTests(unittest.TestCase):
+    def owner(self, probe_answer, bus=True):
+        probe = patch.object(bench_session, "_probe", return_value=probe_answer)
+        with patch.object(bench_session, "_session_bus_available", return_value=bus), probe as mocked:
+            return bench_session.name_has_owner("org.example.Name"), mocked
+
+    def test_true_false_and_unknown(self):
+        for answer, expected in (("(true,)", True), ("(false,)", False), (None, None), ("garbage", None)):
+            with self.subTest(answer=answer):
+                self.assertIs(self.owner(answer)[0], expected)
+
+    def test_asks_the_bus_about_the_given_name(self):
+        _, mocked = self.owner("(true,)")
+        mocked.assert_called_once_with([*bench_session.NAME_HAS_OWNER, "org.example.Name"])
+
+    def test_no_session_bus_is_unknown_without_probing(self):
+        result, mocked = self.owner("(true,)", bus=False)
+        self.assertIsNone(result)
+        mocked.assert_not_called()
+
+
 class CancellableRunTests(unittest.TestCase):
     def test_cancel_kills_running_command(self):
         import threading
@@ -412,27 +433,6 @@ class CaptureTests(unittest.TestCase):
             manifests = list(Path(temp, "out", "raw").glob("*/provenance.json"))
             self.assertEqual(len(manifests), 1)
             self.assertEqual(json.loads(manifests[0].read_text())["status"], "failed")
-
-    def test_presentation_arguments_validated(self):
-        base = ["--variant", "A", "--env", "E1", "--collect", "presentation"]
-        with self.assertRaises(SystemExit) as caught:
-            bench.arguments([*base, "--metric", "G4"])
-        self.assertEqual(caught.exception.code, 2)
-        with self.assertRaises(SystemExit):
-            bench.arguments([*base, "--metric", "G2", "--capture-csv", "x.csv"])
-        self.assertEqual(bench.arguments([*base, "--metric", "G2"]).collect, "presentation")
-        self.assertEqual(bench.arguments(["--variant", "A", "--env", "E1", "--metric", "G2"]).collect, "csv")
-
-    def test_presentation_errors_exit_forty(self):
-        original = Originals("/nonexistent-home", "/nonexistent-home", {}, None)
-        for message in ("REFRESH_MISMATCH: x", "NO_PRESENTATION_GLOBAL: x", "PRESENTATION_CLOCK: x"):
-            with self.subTest(message=message), tempfile.TemporaryDirectory() as temp, \
-                    patch.object(bench.Originals, "capture", return_value=original), \
-                    patch.object(bench, "capture", side_effect=CaptureError(message)), \
-                    patch.object(bench, "launch_command", return_value=["app"]), \
-                    patch.object(bench, "make_dirs"):
-                self.assertEqual(bench.main(["--variant", "A", "--env", "E1", "--metric", "G2", "--binary", sys.executable,
-                                             "--output", f"{temp}/out", "--tmp-root", f"{temp}/runs"]), 40)
 
     def test_foreign_capture_is_stale(self):
         original = Originals("/nonexistent-home", "/nonexistent-home", {}, None)

@@ -32,6 +32,8 @@
  *   D <recv_ns> <feedback_seq>          feedback discarded
  *   X <ns> <reason>                     no_presentation_global | bind_failed |
  *                                       log_cap (500,000 records, then silent)
+ *   K|M <ns> enter|leave <surface_id>   wl_keyboard / wl_pointer focus  } listener wrappers
+ *   G <ns> <surface_id> <w> <h> <activated 0|1>  xdg_toplevel.configure  } (see wlfocus.c)
  */
 #define _GNU_SOURCE
 #include <wayland-version.h>
@@ -53,12 +55,11 @@
 #include <unistd.h>
 #include <wayland-client.h>
 #include "presentation-time-client-protocol.h"
+#include "wlpresent.h"
 
 #ifndef WL_CLOSURE_MAX_ARGS
 #define WL_CLOSURE_MAX_ARGS 20
 #endif
-#define UNUSED __attribute__((unused))
-#define ULL(x) ((unsigned long long)(x))
 /* The longest non-header record is a P line (about 108 bytes); the header is under 400.
  * The cap keeps a full log below the parser's 64 MiB MAX_LOG_BYTES. */
 #define LOG_CAP 500000UL
@@ -72,11 +73,6 @@ enum { OP_DESTROY = 0, OP_ATTACH = 1, OP_GET_TOPLEVEL = 1, OP_GET_XDG_SURFACE = 
 typedef struct wl_proxy *(*array_flags_fn)(struct wl_proxy *, uint32_t, const struct wl_interface *,
                                            uint32_t, uint32_t, union wl_argument *);
 
-struct surf {
-    uint32_t wl_id, xdg_id; /* wl_id == 0: free slot */
-    int toplevel, has_buffer;
-    uint64_t toplevel_ns;
-};
 struct fb_ctx { uint64_t seq; };
 
 static pthread_once_t g_arm_once = PTHREAD_ONCE_INIT;
@@ -84,9 +80,9 @@ static int g_armed;
 static char g_dir[PATH_MAX - 64];
 
 static pthread_mutex_t g_init_lock = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t g_tab_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t g_tab_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t g_log_lock = PTHREAD_MUTEX_INITIALIZER;
-static int g_state; /* 0 not initialized, 1 ready, -1 pass-through (disabled or failed) */
+int g_state; /* 0 not initialized, 1 ready, -1 pass-through (disabled or failed) */
 static __thread int in_hook;
 
 static struct surf g_tab[MAX_SURFACES];
@@ -100,7 +96,7 @@ static int g_log_fd = -1, g_log_capped;
 static int g_atfork_registered;
 static unsigned long g_log_count;
 
-static uint64_t now_ns(void) {
+uint64_t now_ns(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
@@ -119,8 +115,7 @@ static void write_all(int fd, const char *buf, size_t len) {
 }
 
 /* One write(2) per record; the mutex keeps records from interleaving. */
-static void rec(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
-static void rec(const char *fmt, ...) {
+void rec(const char *fmt, ...) {
     char buf[1024];
     va_list ap;
     va_start(ap, fmt);
@@ -162,6 +157,12 @@ static struct surf *surf_find(uint32_t wl_id, int create) {
 static struct surf *surf_find_xdg(uint32_t xdg_id) {
     for (int i = 0; i < MAX_SURFACES; i++)
         if (g_tab[i].wl_id && g_tab[i].xdg_id == xdg_id) return &g_tab[i];
+    return NULL;
+}
+
+struct surf *surf_find_toplevel(uint32_t toplevel_id) {
+    for (int i = 0; toplevel_id && i < MAX_SURFACES; i++)
+        if (g_tab[i].wl_id && g_tab[i].toplevel_id == toplevel_id) return &g_tab[i];
     return NULL;
 }
 
@@ -331,9 +332,15 @@ static void do_init(struct wl_proxy *any) {
 
     /* Flush toplevel marks made before the log existed, then go live. */
     pthread_mutex_lock(&g_tab_lock);
-    for (int i = 0; i < MAX_SURFACES; i++)
+    for (int i = 0; i < MAX_SURFACES; i++) {
         if (g_tab[i].wl_id && g_tab[i].toplevel)
             rec("S\t%llu\t%u\ttoplevel", ULL(g_tab[i].toplevel_ns), g_tab[i].wl_id);
+        struct surf *s = &g_tab[i];
+        if (s->wl_id && s->cfg_pending) {
+            rec_geometry(s->cfg_ns, s->wl_id, s->cfg_w, s->cfg_h, s->cfg_activated);
+            s->cfg_pending = 0;
+        }
+    }
     __atomic_store_n(&g_state, 1, __ATOMIC_RELEASE);
     pthread_mutex_unlock(&g_tab_lock);
     return;
@@ -424,7 +431,22 @@ static void on_destroy(struct wl_proxy *p, int is_wl_surface) {
         memset(s, 0, sizeof *s);
     } else if (s) {
         s->xdg_id = 0;
+        s->toplevel_id = 0;
     }
+    pthread_mutex_unlock(&g_tab_lock);
+}
+
+static void on_toplevel_created(struct wl_proxy *xdg_surface, struct wl_proxy *toplevel) {
+    pthread_mutex_lock(&g_tab_lock);
+    struct surf *s = surf_find_xdg(wl_proxy_get_id(xdg_surface));
+    if (s) s->toplevel_id = wl_proxy_get_id(toplevel);
+    pthread_mutex_unlock(&g_tab_lock);
+}
+
+static void on_toplevel_destroy(struct wl_proxy *toplevel) {
+    pthread_mutex_lock(&g_tab_lock);
+    struct surf *s = surf_find_toplevel(wl_proxy_get_id(toplevel));
+    if (s) s->toplevel_id = 0;
     pthread_mutex_unlock(&g_tab_lock);
 }
 
@@ -437,11 +459,18 @@ static void before(struct wl_proxy *p, uint32_t op, union wl_argument *args) {
     } else if (is_class(p, "xdg_surface")) {
         if (op == OP_GET_TOPLEVEL) on_toplevel(p);
         else if (op == OP_DESTROY) on_destroy(p, 0);
+    } else if (op == OP_DESTROY && is_class(p, "xdg_toplevel")) {
+        on_toplevel_destroy(p);
     }
 }
 
 static void after(struct wl_proxy *p, uint32_t op, union wl_argument *args, struct wl_proxy *ret) {
-    if (op != OP_GET_XDG_SURFACE || !ret || !is_class(p, "xdg_wm_base") || !args[1].o) return;
+    if (!ret) return;
+    if (op == OP_GET_TOPLEVEL && is_class(p, "xdg_surface")) {
+        on_toplevel_created(p, ret);
+        return;
+    }
+    if (op != OP_GET_XDG_SURFACE || !is_class(p, "xdg_wm_base") || !args[1].o) return;
     uint32_t sid = wl_proxy_get_id((struct wl_proxy *)args[1].o);
     pthread_mutex_lock(&g_tab_lock);
     struct surf *s = surf_find(sid, 1);
@@ -449,9 +478,15 @@ static void after(struct wl_proxy *p, uint32_t op, union wl_argument *args, stru
     pthread_mutex_unlock(&g_tab_lock);
 }
 
-static struct wl_proxy *forward(struct wl_proxy *proxy, uint32_t opcode,
-                                const struct wl_interface *interface, uint32_t version,
-                                uint32_t flags, union wl_argument *args) {
+/* True while hooks may wrap/log: armed, not re-entered, not failed (g_state 0 still counts). */
+int wlp_tracking(void) {
+    pthread_once(&g_arm_once, arm_once);
+    return g_armed && !in_hook && __atomic_load_n(&g_state, __ATOMIC_ACQUIRE) >= 0;
+}
+
+static struct wl_proxy *forward_request(struct wl_proxy *proxy, uint32_t opcode,
+                                        const struct wl_interface *interface, uint32_t version,
+                                        uint32_t flags, union wl_argument *args) {
     static array_flags_fn real;
     array_flags_fn fn = __atomic_load_n(&real, __ATOMIC_ACQUIRE);
     if (!fn) {
@@ -459,15 +494,24 @@ static struct wl_proxy *forward(struct wl_proxy *proxy, uint32_t opcode,
         if (!fn) abort();
         __atomic_store_n(&real, fn, __ATOMIC_RELEASE);
     }
-    pthread_once(&g_arm_once, arm_once);
     /* The guard also covers the real call, so any re-entry is a plain pass-through. */
-    int track = g_armed && !in_hook && __atomic_load_n(&g_state, __ATOMIC_ACQUIRE) >= 0;
-    if (!track) return fn(proxy, opcode, interface, version, flags, args);
+    if (!wlp_tracking()) return fn(proxy, opcode, interface, version, flags, args);
     in_hook = 1;
     before(proxy, opcode, args);
     struct wl_proxy *ret = fn(proxy, opcode, interface, version, flags, args);
     after(proxy, opcode, args, ret);
     in_hook = 0;
+    return ret;
+}
+
+/* A destructor request destroys the proxy inside libwayland: forget the proxy before it, free
+ * our listener copy after it (libwayland may still read the table during the destroy). */
+static struct wl_proxy *forward(struct wl_proxy *proxy, uint32_t opcode,
+                                const struct wl_interface *interface, uint32_t version,
+                                uint32_t flags, union wl_argument *args) {
+    wl_fn *copy = (flags & WL_MARSHAL_FLAG_DESTROY) ? wlfocus_detach(proxy) : NULL;
+    struct wl_proxy *ret = forward_request(proxy, opcode, interface, version, flags, args);
+    wlfocus_free(copy);
     return ret;
 }
 

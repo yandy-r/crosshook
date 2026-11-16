@@ -130,6 +130,19 @@ class PresentLogTests(unittest.TestCase):
         self.assertAlmostEqual(bench_present.discard_rate(self.logs(text)), 2 / 3)
         self.assertEqual(bench_present.discard_rate(self.logs(HEADER)), 0.0)
 
+    def test_discard_rate_window_keeps_commits_inside_it(self):
+        text = (HEADER + SURFACES + "C\t1\t1\t1\t1\nC\t2\t1\t2\t1\nC\t3\t1\t3\t1\nC\t4\t1\t4\t1\nC\t5\t2\t5\t1\n"
+                + "P\t9\t1\t10\t8341675\t1\t1\nP\t9\t4\t11\t8341675\t1\t1\nD\t9\t2\nD\t9\t3\nD\t9\t5\n")
+        logs = self.logs(text)
+        rate = bench_present.discard_rate
+        self.assertAlmostEqual(rate(logs), 2 / 4)                  # the cursor commit never counts
+        self.assertAlmostEqual(rate(logs, 2, 3), 1.0)             # both commits in the window were dropped
+        self.assertAlmostEqual(rate(logs, 1, 1), 0.0)             # the only commit in it was shown
+        self.assertAlmostEqual(rate(logs, 3, 4), 1 / 2)           # bounds are inclusive
+        self.assertAlmostEqual(rate(logs, start_ns=3), 1 / 2)
+        self.assertAlmostEqual(rate(logs, end_ns=2), 1 / 2)
+        self.assertEqual(rate(logs, 100, 200), 0.0)
+
     def test_interval_windowing(self):
         frames = [bench_present.Presented(0, i, ns, 0, 0, 0)
                   for i, ns in enumerate([0, 10_000_000, 25_000_000, 45_000_000])]
@@ -141,6 +154,73 @@ class PresentLogTests(unittest.TestCase):
     def test_empty_dir_is_shim_not_loaded(self):
         with self.assertRaisesRegex(CaptureError, "^SHIM_NOT_LOADED: no wlpresent log in "):
             bench_present.parse_dir(self.root)
+
+    def test_focus_and_geometry_parsed_in_log_order(self):
+        logs = self.logs(HEADER + SURFACES + "K\t10\tenter\t1\nM\t11\tenter\t2\nK\t12\tleave\t1\n"
+                         + "G\t13\t1\t800\t600\t1\nG\t14\t1\t810\t600\t0\n")
+        self.assertEqual(logs[0].focus, [bench_present.Focus(10, "keyboard", True, 1, True),
+                                         bench_present.Focus(11, "pointer", True, 2, False),
+                                         bench_present.Focus(12, "keyboard", False, 1, True)])
+        self.assertEqual([(g.ns, g.w, g.h, g.activated) for g in logs[0].geometry],
+                         [(13, 800, 600, True), (14, 810, 600, False)])
+
+    def test_focused_enter_leave_ordering(self):
+        logs = self.logs(HEADER + SURFACES + "K\t10\tenter\t1\nK\t20\tleave\t1\nK\t30\tenter\t1\n")
+        self.assertFalse(bench_present.focused(logs, "keyboard", 5))
+        self.assertTrue(bench_present.focused(logs, "keyboard", 10))
+        self.assertTrue(bench_present.focused(logs, "keyboard", 19))
+        self.assertFalse(bench_present.focused(logs, "keyboard", 20))
+        self.assertFalse(bench_present.focused(logs, "keyboard", 29))
+        self.assertTrue(bench_present.focused(logs, "keyboard", 30))
+        self.assertTrue(bench_present.focused(logs, "keyboard"))
+        self.assertFalse(bench_present.focused(logs, "pointer"))
+
+    def test_focused_ignores_non_toplevel_surface(self):
+        logs = self.logs(HEADER + SURFACES + "M\t10\tenter\t1\nM\t20\tenter\t2\n")
+        self.assertTrue(bench_present.focused(logs, "pointer", 15))
+        self.assertFalse(bench_present.focused(logs, "pointer", 25))
+        self.assertFalse(bench_present.focused(logs, "pointer"))
+
+    def test_focused_role_follows_log_order(self):
+        logs = self.logs(HEADER + "K\t1\tenter\t1\nS\t2\t1\ttoplevel\nK\t3\tleave\t1\n"
+                         + "S\t4\t1\tdestroyed\nK\t5\tenter\t1\n")
+        self.assertFalse(bench_present.focused(logs, "keyboard", 1))
+        self.assertFalse(bench_present.focused(logs, "keyboard"))
+
+    def test_distinct_sizes_windowing_and_toplevel_only(self):
+        logs = self.logs(HEADER + SURFACES + "G\t10\t1\t800\t600\t1\nG\t20\t1\t900\t600\t1\n"
+                         + "G\t30\t1\t800\t600\t1\nG\t40\t1\t1000\t700\t1\nG\t50\t2\t5\t5\t0\n")
+        self.assertEqual(bench_present.distinct_sizes(logs), 3)
+        self.assertEqual(bench_present.distinct_sizes(logs, 20, 30), 2)
+        self.assertEqual(bench_present.distinct_sizes(logs, start_ns=31), 1)
+        self.assertEqual(bench_present.distinct_sizes(logs, end_ns=9), 0)
+
+    def test_malformed_focus_and_geometry_lines(self):
+        for bad in ("K\t1\tenter\n", "K\t1\tfocus\t1\n", "K\tx\tenter\t1\n", "M\t1\tleave\tz\n",
+                    "M\t1\tenter\t1\t2\n", "G\t1\t1\t800\t600\n", "G\t1\t1\t800\tx\t1\n",
+                    "G\t1\t1\t800\t600\t2\n"):
+            with self.subTest(bad=bad):
+                self.write(HEADER + bad + "S\t1\t1\ttoplevel\n")
+                with self.assertRaisesRegex(CaptureError,
+                                            r"^PRESENT_LOG_MALFORMED: wlpresent-1\.log:2$"):
+                    bench_present.parse_log(self.root / "wlpresent-1.log")
+
+    def test_truncated_focus_and_geometry_tail_ignored(self):
+        for tail in ("K\t9\tent", "G\t9\t1\t800"):
+            with self.subTest(tail=tail):
+                logs = self.logs(HEADER + SURFACES + "K\t5\tenter\t1\n" + tail)
+                self.assertEqual(len(logs[0].focus), 1)
+                self.assertEqual(logs[0].geometry, [])
+
+    def test_parse_log_of_a_growing_file_ignores_the_partial_line_and_sees_growth(self):
+        path = self.write(HEADER + SURFACES + "K\t10\tenter\t1\nG\t11\t1\t80")
+        live = bench_present.parse_log(path)
+        self.assertEqual(len(live.focus), 1)
+        self.assertEqual(live.geometry, [])
+        with path.open("a") as handle:
+            handle.write("0\t600\t1\n")
+        self.assertEqual(bench_present.parse_log(path).geometry,
+                         [bench_present.Geometry(11, 1, 800, 600, True, True)])
 
 
 if __name__ == "__main__":

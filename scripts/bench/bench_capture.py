@@ -203,7 +203,8 @@ def numeric(rows: list[dict[str, str]], field: str) -> list[float]:
     return values
 
 
-def capture(metric: str, args, command: list[str], env: dict[str, str], command_for=None) -> list[dict]:
+def capture(metric: str, args, command: list[str], env: dict[str, str], command_for=None,
+            evidence: dict | None = None) -> list[dict]:
     if metric in ("G1", "G2"):
         if metric == "G1" and not args.cold_cache_ack:
             raise CaptureError("NEEDS_COLD_CACHE_PREP: G1 requires --cold-cache-ack; never label warm runs cold")
@@ -286,6 +287,9 @@ def capture(metric: str, args, command: list[str], env: dict[str, str], command_
         if not args.binary or not args.bundle or args.runtime_delta_mb is None:
             raise CaptureError("SIZE_INPUT_REQUIRED: --binary, --bundle, --runtime-delta-mb (measured download delta)")
         return [sizes(Path(args.binary), Path(args.bundle), args.branch, args.runtime_delta_mb)]
+    if metric in ("G4", "G9") and getattr(args, "collect", "csv") == "presentation":
+        from bench_collect import driven_rows
+        return driven_rows(args, metric, command_for or (lambda _env: command), env, evidence)
     # External captures are raw observations, not invented samples or compositor rAF proxies.
     field = "stall_ms" if metric == "G6" else "latency_ms" if metric == "G5" else "frame_ms"
     rows = artifact_rows(Path(args.capture_csv) if args.capture_csv else None, field)
@@ -298,5 +302,5 @@ def capture(metric: str, args, command: list[str], env: dict[str, str], command_
         return [{"scenario": row.get("scenario", "unspecified"), "latency_ms": value, "status": "measured"}
                 for row, value in zip(rows, values)] + [{"scenario": "summary", "p95_ms": result["p95_ms"], "status": "measured"}]
     result["over_interval_percent"] = over_interval_percent(values, args.refresh_hz)
-    result["status"] = "measured"
+    result.update(scenario="external", frames=len(values), status="measured")
     return [result]

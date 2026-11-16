@@ -16,6 +16,8 @@ from pathlib import Path
 
 import tomllib
 
+import bench_session
+
 FLATPAK_APP_ID = "dev.crosshook.CrossHook"
 SYSTEM_TOPS = {"usr", "etc", "opt", "bin", "sbin", "lib", "lib64", "boot", "dev", "proc", "sys", "run"}
 # (XDG var, default relative to home)
@@ -28,8 +30,23 @@ XDG_DEFAULTS = {
 _SETTINGS_MAX = 256 * 1024
 
 
+INSTANCE_BUS_NAME = "dev.crosshook.CrossHook"
+
+
 class GuardError(Exception):
     """Refusal. Raised before any write; CLI exits 10."""
+
+
+def require_no_instance() -> None:
+    """Refuse unless the session bus says no CrossHook owns its name; an unknown answer refuses too,
+    because a bench window would hand off to a running instance and be driven as if it were the bench app."""
+    owned = bench_session.name_has_owner(INSTANCE_BUS_NAME)
+    if owned is None:
+        raise GuardError("INSTANCE_UNKNOWN: could not ask the session bus whether CrossHook is running; "
+                         "check that the session bus is reachable and quit any CrossHook before driving input")
+    if owned:
+        raise GuardError("INSTANCE_RUNNING: quit CrossHook before driving input; "
+                         "the bench window would hand off to the running instance")
 
 
 def real(p: str | os.PathLike[str]) -> Path:
