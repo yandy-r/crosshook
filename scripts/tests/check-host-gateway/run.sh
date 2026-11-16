@@ -10,6 +10,7 @@ ROOTS=(
   "$CRATES/crosshook-core/src"
   src/crosshook-native/src-tauri/src
   "$CRATES/crosshook-app/src"
+  "$CRATES/crosshook-cli/src"
   "$CRATES/crosshook-ui/src"
   "$CRATES/crosshook-widgets/src"
   "$CRATES/crosshook-view-model/src"
