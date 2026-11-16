@@ -57,6 +57,14 @@ describe('search', () => {
     expect(typeof (await settle(trial))).toBe('number');
   });
 
+  it('ignores a toolbar-only mutation even when the value changed', async () => {
+    const input = build();
+    const trial = arm('search') as ScenarioTrial;
+    input.value = 'a';
+    document.querySelector('.crosshook-library-toolbar')?.appendChild(document.createElement('span'));
+    expect(await settle(trial)).toBe('pending');
+  });
+
   it('ignores grid mutations while the value is unchanged', async () => {
     build();
     const trial = arm('search') as ScenarioTrial;

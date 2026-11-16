@@ -33,7 +33,7 @@ export async function runClockSync(now: () => number = () => performance.now()):
     previous = stamp;
     await callCommand<number>('bench_clock', { seq, tPerfMs: stamp });
     const sent = seq + 1;
-    if (sent >= CLOCK_SYNC_SAMPLES && fastPairs >= CLOCK_SYNC_FAST_PAIRS) {
+    if (fastPairs >= CLOCK_SYNC_FAST_PAIRS) {
       return;
     }
     if (sent >= CLOCK_SYNC_SAMPLES && now() - start >= CLOCK_SYNC_BUDGET_MS) {

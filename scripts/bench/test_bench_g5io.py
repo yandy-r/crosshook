@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bench_g5io as io5
 from bench_capture import CaptureError
 from bench_drivers_g5 import TrialRecord
-from bench_g5select import AMBIGUOUS, MEASURED, TIMEOUT, Trial
+from bench_g5select import AMBIGUOUS, EARLY, MEASURED, TIMEOUT, Trial
 from bench_guard import FLATPAK_APP_ID
 
 
@@ -205,6 +205,11 @@ class ObservationTests(unittest.TestCase):
         self.assertEqual((timeout["commit_ns"], timeout["presented_ns"], timeout["latency_ms"]), ("", "", ""))
         self.assertEqual((ambiguous["commit_ns"], ambiguous["latency_ms"], ambiguous["status"]),
                          ("5", "", "ambiguous"))
+
+    def test_an_early_trial_has_a_status_and_no_selected_frame_or_latency(self):
+        (early,) = self.rows([record(4000, EARLY)])
+        self.assertEqual((early["commit_ns"], early["presented_ns"], early["latency_ms"]), ("", "", ""))
+        self.assertEqual((early["inject_ns"], early["status"]), ("4000", "early"))
 
     def test_write_observations_puts_the_file_beside_the_present_logs_and_can_rewrite_it(self):
         with tempfile.TemporaryDirectory() as temp:

@@ -201,6 +201,16 @@ pub(super) fn emit(
     }
 }
 
+/// The `ns` a clock sample reports back: the stamp when its line was written, `0` when the
+/// budget dropped it (past the cap), since a dropped sample has no matching stderr line.
+pub(super) fn reported_clock_ns(ns: u64, written: bool) -> u64 {
+    if written {
+        ns
+    } else {
+        0
+    }
+}
+
 fn marker_write_error(error: &std::io::Error) -> String {
     format!("failed to write bench marker: {error}")
 }
@@ -248,7 +258,7 @@ pub fn bench_clock(seq: u32, t_perf_ms: f64) -> Result<u64, String> {
     let ns = monotonic_ns()?;
     let line = format_clock(ns, seq, t_us);
     emit(&mut std::io::stderr().lock(), &CLOCKS, MARKER_CAP, &line)
-        .map(|written| if written { ns } else { 0 })
+        .map(|written| reported_clock_ns(ns, written))
         .map_err(|e| marker_write_error(&e))
 }
 

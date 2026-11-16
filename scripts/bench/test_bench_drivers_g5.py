@@ -52,6 +52,7 @@ class World:
         self.frame = 0
         self.keys = 0
         self.scenario = "search"
+        self.armed_at: int | None = None          # the clock when the window was armed
 
     def clock(self) -> int:
         return self.now
@@ -114,6 +115,7 @@ class FakeKwin:
 
     def arm_under_cursor(self, win):
         self.world.trace.append(("arm",))
+        self.world.armed_at = self.world.now
         return win
 
 
@@ -122,8 +124,11 @@ class FakeEvents:
 
     def __init__(self, world, scenario="search"):
         self.world, self.scenario = world, scenario
+        self.begin_timeouts: list[float] = []
+        self.focus_lost_cutoffs: list[int] = []
 
     def wait_begin(self, timeout_s):
+        self.begin_timeouts.append(timeout_s)
         self.world.trace.append(("begin",))
         return Begin(1, self.scenario)
 
@@ -132,7 +137,8 @@ class FakeEvents:
 
     def focus_lost(self, scenario, since_ns):
         w = self.world
-        if w.focus_lost_at is not None and w.now >= w.focus_lost_at:
+        self.focus_lost_cutoffs.append(since_ns)
+        if w.focus_lost_at is not None and w.now >= w.focus_lost_at and w.focus_lost_at >= since_ns:
             return Mark(w.focus_lost_at, scenario, 0, "focus_lost", 0)
         return None
 
@@ -349,6 +355,17 @@ class TrialTests(G5TestCase):
         (record,) = self.drive(trials=1).records
         self.assertNotEqual(record.trial.status, EARLY)
 
+    def test_a_render_mark_exactly_at_the_uncertainty_before_the_key_is_not_early(self):
+        self.world.render_delay_ns = -2 * MS  # inject - uncertainty (1 ms floor + 1 ms half round trip): the boundary
+        (record,) = self.drive(trials=1).records
+        self.assertEqual(record.render_ns, record.inject_ns - record.uncertainty_ns)
+        self.assertNotEqual(record.trial.status, EARLY)
+
+    def test_a_render_mark_just_beyond_the_uncertainty_before_the_key_is_early(self):
+        self.world.render_delay_ns = -2 * MS - 1000
+        (record,) = self.drive(trials=1).records
+        self.assertEqual(record.trial.status, EARLY)
+
     def test_early_trials_do_not_stop_the_run_and_the_notice_is_printed_once(self):
         self.world.render_delay_ns = -20 * MS
         result = self.drive(trials=4)
@@ -373,10 +390,37 @@ class QuietGateTests(G5TestCase):
         self.assertGreaterEqual(record.inject_ns, armed_at + 500 * MS + g5.QUIET_MIN_NS)
 
     def test_the_gate_is_twice_the_p50_frame_when_that_is_longer(self):
-        self.world.busy_gaps_ns = [300 * MS] * 4  # p50 frame 300 ms: 600 ms of quiet
+        self.world.busy_gaps_ns = [150 * MS] * 4  # p50 frame 150 ms: 300 ms of quiet
         armed_at = self.world.now
         (record,) = self.drive(trials=1).records
-        self.assertGreaterEqual(record.inject_ns, armed_at + 1200 * MS + 600 * MS)
+        self.assertGreaterEqual(record.inject_ns, armed_at + 600 * MS + 300 * MS)
+
+    def quiet_needed(self) -> int:
+        return g5._quiet_ns(bd._live_logs(self.log_dir))[1]
+
+    def test_idle_gaps_do_not_feed_back_into_the_threshold_over_a_long_run(self):
+        # Two long idle gaps (more than half of all gaps) per short burst frame: the plain median would
+        # be the idle gap and the threshold would double it.
+        t = START
+        for _ in range(60):
+            for gap in (2000 * MS, 2000 * MS, 16 * MS):
+                t += gap
+                self.world.frame_at(t)
+            self.assertEqual(self.quiet_needed(), g5.QUIET_MIN_NS)
+
+    def test_a_p50_over_frame_period_gaps_ignores_longer_ones(self):
+        t = START
+        for gap in [150 * MS, 5000 * MS] * 20:
+            t += gap
+            self.world.frame_at(t)
+        self.assertEqual(self.quiet_needed(), 300 * MS)  # 2 x the 150 ms frame gaps only
+
+    def test_no_frame_period_gaps_fall_back_to_the_floor(self):
+        t = START
+        for _ in range(10):
+            t += 3000 * MS
+            self.world.frame_at(t)
+        self.assertEqual(self.quiet_needed(), g5.QUIET_MIN_NS)
 
     def test_an_already_quiet_window_is_not_delayed(self):
         (record,) = self.drive(trials=1).records
@@ -425,10 +469,30 @@ class WitnessTests(G5TestCase):
             self.drive()
         self.assertEqual(self.key_trace(), [])
 
+    def test_the_first_armed_budget_covers_the_four_prepare_waits(self):
+        self.assertGreaterEqual(g5.FIRST_ARMED_EXTRA_S, 4 * 10)  # toggle_optimization: three steps plus the checkbox
+
+    def test_begin_is_awaited_for_the_mark_timeout_plus_the_clock_sync_budget(self):
+        events = FakeEvents(self.world)
+        self.drive(trials=1, mark_timeout=7.0, events=events)
+        self.assertEqual(events.begin_timeouts, [7.0 + g5.CLOCK_SYNC_BUDGET_S])
+
+    def test_the_focus_lost_cutoff_is_the_clock_at_arming(self):
+        events = FakeEvents(self.world)
+        self.drive(trials=2, events=events)
+        self.assertIsNotNone(self.world.armed_at)
+        self.assertTrue(events.focus_lost_cutoffs)
+        self.assertEqual(set(events.focus_lost_cutoffs), {self.world.armed_at})
+
+    def test_a_blur_stamped_before_arming_is_not_a_lost_focus(self):
+        self.world.focus_lost_at = START - 1  # before the cutoff (the clock at arming)
+        result = self.drive(trials=2)
+        self.assertEqual(len(result.records), 2)
+
     def test_armed_never_sent_is_a_mark_timeout(self):
         self.world.no_armed_seq = 0
-        with self.assertRaisesRegex(CaptureError, "^MARK_TIMEOUT: search seq 0 armed not seen within 31 s"):
-            self.drive()  # the first arm waits mark_timeout + 30 s: BENCH_BEGIN precedes prepare()
+        with self.assertRaisesRegex(CaptureError, "^MARK_TIMEOUT: search seq 0 armed not seen within 41 s"):
+            self.drive()  # the first arm waits mark_timeout + 40 s: BENCH_BEGIN precedes prepare()
         self.assertEqual(self.key_trace(), [])
 
     def test_later_armed_waits_use_the_plain_mark_timeout(self):

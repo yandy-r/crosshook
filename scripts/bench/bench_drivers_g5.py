@@ -7,7 +7,8 @@ presented frame. Marks and the offset only select the frame: `latency_ms` is alw
 `presented_ns - inject_ns`.
 
 Keys go out only while the shim shows keyboard focus on the bench toplevel (the same witness
-G4 uses), after the toplevel has been quiet for `max(250 ms, 2 x p50 frame)` so a stale in-flight
+G4 uses), after the toplevel has been quiet for `max(250 ms, 2 x p50 frame)` (p50 over frame-period gaps of
+at most 100 ms, so idle time cannot inflate it) so a stale in-flight
 frame cannot be mistaken for the change. A `focus_lost` mark, a locked session or an app exit stop
 the run before the next key. The caller owns the InputDevice, the KWinScripts and the EventReader.
 """
@@ -61,13 +62,14 @@ MIN_FAST_CLOCK_PAIRS = 5             # pairs within CLOCK_FLOOR_NS of the best r
 CLOCK_SYNC_BUDGET_S = 35             # the app samples for up to 30 s while it is busy after READY
 QUIET_MIN_NS = 250_000_000
 QUIET_FRAME_FACTOR = 2
-QUIET_FRAMES = 30                    # recent frames the p50 frame interval is taken over
+QUIET_FRAMES = 30                    # recent presented frames the p50 frame interval is taken over
+QUIET_MAX_FRAME_GAP_NS = 200_000_000  # longer gaps are idle time or the runner's own waits (>= 250 ms), not a frame period
 QUIET_TIMEOUT_S = 10.0              # native floor; scaled to 2 x the mark timeout (Flatpak: 40 s)
 POLL_S = 0.02
 QUIET_POLL_S = 0.05
 MARK_SLICE_S = 0.25                  # a mark wait is sliced so a lost focus or dead app is noticed early
 MARK_TIMEOUT_S = 5.0
-FIRST_ARMED_EXTRA_S = 30.0           # BENCH_BEGIN precedes the probe's prepare(): up to 3 steps of 10 s
+FIRST_ARMED_EXTRA_S = 40.0           # BENCH_BEGIN precedes the probe's prepare(): up to 4 waits of 10 s
 FLATPAK_FACTOR = 4                   # the sandbox is slower to arm and present than the native app
 
 
@@ -146,7 +148,10 @@ def _quiet_ns(logs) -> tuple[int, int]:
         if not str(error).startswith("NO_TOPLEVEL_COMMITS"):
             raise
         times = []
-    gaps = [later - earlier for earlier, later in itertools.pairwise(times)]
+    # Only gaps at frame-period scale: idle gaps and the runner's own quiet waits would otherwise
+    # inflate the threshold trial after trial until the run hits NOT_QUIET.
+    gaps = [gap for gap in (later - earlier for earlier, later in itertools.pairwise(times))
+            if gap <= QUIET_MAX_FRAME_GAP_NS]
     frame_ns = statistics.median(gaps) if gaps else 0
     return last, max(QUIET_MIN_NS, math.ceil(QUIET_FRAME_FACTOR * frame_ns))
 

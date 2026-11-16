@@ -54,7 +54,6 @@ describe('runClockSync', () => {
   it('stops after the minimum when the app is quiet', async () => {
     const now = steppedClock(() => 0.5);
     await runClockSync(now);
-    expect(CLOCK_SYNC_SAMPLES).toBe(20);
     expect(callCommandMock).toHaveBeenCalledTimes(CLOCK_SYNC_FAST_PAIRS + 1);
   });
 
@@ -67,15 +66,16 @@ describe('runClockSync', () => {
   it('gives up after the time budget once the minimum is sent', async () => {
     const now = steppedClock(() => 110);
     await runClockSync(now);
-    const calls = callCommandMock.mock.calls.length;
-    expect(calls).toBeGreaterThanOrEqual(CLOCK_SYNC_SAMPLES);
-    expect(calls).toBeLessThanOrEqual(Math.ceil(CLOCK_SYNC_BUDGET_MS / 110) + 1);
+    // Call n ends at 110 * n ms after the start; the first n with 110 * n >= 30 000 is 273 (272 * 110 = 29 920).
+    expect(callCommandMock).toHaveBeenCalledTimes(Math.ceil(CLOCK_SYNC_BUDGET_MS / 110));
+    expect(callCommandMock).toHaveBeenCalledTimes(273);
+    expect(callCommandMock.mock.calls.length).toBeGreaterThanOrEqual(CLOCK_SYNC_SAMPLES);
   });
 
   it('never exceeds the sample cap', async () => {
-    const now = steppedClock(() => 3);
+    const now = steppedClock(() => 3); // slower than the fast gap, and 400 x 3 ms stays inside the time budget
     await runClockSync(now);
-    expect(callCommandMock.mock.calls.length).toBeLessThanOrEqual(CLOCK_SYNC_MAX_SAMPLES);
+    expect(callCommandMock).toHaveBeenCalledTimes(CLOCK_SYNC_MAX_SAMPLES);
   });
 
   it('propagates a failing sample', async () => {

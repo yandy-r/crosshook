@@ -111,6 +111,21 @@ describe('startBenchProbe', () => {
     expect(phases()).toEqual([]);
   });
 
+  it('calls bench_begin but sends no mark and does not throw when the scenario setup fails', async () => {
+    vi.useFakeTimers();
+    try {
+      // toggle_optimization needs the library card's details button; without it prepare() times out.
+      document.body.innerHTML = '<main></main>';
+      const probe = startBenchProbe('toggle_optimization', { signal: controller.signal });
+      await vi.advanceTimersByTimeAsync(11_000); // past the 10 s step timeout
+      await expect(probe).resolves.toBeUndefined();
+      expect(calls.some((c) => c.name === 'bench_begin')).toBe(true);
+      expect(marks()).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('does nothing for an unsupported scenario', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     await startBenchProbe('bogus', { signal: controller.signal });

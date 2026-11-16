@@ -219,6 +219,26 @@ fn cap_writes_up_to_cap_then_one_error_then_drops() {
 }
 
 #[test]
+fn reported_clock_ns_is_the_stamp_only_for_a_written_line() {
+    assert_eq!(reported_clock_ns(123, true), 123);
+    assert_eq!(reported_clock_ns(123, false), 0);
+}
+
+#[test]
+fn a_clock_sample_past_the_cap_reports_zero() {
+    let budget = Budget::new();
+    let mut out = Vec::new();
+    let reported: Vec<u64> = (1..=4)
+        .map(|ns| {
+            let written = emit(&mut out, &budget, 2, &format!("BENCH_CLOCK {ns} 0 0")).unwrap();
+            reported_clock_ns(ns, written)
+        })
+        .collect();
+    // Two written, then the cap-reached line and a drop: neither reports a stamp.
+    assert_eq!(reported, [1, 2, 0, 0]);
+}
+
+#[test]
 fn budget_admit_sequence() {
     let budget = Budget::new();
     assert_eq!(budget.admit(1), Admit::Write);
