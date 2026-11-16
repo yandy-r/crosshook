@@ -249,9 +249,9 @@ Known limitation: each Flatpak run leaves a `glycin-svg` loader subsandbox behin
   | `G8-replay_scroll-frames.csv` | `presented_ns`, `frame_ms`, `in_window`                                    | Every presented toplevel frame of every launch; `frame_ms` is the gap to the previous frame of the same launch (blank for the first); `in_window` is 1 or 0. |
 
 - **Aggregation**: with several iterations the intervals are pooled, `memory_growth_mb` is the median of the per-iteration growths, `peak_pss_mb` the maximum, `gpu_growth_mb` the median (blank unless every iteration has GPU growth), `gpu_source` the sources joined with `+`, and `follow` is `mixed` when the iterations disagree.
-- **Provenance**: `drive_stats.G8.replay_scroll` holds one entry per iteration: `session` (`run_id`, `pid`, `launch_ns`), `start_to_done_s`, `settle_s`, `notches`, `driven_s`, `follow`, `gpu_source`, `nvidia_smi_path` (the resolved path, or null when `nvidia-smi` was not needed or not found), `gpu_denied_max` (the most fdinfo reads skipped for permission in any one GPU sample of the iteration), `web_process_sampled` and `sampled_pids`. Each sampled process is recorded once, keyed on its pid and start time (a reused pid is a second entry), with its `comm` and, under Flatpak, its `nspid` (host pid first, innermost namespace last); `comm` and `cmdline` are read in at most 4,096 bytes. `web_process_sampled` says whether a `WebKitWebProcess` was in the sampled tree. The isolated `settings.toml` is deleted when the metric finishes, also after a failure.
+- **Provenance**: `drive_stats.G8.replay_scroll` holds one entry per iteration: `session` (`run_id`, `pid`, `launch_ns`), `start_to_done_s`, `settle_s`, `notches`, `driven_s`, `follow`, `gpu_source`, `nvidia_smi_path` (the resolved path, or null when `nvidia-smi` was not needed or not found), `gpu_denied_max` (the most fdinfo reads skipped for permission in any one GPU sample of the iteration), `web_process_sampled` and `sampled_pids`. Each sampled process is recorded once, keyed on its pid and start time (a reused pid is a second entry), with its `comm`, its `start_time` (field 22 of `/proc/<pid>/stat`, null when unreadable) and, under Flatpak, its `nspid` (host pid first, innermost namespace last); `comm` and `cmdline` are read in at most 4,096 bytes. `web_process_sampled` says whether a `WebKitWebProcess` was in the sampled tree. The isolated `settings.toml` is deleted when the metric finishes, also after a failure.
 
-Recipe (quit CrossHook first; the build must include the G8 scenario and probe). One iteration may give fewer than 30 intervals, because the app presents about 2–3 fps during the replay, so use at least `--iterations 2`. Native:
+Recipe (quit CrossHook first; the build must include the G8 scenario and probe). One iteration may give fewer than 30 intervals, because the app presents about 2–3 fps during the replay, so use at least 2 native or 4 Flatpak iterations. Native:
 
 ```sh
 scripts/bench/run.sh --variant B --env E1 --metric G8 --collect presentation --iterations 2 --refresh-hz 180.06 --binary <release binary> --fixtures <fixtures> --output <out>
@@ -260,10 +260,10 @@ scripts/bench/run.sh --variant B --env E1 --metric G8 --collect presentation --i
 Flatpak (install the rebuilt local Flatpak first, and run `flatpak kill dev.crosshook.CrossHook` between sessions):
 
 ```sh
-scripts/bench/run.sh --variant B --env E1 --metric G8 --collect presentation --iterations 2 --refresh-hz 180.06 --flatpak --branch master --fixtures <fixtures> --output <out>
+scripts/bench/run.sh --variant B --env E1 --metric G8 --collect presentation --iterations 4 --refresh-hz 180.06 --flatpak --branch master --fixtures <fixtures> --output <out>
 ```
 
-Validated on E1 (2026-11-16, variant B, 180.06 Hz) as baseline B evidence, not a gate. Both runs ended `captured`, 2 iterations each:
+Validated on E1 (2026-11-16, variant B, 180.06 Hz; runs from the working tree on top of commit b6ef5572, a pre-merge build of this PR, all runs exit 0) as baseline B evidence, not a gate. Both runs ended `captured`, 2 iterations each:
 
 | Run        | p50 ms | p95 ms | p99 ms | Frames | memory_growth_mb | peak PSS MB | gpu_growth_mb | gpu_source | follow | Status   |
 | ---------- | ------ | ------ | ------ | ------ | ---------------- | ----------- | ------------- | ---------- | ------ | -------- |
