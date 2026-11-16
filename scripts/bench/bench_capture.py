@@ -1,6 +1,7 @@
 """Linux benchmark captures. No synthetic measurement values."""
 from __future__ import annotations
 
+import contextlib
 import csv
 import os
 import signal
@@ -43,7 +44,39 @@ def over_interval_percent(values: list[float], refresh_hz: float) -> float:
     return 100 * sum(v > limit for v in values) / len(values)
 
 
+_UNWIND_SIGNALS = (signal.SIGTERM, signal.SIGHUP, signal.SIGINT)
+
+
+@contextlib.contextmanager
+def _signals_deferred():
+    """Hold SIGTERM, SIGHUP and SIGINT while an app is torn down, then deliver the first one.
+
+    A signal that arrives while a first one is already unwinding the run would otherwise raise
+    out of `stop()` and leave the app's process group alive. Handlers can only be installed from
+    the main thread; elsewhere there is nothing to defer.
+    """
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+    caught: list[int] = []
+    previous = {number: signal.signal(number, lambda signum, _frame: caught.append(signum))
+                for number in _UNWIND_SIGNALS}
+    try:
+        yield
+    finally:
+        for number, handler in previous.items():
+            signal.signal(number, handler if handler is not None else signal.SIG_DFL)
+        if caught:
+            signal.raise_signal(caught[0])  # the restored handler decides: abort, ignore or default
+
+
 def stop(proc: subprocess.Popen) -> None:
+    """Terminate the app's whole process group and reap it; a signal received meanwhile waits."""
+    with _signals_deferred():
+        _terminate(proc)
+
+
+def _terminate(proc: subprocess.Popen) -> None:
     # Child owns a new process group; never match or kill by application name.
     for sig in (signal.SIGTERM, signal.SIGKILL):
         try:

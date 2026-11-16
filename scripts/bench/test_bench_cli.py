@@ -24,6 +24,10 @@ PRESENT = [*BASE, "--collect", "presentation"]
 COLUMNS = "scenario,p50_ms,p95_ms,p99_ms,stddev_ms,over_interval_percent,frames,status"
 
 
+def unexpected_signal(signum, _frame):
+    raise AssertionError(f"{signal.Signals(signum).name} reached no handler the runner installed")
+
+
 def parse(argv):
     """(args, None) on success, (None, stderr) when argparse exits 2."""
     err = io.StringIO()
@@ -121,6 +125,10 @@ class ArgumentTests(unittest.TestCase):
 
 class PresentationRunTests(unittest.TestCase):
     def setUp(self):
+        # A signal these tests send must only ever reach a handler the runner installed; if one
+        # escapes, fail the test instead of killing the test process.
+        before = {n: signal.signal(n, unexpected_signal) for n in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT)}
+        self.addCleanup(lambda: [signal.signal(n, handler) for n, handler in before.items()])
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
@@ -261,6 +269,19 @@ class PresentationRunTests(unittest.TestCase):
                 (raw,) = (self.output / "raw").iterdir()
                 self.assertTrue((raw / "SHA256SUMS").is_file())
                 self.assertEqual(json.loads((raw / "provenance.json").read_text())["status"], "failed")
+
+    def test_a_mid_run_guard_refusal_is_recorded_in_meta_and_provenance(self):
+        message = "INSTANCE_RUNNING: quit CrossHook before driving input; ..."
+
+        def capture(*_a, **_k):
+            raise GuardError(message)
+        code, _ = self.run_bench("G4", capture=capture)
+        self.assertEqual(code, 10)
+        meta = json.loads((self.output / "A/E1/meta.json").read_text())
+        self.assertEqual((meta["status"], meta["error"]), ("failed", message))
+        (raw,) = (self.output / "raw").iterdir()
+        manifest = json.loads((raw / "provenance.json").read_text())
+        self.assertEqual((manifest["status"], manifest["error"]), ("failed", message))
 
     def test_g4_console_needs_fixtures_before_any_launch(self):
         for scenarios in (None, "console", "library,console"):

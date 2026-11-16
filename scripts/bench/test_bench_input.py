@@ -14,6 +14,7 @@ import bench_input as bi
 from bench_capture import CaptureError
 
 ALLOWED = {29, 37, 28, 31, 18, 20, 23, 49, 34}
+REAL_WRITE = bi._write  # the module's own write, before any test replaces the seam
 
 
 class FakeKernel:
@@ -176,6 +177,61 @@ class InputDeviceTests(unittest.TestCase):
             dev.type_text("settings", before_each=hook)
         self.assertEqual([(c, v) for t, c, v in self.kernel.events() if t == 1],
                          [(31, 1), (31, 0), (18, 1), (18, 0)])
+
+    def test_a_key_is_held_before_its_down_is_emitted(self):
+        dev = self.device()
+        held_at_write = []
+
+        def write(fd, data):
+            held_at_write.append(list(dev._held))
+            return len(data)
+        with unittest.mock.patch.object(bi, "_write", write):
+            dev._press(bi.KEY_K)
+        self.assertEqual(held_at_write, [[bi.KEY_K]])
+
+    def test_a_key_down_that_fails_to_write_is_still_released(self):
+        dev = self.device()
+        calls = []
+
+        def write(fd, data):
+            calls.append(struct.unpack("llHHi", data[:24])[2:])
+            if len(calls) == 1:
+                raise OSError(errno.EAGAIN, "would block")  # the down may have reached the kernel
+            return len(data)
+        with unittest.mock.patch.object(bi, "_write", write), self.assertRaises(OSError):
+            dev.chord(bi.KEY_LEFTCTRL, bi.KEY_K)
+        self.assertEqual(calls, [(1, bi.KEY_LEFTCTRL, 1), (1, bi.KEY_LEFTCTRL, 0)])
+        self.assertEqual(dev._held, [])
+
+    def test_a_short_write_is_an_error_and_the_key_is_released(self):
+        dev = self.device()
+        written = []
+
+        def short_then_full(fd, data):
+            written.append(len(data))
+            return len(data) // 2 if len(written) == 1 else len(data)
+        with unittest.mock.patch.object(bi, "_write", REAL_WRITE), \
+                unittest.mock.patch.object(bi.os, "write", short_then_full), \
+                self.assertRaisesRegex(CaptureError, "^INPUT_WRITE_SHORT"):
+            dev.key(bi.KEY_ENTER)
+        self.assertEqual(written, [48, 48])  # the down (cut short), then the release
+        self.assertEqual(dev._held, [])
+
+    def test_write_reports_only_complete_writes(self):
+        with unittest.mock.patch.object(bi.os, "write", lambda fd, data: len(data)):
+            self.assertEqual(REAL_WRITE(3, b"x" * 48), 48)
+        for count in (0, 24, 47):
+            with self.subTest(count=count), unittest.mock.patch.object(bi.os, "write", lambda fd, data, n=count: n), \
+                    self.assertRaisesRegex(CaptureError, f"^INPUT_WRITE_SHORT: wrote {count} of 48 bytes"):
+                REAL_WRITE(3, b"x" * 48)
+
+    def test_a_short_write_while_closing_still_destroys_the_device(self):
+        dev = self.device()
+        dev._press(bi.KEY_K)
+        with unittest.mock.patch.object(bi, "_write", side_effect=CaptureError("INPUT_WRITE_SHORT: x")):
+            dev.close()
+        self.assertIn(bi.UI_DEV_DESTROY, self.kernel.requests())
+        self.assertEqual(self.kernel.closed, [7])
 
     def test_disallowed_codes_raise_without_writing(self):
         dev = self.device()

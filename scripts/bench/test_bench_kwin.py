@@ -1,4 +1,5 @@
 """KWin control: gdbus argv, strict a{sv} parsing, window matching and script lifecycle; stdlib only."""
+import inspect
 import os
 import re
 import subprocess
@@ -25,9 +26,11 @@ INFO = ("({'pid': <109076>, 'x': <0.0>, 'y': <-12.5>, 'width': <357.142857142857
         "'layer': <uint32 2>},)")
 
 
-def info_text(pid: int, width: float = 800.0, height: float = 600.0) -> str:
+def info_text(pid: int, width: float = 800.0, height: float = 600.0, keep_above: bool | str | None = None) -> str:
+    above = "" if keep_above is None else "'keepAbove': <%s>, " % (
+        keep_above if isinstance(keep_above, str) else str(keep_above).lower())
     return ("({'pid': <%d>, 'x': <10.0>, 'y': <20.0>, 'width': <%s>, 'height': <%s>, "
-            "'minimized': <false>, 'caption': <'t'>},)" % (pid, width, height))
+            "'minimized': <false>, %s'caption': <'t'>},)" % (pid, width, height, above))
 
 
 def reply(stdout: str = "", returncode: int = 0, stderr: str = ""):
@@ -76,6 +79,19 @@ class ParseTest(unittest.TestCase):
                      "({'pid': <7>, 'caption': <'unterminated>},)"):
             with self.subTest(text=text), self.assertRaisesRegex(CaptureError, "^KWIN_PROTOCOL"):
                 parse_window_info(UUID_A, text)
+
+
+    def test_keep_above_is_read_as_a_strict_bool_when_present(self):
+        self.assertIsNone(parse_window_info(UUID_A, info_text(7)).keep_above)
+        self.assertIs(parse_window_info(UUID_A, info_text(7, keep_above=True)).keep_above, True)
+        self.assertIs(parse_window_info(UUID_A, info_text(7, keep_above=False)).keep_above, False)
+        for bad in ("1", "'true'", "uint32 1", "True"):
+            with self.subTest(bad=bad), self.assertRaisesRegex(CaptureError, "^KWIN_PROTOCOL: .*keepAbove"):
+                parse_window_info(UUID_A, info_text(7, keep_above=bad))
+
+    def test_real_sample_with_keep_above_among_other_keys(self):
+        text = INFO.replace("'layer': <uint32 2>", "'keepAbove': <true>, 'layer': <uint32 2>")
+        self.assertIs(parse_window_info(UUID_A, text).keep_above, True)
 
 
 class RequireKWinTest(unittest.TestCase):
@@ -186,7 +202,8 @@ class ScriptsTest(unittest.TestCase):
                         "org.kde.kwin.Scripting.loadScript": reply(load),
                         "org.kde.kwin.Script.run": run or reply(),
                         "org.kde.kwin.Scripting.unloadScript": reply("(true,)"),
-                        "org.kde.KWin.getWindowInfo": reply(info or info_text(7))})
+                        "org.kde.KWin.getWindowInfo": ([reply(text) for text in info] if isinstance(info, list)
+                                                       else reply(info or info_text(7)))})
         self.scripts: list[str] = []  # script text as KWin would read it at loadScript time
 
         def recording(argv, timeout):
@@ -268,6 +285,29 @@ class ScriptsTest(unittest.TestCase):
             KWinScripts(self.tools, "abc").run("1;")
         self.assertEqual(fake.calls, [])
 
+    def test_a_script_write_that_fails_midway_leaves_no_file_and_loads_nothing(self):
+        fake = self.bus()
+
+        def half_written(path, data):
+            path.write_text(data[:1])  # the file exists, then the disk fills up
+            raise OSError(28, "No space left on device")
+        with patch.object(bench_kwin, "write_private", half_written), \
+                self.assertRaisesRegex(CaptureError, "^KWIN_SCRIPT_WRITE_FAILED: crosshook-bench-abc-1.js: "):
+            KWinScripts(self.tools, "abc").run("1;")
+        self.assertEqual(list(self.tools.iterdir()), [])
+        self.assertEqual(fake.calls, [])
+
+    def test_a_failing_unlink_never_masks_the_original_error(self):
+        self.bus(run=reply(returncode=1, stderr="boom"))
+        with patch.object(Path, "unlink", side_effect=PermissionError(13, "denied")), \
+                self.assertRaisesRegex(CaptureError, "^KWIN_CALL_FAILED: org.kde.kwin.Script.run: boom"):
+            KWinScripts(self.tools, "abc").run("1;")
+
+    def test_a_failing_unlink_after_success_is_not_an_error(self):
+        self.bus()
+        with patch.object(Path, "unlink", side_effect=PermissionError(13, "denied")):
+            KWinScripts(self.tools, "abc").run("1;")
+
     def test_non_int_load_reply_is_a_protocol_error_and_unloads(self):
         for number, load in enumerate(("(true,)", "('7',)", "()", "(7, 8)")):
             fake = self.bus(load=load)
@@ -345,6 +385,52 @@ class ScriptsTest(unittest.TestCase):
         unverified, verified = self.scripts
         self.assertEqual(unverified, verified)
 
+    def test_the_pid_filter_is_shared_by_every_window_script(self):
+        self.bus(info=[info_text(7, 640, 480, True)] * 3)
+        scripts = KWinScripts(self.tools, "abc")
+        scripts.place(self.win(), 640, 480, 12, 34)
+        scripts.resize_unverified(self.win(), 640, 480)
+        scripts.arm_under_cursor(self.win())
+        preambles = {"\n".join(js.splitlines()[:3]) for js in self.scripts}
+        self.assertEqual(len(self.scripts), 3)
+        self.assertEqual(preambles, {"const t = workspace.windowList().filter(w => w.pid === 7);\n"
+                                     "if (t.length === 1) {\n  const w = t[0];"})
+        self.assertEqual(inspect.getsource(bench_kwin).count("w.pid ==="), 1)
+
+    def test_arm_script_text_sets_keep_above_only_for_the_active_unminimized_window_under_the_cursor(self):
+        self.bus(info=info_text(7, keep_above=True))
+        KWinScripts(self.tools, "abc").arm_under_cursor(self.win())
+        (js,) = self.scripts
+        for needle in ("w.pid === 7", "workspace.activeWindow === w", "!w.minimized", "workspace.cursorPos",
+                       "w.frameGeometry", "w.keepAbove = true;", "w.keepAbove = false;"):
+            self.assertIn(needle, js)
+        self.assertLess(js.index("w.keepAbove = true"), js.index("w.keepAbove = false"))
+        self.assertIsNone(re.search(r"[0-9.]+\.[0-9]|\{[0-9]|NaN|undefined|None", js))
+        with self.assertRaises(TypeError):
+            KWinScripts(self.tools, "abd").arm_under_cursor(
+                WindowInfo(UUID_A, 7.0, 0, 0, 1, 1, False))  # type: ignore[arg-type]
+
+    def test_arm_returns_the_window_once_keep_above_reads_true(self):
+        fake = self.bus(info=[info_text(7, keep_above=False), info_text(7, keep_above=False),
+                              info_text(7, keep_above=True)])
+        info = KWinScripts(self.tools, "abc").arm_under_cursor(self.win())
+        self.assertTrue(info.keep_above)
+        self.assertEqual(self.clock.now, 2 * bench_kwin.POLL_S)
+        self.assertEqual(fake.methods().count("org.kde.KWin.getWindowInfo"), 3)
+
+    def test_arm_that_never_reads_true_raises_pointer_not_over_window_after_one_second(self):
+        self.bus(info=info_text(7, keep_above=False))
+        with self.assertRaisesRegex(
+                CaptureError, "^POINTER_NOT_OVER_WINDOW: the bench window is not active under the cursor$"):
+            KWinScripts(self.tools, "abc").arm_under_cursor(self.win())
+        self.assertGreaterEqual(self.clock.now, bench_kwin.ARM_TIMEOUT_S)
+        self.assertEqual(bench_kwin.ARM_TIMEOUT_S, 1.0)
+
+    def test_arm_needs_the_keep_above_key_in_the_reply(self):
+        self.bus(info=info_text(7))
+        with self.assertRaisesRegex(CaptureError, "^KWIN_PROTOCOL: getWindowInfo reply lacks keepAbove"):
+            KWinScripts(self.tools, "abc").arm_under_cursor(self.win())
+
     def test_geometry_within_tolerance_is_applied(self):
         self.bus(info=info_text(7, 641.4, 478.6))
         self.assertEqual(round(KWinScripts(self.tools, "abc").resize_to(self.win(), 640, 480).width), 641)
@@ -356,17 +442,19 @@ class ScriptsTest(unittest.TestCase):
         self.assertGreaterEqual(self.clock.now, bench_kwin.GEOMETRY_TIMEOUT_S)
 
 
-def kwin_live() -> bool:
-    if not os.environ.get("WAYLAND_DISPLAY"):
-        return False
-    try:
-        return bench_session.name_has_owner(bench_kwin.DEST) is True
-    except (OSError, subprocess.SubprocessError):
-        return False
-
-
-@unittest.skipUnless(kwin_live(), "needs a live KWin session and WAYLAND_DISPLAY")
+@unittest.skipUnless(os.environ.get("CROSSHOOK_BENCH_HW_TESTS") == "1",
+                     "needs a live KWin session and CROSSHOOK_BENCH_HW_TESTS=1")
 class LiveKWinTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # Probed here, not at import: collecting the tests must never spawn gdbus.
+        try:
+            live = bool(os.environ.get("WAYLAND_DISPLAY")) and bench_session.name_has_owner(bench_kwin.DEST) is True
+        except (OSError, subprocess.SubprocessError):
+            live = False
+        if not live:
+            raise unittest.SkipTest("needs a live KWin session and WAYLAND_DISPLAY")
+
     def test_require_and_no_window_for_test_process(self):
         require_kwin()
         with self.assertRaisesRegex(CaptureError, "^WINDOW_NOT_FOUND"):

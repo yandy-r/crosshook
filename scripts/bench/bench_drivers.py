@@ -7,6 +7,8 @@ CLOCK_MONOTONIC ns, the same clock as the shim and `InputDevice.wheel`.
 
 Witnesses run before every input event: the app exit check, and keyboard or pointer focus read
 from the shim log by `FocusTail`, which parses only what the shim appended since the last read.
+The pointer witness is only trusted while the log keeps growing (LOG_STALL_S), and the priming
+notch is sent only after KWin confirms the window is active under the cursor (`arm_under_cursor`).
 `session_locked()` spawns processes, so it runs at most every LOCK_CHECK_S of wall time.
 """
 from __future__ import annotations
@@ -16,25 +18,14 @@ import stat
 import sys
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 import bench_guard
 from bench_capture import CaptureError, process_tree
 from bench_input import KEY_ENTER, KEY_K, KEY_LEFTCTRL, InputDevice
 from bench_kwin import KWinScripts, find_window, input_device_sysnames
-from bench_present import (
-    FIELD_COUNTS,
-    FOCUS_DEVICES,
-    FOCUS_EVENTS,
-    LOG_GLOB,
-    MAX_LOG_BYTES,
-    Focus,
-    PresentLog,
-    distinct_sizes,
-    parse_log,
-    toplevel_frames,
-)
+from bench_present import LOG_GLOB, FocusTail, PresentLog, distinct_sizes, parse_log, toplevel_frames
 from bench_provenance import write_private
 from bench_session import locked_error, session_locked
 
@@ -50,6 +41,7 @@ NOTCH_S = 0.033
 TAIL_NS = 300_000_000
 FOCUS_TIMEOUT_S = 1.0
 FOCUS_POLL_S = 0.05
+LOG_STALL_S = 2.0            # a scrolling app commits far more often than this
 LOCK_CHECK_S = 0.3
 DEVICE_SETTLE_S = 1.5
 DEVICE_POLL_S = 0.1
@@ -91,6 +83,34 @@ def _settings_path(env: dict[str, str], flatpak: bool) -> Path:
     return config / "settings.toml"
 
 
+def _bench_root(env: dict[str, str]) -> Path:
+    """The `crosshook-bench-*` directory that holds CROSSHOOK_BENCH_ROOT (the native root or, for
+    Flatpak, the sandbox dir inside it): the only tree this module may delete from."""
+    try:
+        target = Path(env["CROSSHOOK_BENCH_ROOT"])
+    except KeyError as error:
+        raise CaptureError("BENCH_ENV_INCOMPLETE: CROSSHOOK_BENCH_ROOT is not set") from error
+    for candidate in (target, *target.parents):
+        if candidate.name.startswith("crosshook-bench-"):
+            return candidate.resolve()
+    raise CaptureError("SETTINGS_UNSAFE: CROSSHOOK_BENCH_ROOT is not inside a crosshook-bench-* directory")
+
+
+def _contained_settings_path(env: dict[str, str], flatpak: bool) -> Path:
+    """The scenario settings path, refused unless its real location is inside the bench root.
+
+    The directory is resolved, not the file, so a symlinked `config` or `crosshook` directory
+    that leaves the root is caught here and a symlinked file is left to `_remove_settings`.
+    """
+    path = _settings_path(env, flatpak)
+    root = _bench_root(env)
+    resolved = path.parent.resolve() / path.name
+    if not resolved.is_relative_to(root):
+        raise CaptureError(f"SETTINGS_UNSAFE: {path.name} resolves outside the bench root; "
+                           "refusing to touch it")
+    return resolved
+
+
 def _remove_settings(path: Path) -> None:
     """Delete a previous scenario's settings file; refuse anything that is not a regular file."""
     try:
@@ -102,6 +122,11 @@ def _remove_settings(path: Path) -> None:
     path.unlink()
 
 
+def remove_scenario_settings(env: dict[str, str], flatpak: bool) -> None:
+    """Delete the isolated root's `settings.toml` (a console run's), inside the bench root only."""
+    _remove_settings(_contained_settings_path(env, flatpak))
+
+
 def prepare_scenario(scenario: str, env: dict[str, str], flatpak: bool) -> dict[str, str]:
     """Return `env` adjusted for `scenario`.
 
@@ -111,16 +136,13 @@ def prepare_scenario(scenario: str, env: dict[str, str], flatpak: bool) -> dict[
     if scenario not in SCENARIOS:
         raise CaptureError(f"UNKNOWN_SCENARIO: {scenario[:40]!r}")
     updated = {key: value for key, value in env.items() if key not in LOG_ENV}
-    path = _settings_path(env, flatpak)
+    path = _contained_settings_path(env, flatpak)
     _remove_settings(path)  # a console iteration's file must not leak into the next scenario
     if scenario != "console":
         return updated
-    root = env.get("CROSSHOOK_BENCH_ROOT")
-    if root is None:
-        raise CaptureError("BENCH_ENV_INCOMPLETE: CROSSHOOK_BENCH_ROOT is not set")
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     write_private(path, CONSOLE_SETTINGS)
-    updated["CROSSHOOK_BENCH_LOG"] = str(Path(root) / "logs/launch-50k.log")
+    updated["CROSSHOOK_BENCH_LOG"] = str(Path(env["CROSSHOOK_BENCH_ROOT"]) / "logs/launch-50k.log")
     updated["CROSSHOOK_BENCH_LOG_RATE"] = CONSOLE_LOG_RATE
     return updated
 
@@ -138,73 +160,6 @@ def settle_device(dev: InputDevice, clock: Callable[[], int] = time.monotonic_ns
 
 def _live_logs(log_dir: Path) -> list[PresentLog]:
     return [parse_log(path) for path in sorted(Path(log_dir).glob(LOG_GLOB))]
-
-
-@dataclass
-class _Cursor:
-    offset: int = 0
-    lines: int = 0
-    roles: dict[int, str] = field(default_factory=dict)
-
-
-class FocusTail:
-    """Keyboard and pointer focus from the shim logs, reading only what was appended since the last call.
-
-    Parses just the `S` role and `K`/`M` focus records, with the same strictness and the same
-    "toplevel at event time" rule as `parse_log`; the full parse happens once the app has stopped.
-    """
-
-    def __init__(self, log_dir: Path):
-        self._dir = Path(log_dir)
-        self._cursors: dict[str, _Cursor] = {}
-        self._latest: dict[str, Focus] = {}
-
-    def focused(self, device: str) -> bool:
-        """True when the latest `device` focus event, across every log, is an enter on a toplevel."""
-        for path in sorted(self._dir.glob(LOG_GLOB)):
-            self._read_new(path, self._cursors.setdefault(path.name, _Cursor()))
-        event = self._latest.get(device)
-        return event is not None and event.entered and event.toplevel
-
-    def _read_new(self, path: Path, cursor: _Cursor) -> None:
-        try:
-            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
-        except OSError as error:
-            raise CaptureError(f"PRESENT_LOG_UNREADABLE: {path.name}: {error.strerror}") from error
-        try:
-            size = os.fstat(fd).st_size
-            if size > MAX_LOG_BYTES:
-                raise CaptureError(f"PRESENT_LOG_TOO_LARGE: {path.name}")
-            data = os.pread(fd, size - cursor.offset, cursor.offset) if size > cursor.offset else b""
-        except OSError as error:
-            raise CaptureError(f"PRESENT_LOG_UNREADABLE: {path.name}: {error.strerror}") from error
-        finally:
-            os.close(fd)
-        end = data.rfind(b"\n") + 1  # a trailing partial record waits for the next read
-        cursor.offset += end
-        for line in data[:end].decode("utf-8", errors="replace").splitlines():
-            cursor.lines += 1
-            self._apply(path.name, cursor, line)
-
-    def _apply(self, name: str, cursor: _Cursor, line: str) -> None:
-        fields = line.split("\t")
-        kind = fields[0]
-        if kind not in ("S", *FOCUS_DEVICES):
-            return
-        try:
-            if len(fields) != FIELD_COUNTS[kind]:
-                raise ValueError(kind)
-            if kind == "S":
-                cursor.roles[int(fields[2])] = fields[3]
-                return
-            surface_id = int(fields[3])
-            event = Focus(int(fields[1]), FOCUS_DEVICES[kind], FOCUS_EVENTS[fields[2]], surface_id,
-                          cursor.roles.get(surface_id) == "toplevel")
-        except (ValueError, KeyError) as error:
-            raise CaptureError(f"PRESENT_LOG_MALFORMED: {name}:{cursor.lines}") from error
-        previous = self._latest.get(event.device)
-        if previous is None or event.ns >= previous.ns:
-            self._latest[event.device] = event
 
 
 class _LockGate:
@@ -247,6 +202,33 @@ def _wait_focus(tail: FocusTail, device: str, clock, sleep, error: Callable[[], 
         sleep(FOCUS_POLL_S)
 
 
+class _GrowthWatch:
+    """The pointer witness is only trusted while the shim log grows: a scroll commits frames, so a
+    log silent for LOG_STALL_S means the shim stopped recording and the witness went blind.
+
+    Only the timed scroll is watched; the idle waits before it legitimately produce no commits.
+    """
+
+    def __init__(self, tail: FocusTail, clock: Callable[[], int]):
+        self._tail, self._clock = tail, clock
+        self._size, self._since = tail.size, clock()
+
+    def check(self) -> None:
+        """Call right after a `tail.focused()` read, which is what refreshes `tail.size`."""
+        size, now = self._tail.size, self._clock()
+        if size != self._size:
+            self._size, self._since = size, now
+        elif now - self._since > int(LOG_STALL_S * 1e9):
+            raise CaptureError("FOCUS_LOST: presentation log stopped growing")
+
+
+def _finish(end_ns: int, clock: Callable[[], int], sleep: Callable[[float], None]) -> None:
+    """Sleep out the tail so its frames reach the log before the app is stopped."""
+    remaining = end_ns - clock()
+    if remaining > 0:
+        sleep(remaining / 1e9)
+
+
 def _window(proc, kwin: KWinScripts, dx: int, dy: int):
     win = find_window(process_tree(proc.pid) | {proc.pid})
     return kwin.place(win, WINDOW_W, WINDOW_H, dx, dy)
@@ -283,11 +265,18 @@ def _pace(clock, sleep, due_ns: int, period_ns: int) -> int:
 
 
 def _last_frame_ns(log_dir: Path) -> int:
+    """Presentation time of the newest toplevel frame, or 0 before the app has presented one.
+
+    Only "no toplevel frame yet" is expected while the app starts; a malformed, oversized or
+    unreadable log is evidence trouble and propagates.
+    """
     try:
         frames = toplevel_frames(_live_logs(log_dir))
-    except CaptureError:  # no toplevel commit yet
-        return 0
-    return frames[-1].presented_ns if frames else 0
+    except CaptureError as error:
+        if str(error).startswith("NO_TOPLEVEL_COMMITS"):
+            return 0
+        raise
+    return frames[-1].presented_ns
 
 
 def _wait_idle(proc, log_dir: Path, clock, sleep) -> None:
@@ -314,7 +303,7 @@ def drive_g4(proc, scenario: str, log_dir: Path, kwin: KWinScripts, dev: InputDe
     if scenario not in SCENARIOS:
         raise CaptureError(f"UNKNOWN_SCENARIO: {scenario[:40]!r}")
     _notice()
-    _window(proc, kwin, *CURSOR_OFFSET[scenario])
+    win = _window(proc, kwin, *CURSOR_OFFSET[scenario])
     tail, gate = FocusTail(log_dir), _LockGate(clock)
     if scenario == "settings":
         _wait_focus(tail, "keyboard", clock, sleep, lambda: _lost("keyboard", "after placing it"))
@@ -322,13 +311,17 @@ def drive_g4(proc, scenario: str, log_dir: Path, kwin: KWinScripts, dev: InputDe
     if scenario == "console":
         _wait_idle(proc, log_dir, clock, sleep)
     # KWin sends no pointer enter when it moves a window under a still cursor, so one untimed
-    # notch (up: a no-op at the top of the page) makes the compositor deliver it.
+    # notch (up: a no-op at the top of the page) makes the compositor deliver it. The notch goes
+    # to whatever is under the cursor, so KWin must first confirm the bench window is active and
+    # under it (arming also keeps other windows from covering it for the run).
     _require_running(proc, "before the priming notch")
     _require_unlocked("before the priming notch")
+    kwin.arm_under_cursor(win)
     dev.wheel(1)
     _wait_focus(tail, "pointer", clock, sleep, lambda: CaptureError(
         "POINTER_NOT_OVER_WINDOW: no pointer enter on the app window after placing it"))
     period_ns = int(NOTCH_S * 1e9)
+    growth = _GrowthWatch(tail, clock)
     due_ns = clock()
     start_ns = last_ns = 0
     for direction in _scroll_pattern():
@@ -337,12 +330,11 @@ def drive_g4(proc, scenario: str, log_dir: Path, kwin: KWinScripts, dev: InputDe
         gate.check("during the scroll")
         if not tail.focused("pointer"):
             raise _lost("pointer", "during the scroll")
+        growth.check()
         last_ns = dev.wheel(direction)
         start_ns = start_ns or last_ns
     end_ns = last_ns + TAIL_NS
-    remaining = end_ns - clock()
-    if remaining > 0:
-        sleep(remaining / 1e9)  # let the tail's frames reach the log before the app is stopped
+    _finish(end_ns, clock, sleep)
     return DriveResult(start_ns, end_ns, 2 * SCROLL_NOTCHES, last_ns - start_ns)
 
 
@@ -374,9 +366,7 @@ def drive_g9(proc, log_dir: Path, kwin: KWinScripts,
         steps += 1
         last_ns = clock()
     end_ns = last_ns + TAIL_NS
-    remaining = end_ns - clock()
-    if remaining > 0:
-        sleep(remaining / 1e9)
+    _finish(end_ns, clock, sleep)
     seen = distinct_sizes(_live_logs(log_dir), start_ns, end_ns)
     if seen < MIN_DISTINCT_SIZES:
         raise CaptureError(f"RESIZE_NOT_OBSERVED: the shim saw {seen} distinct toplevel sizes, "

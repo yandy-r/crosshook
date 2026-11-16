@@ -254,6 +254,8 @@ def _run(args, outcome: dict[str, bool]) -> int:
         return 0
     except GuardError as error:
         print(f"BENCH_REFUSE: {error}", file=sys.stderr)
+        meta["status"] = "failed"
+        meta["error"] = provenance["error"] = str(error)
         return 10
     except (BenchAborted, KeyboardInterrupt) as interrupt:
         name = interrupt.signal_name if isinstance(interrupt, BenchAborted) else "SIGINT"

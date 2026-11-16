@@ -8,7 +8,14 @@ from collections.abc import Callable
 from pathlib import Path
 
 from bench_capture import CaptureError, over_interval_percent, ready, stats, stop
-from bench_drivers import DriveResult, drive_g4, drive_g9, prepare_scenario, settle_device
+from bench_drivers import (
+    DriveResult,
+    drive_g4,
+    drive_g9,
+    prepare_scenario,
+    remove_scenario_settings,
+    settle_device,
+)
 from bench_guard import require_no_instance
 from bench_input import InputDevice
 from bench_kwin import KWinScripts, require_kwin
@@ -147,6 +154,15 @@ def driven_rows(args, metric: str, command_for: Callable[[dict[str, str]], list[
     what each iteration achieved, for provenance (the CSV schema has no column for it).
     """
     require_kwin()
+    try:
+        remove_scenario_settings(env, args.flatpak)  # an earlier metric's console file must not reach this one
+        return _scenario_rows(args, metric, command_for, env, evidence)
+    finally:
+        remove_scenario_settings(env, args.flatpak)  # the console scenario's file never outlives its metric
+
+
+def _scenario_rows(args, metric: str, command_for: Callable[[dict[str, str]], list[str]],
+                   env: dict[str, str], evidence: dict | None) -> list[dict]:
     rows = []
     # Only G4 injects uinput input; G9 resizes through KWin and never opens a device.
     with (InputDevice() if metric == "G4" else contextlib.nullcontext()) as dev:  # closed on every exit path

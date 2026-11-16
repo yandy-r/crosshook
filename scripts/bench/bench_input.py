@@ -47,7 +47,10 @@ def _ioctl(fd: int, request: int, arg):
 
 
 def _write(fd: int, data: bytes) -> int:
-    return os.write(fd, data)
+    written = os.write(fd, data)
+    if written != len(data):  # a cut-off key down or its SYN would leave the key stuck or the event unseen
+        raise CaptureError(f"INPUT_WRITE_SHORT: wrote {written} of {len(data)} bytes to the input device")
+    return written
 
 
 def _close(fd: int) -> None:
@@ -150,8 +153,8 @@ class InputDevice:
         return stamp_ns
 
     def _press(self, code: int) -> None:
+        self._held.append(code)  # before the write: a down that fails midway must still be released
         self._emit(_event(EV_KEY, code, 1) + _syn())
-        self._held.append(code)
 
     def _release(self, code: int) -> None:
         self._emit(_event(EV_KEY, code, 0) + _syn())
@@ -204,7 +207,7 @@ class InputDevice:
                 for code in reversed(self._held):
                     try:
                         _write(fd, _event(EV_KEY, code, 0) + _syn())
-                    except OSError:
+                    except (OSError, CaptureError):
                         break
                 self._held.clear()
                 try:

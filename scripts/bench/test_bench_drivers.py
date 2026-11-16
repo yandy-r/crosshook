@@ -1,7 +1,5 @@
 """G4/G9 driver checks with a fake device, KWin, clock and shim log; stdlib only."""
 import io
-import os
-import stat
 import sys
 import tempfile
 import unittest
@@ -14,7 +12,7 @@ import bench_drivers as bd
 import bench_input as bi
 from bench_capture import CaptureError
 from bench_kwin import WindowInfo
-from bench_present import Focus, Geometry, PresentLog
+from bench_present import Geometry, PresentLog
 
 WIN = WindowInfo("{u}", 4242, 0.0, 0.0, 1280.0, 900.0, False)
 
@@ -24,7 +22,6 @@ class World:
 
     def __init__(self):
         self.now = 1_000_000_000
-        self.focus: list[Focus] = []
         self.geometry: list[Geometry] = []
         self.sleeps: list[float] = []
         self.events: list[tuple] = []
@@ -37,6 +34,8 @@ class World:
         self.lock_calls: list[int] = []
         self.log_path: Path | None = None
         self.wheels = 0
+        self.grow_every = 1                      # the shim logs a commit every Nth notch
+        self.log_stops_after: int | None = None  # no commit is logged after this many notches
 
     def clock(self) -> int:
         return self.now
@@ -45,15 +44,22 @@ class World:
         self.sleeps.append(seconds)
         self.now += int(seconds * 1e9)
 
+    def append_log(self, text: str) -> None:
+        with self.log_path.open("a") as stream:
+            stream.write(text)
+
     def set_focus(self, device: str, entered: bool) -> None:
-        self.focus.append(Focus(self.now, device, entered, 1, True))
-        if self.log_path is not None:  # the drivers read focus from the shim log on disk
-            with self.log_path.open("a") as stream:
-                stream.write(f"{'K' if device == 'keyboard' else 'M'}\t{self.now}\t"
-                             f"{'enter' if entered else 'leave'}\t1\n")
+        self.append_log(f"{'K' if device == 'keyboard' else 'M'}\t{self.now}\t"
+                        f"{'enter' if entered else 'leave'}\t1\n")
+
+    def commit_for_notch(self) -> None:
+        """What a scrolling app does: present a frame, which the shim logs."""
+        if (self.log_stops_after is None or self.wheels <= self.log_stops_after) \
+                and self.wheels % self.grow_every == 0:
+            self.append_log(f"C\t{self.now}\t1\t{self.wheels}\t1\n")
 
     def log(self) -> PresentLog:
-        return PresentLog({}, {}, {}, {}, set(), [], list(self.focus), list(self.geometry))
+        return PresentLog({}, {}, {}, {}, set(), [], geometry=list(self.geometry))
 
 
 class FakeProc:
@@ -82,6 +88,7 @@ class FakeDev:
             w.set_focus("pointer", True)
         if w.pointer_leaves_at == w.wheels:
             w.set_focus("pointer", False)
+        w.commit_for_notch()
         return stamp
 
     def _record(self, name, *args):
@@ -105,6 +112,8 @@ class FakeDev:
 class FakeKwin:
     def __init__(self, world, show_resizes=True):
         self.world, self.show_resizes, self.placed, self.resizes = world, show_resizes, [], []
+        self.armed: list[tuple] = []  # (window, notches sent, input events sent) per arm_under_cursor call
+        self.arm_error: CaptureError | None = None
 
     step_cost_s = 0.0
 
@@ -112,6 +121,12 @@ class FakeKwin:
         self.placed.append((width, height, dx, dy))
         if self.world.keyboard_enter:
             self.world.set_focus("keyboard", True)
+        return win
+
+    def arm_under_cursor(self, win):
+        self.armed.append((win, self.world.wheels, len(self.world.events)))
+        if self.arm_error is not None:
+            raise self.arm_error
         return win
 
     def resize_unverified(self, win, width, height):
@@ -419,148 +434,6 @@ class NoticeTests(DriverTestCase):
             self.g9()
         self.assertEqual(stream.getvalue().count(bd.NOTICE), 1)
         self.assertTrue(stream.getvalue().startswith("BENCH_NOTICE: injecting input"))
-
-
-class FocusTailTests(unittest.TestCase):
-    def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp.cleanup)
-        self.dir = Path(self.temp.name)
-        self.path = self.dir / "wlpresent-1.log"
-        self.tail = bd.FocusTail(self.dir)
-
-    def append(self, text, path=None):
-        with (path or self.path).open("a") as stream:
-            stream.write(text)
-
-    def test_tracks_the_latest_enter_or_leave_on_a_toplevel(self):
-        self.append("H\tclock_id=1\nS\t1\t7\ttoplevel\n")
-        self.assertFalse(self.tail.focused("keyboard"))
-        self.append("K\t10\tenter\t7\nM\t11\tenter\t7\n")
-        self.assertTrue(self.tail.focused("keyboard"))
-        self.assertTrue(self.tail.focused("pointer"))
-        self.append("M\t12\tleave\t7\n")
-        self.assertTrue(self.tail.focused("keyboard"))
-        self.assertFalse(self.tail.focused("pointer"))
-
-    def test_a_non_toplevel_or_destroyed_surface_is_not_focus(self):
-        self.append("S\t1\t7\ttoplevel\nK\t10\tenter\t8\n")  # surface 8 has no role
-        self.assertFalse(self.tail.focused("keyboard"))
-        self.append("S\t2\t7\tdestroyed\nK\t11\tenter\t7\n")
-        self.assertFalse(self.tail.focused("keyboard"))
-
-    def test_reads_only_new_complete_lines(self):
-        reads = []
-        original = os.pread
-        self.append("S\t1\t7\ttoplevel\nK\t10\tenter\t7\nC\t5\t7\t1\t1\nP\t6\t1\t6\t8\t1\t0\n")
-        size = self.path.stat().st_size
-        with patch.object(bd.os, "pread", lambda fd, n, offset: reads.append((n, offset)) or original(fd, n, offset)):
-            self.assertTrue(self.tail.focused("keyboard"))
-            self.assertTrue(self.tail.focused("keyboard"))  # nothing new: no read
-            self.append("K\t11\tleave\t7\nK\t12\tent")  # the last record is incomplete
-            self.assertFalse(self.tail.focused("keyboard"))
-            self.append("er\t7\n")
-            self.assertTrue(self.tail.focused("keyboard"))
-        self.assertEqual(reads[0], (size, 0))
-        self.assertEqual(len(reads), 3)
-        self.assertEqual(reads[1][1], size)  # the second read starts where the first stopped
-        self.assertEqual(reads[2][1], size + len("K\t11\tleave\t7\n"))  # only the partial record is read again
-
-    def test_latest_event_across_logs_wins_and_new_logs_are_picked_up(self):
-        self.append("S\t1\t7\ttoplevel\nK\t10\tenter\t7\n")
-        self.assertTrue(self.tail.focused("keyboard"))
-        other = self.dir / "wlpresent-2.log"
-        self.append("S\t1\t3\ttoplevel\nK\t20\tleave\t3\n", other)
-        self.assertFalse(self.tail.focused("keyboard"))
-        self.append("K\t30\tenter\t7\n")
-        self.assertTrue(self.tail.focused("keyboard"))
-
-    def test_malformed_records_and_symlinks_fail_like_the_parser(self):
-        self.append("S\t1\t7\ttoplevel\nK\t10\tenter\n")
-        with self.assertRaisesRegex(CaptureError, r"^PRESENT_LOG_MALFORMED: wlpresent-1.log:2"):
-            self.tail.focused("keyboard")
-        link = self.dir / "wlpresent-9.log"
-        link.symlink_to(self.path)
-        fresh = bd.FocusTail(self.dir)
-        self.path.write_text("S\t1\t7\ttoplevel\n")
-        with self.assertRaisesRegex(CaptureError, "^PRESENT_LOG_UNREADABLE: wlpresent-9.log"):
-            fresh.focused("keyboard")
-
-    def test_oversized_log_is_refused(self):
-        self.append("S\t1\t7\ttoplevel\n")
-        with patch.object(bd, "MAX_LOG_BYTES", 4), self.assertRaisesRegex(CaptureError, "^PRESENT_LOG_TOO_LARGE"):
-            self.tail.focused("keyboard")
-
-
-class PrepareScenarioTests(unittest.TestCase):
-    def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
-
-    def env(self, flatpak):
-        home = self.root / "home"
-        env = {"HOME": str(home), "XDG_CONFIG_HOME": str(self.root / "config"),
-               "CROSSHOOK_BENCH_LOG": "/stale", "KEEP": "1"}
-        env["CROSSHOOK_BENCH_ROOT"] = str(home / ".var/app/dev.crosshook.CrossHook" if flatpak else self.root)
-        return env
-
-    def check_console(self, flatpak, config):
-        env = self.env(flatpak)
-        updated = bd.prepare_scenario("console", env, flatpak)
-        path = config / "settings.toml"
-        self.assertEqual(path.read_text(), "console_drawer_collapsed_default = false\n")
-        self.assertEqual(stat.S_IMODE(os.stat(path).st_mode), 0o600)
-        self.assertEqual(updated["CROSSHOOK_BENCH_LOG"],
-                         str(Path(env["CROSSHOOK_BENCH_ROOT"]) / "logs/launch-50k.log"))
-        self.assertEqual(updated["CROSSHOOK_BENCH_LOG_RATE"], "5000")
-        self.assertEqual(updated["KEEP"], "1")
-        self.assertEqual(env["CROSSHOOK_BENCH_LOG"], "/stale")  # the input is not mutated
-        bd.prepare_scenario("console", env, flatpak)  # a second iteration rewrites the file
-        self.assertEqual(path.read_text(), "console_drawer_collapsed_default = false\n")
-
-    def test_console_native_writes_settings_under_xdg_config_home(self):
-        self.check_console(False, self.root / "config/crosshook")
-
-    def test_console_flatpak_writes_settings_under_the_app_sandbox_config(self):
-        self.check_console(True, self.root / "home/.var/app/dev.crosshook.CrossHook/config/crosshook")
-
-    def test_other_scenarios_write_nothing_and_drop_the_replay_env(self):
-        for scenario in ("library", "settings"):
-            updated = bd.prepare_scenario(scenario, self.env(False), False)
-            self.assertNotIn("CROSSHOOK_BENCH_LOG", updated)
-        self.assertFalse((self.root / "config").exists())
-
-    def test_console_settings_do_not_leak_into_later_scenarios(self):
-        for flatpak, config in ((False, self.root / "config/crosshook"),
-                                (True, self.root / "home/.var/app/dev.crosshook.CrossHook/config/crosshook")):
-            path = config / "settings.toml"
-            for later in ("settings", "library"):
-                with self.subTest(flatpak=flatpak, later=later):
-                    env = self.env(flatpak)
-                    bd.prepare_scenario("console", env, flatpak)
-                    self.assertTrue(path.is_file())
-                    bd.prepare_scenario(later, env, flatpak)
-                    self.assertFalse(os.path.lexists(path))
-                    bd.prepare_scenario(later, env, flatpak)  # nothing left to remove is fine
-
-    def test_a_symlinked_settings_file_is_refused_and_left_alone(self):
-        config = self.root / "config/crosshook"
-        config.mkdir(parents=True)
-        target = self.root / "elsewhere.toml"
-        target.write_text("keep = true\n")
-        (config / "settings.toml").symlink_to(target)
-        for scenario in ("library", "settings", "console"):
-            with self.subTest(scenario=scenario), self.assertRaisesRegex(CaptureError, "^SETTINGS_UNSAFE"):
-                bd.prepare_scenario(scenario, self.env(False), False)
-        self.assertEqual(target.read_text(), "keep = true\n")
-        self.assertTrue((config / "settings.toml").is_symlink())
-
-    def test_incomplete_env_and_unknown_scenario_fail_by_name(self):
-        with self.assertRaisesRegex(CaptureError, "^BENCH_ENV_INCOMPLETE"):
-            bd.prepare_scenario("console", {"HOME": str(self.root)}, False)
-        with self.assertRaisesRegex(CaptureError, "^UNKNOWN_SCENARIO"):
-            bd.prepare_scenario("x", {}, False)
 
 
 if __name__ == "__main__":

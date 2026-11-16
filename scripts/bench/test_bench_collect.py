@@ -1,5 +1,6 @@
 """Presentation collection for G1/G2: per-metric dirs, host env isolation, refresh checks; stdlib only."""
 import csv
+import shutil
 import sys
 import tempfile
 import time
@@ -206,12 +207,17 @@ class DrivenTests(unittest.TestCase):
         self.settled: list[FakeDevice] = []
         self.bounds = lambda: DriveResult(self.fake.times()[WINDOW[0]], self.fake.times()[WINDOW[1]], 90)
 
+        self.settings = self.root / "config/crosshook/settings.toml"
+        self.settings_seen: list[tuple[str, bool]] = []  # (scenario, settings.toml present while driving)
+
         def drive_g4(proc, scenario, log_dir, kwin, dev):
             self.drive_calls.append(("G4", scenario, log_dir, kwin, dev))
+            self.settings_seen.append((scenario, self.settings.is_file()))
             return self.bounds()
 
         def drive_g9(proc, log_dir, kwin):
             self.drive_calls.append(("G9", "resize", log_dir, kwin, None))
+            self.settings_seen.append(("resize", self.settings.is_file()))
             return self.bounds()
 
         self.drive_g4, self.drive_g9 = drive_g4, drive_g9
@@ -311,7 +317,9 @@ class DrivenTests(unittest.TestCase):
         self.assertNotIn("CROSSHOOK_BENCH_LOG", library)
         self.assertEqual(console["CROSSHOOK_BENCH_LOG_RATE"], "5000")
         self.assertTrue(console["CROSSHOOK_BENCH_LOG"].startswith(str(self.root)))
-        self.assertTrue((self.root / "config/crosshook/settings.toml").is_file())
+        self.assertEqual(self.settings_seen, [("library", False), ("library", False),
+                                              ("console", True), ("console", True)])
+        self.assertFalse(self.settings.exists())  # removed once the metric finished
 
     def test_input_not_delivered(self):
         self.bounds = lambda: DriveResult(self.fake.times()[-1] + 1, self.fake.times()[-1] + 10**9, 90)
@@ -461,7 +469,68 @@ class DrivenTests(unittest.TestCase):
                         "CROSSHOOK_BENCH_LOG_RATE"):
                 self.assertNotIn(key, env)
             self.assertEqual(env["PATH"], "/usr/bin")
-        self.assertTrue((self.root / "home/.var/app/dev.crosshook.CrossHook/config/crosshook/settings.toml").is_file())
+        flatpak_settings = self.root / "home/.var/app/dev.crosshook.CrossHook/config/crosshook/settings.toml"
+        self.assertFalse(flatpak_settings.exists())  # removed once the metric finished
+
+    def test_flatpak_console_settings_exist_while_driving_and_are_removed_after(self):
+        self.args.flatpak = True
+        flatpak_settings = self.root / "home/.var/app/dev.crosshook.CrossHook/config/crosshook/settings.toml"
+        seen = []
+        self.drive_g4 = lambda proc, scenario, *_rest: (seen.append((scenario, flatpak_settings.is_file())),
+                                                        self.bounds())[1]
+        self.rows(command_for=lambda env: bench.launch_command(self.args, env))
+        self.assertEqual(seen, [("library", False), ("library", False), ("console", True), ("console", True)])
+        self.assertFalse(flatpak_settings.exists())
+
+    def test_console_settings_do_not_outlive_the_metric(self):
+        failures = {"a capture error": CaptureError("FOCUS_LOST: pointer"), "an interrupt": KeyboardInterrupt()}
+        for name, failure in failures.items():
+            with self.subTest(failure=name):
+                self.args.scenarios = {"G4": ["console"], "G9": ["resize"]}
+                self.args.iterations = 1
+                FakeDevice.instances.clear()
+                self.fake.calls.clear()
+                shutil.rmtree(self.root / "present", ignore_errors=True)
+
+                def failing(*_args, failure=failure):
+                    self.assertTrue(self.settings.is_file())  # the console iteration really had it
+                    raise failure
+                self.drive_g4 = failing
+                with self.assertRaises(type(failure)):
+                    self.rows()
+                self.assertFalse(self.settings.exists())
+
+    def test_a_failure_in_a_later_check_still_removes_the_console_settings(self):
+        self.args.scenarios = {"G4": ["console"], "G9": ["resize"]}
+        self.fake.extra_discards = 2  # DISCARD_RATE fails after the drive returned
+        with self.assertRaisesRegex(CaptureError, "^DISCARD_RATE: "):
+            self.rows()
+        self.assertFalse(self.settings.exists())
+
+    def test_g9_starts_without_a_console_settings_file_left_by_an_earlier_metric(self):
+        self.settings.parent.mkdir(parents=True)
+        self.settings.write_text("console_drawer_collapsed_default = false\n")
+        self.rows("G9")
+        self.assertEqual(self.settings_seen, [("resize", False), ("resize", False)])
+        self.assertFalse(self.settings.exists())
+
+    def test_g4_then_g9_in_one_run_do_not_leak_the_console_file(self):
+        self.args.scenarios = {"G4": ["library", "console"], "G9": ["resize"]}
+        self.rows("G4")
+        self.rows("G9")
+        self.assertEqual([seen for scenario, seen in self.settings_seen if scenario == "resize"], [False, False])
+
+    def test_settings_outside_the_bench_root_are_refused_and_left_alone(self):
+        outside = Path(self.temp.name) / "real-config/crosshook"
+        outside.mkdir(parents=True)
+        victim = outside / "settings.toml"
+        victim.write_text("keep = true\n")
+        self.env["XDG_CONFIG_HOME"] = str(outside.parent)
+        for metric in ("G4", "G9"):
+            with self.subTest(metric=metric), self.assertRaisesRegex(CaptureError, "^SETTINGS_UNSAFE"):
+                self.rows(metric)
+        self.assertEqual(victim.read_text(), "keep = true\n")
+        self.assertEqual(self.fake.calls, [])  # nothing was launched
 
 
 class DispatchAndIngestTests(unittest.TestCase):

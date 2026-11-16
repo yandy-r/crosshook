@@ -22,6 +22,9 @@ CLOCK_MONOTONIC_ID = "1"
 FIELD_COUNTS = {"S": 4, "C": 5, "P": 7, "D": 3, "X": 3, "K": 4, "M": 4, "G": 6}
 FOCUS_DEVICES = {"K": "keyboard", "M": "pointer"}
 FOCUS_EVENTS = {"enter": True, "leave": False}
+# X records after which the shim's log can no longer vouch for the run: a capped log stopped,
+# a failed bind or wrap never observed presentation or focus, no global means nothing was logged.
+INCOMPLETE_CONDITIONS = ("log_cap", "bind_failed", "wrap_failed", "no_presentation_global")
 
 
 @dataclass(frozen=True)
@@ -74,18 +77,42 @@ class PresentLog:
     geometry: list[Geometry] = field(default_factory=list)  # in log order
 
 
-def _read_text(path: Path) -> str:
+def _read_from(path: Path, offset: int = 0) -> tuple[bytes, int]:
+    """The bytes of `path` from `offset` to its end, and its size.
+
+    The one place a log is opened and read: O_NOFOLLOW, the size cap, and every OS error mapped
+    to the log codes. Callers that tail a growing file pass the offset they stopped at.
+    """
     try:
         fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0))
     except OSError as error:
         raise CaptureError(f"PRESENT_LOG_UNREADABLE: {path.name}: {error.strerror}") from error
-    with os.fdopen(fd, "rb") as handle:
-        if os.fstat(handle.fileno()).st_size > MAX_LOG_BYTES:
+    try:
+        size = os.fstat(fd).st_size
+        if size > MAX_LOG_BYTES:
             raise CaptureError(f"PRESENT_LOG_TOO_LARGE: {path.name}")
-        data = handle.read(MAX_LOG_BYTES + 1)
-    if len(data) > MAX_LOG_BYTES:
-        raise CaptureError(f"PRESENT_LOG_TOO_LARGE: {path.name}")
-    return data.decode("utf-8", errors="replace")
+        data = os.pread(fd, size - offset, offset) if size > offset else b""
+    except OSError as error:
+        raise CaptureError(f"PRESENT_LOG_UNREADABLE: {path.name}: {error.strerror}") from error
+    finally:
+        os.close(fd)
+    return data, size
+
+
+def _read_text(path: Path) -> str:
+    return _read_from(path)[0].decode("utf-8", errors="replace")
+
+
+def _decode_role(fields: list[str]) -> tuple[int, str]:
+    """An `S` record: (surface id, role)."""
+    return int(fields[2]), fields[3]
+
+
+def _decode_focus(fields: list[str], roles: dict[int, str]) -> Focus:
+    """A `K` or `M` record, with the surface's role as of this point of the log."""
+    surface_id = int(fields[3])
+    return Focus(int(fields[1]), FOCUS_DEVICES[fields[0]], FOCUS_EVENTS[fields[2]], surface_id,
+                 roles.get(surface_id) == "toplevel")
 
 
 def parse_log(path: Path) -> PresentLog:
@@ -118,7 +145,8 @@ def _parse_text(text: str, name: str) -> PresentLog:
             elif FIELD_COUNTS.get(kind) != len(fields):
                 raise ValueError(kind)
             elif kind == "S":
-                roles[int(fields[2])] = fields[3]
+                surface_id, role = _decode_role(fields)
+                roles[surface_id] = role
             elif kind == "C":
                 surface_id = int(fields[2])
                 commit = Commit(int(fields[1]), surface_id, int(fields[3]), int(fields[4]) == 1,
@@ -128,9 +156,7 @@ def _parse_text(text: str, name: str) -> PresentLog:
                 record = Presented(*(int(value) for value in fields[1:]))
                 presented[record.seq] = record
             elif kind in FOCUS_DEVICES:
-                surface_id = int(fields[3])
-                focus.append(Focus(int(fields[1]), FOCUS_DEVICES[kind], FOCUS_EVENTS[fields[2]],
-                                   surface_id, roles.get(surface_id) == "toplevel"))
+                focus.append(_decode_focus(fields, roles))
             elif kind == "G":
                 surface_id = int(fields[2])
                 activated = int(fields[5])
@@ -171,9 +197,10 @@ def require_clock(logs: list[PresentLog]) -> None:
             raise CaptureError("PRESENT_LOG_MALFORMED: header without clock_id")
         if clock != CLOCK_MONOTONIC_ID:
             raise CaptureError(f"PRESENTATION_CLOCK: clock_id={clock}, expected 1 (CLOCK_MONOTONIC)")
-        # A capped log stops mid-run and a failed bind never observed presentation:
-        # neither may stand in for a complete capture.
-        for condition in ("log_cap", "bind_failed"):
+        # A capped log stops mid-run, a failed bind never observed presentation and a failed
+        # wrap leaves a proxy's focus/geometry events unrecorded: none may stand in for a
+        # complete capture.
+        for condition in ("log_cap", "bind_failed", "wrap_failed"):
             if condition in log.conditions:
                 raise CaptureError(f"PRESENT_LOG_INCOMPLETE: {condition}")
 
@@ -229,21 +256,75 @@ def discard_rate(logs: list[PresentLog], start_ns: int | None = None, end_ns: in
     return dropped / (shown + dropped) if shown + dropped else 0.0
 
 
-def focused(logs: list[PresentLog], device: str, at_ns: int | None = None) -> bool:
-    """True when the latest `device` focus event (at or before at_ns) is an enter on a toplevel."""
-    latest: Focus | None = None
-    for log in logs:
-        for event in log.focus:
-            if event.device != device or (at_ns is not None and event.ns > at_ns):
-                continue
-            if latest is None or event.ns >= latest.ns:
-                latest = event
-    return latest is not None and latest.entered and latest.toplevel
-
-
 def distinct_sizes(logs: list[PresentLog], start_ns: int | None = None, end_ns: int | None = None) -> int:
     return len({(item.w, item.h) for log in logs for item in log.geometry
                 if item.toplevel
                 and (start_ns is None or item.ns >= start_ns)
                 and (end_ns is None or item.ns <= end_ns)})
 
+
+@dataclass
+class _Cursor:
+    offset: int = 0  # bytes consumed: only complete records
+    size: int = 0  # file size at the last read, partial record included
+    lines: int = 0
+    roles: dict[int, str] = field(default_factory=dict)
+
+
+class FocusTail:
+    """Keyboard and pointer focus from the shim logs, reading only what was appended since the last call.
+
+    Decodes just the `S` role, `K`/`M` focus and `X` condition records, with the same strictness,
+    the same reader and the same "toplevel at event time" rule as `parse_log`; the full parse
+    happens once the app has stopped. An `X` record that ends the shim's evidence
+    (INCOMPLETE_CONDITIONS) raises, because a log that stopped recording cannot witness focus.
+    """
+
+    def __init__(self, log_dir: Path):
+        self._dir = Path(log_dir)
+        self._cursors: dict[str, _Cursor] = {}
+        self._latest: dict[str, Focus] = {}
+
+    @property
+    def size(self) -> int:
+        """Total bytes of every log as of the last read: it only grows while the shim keeps writing."""
+        return sum(cursor.size for cursor in self._cursors.values())
+
+    def focused(self, device: str) -> bool:
+        """True when the latest `device` focus event, across every log, is an enter on a toplevel."""
+        for path in sorted(self._dir.glob(LOG_GLOB)):
+            self._read_new(path, self._cursors.setdefault(path.name, _Cursor()))
+        event = self._latest.get(device)
+        return event is not None and event.entered and event.toplevel
+
+    def _read_new(self, path: Path, cursor: _Cursor) -> None:
+        data, cursor.size = _read_from(path, cursor.offset)
+        end = data.rfind(b"\n") + 1  # a trailing partial record waits for the next read
+        cursor.offset += end
+        for line in data[:end].decode("utf-8", errors="replace").split("\n")[:-1]:
+            cursor.lines += 1
+            self._apply(path.name, cursor, line)
+
+    def _apply(self, name: str, cursor: _Cursor, line: str) -> None:
+        fields = line.split("\t")
+        kind = fields[0]
+        if kind not in ("S", "X", *FOCUS_DEVICES):
+            return
+        try:
+            if len(fields) != FIELD_COUNTS[kind]:
+                raise ValueError(kind)
+            if kind == "S":
+                surface_id, role = _decode_role(fields)
+                cursor.roles[surface_id] = role
+                return
+            if kind == "X":
+                int(fields[1])
+                if fields[2] in INCOMPLETE_CONDITIONS:
+                    raise CaptureError(f"PRESENT_LOG_INCOMPLETE: {fields[2]}")
+                return
+            event = _decode_focus(fields, cursor.roles)
+        except (ValueError, KeyError) as error:
+            raise CaptureError(f"PRESENT_LOG_MALFORMED: {name}:{cursor.lines}") from error
+        previous = self._latest.get(event.device)
+        if previous is None or event.ns >= previous.ns:
+            self._latest[event.device] = event

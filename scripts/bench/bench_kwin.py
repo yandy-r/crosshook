@@ -1,10 +1,11 @@
-"""KWin control for the G4/G9 input drivers: find, place and resize the app window over D-Bus.
+"""KWin control for the G4/G9 input drivers: find, place, resize and arm the app window over D-Bus.
 
 Windows are matched by host pid, never by caption. Script effects are verified only by
 polling getWindowInfo, because KWin script print() output does not reach the journal.
 """
 from __future__ import annotations
 
+import contextlib
 import os
 import re
 import shutil
@@ -33,6 +34,7 @@ DEVICES_PROPERTY = ["gdbus", "call", "--session", "--dest", DEST,
 CALL_TIMEOUT_S = 5
 WINDOW_TIMEOUT_S = 10
 GEOMETRY_TIMEOUT_S = 3
+ARM_TIMEOUT_S = 1.0
 POLL_S = 0.1
 GEOMETRY_TOLERANCE_PX = 2
 UNSUPPORTED = "UNSUPPORTED_COMPOSITOR: KWin is required for G4/G9 input drivers"
@@ -56,6 +58,7 @@ class WindowInfo:
     width: float
     height: float
     minimized: bool
+    keep_above: bool | None = None  # None when the reply carries no keepAbove key
 
 
 def _run(argv: list[str], timeout: float) -> subprocess.CompletedProcess:
@@ -150,17 +153,20 @@ def _number(key: str, raw: str, integer: bool) -> int | float:
 
 
 def parse_window_info(uuid: str, text: str) -> WindowInfo:
-    """Strict parser for the a{sv} subset: only the six required keys are read; every
-    other value (captions and so on) is skipped without interpretation."""
+    """Strict parser for the a{sv} subset: the six required keys and, when present, the bool
+    `keepAbove`; every other value (captions and so on) is skipped without interpretation."""
     entries = _raw_entries(text.strip())
     missing = [key for key in _REQUIRED if key not in entries]
     if missing:
         raise CaptureError(f"KWIN_PROTOCOL: getWindowInfo reply lacks {', '.join(missing)}")
     if entries["minimized"] not in ("true", "false"):
         raise CaptureError("KWIN_PROTOCOL: getWindowInfo key minimized is not a bool")
+    keep_above = entries.get("keepAbove")
+    if keep_above not in (None, "true", "false"):
+        raise CaptureError("KWIN_PROTOCOL: getWindowInfo key keepAbove is not a bool")
     x, y, width, height = (_number(key, entries[key], False) for key in ("x", "y", "width", "height"))
     return WindowInfo(uuid, _number("pid", entries["pid"], True), x, y, width, height,  # type: ignore[arg-type]
-                      entries["minimized"] == "true")
+                      entries["minimized"] == "true", None if keep_above is None else keep_above == "true")
 
 
 def window_info(uuid: str) -> WindowInfo:
@@ -212,6 +218,14 @@ def _ints(**values: int) -> None:
             raise TypeError(f"{name} must be int")
 
 
+def _with_window(pid: int, body: str) -> str:
+    """KWin JS that runs `body` (statements about the window `w`) on the one window of host pid `pid`."""
+    _ints(pid=pid)
+    indented = "".join(f"  {line}\n" for line in body.splitlines())
+    return (f"const t = workspace.windowList().filter(w => w.pid === {pid});\n"
+            f"if (t.length === 1) {{\n  const w = t[0];\n{indented}}}\n")
+
+
 def _verified_tools_dir(tools_dir: Path) -> Path:
     try:
         info = os.lstat(tools_dir)
@@ -239,13 +253,16 @@ class KWinScripts:
         path = self._tools_dir / f"{plugin}.js"
         quoted_path = _quoted_path(path)
         try:
-            write_private(path, js)
-        except OSError as error:
-            raise CaptureError(f"KWIN_SCRIPT_WRITE_FAILED: {path.name}: {error.strerror}") from error
-        try:
+            try:
+                write_private(path, js)
+            except OSError as error:
+                raise CaptureError(f"KWIN_SCRIPT_WRITE_FAILED: {path.name}: {error.strerror}") from error
             self._load_run_unload(js_path=quoted_path, plugin=quoted_plugin, name=plugin)
         finally:
-            path.unlink(missing_ok=True)  # after the unload: nothing keeps reading the file
+            # After the unload: nothing keeps reading the file. A write that failed midway leaves a
+            # partial file, and a cleanup error must not hide the error that is already propagating.
+            with contextlib.suppress(OSError):
+                path.unlink(missing_ok=True)
 
     def _load_run_unload(self, js_path: str, plugin: str, name: str) -> None:
         if _gdbus([*SCRIPTING, "org.kde.kwin.Scripting.isScriptLoaded", plugin]) == "(true,)":
@@ -277,17 +294,12 @@ class KWinScripts:
 
     def place(self, win: WindowInfo, width: int, height: int, cursor_dx: int, cursor_dy: int) -> WindowInfo:
         """Un-maximize, size the window and put the cursor at (cursor_dx, cursor_dy) inside it."""
-        _ints(pid=win.pid, width=width, height=height, cursor_dx=cursor_dx, cursor_dy=cursor_dy)
-        self.run(f"""\
-const t = workspace.windowList().filter(w => w.pid === {win.pid});
-if (t.length === 1) {{
-  const w = t[0];
-  w.setMaximize(false, false);
-  const c = workspace.cursorPos;
-  w.frameGeometry = {{x: c.x - {cursor_dx}, y: c.y - {cursor_dy}, width: {width}, height: {height}}};
-  workspace.activeWindow = w;
-}}
-""")
+        _ints(width=width, height=height, cursor_dx=cursor_dx, cursor_dy=cursor_dy)
+        self.run(_with_window(win.pid, f"""\
+w.setMaximize(false, false);
+const c = workspace.cursorPos;
+w.frameGeometry = {{x: c.x - {cursor_dx}, y: c.y - {cursor_dy}, width: {width}, height: {height}}};
+workspace.activeWindow = w;"""))
         return self._await_geometry(win, width, height)
 
     def resize_to(self, win: WindowInfo, width: int, height: int) -> WindowInfo:
@@ -297,16 +309,38 @@ if (t.length === 1) {{
 
     def resize_unverified(self, win: WindowInfo, width: int, height: int) -> None:
         """`resize_to` without the geometry poll, for callers that must keep a tight cadence."""
-        _ints(pid=win.pid, width=width, height=height)
-        self.run(f"""\
-const t = workspace.windowList().filter(w => w.pid === {win.pid});
-if (t.length === 1) {{
-  const w = t[0];
-  w.setMaximize(false, false);
-  const g = w.frameGeometry;
-  w.frameGeometry = {{x: g.x, y: g.y, width: {width}, height: {height}}};
-}}
-""")
+        _ints(width=width, height=height)
+        self.run(_with_window(win.pid, f"""\
+w.setMaximize(false, false);
+const g = w.frameGeometry;
+w.frameGeometry = {{x: g.x, y: g.y, width: {width}, height: {height}}};"""))
+
+    def arm_under_cursor(self, win: WindowInfo) -> WindowInfo:
+        """Prove the window is active, not minimized and under the cursor, and keep it on top.
+
+        KWin sets `keepAbove` only when all three hold (and clears it otherwise), so reading it back
+        through getWindowInfo is the witness that a wheel notch will reach this window; it also stops
+        other windows from covering it for the rest of the run.
+        """
+        self.run(_with_window(win.pid, """\
+const c = workspace.cursorPos;
+const g = w.frameGeometry;
+if (workspace.activeWindow === w && !w.minimized
+    && c.x >= g.x && c.x < g.x + g.width && c.y >= g.y && c.y < g.y + g.height) {
+  w.keepAbove = true;
+} else {
+  w.keepAbove = false;
+}"""))
+        deadline = _clock() + ARM_TIMEOUT_S
+        while True:
+            info = window_info(win.uuid)
+            if info.keep_above is None:
+                raise CaptureError("KWIN_PROTOCOL: getWindowInfo reply lacks keepAbove")
+            if info.keep_above:
+                return info
+            if _clock() >= deadline:
+                raise CaptureError("POINTER_NOT_OVER_WINDOW: the bench window is not active under the cursor")
+            _sleep(POLL_S)
 
     def _await_geometry(self, win: WindowInfo, width: int, height: int) -> WindowInfo:
         deadline = _clock() + GEOMETRY_TIMEOUT_S

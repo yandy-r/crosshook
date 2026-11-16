@@ -44,6 +44,8 @@ WLP_HIDDEN wl_fn *wlfocus_wrap(struct wl_proxy *proxy, wl_fn *impl);
  * Call before the real destroy; pass the result to wlfocus_free after it returns. */
 WLP_HIDDEN wl_fn *wlfocus_detach(struct wl_proxy *proxy);
 WLP_HIDDEN void wlfocus_free(wl_fn *copy);
+/* Writes a wrap_failed queued before the log existed; the caller holds g_tab_lock. */
+WLP_HIDDEN void wlfocus_flush_pending(void);
 WLP_HIDDEN void rec_geometry(uint64_t ns, uint32_t surface_id, int w, int h, int activated);
 
 #endif

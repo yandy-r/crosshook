@@ -17,6 +17,8 @@ SDK = "org.gnome.Sdk//50"
 SOURCE_DIR = Path(__file__).resolve().parent / "presentation"
 SOURCES = (SOURCE_DIR / "wlpresent.c", SOURCE_DIR / "wlfocus.c")
 HEADER = SOURCE_DIR / "wlpresent.h"
+SLOTS_HEADER = SOURCE_DIR / "wlfocus_slots.h"
+SELFTEST = SOURCE_DIR / "wlfocus_selftest.c"  # CI only: never part of the shim
 PROTOCOL_XML = SOURCE_DIR / "presentation-time.xml"
 TIMEOUT = 120
 # wl_proxy_get_interface arrived in libwayland 1.24; Ubuntu 24.04 ships 1.22.
@@ -48,9 +50,9 @@ class ShimBuild:
 
 
 def source_sha256() -> str:
-    """One digest over every shim source file and the shared header, in a fixed order."""
+    """One digest over every shim source file and header, in a fixed order."""
     digest = hashlib.sha256()
-    for path in (*SOURCES, HEADER):
+    for path in (*SOURCES, HEADER, SLOTS_HEADER):
         digest.update(f"{path.name}\0{sha256_file(path)}\n".encode())
     return digest.hexdigest()
 
@@ -128,13 +130,17 @@ def build(out_dir: Path, target: str) -> ShimBuild:
 
 
 def check() -> int:
-    """Syntax-only compile of the shim for CI."""
+    """CI: syntax-only -Werror compile of the shim, then build and run the C self-test."""
     try:
         _require("wayland-scanner", "cc", "pkg-config")
         _require_wayland()
         with tempfile.TemporaryDirectory() as tmp:
             _scan(Path(tmp))
-            _run(["cc", "-fsyntax-only", *CFLAGS, STRICT, f"-I{tmp}", *map(str, SOURCES), *_pkg_flags()])
+            flags = _pkg_flags()
+            _run(["cc", "-fsyntax-only", *CFLAGS, STRICT, f"-I{tmp}", *map(str, SOURCES), *flags])
+            selftest = Path(tmp) / "wlfocus_selftest"
+            _run(["cc", *CFLAGS, STRICT, "-o", str(selftest), str(SELFTEST), *flags])
+            _run([str(selftest)])
     except CaptureError as error:
         print(error, file=sys.stderr)
         return 1

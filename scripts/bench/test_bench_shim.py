@@ -1,6 +1,7 @@
 """Presentation shim build regression checks; stdlib only."""
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -100,9 +101,33 @@ class BuildTests(unittest.TestCase):
         with patch.object(bench_shim.subprocess, "run", runner), \
                 patch.object(bench_shim.shutil, "which", lambda tool: f"/usr/bin/{tool}"):
             self.assertEqual(bench_shim.check(), 0)
-        cc = next(call[0] for call in runner.calls if call[0][0] == "cc")
+        argv = [call[0] for call in runner.calls]
+        cc = next(call for call in argv if call[0] == "cc")
         for flag in ("-fsyntax-only", "-Werror", *bench_shim.CFLAGS, *map(str, bench_shim.SOURCES)):
             self.assertIn(flag, cc)
+        build, run = argv[-2:]  # the self-test is compiled, linked against libwayland, then run
+        self.assertEqual(build[0], "cc")
+        self.assertNotIn("-fsyntax-only", build)
+        for flag in ("-Werror", "-o", str(bench_shim.SELFTEST), "-I/usr/include/x", "-lwayland-client",
+                     *bench_shim.CFLAGS):
+            self.assertIn(flag, build)
+        self.assertEqual(build[build.index("-o") + 1], run[0])
+        self.assertEqual(Path(run[0]).name, "wlfocus_selftest")
+        self.assertEqual(len(run), 1)
+        self.assertEqual(bench_shim.SELFTEST.name, "wlfocus_selftest.c")
+        self.assertNotIn(bench_shim.SELFTEST, bench_shim.SOURCES)
+
+    def test_check_fails_when_the_selftest_fails(self):
+        def selftest_fails(argv):
+            if argv[0].endswith("wlfocus_selftest"):
+                return done(argv, 1, stderr="wlfocus_selftest: 2 check(s) failed\n")
+        runner = Runner(self.out, fail=selftest_fails)
+        with patch.object(bench_shim.subprocess, "run", runner), \
+                patch.object(bench_shim.shutil, "which", lambda tool: f"/usr/bin/{tool}"), \
+                patch("sys.stderr") as stderr:
+            self.assertEqual(bench_shim.check(), 1)
+        written = "".join(call.args[0] for call in stderr.write.call_args_list)
+        self.assertIn("wlfocus_selftest: 2 check(s) failed", written)
 
     def test_missing_tool(self):
         with self.assertRaisesRegex(CaptureError, "^MISSING_TOOL: cc$"):
@@ -151,12 +176,23 @@ class BuildTests(unittest.TestCase):
 
 
 def _native_toolchain() -> bool:
-    return bool(shutil.which("cc") and shutil.which("wayland-scanner") and shutil.which("pkg-config")
-                and subprocess.run(["pkg-config", "--atleast-version=1.24", "wayland-client"]).returncode == 0)
+    if not (shutil.which("cc") and shutil.which("wayland-scanner") and shutil.which("pkg-config")):
+        return False
+    try:
+        return subprocess.run(["pkg-config", "--atleast-version=1.24", "wayland-client"],
+                              capture_output=True, timeout=5).returncode == 0
+    except (subprocess.SubprocessError, OSError):
+        return False
 
 
-@unittest.skipUnless(_native_toolchain(), "native toolchain with libwayland-client >= 1.24 unavailable")
+@unittest.skipUnless(os.environ.get("CROSSHOOK_BENCH_HW_TESTS") == "1",
+                     "set CROSSHOOK_BENCH_HW_TESTS=1 (the bench-shim CI job covers the real build)")
 class RealBuildTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        if not _native_toolchain():
+            raise unittest.SkipTest("native toolchain with libwayland-client >= 1.24 unavailable")
+
     def test_native_build(self):
         # build() has no -Werror, so warnings from a newer compiler never fail this test.
         with tempfile.TemporaryDirectory() as tmp:
@@ -168,18 +204,19 @@ class RealBuildTests(unittest.TestCase):
 
 
 class SourceDigestTests(unittest.TestCase):
-    def test_digest_covers_both_sources_and_the_header(self):
+    def test_digest_covers_both_sources_and_the_headers(self):
         baseline = bench_shim.source_sha256()
         self.assertRegex(baseline, r"^[0-9a-f]{64}$")
         with tempfile.TemporaryDirectory() as tmp:
-            for name in ("wlpresent.c", "wlfocus.c", "wlpresent.h"):
+            for name in ("wlpresent.c", "wlfocus.c", "wlpresent.h", "wlfocus_slots.h"):
                 copy = Path(tmp) / name
                 copy.write_bytes((bench_shim.SOURCE_DIR / name).read_bytes())
             sources = tuple(Path(tmp) / path.name for path in bench_shim.SOURCES)
-            header = Path(tmp) / "wlpresent.h"
-            with patch.object(bench_shim, "SOURCES", sources), patch.object(bench_shim, "HEADER", header):
+            header, slots = Path(tmp) / "wlpresent.h", Path(tmp) / "wlfocus_slots.h"
+            with patch.object(bench_shim, "SOURCES", sources), patch.object(bench_shim, "HEADER", header), \
+                    patch.object(bench_shim, "SLOTS_HEADER", slots):
                 self.assertEqual(bench_shim.source_sha256(), baseline)
-                for path in (*sources, header):
+                for path in (*sources, header, slots):
                     with self.subTest(path=path.name):
                         original = path.read_bytes()
                         path.write_bytes(original + b"\n/* edit */\n")

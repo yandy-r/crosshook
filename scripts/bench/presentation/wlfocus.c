@@ -11,23 +11,22 @@
  *   G <ns> <surface_wl_id> <w> <h> <activated 0|1>
  *                                          xdg_toplevel.configure; activated is state 4
  *
- *   X <ns> wrap_failed                     a listener table could not be wrapped (map full or
- *                                          out of memory): that proxy's events go unrecorded
+ *   X <ns> wrap_failed                     a listener table could not be wrapped (map full, out
+ *                                          of memory, unknown bound version or a stale entry for
+ *                                          a reused address): that proxy's events go unrecorded
  *
- * A NULL surface logs id 0. Configures that arrive before the log exists are kept (the
- * latest per surface) and flushed after the header.
+ * A NULL surface logs id 0. Configures (the latest per surface) and a wrap_failed that arrive
+ * before the log exists are kept and flushed after the header.
  */
 #define _GNU_SOURCE
-#include <ctype.h>
 #include <dlfcn.h>
 #include <stdlib.h>
 #include <string.h>
+#include "wlfocus_slots.h"
 #include "wlpresent.h"
 
 #define MAX_WRAPPED 256
 #define XDG_TOPLEVEL_STATE_ACTIVATED 4
-
-enum { KB_ENTER = 1, KB_LEAVE = 2, PTR_ENTER = 0, PTR_LEAVE = 1, TL_CONFIGURE = 0 };
 
 struct slot_def {
     unsigned idx;
@@ -41,6 +40,11 @@ struct wrapped {
 
 static pthread_mutex_t g_wrap_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct wrapped g_wrapped[MAX_WRAPPED];
+
+/* A wrap failure before the log is live (g_tab_lock guards both): rec() would drop it, so it is
+ * kept like a pending configure and flushed after the header. */
+static int g_wrap_failed_pending;
+static uint64_t g_wrap_failed_ns;
 
 /* The client's original callback for a slot of a wrapped proxy, or NULL. */
 static wl_fn orig_slot(void *proxy, unsigned idx) {
@@ -152,19 +156,24 @@ static const struct slot_def *slots_for(const char *cls, size_t *count) {
     return NULL;
 }
 
-/* Version an event was introduced in: the leading decimal digits of its signature, else 1. */
-static uint32_t event_since(const struct wl_message *event) {
-    const char *sig = event->signature;
-    if (!sig || !isdigit((unsigned char)*sig)) return 1;
-    uint32_t since = 0;
-    for (; isdigit((unsigned char)*sig); sig++) since = since * 10 + (uint32_t)(*sig - '0');
-    return since;
+/* Records that a proxy's events will go unrecorded, or queues the record until the header. */
+static void note_wrap_failed(void) {
+    uint64_t t = now_ns();
+    pthread_mutex_lock(&g_tab_lock);
+    if (__atomic_load_n(&g_state, __ATOMIC_ACQUIRE) == 1) {
+        rec("X\t%llu\twrap_failed", ULL(t));
+    } else if (!g_wrap_failed_pending) {
+        g_wrap_failed_pending = 1;
+        g_wrap_failed_ns = t;
+    }
+    pthread_mutex_unlock(&g_tab_lock);
 }
 
-/* A client built against older protocol headers hands over a table with fewer slots than the
- * interface has events; only slots for events its bound version delivers are safe to read. */
-static int slot_provided(const struct wl_interface *iface, unsigned idx, uint32_t version) {
-    return version == 0 || event_since(&iface->events[idx]) <= version;
+/* Called by do_init with g_tab_lock held, right after the header. */
+void wlfocus_flush_pending(void) {
+    if (!g_wrap_failed_pending) return;
+    rec("X\t%llu\twrap_failed", ULL(g_wrap_failed_ns));
+    g_wrap_failed_pending = 0;
 }
 
 wl_fn *wlfocus_wrap(struct wl_proxy *proxy, wl_fn *impl) {
@@ -176,6 +185,10 @@ wl_fn *wlfocus_wrap(struct wl_proxy *proxy, wl_fn *impl) {
     for (size_t i = 0; i < count; i++)
         if (defs[i].idx >= (unsigned)iface->event_count) return impl;
     uint32_t version = wl_proxy_get_version(proxy);
+    if (version == 0) { /* unknown bound version: no slot can be proven safe to read */
+        note_wrap_failed();
+        return impl;
+    }
     /* The client's table is const and client-owned; the copy is ours, sized from the interface.
      * Slots beyond the client's table stay NULL and are never wrapped. */
     wl_fn *copy = calloc((size_t)iface->event_count, sizeof *copy);
@@ -187,12 +200,16 @@ wl_fn *wlfocus_wrap(struct wl_proxy *proxy, wl_fn *impl) {
     }
 
     struct wrapped *slot = NULL;
-    int duplicate = 0;
+    int duplicate = 0, benign = 0;
     if (copy) {
         pthread_mutex_lock(&g_wrap_lock);
         for (int i = 0; i < MAX_WRAPPED; i++) {
-            if (g_wrapped[i].proxy == proxy) { /* second add_listener: libwayland rejects it, so stay out */
+            if (g_wrapped[i].proxy == proxy) {
+                /* Our copy still installed on the live proxy: this is a second add_listener,
+                 * which libwayland rejects, so stay out. Anything else is a stale entry for a
+                 * reused address (the proxy went away without our destroy hook). */
                 duplicate = 1;
+                benign = wl_proxy_get_listener(proxy) == (const void *)g_wrapped[i].copy;
                 break;
             }
             if (!slot && !g_wrapped[i].proxy) slot = &g_wrapped[i];
@@ -201,9 +218,9 @@ wl_fn *wlfocus_wrap(struct wl_proxy *proxy, wl_fn *impl) {
         pthread_mutex_unlock(&g_wrap_lock);
         if (slot && !duplicate) return copy;
         free(copy);
-        if (duplicate) return impl;
+        if (benign) return impl;
     }
-    rec("X\t%llu\twrap_failed", ULL(now_ns()));
+    note_wrap_failed();
     return impl;
 }
 

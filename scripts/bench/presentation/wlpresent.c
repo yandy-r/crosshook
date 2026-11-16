@@ -332,6 +332,7 @@ static void do_init(struct wl_proxy *any) {
 
     /* Flush toplevel marks made before the log existed, then go live. */
     pthread_mutex_lock(&g_tab_lock);
+    wlfocus_flush_pending();
     for (int i = 0; i < MAX_SURFACES; i++) {
         if (g_tab[i].wl_id && g_tab[i].toplevel)
             rec("S\t%llu\t%u\ttoplevel", ULL(g_tab[i].toplevel_ns), g_tab[i].wl_id);

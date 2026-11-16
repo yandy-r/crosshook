@@ -44,7 +44,7 @@ class PresentLogTests(unittest.TestCase):
     def test_missing_clock_or_incomplete_log_refused(self):
         with self.assertRaisesRegex(CaptureError, r"^PRESENT_LOG_MALFORMED: header without clock_id"):
             bench_present.require_clock(self.logs(HAPPY.replace("\tclock_id=1", "")))
-        for condition in ("log_cap", "bind_failed"):
+        for condition in ("log_cap", "bind_failed", "wrap_failed"):
             with self.subTest(condition=condition), \
                     self.assertRaisesRegex(CaptureError, f"^PRESENT_LOG_INCOMPLETE: {condition}"):
                 bench_present.require_clock(self.logs(HAPPY + f"X\t9\t{condition}\n"))
@@ -163,29 +163,6 @@ class PresentLogTests(unittest.TestCase):
                                          bench_present.Focus(12, "keyboard", False, 1, True)])
         self.assertEqual([(g.ns, g.w, g.h, g.activated) for g in logs[0].geometry],
                          [(13, 800, 600, True), (14, 810, 600, False)])
-
-    def test_focused_enter_leave_ordering(self):
-        logs = self.logs(HEADER + SURFACES + "K\t10\tenter\t1\nK\t20\tleave\t1\nK\t30\tenter\t1\n")
-        self.assertFalse(bench_present.focused(logs, "keyboard", 5))
-        self.assertTrue(bench_present.focused(logs, "keyboard", 10))
-        self.assertTrue(bench_present.focused(logs, "keyboard", 19))
-        self.assertFalse(bench_present.focused(logs, "keyboard", 20))
-        self.assertFalse(bench_present.focused(logs, "keyboard", 29))
-        self.assertTrue(bench_present.focused(logs, "keyboard", 30))
-        self.assertTrue(bench_present.focused(logs, "keyboard"))
-        self.assertFalse(bench_present.focused(logs, "pointer"))
-
-    def test_focused_ignores_non_toplevel_surface(self):
-        logs = self.logs(HEADER + SURFACES + "M\t10\tenter\t1\nM\t20\tenter\t2\n")
-        self.assertTrue(bench_present.focused(logs, "pointer", 15))
-        self.assertFalse(bench_present.focused(logs, "pointer", 25))
-        self.assertFalse(bench_present.focused(logs, "pointer"))
-
-    def test_focused_role_follows_log_order(self):
-        logs = self.logs(HEADER + "K\t1\tenter\t1\nS\t2\t1\ttoplevel\nK\t3\tleave\t1\n"
-                         + "S\t4\t1\tdestroyed\nK\t5\tenter\t1\n")
-        self.assertFalse(bench_present.focused(logs, "keyboard", 1))
-        self.assertFalse(bench_present.focused(logs, "keyboard"))
 
     def test_distinct_sizes_windowing_and_toplevel_only(self):
         logs = self.logs(HEADER + SURFACES + "G\t10\t1\t800\t600\t1\nG\t20\t1\t900\t600\t1\n"
