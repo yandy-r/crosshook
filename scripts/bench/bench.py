@@ -180,6 +180,7 @@ def _run(args, outcome: dict[str, bool]) -> int:
             raise CaptureError("BINARY_REQUIRED: executable file not found")
         if args.binary and not args.flatpak and not args.dry_run:
             binary = Path(args.binary).resolve()
+            args.binary = str(binary)  # every launch uses this path; retargeting a symlink cannot swap it
             binary_sha256 = sha256_file(binary)
         if args.bundle:
             preflight(original, bundle=args.bundle)

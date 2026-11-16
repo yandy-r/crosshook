@@ -181,6 +181,31 @@ class GuardTests(unittest.TestCase):
             else:
                 self.assertNotIn("error", manifest)
 
+    def test_symlinked_binary_is_resolved_once_for_every_launch(self):
+        import bench_shim
+        first, second, link = self.root / "app1", self.root / "app2", self.root / "app"
+        first.write_bytes(b"first")
+        second.write_bytes(b"second")
+        link.symlink_to(first)
+        fake = bench_shim.ShimBuild(self.root / "libwlpresent.so", "0" * 64, "0" * 64, "host")
+        launched = []
+
+        def retarget_then_launch(_metric, _args, command, env, command_for):
+            launched.append(command[0])
+            link.unlink()
+            link.symlink_to(second)
+            launched.append(command_for(env)[0])
+            return [{"iteration": "1", "status": "ok"}]
+        with patch.object(bench.Originals, "capture", return_value=self.original), \
+                patch.object(bench_shim, "build", return_value=fake), \
+                patch.object(bench, "capture", side_effect=retarget_then_launch), \
+                patch.object(bench, "make_dirs"), patch("sys.stderr"):
+            code = bench.main(["--variant", "A", "--env", "E1", "--metric", "G2", "--cold-cache-ack",
+                               "--binary", str(link), "--collect", "presentation",
+                               "--output", str(self.root / "out"), "--tmp-root", str(self.root / "runs")])
+        self.assertEqual(code, 0)
+        self.assertEqual(launched, [str(first.resolve())] * 2)
+
     def test_guard_error_marks_meta_failed(self):
         output = self.root / "guarded"
         with patch.object(bench.Originals, "capture", return_value=self.original), \

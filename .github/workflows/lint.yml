@@ -176,8 +176,8 @@ jobs:
   bench-shim:
     name: Bench shim (compile check)
     # The shim needs libwayland-client >= 1.24 (wl_proxy_get_interface); Ubuntu 24.04 ships 1.22.
-    # ubuntu-latest is Ubuntu 26.04 (libwayland 1.26); pin ubuntu-24.04 only if this must be tested on 1.22.
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest may still pick 24.04 while the 26.04 rollout finishes.
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v4
 
