@@ -19,10 +19,16 @@ from dataclasses import dataclass
 from bench_capture import CaptureError
 
 LINE_CAP = 65536
-G5_SCENARIOS = frozenset({"search", "toggle_favorite", "toggle_optimization", "dpad", "route_switch"})
-SCENARIOS = G5_SCENARIOS | {"replay_scroll"}
-PHASES = frozenset({"armed", "render", "focus_lost", "console_hidden", "follow_on", "follow_off"})
+G5_SCENARIOS = frozenset({"search", "toggle_favorite", "toggle_optimization", "dpad", "route_switch",
+                          "health_table"})
+SCENARIOS = G5_SCENARIOS | {"replay_scroll", "health_scroll"}
 REPLAY_PHASES = frozenset({"console_hidden", "follow_on", "follow_off"})
+HEALTH_PHASES = frozenset({"health_ready", "health_rows_too_few"})
+STATUS_PHASES = REPLAY_PHASES | HEALTH_PHASES
+PHASES = frozenset({"armed", "render", "focus_lost"}) | STATUS_PHASES
+# Mirror `healthTable.ts`: the live table must show this many rows within this many seconds.
+HEALTH_MIN_ROWS = 300
+HEALTH_WAIT_S = 60
 REPLAY_KINDS = ("start", "done")
 REPLAY_MAX_LINES = 50000
 _INT = re.compile(r"-?[0-9]+")
@@ -78,7 +84,7 @@ class EventReader:
         self._begin: Begin | None = None
         self._marks: dict[tuple[str, int, str], Mark] = {}
         self._focus_lost: list[Mark] = []  # every blur is kept: a later one must not hide behind an earlier one
-        self._replay_marks: list[Mark] = []
+        self._status_marks: list[Mark] = []
         self._replay: dict[str, ReplayEvent] = {}
         self._clocks: list[ClockSample] = []
         self._errors: list[str] = []
@@ -146,8 +152,8 @@ class EventReader:
                     self._replay[record.kind] = record.event
             elif isinstance(record, Begin):
                 self._begin = self._begin or record
-            elif isinstance(record, Mark) and record.phase in REPLAY_PHASES:
-                self._replay_marks.append(record)
+            elif isinstance(record, Mark) and record.phase in STATUS_PHASES:
+                self._status_marks.append(record)
             elif isinstance(record, Mark) and record.phase == "focus_lost":
                 self._focus_lost.append(record)
             elif isinstance(record, Mark):
@@ -230,10 +236,10 @@ class EventReader:
         code = "REPLAY_NOT_STARTED" if kind == "start" else "REPLAY_NOT_DONE"
         return self._wait(lambda: self._replay.get(kind), timeout_s, code)
 
-    def replay_mark(self, scenario: str) -> Mark | None:
-        """The earliest `console_hidden`/`follow_on`/`follow_off` mark of `scenario`, if one arrived."""
+    def status_mark(self, scenario: str) -> Mark | None:
+        """The earliest status mark of `scenario` (a replay or health phase), if one arrived."""
         with self._cond:
-            marks = [mark for mark in self._replay_marks if mark.scenario == scenario]
+            marks = [mark for mark in self._status_marks if mark.scenario == scenario]
         return min(marks, key=lambda mark: mark.ns) if marks else None
 
     def focus_lost(self, scenario: str, since_ns: int) -> Mark | None:
@@ -260,3 +266,11 @@ class EventReader:
             self._closed = True
             self._cond.notify_all()
         self._thread.join(timeout=.5)
+
+
+def require_probe_ok(events: EventReader, scenario: str) -> None:
+    """Fail when the app reported that the live health table had too few rows for `scenario`."""
+    mark = events.status_mark(scenario)
+    if mark is not None and mark.phase == "health_rows_too_few":
+        raise CaptureError(f"HEALTH_ROWS_TOO_FEW: the live health table showed fewer than {HEALTH_MIN_ROWS} "
+                           f"rows (or none) within {HEALTH_WAIT_S} s; generate the 500-profile fixtures")

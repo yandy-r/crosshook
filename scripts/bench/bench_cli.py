@@ -6,9 +6,13 @@ import math
 import tempfile
 
 _SCENARIO_COLUMNS = "scenario,p50_ms,p95_ms,p99_ms,stddev_ms,over_interval_percent,frames,status"
+_PRESENT_COLUMNS = (
+    "iteration,ready_ms,first_present_ms,first_content_ms,p50_ms,p95_ms,"
+    "first_present_p50_ms,first_present_p95_ms,first_content_p50_ms,first_content_p95_ms,status"
+)
 SCHEMAS = {
-    "G1": "iteration,ready_ms,first_present_ms,p50_ms,p95_ms,first_present_p50_ms,first_present_p95_ms,status",
-    "G2": "iteration,ready_ms,first_present_ms,p50_ms,p95_ms,first_present_p50_ms,first_present_p95_ms,status",
+    "G1": _PRESENT_COLUMNS,
+    "G2": _PRESENT_COLUMNS,
     "G3": "elapsed_s,pss_mb,uss_mb,growth_mb,gpu_mb,status",
     "G4": _SCENARIO_COLUMNS,
     "G5": "scenario,p50_ms,p95_ms,p99_ms,measured,ambiguous,timeout,early,status",
@@ -25,6 +29,9 @@ SCENARIOS = {"G4": ("library", "console", "settings"),
              "G5": ("search", "toggle_favorite", "toggle_optimization", "dpad", "route_switch"),
              "G8": ("replay_scroll",),
              "G9": ("resize",)}
+# Opt-in scenarios: selectable with --scenario, never part of a metric's default list, so the
+# canonical baselines keep their scenario sets.
+SUPPLEMENTAL_SCENARIOS = {"G4": ("health",), "G5": ("health_table",)}
 DEFAULT_TRIALS, MIN_TRIALS, MAX_TRIALS = 20, 2, 200
 
 
@@ -38,8 +45,9 @@ def positive(raw: str) -> float:
 def _scenarios(parser: argparse.ArgumentParser, args) -> dict[str, list[str]]:
     """Resolve `--scenario` into {metric: [scenario, ...]} for the selected G4/G5/G8/G9 metrics.
 
-    Each listed value must belong to a selected metric's allowlist; a selected metric
-    that no listed value addresses keeps its full default list.
+    Each listed value must belong to a selected metric's allowlist (defaults plus the opt-in
+    supplementals); a selected metric that no listed value addresses keeps its default list,
+    which never includes a supplemental.
     """
     owners = {m: SCENARIOS[m] for m in SCENARIOS if m in args.selected}
     if args.scenario is None:
@@ -47,12 +55,13 @@ def _scenarios(parser: argparse.ArgumentParser, args) -> dict[str, list[str]]:
     if args.collect != "presentation" or not owners:
         parser.error("--scenario requires --collect presentation with G4, G5, G8 or G9")
     requested = [item.strip() for item in args.scenario.split(",")]
+    accepted = {metric: names + SUPPLEMENTAL_SCENARIOS.get(metric, ()) for metric, names in owners.items()}
     for item in requested:
-        if not any(item in names for names in owners.values()):
-            allowed = "; ".join(f"{metric}: {','.join(names)}" for metric, names in owners.items())
+        if not any(item in names for names in accepted.values()):
+            allowed = "; ".join(f"{metric}: {','.join(names)}" for metric, names in accepted.items())
             parser.error(f"--scenario value {item!r} is not valid for the selected metrics ({allowed})")
-    return {metric: [name for name in names if name in requested] or list(names)
-            for metric, names in owners.items()}
+    return {metric: [name for name in accepted[metric] if name in requested] or list(owners[metric])
+            for metric in owners}
 
 
 def arguments(argv: list[str] | None = None):
@@ -78,8 +87,11 @@ def arguments(argv: list[str] | None = None):
     parser.add_argument("--capture-csv")
     parser.add_argument("--collect", choices=("csv", "presentation"), default="csv")
     parser.add_argument("--scenario", help="comma list of input scenarios for --collect presentation: "
-                        "G4 library,console,settings (default all); "
-                        "G5 search,toggle_favorite,toggle_optimization,dpad,route_switch (default all); "
+                        "G4 library,console,settings (default all) plus the opt-in health (the 300-row health "
+                        "table scroll); "
+                        "G5 search,toggle_favorite,toggle_optimization,dpad,route_switch (default all) "
+                        "plus the opt-in health_table (route switch to the 300-row health table); "
+                        "the health scenarios need --fixtures and are never run by default; "
                         "G8 replay_scroll (default); G9 resize (default)")
     parser.add_argument("--trials", type=int, default=DEFAULT_TRIALS,
                         help=f"G5 trials per scenario and iteration (even, {MIN_TRIALS}..{MAX_TRIALS}, "

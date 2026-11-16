@@ -10,8 +10,10 @@ from typing import ClassVar
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bench_capture
+import bench_events
 from bench_capture import CaptureError
-from bench_events import LINE_CAP, Begin, ClockSample, EventReader, Mark
+from bench_events import (HEALTH_MIN_ROWS, HEALTH_WAIT_S, LINE_CAP, Begin, ClockSample, EventReader, Mark,
+                          require_probe_ok)
 
 LAUNCH = 1_000
 NOW = 5_000
@@ -254,6 +256,58 @@ class HandoffTests(unittest.TestCase):
         proc, _ = bench_capture.ready([sys.executable, "-c", code], dict(os.environ), 5, True)
         self.addCleanup(proc.stderr.close)
         self.assertFalse(hasattr(proc, "events"))
+
+
+class HealthProbeTests(unittest.TestCase):
+    def test_health_scenarios_and_phases_are_accepted(self):
+        reader = reader_for(b"BENCH_BEGIN 2000 health_scroll\nBENCH_BEGIN 2100 health_table\n"
+                            b"BENCH_MARK 2200 health_table 0 armed 1\nBENCH_MARK 2300 health_table 0 render 2\n")
+        reader.check()
+        self.assertEqual(reader.wait_begin(1).scenario, "health_scroll")
+        self.assertEqual(reader.wait_mark("health_table", 0, "render", 1).ns, 2300)
+
+    def test_health_table_is_a_g5_scenario_and_health_scroll_is_not(self):
+        self.assertIn("health_table", bench_events.G5_SCENARIOS)
+        self.assertNotIn("health_scroll", bench_events.G5_SCENARIOS)
+        self.assertIn("health_scroll", bench_events.SCENARIOS)
+
+    def test_status_mark_returns_the_health_phase(self):
+        for phase in ("health_ready", "health_rows_too_few"):
+            reader = reader_for(f"BENCH_MARK 2000 health_scroll 0 {phase} 1\n".encode())
+            reader.check()
+            self.assertEqual(reader.status_mark("health_scroll").phase, phase)
+
+    def test_health_marks_do_not_answer_a_mark_wait_or_a_focus_query(self):
+        reader = reader_for(b"BENCH_MARK 2000 health_table 0 health_ready 1\n")
+        self.assertIsNone(reader.focus_lost("health_table", 0))
+        with self.assertRaisesRegex(CaptureError, "^EVENT_STREAM_ENDED: MARK_TIMEOUT"):
+            reader.wait_mark("health_table", 0, "health_ready", .05)
+
+    def test_a_health_phase_on_a_non_health_scenario_is_well_formed_and_ignored(self):
+        reader = reader_for(b"BENCH_MARK 2000 search 0 health_rows_too_few 1\n")
+        reader.check()
+        require_probe_ok(reader, "health_table")
+
+    def test_an_unknown_health_phase_is_malformed(self):
+        with self.assertRaisesRegex(CaptureError, "^BENCH_EVENT_MALFORMED"):
+            reader_for(b"BENCH_MARK 2000 health_scroll 0 health_maybe 1\n").check()
+
+    def test_probe_ok_passes_without_a_mark_or_with_ready(self):
+        require_probe_ok(reader_for(b""), "health_scroll")
+        require_probe_ok(reader_for(b"BENCH_MARK 2000 health_scroll 0 health_ready 1\n"), "health_scroll")
+
+    def test_too_few_rows_fails_with_the_fixture_hint(self):
+        reader = reader_for(b"BENCH_MARK 2000 health_scroll 0 health_rows_too_few 1\n")
+        with self.assertRaisesRegex(CaptureError, "^HEALTH_ROWS_TOO_FEW: .*fewer than 300 rows.*within 60 s; "
+                                                  "generate the 500-profile fixtures$"):
+            require_probe_ok(reader, "health_scroll")
+
+    def test_the_failure_is_per_scenario(self):
+        reader = reader_for(b"BENCH_MARK 2000 health_scroll 0 health_rows_too_few 1\n")
+        require_probe_ok(reader, "health_table")
+
+    def test_the_constants_mirror_the_app(self):
+        self.assertEqual((HEALTH_MIN_ROWS, HEALTH_WAIT_S), (300, 60))
 
 
 if __name__ == "__main__":

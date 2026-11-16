@@ -16,7 +16,6 @@ InputDevice, KWinScripts, EventReader and the sampler's readers.
 from __future__ import annotations
 
 import contextlib
-import math
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -44,8 +43,9 @@ from bench_drivers import (
     _wait_idle,
     _window,
     prepare_scenario,
+    wait_sliced,
 )
-from bench_drivers_g5 import FLATPAK_FACTOR, MARK_SLICE_S
+from bench_drivers_g5 import FLATPAK_FACTOR
 from bench_events import Mark
 from bench_guard import ENV_SCENARIO
 from bench_input import InputDevice
@@ -101,37 +101,15 @@ def replay_bound_s(lines: int) -> float:
     return lines / REPLAY_LINES_PER_S * REPLAY_SLACK_FACTOR + REPLAY_SLACK_S
 
 
-def _wait_sliced(proc, gate: _LockGate, wait: Callable[[float], object], code: str, timeout_s: float,
-                 context: str, probe: Callable[[], None] = lambda: None):
-    """Call `wait(slice)` until it answers or `timeout_s` of slices pass, checking the app between them.
-
-    A stream that ended is reported as the app's exit when the process confirms it.
-    """
-    for _ in range(max(1, math.ceil(timeout_s / MARK_SLICE_S))):
-        try:
-            return wait(MARK_SLICE_S)
-        except CaptureError as error:
-            text = str(error)
-            if text.startswith("EVENT_STREAM_ENDED"):
-                _require_running(proc, context)
-                raise
-            if not text.startswith(code):
-                raise
-        _require_running(proc, context)
-        gate.check(context)
-        probe()
-    raise CaptureError(f"{code}: not seen within {timeout_s:g} s {context}")
-
-
 def _require_console(events) -> None:
-    mark = events.replay_mark(SCENARIO)
+    mark = events.status_mark(SCENARIO)
     if mark is not None and mark.phase == "console_hidden":
         raise CaptureError("CONSOLE_NOT_VISIBLE: the console log is not visible "
                            "(drawer collapsed or status-bar layout)")
 
 
 def _follow_state(events) -> str:
-    mark: Mark | None = events.replay_mark(SCENARIO)
+    mark: Mark | None = events.status_mark(SCENARIO)
     if mark is None:
         raise CaptureError("REPLAY_MARK_MISSING: the app began without reporting the console follow state")
     return "on" if mark.phase == "follow_on" else "off"
@@ -215,7 +193,7 @@ def _drive(proc, log_dir: Path, kwin: KWinScripts, dev: InputDevice, events, sam
     win = _window(proc, kwin, CURSOR_DX, CURSOR_DY, WINDOW_W, WINDOW_H)
     tail, gate = FocusTail(log_dir), _LockGate(clock)
     since_ns = clock()
-    _wait_sliced(proc, gate, events.wait_begin, "BEGIN_TIMEOUT", mark_timeout + BEGIN_EXTRA_S,
+    wait_sliced(proc, gate, events.wait_begin, "BEGIN_TIMEOUT", mark_timeout + BEGIN_EXTRA_S,
                  "while waiting for the app to begin", lambda: _require_console(events))
     _require_console(events)
     follow = _follow_state(events)
@@ -235,7 +213,7 @@ def _drive(proc, log_dir: Path, kwin: KWinScripts, dev: InputDevice, events, sam
             "POINTER_NOT_OVER_WINDOW: no pointer enter on the app window after placing it"))
         _require_running(proc, "before the GO signal")
         _send_go(proc)
-        start = _wait_sliced(proc, gate, lambda slice_s: events.wait_replay("start", slice_s),
+        start = wait_sliced(proc, gate, lambda slice_s: events.wait_replay("start", slice_s),
                              "REPLAY_NOT_STARTED", mark_timeout, "after the GO signal")
         sampler.set_phase("replay")
         done_ns, notches, first_ns, last_ns = _scroll_replay(

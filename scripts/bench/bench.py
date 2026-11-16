@@ -137,6 +137,18 @@ def _require_gates(args, driven: list[str]) -> None:
         raise CaptureError("FIXTURES_REQUIRED: G8 needs the 50k-line replay fixture")
     if "G4" in driven and "console" in args.scenarios["G4"] and not args.fixtures:
         raise CaptureError("FIXTURES_REQUIRED: the G4 console scenario needs the 50k-line replay fixture")
+    if not args.fixtures and (("G4" in driven and "health" in args.scenarios["G4"])
+                              or ("G5" in driven and "health_table" in args.scenarios["G5"])):
+        raise CaptureError("FIXTURES_REQUIRED: the health scenarios need the 500-profile fixtures "
+                           "(≥ 300 health rows)")
+
+
+def write_result(path: Path, metric: str, rows: list[dict]) -> None:
+    """Write one metric's rows with its schema header; columns a row does not carry stay empty."""
+    with path.open("w", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=SCHEMAS[metric].split(","))
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 def _run(args, outcome: dict[str, bool]) -> int:
@@ -250,10 +262,7 @@ def _run(args, outcome: dict[str, bool]) -> int:
                 rows = capture(metric, args, command, env, command_for=lambda e: launch_command(args, e), **extra)
             partial |= any(row.get("status") == "partial" for row in rows)
             path = output / f"{metric}.csv"
-            with path.open("w", newline="") as stream:
-                writer = csv.DictWriter(stream, fieldnames=SCHEMAS[metric].split(","))
-                writer.writeheader()
-                writer.writerows(rows)
+            write_result(path, metric, rows)
             written.append(path)
             print(path)
         meta["status"] = "dry-run" if args.dry_run else "partial" if partial else "captured"

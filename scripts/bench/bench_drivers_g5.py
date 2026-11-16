@@ -25,6 +25,7 @@ from pathlib import Path
 
 from bench_capture import CaptureError
 from bench_drivers import (
+    MARK_SLICE_S,
     _key_check,
     _live_logs,
     _LockGate,
@@ -35,7 +36,7 @@ from bench_drivers import (
     _wait_focus,
     _window,
 )
-from bench_events import ClockSample
+from bench_events import HEALTH_WAIT_S, ClockSample, require_probe_ok
 from bench_g5select import EARLY, TIMEOUT, Trial, select_trial
 from bench_input import (
     ALLOWED_SEARCH,
@@ -53,7 +54,8 @@ G5_KEYS = {"search": (LETTER_KEYS[ALLOWED_SEARCH], KEY_BACKSPACE),
            "toggle_favorite": (KEY_ENTER,),
            "toggle_optimization": (KEY_ENTER,),
            "dpad": (KEY_RIGHT, KEY_LEFT),
-           "route_switch": (KEY_ENTER,)}
+           "route_switch": (KEY_ENTER,),
+           "health_table": (KEY_ENTER,)}
 CURSOR_DX, CURSOR_DY = 640, 450
 CLOCK_MAX_HALF_RTT_NS = 2_000_000    # a best round trip above 4 ms cannot support a frame-level mapping
 CLOCK_FLOOR_NS = 1_000_000           # performance.now() is floored to 1 ms, added to the uncertainty
@@ -67,10 +69,16 @@ QUIET_MAX_FRAME_GAP_NS = 200_000_000  # longer gaps are idle time or the runner'
 QUIET_TIMEOUT_S = 10.0              # native floor; scaled to 2 x the mark timeout (Flatpak: 40 s)
 POLL_S = 0.02
 QUIET_POLL_S = 0.05
-MARK_SLICE_S = 0.25                  # a mark wait is sliced so a lost focus or dead app is noticed early
 MARK_TIMEOUT_S = 5.0
 FIRST_ARMED_EXTRA_S = 40.0           # BENCH_BEGIN precedes the probe's prepare(): up to 4 waits of 10 s
+# Per scenario: health_table navigates to the health page, waits up to HEALTH_WAIT_S for its rows, then returns.
+FIRST_ARMED_EXTRA_BY_SCENARIO = {"health_table": HEALTH_WAIT_S + 20.0}
 FLATPAK_FACTOR = 4                   # the sandbox is slower to arm and present than the native app
+
+
+def first_armed_extra_s(scenario: str) -> float:
+    """Seconds beyond the mark timeout the first `armed` mark may take after BENCH_BEGIN."""
+    return FIRST_ARMED_EXTRA_BY_SCENARIO.get(scenario, FIRST_ARMED_EXTRA_S)
 
 
 def mark_timeout_s(timeout_s: float, flatpak: bool) -> float:
@@ -195,6 +203,7 @@ class _Marks:
             _require_running(self._proc, context)
             self._gate.check(context)
             self.check_focus(context)
+            require_probe_ok(self._events, self._scenario)
         raise CaptureError(f"MARK_TIMEOUT: {self._scenario} seq {seq} {phase} "
                            f"not seen within {timeout_s:g} s")
 
@@ -236,7 +245,7 @@ def drive_g5(proc, scenario: str, log_dir: Path, kwin: KWinScripts, dev: InputDe
     noticed_early = False
     for seq in range(trials):
         # The first arm follows the probe's prepare() (setup steps after BENCH_BEGIN); later arms do not.
-        marks.wait(seq, "armed", mark_timeout + FIRST_ARMED_EXTRA_S if seq == 0 else None)
+        marks.wait(seq, "armed", mark_timeout + first_armed_extra_s(scenario) if seq == 0 else None)
         _wait_quiet(proc, log_dir, gate, seq, clock, sleep, max(QUIET_TIMEOUT_S, 2 * mark_timeout))
         marks.check_focus(f"before G5 trial {seq}")
         check_key()  # app alive, session unlocked, keyboard enter on the toplevel

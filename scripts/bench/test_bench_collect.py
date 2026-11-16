@@ -32,6 +32,7 @@ class FakeReady:
     def __init__(self, offset_ns: int = 5_000_000, clock: str = "1", refresh_ns: int = 8333333):
         self.calls: list[tuple[list[str], dict[str, str]]] = []
         self.offset_ns, self.clock, self.refresh_ns = offset_ns, clock, refresh_ns
+        self.content_gap_ns: int | None = 20_000_000  # second frame after READY; None writes none
 
     def __call__(self, command, env, timeout, exit_after):
         self.calls.append((list(command), dict(env)))
@@ -39,9 +40,13 @@ class FakeReady:
         flag = "--env=CROSSHOOK_BENCH_PRESENT_DIR="  # Flatpak gets the directory only as a flag
         present = Path(env.get("CROSSHOOK_BENCH_PRESENT_DIR") or
                        next(arg[len(flag):] for arg in command if arg.startswith(flag)))
-        (present / "wlpresent-1.log").write_text(
-            log_text(launch, launch + self.offset_ns, self.refresh_ns, self.clock))
-        return SimpleNamespace(launch_ns=launch, stderr=None), 12.5
+        text = log_text(launch, launch + self.offset_ns, self.refresh_ns, self.clock)
+        ready_ns = launch + 12_500_000
+        if self.content_gap_ns is not None:
+            frame = ready_ns + self.content_gap_ns
+            text += f"C\t{frame}\t7\t2\t1\nP\t{frame}\t2\t{frame}\t{self.refresh_ns}\t1\t0\n"
+        (present / "wlpresent-1.log").write_text(text)
+        return SimpleNamespace(launch_ns=launch, ready_ns=ready_ns, stderr=None), 12.5
 
 
 class CollectTests(unittest.TestCase):
@@ -68,8 +73,10 @@ class CollectTests(unittest.TestCase):
         for row in measured:
             self.assertEqual(row["ready_ms"], 12.5)
             self.assertGreaterEqual(row["first_present_ms"], 5.0)
+            self.assertGreaterEqual(row["first_content_ms"], row["first_present_ms"])
             self.assertEqual(row["status"], "measured")
-        for key in ("p50_ms", "p95_ms", "first_present_p50_ms", "first_present_p95_ms"):
+        for key in ("p50_ms", "p95_ms", "first_present_p50_ms", "first_present_p95_ms",
+                    "first_content_p50_ms", "first_content_p95_ms"):
             self.assertIn(key, rows[-1])
 
     def test_dirs_are_per_metric(self):
@@ -210,7 +217,7 @@ class DrivenTests(unittest.TestCase):
         self.settings = self.root / "config/crosshook/settings.toml"
         self.settings_seen: list[tuple[str, bool]] = []  # (scenario, settings.toml present while driving)
 
-        def drive_g4(proc, scenario, log_dir, kwin, dev):
+        def drive_g4(proc, scenario, log_dir, kwin, dev, before_prime=None):
             self.drive_calls.append(("G4", scenario, log_dir, kwin, dev))
             self.settings_seen.append((scenario, self.settings.is_file()))
             return self.bounds()
@@ -225,7 +232,7 @@ class DrivenTests(unittest.TestCase):
         self.instance_checks: list[int] = []
         for target, replacement in (
                 ("ready", self.fake), ("stop", self.stopped.append), ("InputDevice", FakeDevice),
-                ("KWinScripts", FakeKWin), ("drive_g4", lambda *a: self.drive_g4(*a)),
+                ("KWinScripts", FakeKWin), ("drive_g4", lambda *a, **kw: self.drive_g4(*a, **kw)),
                 ("drive_g9", lambda *a: self.drive_g9(*a)), ("settle_device", self.settled.append),
                 ("require_kwin", self.count_kwin), ("require_no_instance", self.check_instance)):
             patcher = patch.object(bench_collect, target, replacement)
@@ -382,7 +389,7 @@ class DrivenTests(unittest.TestCase):
             self.rows()
 
     def test_driver_failure_stops_app_and_closes_device(self):
-        def failing(*_args):
+        def failing(*_args, **_kw):
             raise CaptureError("FOCUS_LOST: pointer")
         self.drive_g4 = failing
         with self.assertRaisesRegex(CaptureError, "^FOCUS_LOST: "):
@@ -393,7 +400,7 @@ class DrivenTests(unittest.TestCase):
         self.assertTrue(FakeDevice.instances[0].closed)
 
     def test_keyboard_interrupt_stops_app_and_closes_device(self):
-        def interrupted(*_args):
+        def interrupted(*_args, **_kw):
             raise KeyboardInterrupt
         self.drive_g4 = interrupted
         with self.assertRaises(KeyboardInterrupt):
@@ -476,7 +483,7 @@ class DrivenTests(unittest.TestCase):
         self.args.flatpak = True
         flatpak_settings = self.root / "home/.var/app/dev.crosshook.CrossHook/config/crosshook/settings.toml"
         seen = []
-        self.drive_g4 = lambda proc, scenario, *_rest: (seen.append((scenario, flatpak_settings.is_file())),
+        self.drive_g4 = lambda proc, scenario, *_rest, **_kw: (seen.append((scenario, flatpak_settings.is_file())),
                                                         self.bounds())[1]
         self.rows(command_for=lambda env: bench.launch_command(self.args, env))
         self.assertEqual(seen, [("library", False), ("library", False), ("console", True), ("console", True)])
@@ -492,7 +499,7 @@ class DrivenTests(unittest.TestCase):
                 self.fake.calls.clear()
                 shutil.rmtree(self.root / "present", ignore_errors=True)
 
-                def failing(*_args, failure=failure):
+                def failing(*_args, failure=failure, **_kw):
                     self.assertTrue(self.settings.is_file())  # the console iteration really had it
                     raise failure
                 self.drive_g4 = failing

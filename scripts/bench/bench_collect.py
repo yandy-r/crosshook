@@ -22,6 +22,7 @@ from bench_drivers import (
 from bench_drivers_g5 import G5Result, drive_g5, mark_timeout_s
 from bench_drivers_g8 import SCENARIO as G8_SCENARIO
 from bench_drivers_g8 import G8Result, drive_g8, prepare_g8_scenario
+from bench_drivers_health import await_health_page
 from bench_g5io import TOGGLE_SCENARIOS, ToggleState, write_observations
 from bench_g5select import summarize
 from bench_g8io import FrameRecord, frame_records
@@ -46,6 +47,7 @@ from bench_memory import MemoryBenchError, MemoryRow, MemorySampler, growth, pea
 from bench_present import (
     check_refresh,
     discard_rate,
+    first_present_at_or_after,
     first_present_ns,
     frame_intervals_ms,
     parse_dir,
@@ -54,6 +56,7 @@ from bench_present import (
     toplevel_pids,
 )
 
+G4_HEALTH = "health"  # the opt-in G4 scenario that scrolls the health table (bench_cli.SUPPLEMENTAL_SCENARIOS)
 PRESENT_POLL_S = 2.0
 PRESENT_POLL_STEP_S = 0.05
 # Flatpak receives these only through --env; the host `flatpak`/bwrap must never preload the shim.
@@ -64,25 +67,39 @@ MIN_ITERATION_INTERVALS = 5  # per iteration: a pooled count must not hide an it
 MAX_DISCARD_RATE = 0.05
 
 
-def _wait_for_frame(present_dir: Path) -> None:
+def _wait_for_frame(present_dir: Path, not_before_ns: int) -> None:
+    """Poll up to PRESENT_POLL_S for a toplevel frame presented at or after `not_before_ns`."""
     deadline = time.monotonic() + PRESENT_POLL_S
     while time.monotonic() < deadline:
         try:
-            toplevel_frames(parse_dir(present_dir))
-            return
+            if first_present_at_or_after(parse_dir(present_dir), not_before_ns) is not None:
+                return
         except CaptureError:
-            time.sleep(PRESENT_POLL_STEP_S)
+            pass
+        time.sleep(PRESENT_POLL_STEP_S)
 
 
-def _first_present_ms(present_dir: Path, launch_ns: int, refresh_hz: float) -> float:
+def _present_ms(present_dir: Path, launch_ns: int, ready_ns: int,
+                refresh_hz: float) -> tuple[float, float]:
+    """(first_present_ms, first_content_ms), both from launch.
+
+    First content is the first toplevel frame presented at or after READY: READY follows the
+    frame that painted the content, so this is a conservative upper bound on first-content-painted.
+    """
     logs = parse_dir(present_dir)
     require_clock(logs)
     frames = toplevel_frames(logs)
     check_refresh(frames, refresh_hz)
-    value = (first_present_ns(logs) - launch_ns) / 1e6
-    if value < 0:
+    present_ns = first_present_ns(logs)
+    if present_ns < launch_ns:
         raise CaptureError("INVALID_PRESENT_CLOCK: first present precedes launch")
-    return value
+    content_ns = first_present_at_or_after(logs, ready_ns)
+    if content_ns is None:
+        raise CaptureError("NO_CONTENT_FRAME: no toplevel frame was presented within "
+                           f"{PRESENT_POLL_S:g} s after READY")
+    if content_ns < present_ns:
+        raise CaptureError("INVALID_PRESENT_CLOCK: first content precedes first present")
+    return (present_ns - launch_ns) / 1e6, (content_ns - launch_ns) / 1e6
 
 
 def _present_dir(env: dict[str, str], metric: str, number: int, scenario: str | None = None) -> Path:
@@ -110,38 +127,42 @@ def _launch_spec(command_for: Callable[[dict[str, str]], list[str]], env: dict[s
 
 
 def _iteration(args, command_for: Callable[[dict[str, str]], list[str]], env: dict[str, str],
-               metric: str, number: int) -> tuple[float, float]:
+               metric: str, number: int) -> tuple[float, float, float]:
     present_dir = _present_dir(env, metric, number)
     command_i, env_i = _launch_spec(command_for, env, present_dir)
     proc, ready_ms = ready(command_i, env_i, args.timeout, exit_after=False)
     try:
-        _wait_for_frame(present_dir)
+        _wait_for_frame(present_dir, proc.ready_ns)
     finally:
         stop(proc)
         if proc.stderr:
             proc.stderr.close()
-    return ready_ms, _first_present_ms(present_dir, proc.launch_ns, args.refresh_hz)
+    return (ready_ms, *_present_ms(present_dir, proc.launch_ns, proc.ready_ns, args.refresh_hz))
 
 
 def presentation_rows(args, command_for: Callable[[dict[str, str]], list[str]], env: dict[str, str],
                       metric: str) -> list[dict]:
     rows = []
     for number in range(1, args.iterations + 1):
-        ready_ms, first_ms = _iteration(args, command_for, env, metric, number)
-        rows.append({"iteration": number, "ready_ms": ready_ms,
-                     "first_present_ms": first_ms, "status": "measured"})
+        ready_ms, first_ms, content_ms = _iteration(args, command_for, env, metric, number)
+        rows.append({"iteration": number, "ready_ms": ready_ms, "first_present_ms": first_ms,
+                     "first_content_ms": content_ms, "status": "measured"})
     ready_stats = stats([row["ready_ms"] for row in rows])
     present_stats = stats([row["first_present_ms"] for row in rows])
+    content_stats = stats([row["first_content_ms"] for row in rows])
     rows.append({"iteration": "summary", "p50_ms": ready_stats["p50_ms"], "p95_ms": ready_stats["p95_ms"],
                  "first_present_p50_ms": present_stats["p50_ms"],
-                 "first_present_p95_ms": present_stats["p95_ms"], "status": "measured"})
+                 "first_present_p95_ms": present_stats["p95_ms"],
+                 "first_content_p50_ms": content_stats["p50_ms"],
+                 "first_content_p95_ms": content_stats["p95_ms"], "status": "measured"})
     return rows
 
 
-def _drive(metric: str, scenario: str, proc, present_dir: Path, tools: Path, dev: InputDevice | None):
+def _drive(metric: str, scenario: str, proc, present_dir: Path, tools: Path, dev: InputDevice | None,
+           before_prime: Callable[[], None] | None = None):
     kwin = KWinScripts(tools, secrets.token_hex(4))
     if metric == "G4":
-        return drive_g4(proc, scenario, present_dir, kwin, dev)
+        return drive_g4(proc, scenario, present_dir, kwin, dev, before_prime=before_prime)
     return drive_g9(proc, present_dir, kwin)
 
 
@@ -153,13 +174,20 @@ def _driven_iteration(args, command_for: Callable[[dict[str, str]], list[str]], 
     env_s = prepare_scenario(scenario, env, args.flatpak) if metric == "G4" else env
     command_i, env_i = _launch_spec(command_for, env_s, present_dir)
     require_no_instance()  # a CrossHook started since the last check would absorb this launch
-    proc, _ = ready(command_i, env_i, args.timeout, exit_after=False)
+    health = metric == "G4" and scenario == G4_HEALTH
+    # The health scenario's app reports through the event stream, so it is launched with events.
+    proc, _ = (ready(command_i, env_i, args.timeout, exit_after=False, events=True) if health
+               else ready(command_i, env_i, args.timeout, exit_after=False))
     try:
-        result = _drive(metric, scenario, proc, present_dir, Path(env["HOME"]).parent / "bench-tools", dev)
+        before_prime = None
+        if health:
+            def before_prime() -> None:
+                await_health_page(proc, proc.events, present_dir, mark_timeout_s(args.timeout, args.flatpak),
+                                  args.flatpak)
+        result = _drive(metric, scenario, proc, present_dir, Path(env["HOME"]).parent / "bench-tools", dev,
+                        before_prime)
     finally:
-        stop(proc)
-        if proc.stderr:
-            proc.stderr.close()
+        _stop_app(proc)
     logs = parse_dir(present_dir)
     require_clock(logs)
     frames = toplevel_frames(logs)
