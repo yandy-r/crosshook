@@ -32,7 +32,13 @@ from bench_session import locked_error, session_locked
 NOTICE = "BENCH_NOTICE: injecting input into the bench window; do not touch the keyboard or mouse"
 SCENARIOS = ("library", "console", "settings")
 WINDOW_W, WINDOW_H = 1280, 900
-CURSOR_OFFSET = {"library": (640, 450), "settings": (640, 450), "console": (640, 780)}
+# The console log renders only in the wide layout (>= 1440 px wide); at 1280 px the shell shows a
+# status bar instead, so console scenarios (G4 console, G8) use a wider window.
+CONSOLE_WINDOW_W, CONSOLE_WINDOW_H = 1600, 1000
+CONSOLE_CURSOR = (800, 860)       # over the console drawer of the wide layout
+CURSOR_OFFSET = {"library": (640, 450), "settings": (640, 450), "console": CONSOLE_CURSOR}
+WINDOW_SIZE = {"library": (WINDOW_W, WINDOW_H), "settings": (WINDOW_W, WINDOW_H),
+               "console": (CONSOLE_WINDOW_W, CONSOLE_WINDOW_H)}
 SCROLL_NOTCHES = 90          # per direction; 90 notches at 33 ms is about 3 s
 IDLE_S = 1.0                 # console: no presented frame for this long means the replay is done
 IDLE_TIMEOUT_S = 25.0        # 50k lines at the 5000 lines/s cap take about 10 s
@@ -215,8 +221,8 @@ class _GrowthWatch:
     Only the timed scroll is watched; the idle waits before it legitimately produce no commits.
     """
 
-    def __init__(self, tail: FocusTail, clock: Callable[[], int]):
-        self._tail, self._clock = tail, clock
+    def __init__(self, tail: FocusTail, clock: Callable[[], int], stall_s: float = LOG_STALL_S):
+        self._tail, self._clock, self._stall_ns = tail, clock, int(stall_s * 1e9)
         self._size, self._since = tail.size, clock()
 
     def check(self) -> None:
@@ -224,7 +230,7 @@ class _GrowthWatch:
         size, now = self._tail.size, self._clock()
         if size != self._size:
             self._size, self._since = size, now
-        elif now - self._since > int(LOG_STALL_S * 1e9):
+        elif now - self._since > self._stall_ns:
             raise CaptureError("FOCUS_LOST: presentation log stopped growing")
 
 
@@ -235,9 +241,9 @@ def _finish(end_ns: int, clock: Callable[[], int], sleep: Callable[[float], None
         sleep(remaining / 1e9)
 
 
-def _window(proc, kwin: KWinScripts, dx: int, dy: int):
+def _window(proc, kwin: KWinScripts, dx: int, dy: int, width: int = WINDOW_W, height: int = WINDOW_H):
     win = find_window(process_tree(proc.pid) | {proc.pid})
-    return kwin.place(win, WINDOW_W, WINDOW_H, dx, dy)
+    return kwin.place(win, width, height, dx, dy)
 
 
 def _key_check(proc, tail: FocusTail, gate: _LockGate, context: str) -> Callable[[], None]:
@@ -285,16 +291,21 @@ def _last_frame_ns(log_dir: Path) -> int:
     return frames[-1].presented_ns
 
 
-def _wait_idle(proc, log_dir: Path, clock, sleep) -> None:
-    """Wait until the app stops presenting (console replay finished) so G4 times scrolling only."""
-    deadline = clock() + int(IDLE_TIMEOUT_S * 1e9)
+def _wait_idle(proc, log_dir: Path, clock, sleep, timeout_s: float = IDLE_TIMEOUT_S,
+               code: str = "REPLAY_NOT_SETTLED", idle_s: float = IDLE_S) -> int:
+    """Wait until the app stops presenting (console replay finished) so G4 times scrolling only.
+
+    The window is idle once its last presented frame is `idle_s` old. Returns the presentation time of
+    that frame, which is when the window went idle.
+    """
+    deadline = clock() + int(timeout_s * 1e9)
     while clock() < deadline:
         _require_running(proc, "while waiting for the console replay")
         last = _last_frame_ns(log_dir)
-        if last and clock() - last >= int(IDLE_S * 1e9):
-            return
+        if last and clock() - last >= int(idle_s * 1e9):
+            return last
         sleep(0.2)
-    raise CaptureError(f"REPLAY_NOT_SETTLED: the console kept presenting for {IDLE_TIMEOUT_S:.0f} s")
+    raise CaptureError(f"{code}: the console kept presenting for {timeout_s:.0f} s")
 
 
 def _scroll_pattern() -> list[int]:
@@ -309,7 +320,7 @@ def drive_g4(proc, scenario: str, log_dir: Path, kwin: KWinScripts, dev: InputDe
     if scenario not in SCENARIOS:
         raise CaptureError(f"UNKNOWN_SCENARIO: {scenario[:40]!r}")
     _notice()
-    win = _window(proc, kwin, *CURSOR_OFFSET[scenario])
+    win = _window(proc, kwin, *CURSOR_OFFSET[scenario], *WINDOW_SIZE[scenario])
     tail, gate = FocusTail(log_dir), _LockGate(clock)
     if scenario == "settings":
         _wait_focus(tail, "keyboard", clock, sleep, lambda: _lost("keyboard", "after placing it"))

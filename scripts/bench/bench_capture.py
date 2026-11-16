@@ -108,8 +108,12 @@ def drain_stderr(proc: subprocess.Popen) -> None:
 
 
 def ready(command: list[str], env: dict[str, str], timeout: float,
-          exit_after: bool, events: bool = False) -> tuple[subprocess.Popen, float]:
-    """Launch and wait for READY. With `events`, `proc.events` reads the BENCH_* markers after READY."""
+          exit_after: bool, events: bool = False, stdin: bool = False) -> tuple[subprocess.Popen, float]:
+    """Launch and wait for READY. With `events`, `proc.events` reads the BENCH_* markers after READY.
+
+    With `stdin`, the app's stdin is a pipe the caller keeps as `proc.stdin` (the G8 go signal) and
+    closes; otherwise the app inherits the runner's stdin as before.
+    """
     import selectors
     child_env = dict(env)
     if exit_after:
@@ -124,6 +128,7 @@ def ready(command: list[str], env: dict[str, str], timeout: float,
         raise CaptureError(locked_error("before launch"))
     start = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
     proc = subprocess.Popen(command, env=child_env, start_new_session=True,
+                            stdin=subprocess.PIPE if stdin else None,
                             stderr=subprocess.PIPE, stdout=subprocess.DEVNULL)
     assert proc.stderr is not None
     os.set_blocking(proc.stderr.fileno(), False)
@@ -175,6 +180,8 @@ def ready(command: list[str], env: dict[str, str], timeout: float,
     except BaseException:
         stop(proc)
         proc.stderr.close()
+        if proc.stdin is not None:
+            proc.stdin.close()
         raise
 
 
@@ -260,7 +267,7 @@ def capture(metric: str, args, command: list[str], env: dict[str, str], command_
         summary = stats([r["ready_ms"] for r in rows])
         rows.append({"iteration": "summary", **{k: summary[k] for k in ("p50_ms", "p95_ms")}, "status": "measured"})
         return rows
-    if metric == "G8":
+    if metric == "G8" and getattr(args, "collect", "csv") != "presentation":
         rows = artifact_rows(Path(args.capture_csv) if args.capture_csv else None, "frame_ms")
         values = numeric(rows, "frame_ms")
         proc, _ = ready(command, env, args.timeout, False)
@@ -274,8 +281,10 @@ def capture(metric: str, args, command: list[str], env: dict[str, str], command_
                 pss, _ = memory(proc.pid)
                 peak = max(peak, pss)
                 time.sleep(.1)
-            return [{**stats(values), "over_interval_percent": over_interval_percent(values, args.refresh_hz),
-                     "memory_growth_mb": peak-baseline, "status": "measured"}]
+            # External frames: the single-session columns (peak PSS, GPU, follow) stay blank.
+            return [{"scenario": "external", **stats(values),
+                     "over_interval_percent": over_interval_percent(values, args.refresh_hz),
+                     "frames": len(values), "memory_growth_mb": peak-baseline, "status": "measured"}]
         finally:
             stop(proc)
             if proc.stderr:
@@ -326,7 +335,7 @@ def capture(metric: str, args, command: list[str], env: dict[str, str], command_
         if not args.binary or not args.bundle or args.runtime_delta_mb is None:
             raise CaptureError("SIZE_INPUT_REQUIRED: --binary, --bundle, --runtime-delta-mb (measured download delta)")
         return [sizes(Path(args.binary), Path(args.bundle), args.branch, args.runtime_delta_mb)]
-    if metric in ("G4", "G5", "G9") and getattr(args, "collect", "csv") == "presentation":
+    if metric in ("G4", "G5", "G8", "G9") and getattr(args, "collect", "csv") == "presentation":
         from bench_collect import driven_rows
         return driven_rows(args, metric, command_for or (lambda _env: command), env, evidence)
     # External captures are raw observations, not invented samples or compositor rAF proxies.

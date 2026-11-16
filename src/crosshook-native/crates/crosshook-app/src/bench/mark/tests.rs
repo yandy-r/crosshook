@@ -54,6 +54,9 @@ fn every_phase_and_scenario_formats() {
         ("armed", "armed"),
         ("render", "render"),
         ("focus_lost", "focus_lost"),
+        ("console_hidden", "console_hidden"),
+        ("follow_on", "follow_on"),
+        ("follow_off", "follow_off"),
     ] {
         let mark = check_mark(&on("route_switch"), "route_switch", 0, phase, 0.0)
             .unwrap()
@@ -114,6 +117,9 @@ fn unknown_phases_are_rejected() {
 fn phase_serde_is_closed_snake_case() {
     let phase: Phase = serde_json::from_str("\"focus_lost\"").unwrap();
     assert_eq!(phase, Phase::FocusLost);
+    let phase: Phase = serde_json::from_str("\"follow_off\"").unwrap();
+    assert_eq!(phase, Phase::FollowOff);
+    assert!(serde_json::from_str::<Phase>("\"followOn\"").is_err());
     assert!(serde_json::from_str::<Phase>("\"focusLost\"").is_err());
     assert!(serde_json::from_str::<Phase>("\"other\"").is_err());
 }

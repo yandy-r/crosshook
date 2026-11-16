@@ -1,11 +1,12 @@
 """Presentation-time collection via the wlpresent shim: G1/G2 first frame, G4/G9 driven frame
-intervals, G5 input-to-photon trials."""
+intervals, G5 input-to-photon trials, G8 single-session replay frames and memory."""
 from __future__ import annotations
 
 import contextlib
 import secrets
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from bench_capture import CaptureError, _signals_deferred, over_interval_percent, ready, stats, stop
@@ -19,11 +20,29 @@ from bench_drivers import (
     settle_device,
 )
 from bench_drivers_g5 import G5Result, drive_g5, mark_timeout_s
+from bench_drivers_g8 import SCENARIO as G8_SCENARIO
+from bench_drivers_g8 import G8Result, drive_g8, prepare_g8_scenario
 from bench_g5io import TOGGLE_SCENARIOS, ToggleState, write_observations
 from bench_g5select import summarize
+from bench_g8io import FrameRecord, frame_records
+from bench_g8io import write_observations as write_g8_observations
+from bench_g8session import (
+    G8Iteration,
+    G8Session,
+    GpuProbe,
+    PidRecorder,
+    SessionFrames,
+    SessionMemory,
+    check_session,
+    frames_pid,
+    frames_session,
+    iteration_gpu_source,
+)
+from bench_g8session import summarize as summarize_g8
 from bench_guard import ENV_SCENARIO, require_no_instance
 from bench_input import InputDevice
 from bench_kwin import KWinScripts, require_kwin
+from bench_memory import MemoryBenchError, MemoryRow, MemorySampler, growth, peak_pss
 from bench_present import (
     check_refresh,
     discard_rate,
@@ -32,6 +51,7 @@ from bench_present import (
     parse_dir,
     require_clock,
     toplevel_frames,
+    toplevel_pids,
 )
 
 PRESENT_POLL_S = 2.0
@@ -158,6 +178,9 @@ def _stop_app(proc) -> None:
         events.close()
     if proc.stderr:
         proc.stderr.close()
+    stdin = getattr(proc, "stdin", None)
+    if stdin is not None:
+        stdin.close()
 
 
 def _g5_iteration(args, command_for: Callable[[dict[str, str]], list[str]], env: dict[str, str],
@@ -210,9 +233,109 @@ def _g5_row(args, command_for: Callable[[dict[str, str]], list[str]], env: dict[
     return summarize(scenario, [record.trial for record in records])
 
 
+@dataclass(frozen=True)
+class G8Capture:
+    """One launch's contribution: the checked iteration, its raw rows and frames, and its provenance."""
+
+    iteration: G8Iteration
+    rows: list[MemoryRow]
+    frames: list[FrameRecord]
+    evidence: dict
+
+
+def _g8_launch(args, command_for: Callable[[dict[str, str]], list[str]], env: dict[str, str],
+               dev: InputDevice, present_dir: Path):
+    """Launch once with events and the go pipe, drive the session, stop the app: (proc, result, recorder, probe)."""
+    command_i, env_i = _launch_spec(command_for, prepare_g8_scenario(env, args.flatpak), present_dir)
+    require_no_instance()  # a CrossHook started since the last check would absorb this launch
+    proc, _ = ready(command_i, env_i, args.timeout, exit_after=False, events=True, stdin=True)
+    try:
+        recorder, probe = PidRecorder(proc.pid, args.flatpak), GpuProbe()
+        kwin = KWinScripts(Path(env["HOME"]).parent / "bench-tools", secrets.token_hex(4))
+        result = drive_g8(proc, present_dir, kwin, dev, proc.events, MemorySampler(recorder, probe),
+                          mark_timeout_s(args.timeout, args.flatpak), args.flatpak)
+    finally:
+        _stop_app(proc)
+    return proc, result, recorder, probe
+
+
+def _g8_iteration(args, command_for: Callable[[dict[str, str]], list[str]], env: dict[str, str], number: int,
+                  dev: InputDevice) -> G8Capture:
+    run_id = getattr(args, "run_id", None)
+    if not run_id:
+        raise CaptureError("RUN_ID_MISSING: G8 binds its frames and memory samples to the run id")
+    present_dir = _present_dir(env, "G8", number, G8_SCENARIO)
+    proc, result, recorder, probe = _g8_launch(args, command_for, env, dev, present_dir)
+    logs = parse_dir(present_dir)
+    require_clock(logs)
+    frames = toplevel_frames(logs)
+    check_refresh(frames, args.refresh_hz)
+    window = (result.window_start_ns, result.window_end_ns)
+    if discard_rate(logs, *window) > MAX_DISCARD_RATE:
+        raise CaptureError(f"DISCARD_RATE: {G8_SCENARIO}: more than {MAX_DISCARD_RATE:.0%} of frames were discarded")
+    session = G8Session(run_id, number, proc.pid, proc.launch_ns)
+    times = [frame.presented_ns for frame in frames]
+    # The frames' pid comes from the shim logs, not from the launch: only evidence can tie them to it.
+    shim_pid = frames_pid(toplevel_pids(logs), proc.pid, recorder.sampled(), args.flatpak)
+    check_session(session,
+                  SessionFrames(frames_session(run_id, present_dir, shim_pid, proc.launch_ns), tuple(times)),
+                  SessionMemory(G8Session(run_id, number, recorder.root_pid, proc.launch_ns), tuple(result.rows)),
+                  *window)
+    try:
+        grown, peak = growth(result.rows, "baseline", "tail"), peak_pss(result.rows)
+    except MemoryBenchError as error:
+        raise CaptureError(str(error)) from error
+    iteration = G8Iteration(session, frame_intervals_ms(frames, *window), grown, peak,
+                            iteration_gpu_source(result.rows, grown), result.follow)
+    return G8Capture(iteration, result.rows, frame_records(times, *window),
+                     _g8_evidence(session, result, iteration, recorder, probe))
+
+
+def _g8_evidence(session: G8Session, result: G8Result, iteration: G8Iteration, recorder: PidRecorder,
+                 probe: GpuProbe) -> dict:
+    return {"iteration": session.iteration,
+            "session": {"run_id": session.run_id, "pid": session.pid, "launch_ns": session.launch_ns},
+            "start_to_done_s": round((result.done_ns - result.start_ns) / 1e9, 3),
+            "settle_s": round((result.settled_ns - result.done_ns) / 1e9, 3),
+            "notches": result.notches, "driven_s": round(result.driven_ns / 1e9, 3),
+            "follow": result.follow, "gpu_source": iteration.gpu_source, "nvidia_smi_path": probe.tool_path,
+            "gpu_denied_max": probe.denied_max,
+            "web_process_sampled": recorder.web_process_sampled(),
+            "sampled_pids": [{"pid": entry.pid, "comm": entry.comm, "start_time": entry.start_time,
+                              **({"nspid": list(entry.nspid)} if entry.nspid else {})}
+                             for entry in recorder.sampled()]}
+
+
+def _g8_row(args, command_for: Callable[[dict[str, str]], list[str]], env: dict[str, str], dev: InputDevice,
+            evidence: dict | None) -> dict:
+    """The G8 row: one launch per iteration, each cut by the app's own replay markers and pooled."""
+    iterations: list[G8Iteration] = []
+    rows: list[MemoryRow] = []
+    frames: list[FrameRecord] = []
+    try:
+        for number in range(1, args.iterations + 1):
+            capture = _g8_iteration(args, command_for, env, number, dev)
+            iterations.append(capture.iteration)
+            rows, frames = rows + capture.rows, frames + capture.frames
+            write_g8_observations(env, G8_SCENARIO, rows, frames)  # rewritten per iteration: a failure keeps it
+            if evidence is not None:
+                evidence.setdefault("G8", {}).setdefault(G8_SCENARIO, []).append(capture.evidence)
+            if len(capture.iteration.intervals_ms) < MIN_ITERATION_INTERVALS:
+                raise CaptureError(f"CAPTURE_TOO_SHORT: {G8_SCENARIO} iteration {number}: "
+                                   f"{len(capture.iteration.intervals_ms)} frame intervals, "
+                                   f"need {MIN_ITERATION_INTERVALS}")
+    finally:
+        remove_scenario_settings(env, args.flatpak)  # the drawer-expanded settings never outlive the capture
+    total = sum(len(iteration.intervals_ms) for iteration in iterations)
+    if total < MIN_INTERVALS:
+        raise CaptureError(f"CAPTURE_TOO_SHORT: {G8_SCENARIO}: {total} frame intervals, need {MIN_INTERVALS}")
+    return summarize_g8(G8_SCENARIO, iterations, args.refresh_hz)
+
+
 def driven_rows(args, metric: str, command_for: Callable[[dict[str, str]], list[str]],
                 env: dict[str, str], evidence: dict | None = None) -> list[dict]:
-    """One row per scenario: frame intervals inside the driven window (G5: trial latencies), pooled over iterations.
+    """One row per scenario: frame intervals inside the driven window (G5: trial latencies; G8: replay
+    frames plus memory), pooled over iterations.
 
     `evidence`, when given, gains `{metric: {scenario: [{iteration, injected, driven_s}, ...]}}`:
     what each iteration achieved, for provenance (the CSV schema has no column for it).
@@ -228,13 +351,16 @@ def driven_rows(args, metric: str, command_for: Callable[[dict[str, str]], list[
 def _scenario_rows(args, metric: str, command_for: Callable[[dict[str, str]], list[str]],
                    env: dict[str, str], evidence: dict | None) -> list[dict]:
     rows = []
-    # Only G4 and G5 inject uinput input; G9 resizes through KWin and never opens a device.
-    with (InputDevice() if metric in ("G4", "G5") else contextlib.nullcontext()) as dev:  # closed on every exit path
+    # Only G4, G5 and G8 inject uinput input; G9 resizes through KWin and never opens a device.
+    with (InputDevice() if metric in ("G4", "G5", "G8") else contextlib.nullcontext()) as dev:  # closed on every exit path
         if dev is not None:
             settle_device(dev)
         for scenario in args.scenarios[metric]:
             if metric == "G5":
                 rows.append(_g5_row(args, command_for, env, scenario, dev, evidence))
+                continue
+            if metric == "G8":
+                rows.append(_g8_row(args, command_for, env, dev, evidence))
                 continue
             values: list[float] = []
             for number in range(1, args.iterations + 1):

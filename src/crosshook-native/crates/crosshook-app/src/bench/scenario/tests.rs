@@ -19,7 +19,8 @@ fn every_allowlisted_name_round_trips() {
             "toggle_favorite",
             "toggle_optimization",
             "dpad",
-            "route_switch"
+            "route_switch",
+            "replay_scroll"
         ]
     );
     for scenario in ALL {
@@ -95,4 +96,24 @@ fn error_is_reported_once_and_yields_none() {
 fn public_scenario_serializes_its_name() {
     let json = serde_json::to_string(&Scenario::RouteSwitch.public()).unwrap();
     assert_eq!(json, r#"{"name":"route_switch"}"#);
+}
+
+#[test]
+fn only_replay_scroll_defers_the_replay() {
+    for scenario in ALL {
+        assert_eq!(
+            scenario.defers_replay(),
+            scenario == Scenario::ReplayScroll,
+            "{}",
+            scenario.name()
+        );
+    }
+}
+
+#[test]
+fn replay_scroll_is_selected_through_the_env() {
+    assert_eq!(
+        parse_scenario(&env(Some("1"), Some("replay_scroll"))),
+        Ok(Some(Scenario::ReplayScroll))
+    );
 }

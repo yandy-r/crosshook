@@ -6,12 +6,12 @@ pub use crosshook_app::bench::bench_enabled;
 
 use crosshook_app::bench::{
     active_scenario, bench_begin as begin_marks, bench_clock as read_clock,
-    bench_mark as write_mark, signal_ready, BenchScenario, ReadyAction,
+    bench_mark as write_mark, signal_ready, take_deferred_replay, BenchScenario, ReadyAction,
 };
 use tauri::AppHandle;
 
 use super::IpcResult;
-use crate::event_bridge::relay_bench_replay;
+use crate::event_bridge::{relay_bench_replay, relay_bench_replay_after_go};
 
 /// Frontend-ready signal for the startup benchmark. No-op unless `CROSSHOOK_BENCH=1`.
 /// Returns the active benchmark scenario, `None` when bench mode is off or no scenario is set.
@@ -25,10 +25,15 @@ pub async fn bench_ready(handle: AppHandle) -> IpcResult<Option<BenchScenario>> 
     Ok(active_scenario())
 }
 
-/// Start a benchmark marker sequence. No-op unless `CROSSHOOK_BENCH=1`.
+/// Start a benchmark marker sequence. No-op unless `CROSSHOOK_BENCH=1`. Starts a parked
+/// replay (one waiting for the runner's `GO`) once the marks are recording.
 #[tauri::command]
-pub async fn bench_begin() -> IpcResult<()> {
-    begin_marks()
+pub async fn bench_begin(handle: AppHandle) -> IpcResult<()> {
+    begin_marks()?;
+    if let Some(plan) = take_deferred_replay() {
+        relay_bench_replay_after_go(handle, plan);
+    }
+    Ok(())
 }
 
 /// Record a scenario phase marker emitted by the frontend.

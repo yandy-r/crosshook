@@ -49,6 +49,10 @@ E1 target metrics: G1–G10 (see [`README.md`](README.md)).
 
 Kernel tracing is root-only on E1 (`/sys/kernel/tracing` is 0700, `perf_event_paranoid=2`); the runner never uses `sudo`. NVIDIA exposes no `drm-*` keys in `fdinfo`, so per-process GPU memory comes from `nvidia-smi pmon`. Missing tools block the affected captures; [README.md](README.md) requires a real capture to fail `MISSING_TOOL` rather than approximate.
 
+### G8 on E1
+
+G8 (`--collect presentation`, see [README.md](README.md#g8-single-session-driver)) reads GPU memory from `nvidia-smi pmon` on E1, because NVIDIA exposes no `drm-*` keys in `fdinfo`. On E1 `pmon` listed the CrossHook pids with a numeric `fb` of 2 MiB on every sample, in the native and the Flatpak run, so a GPU growth of 0.0 is a measured value (a 2 MiB app tree that did not grow). When `pmon` lists the pids but every `fb` is `-`, the sample is `unavailable` with the reason `no_numeric_fb`, never 0, the same as G3's `gpu_mb`. The sampled pids are the app's process tree: the WebKit processes (WebKitWebProcess, WebKitNetworkProcess) are descendants of the app, so they are included. The console renders only in the wide layout, so G8 and the G4 `console` scenario place the window at 1600×1000 (at 1280 px the shell shows a status bar and no console).
+
 ## E2-D — Steam Deck Desktop Mode
 
 Not inventoried. No hardware values recorded here until first capture.

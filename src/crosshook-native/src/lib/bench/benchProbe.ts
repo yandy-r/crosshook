@@ -1,11 +1,12 @@
 import { callCommand } from '@/lib/ipc';
 import { getScenario, type ScenarioTrial } from './benchScenarios';
 import { runClockSync } from './clockSync';
+import { REPLAY_SCENARIO, startReplayProbe } from './replayProbe';
 
 /** Upper bound on trials per probe run; the runner stops the app long before this. */
 export const TRIAL_CAP = 10_000;
 
-export type BenchMarkPhase = 'armed' | 'render' | 'focus_lost';
+export type BenchMarkPhase = 'armed' | 'render' | 'focus_lost' | 'console_hidden' | 'follow_on' | 'follow_off';
 
 export interface BenchProbeOptions {
   /** Stops the probe and removes its listeners (tests; production never passes one). */
@@ -42,9 +43,14 @@ function nextFrame(): Promise<void> {
  * clock, calls `bench_begin`, then per trial: focuses the scenario target,
  * sends `armed`, waits for the DOM change, and sends `render` after the next
  * animation frame with the `performance.now()` read at the change. The runner
- * injects the input; the probe never does. Never rejects.
+ * injects the input; the probe never does. `replay_scroll` is dispatched to
+ * `startReplayProbe` before any clock sync. Never rejects.
  */
 export async function startBenchProbe(name: string, options: BenchProbeOptions = {}): Promise<void> {
+  if (name === REPLAY_SCENARIO) {
+    await startReplayProbe({ signal: options.signal });
+    return;
+  }
   const scenario = getScenario(name);
   if (!scenario) {
     console.warn('bench probe: unsupported scenario', name);

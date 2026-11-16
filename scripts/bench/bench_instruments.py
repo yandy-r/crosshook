@@ -2,15 +2,15 @@
 from __future__ import annotations
 
 import math
-import os
 import re
 import shutil
-import signal
 import subprocess
 import tempfile
 import threading
-import time
 from pathlib import Path
+
+import bench_gpu
+from bench_proc import CANCELLED, CommandFailed, run_cancellable
 
 
 class InstrumentError(RuntimeError):
@@ -27,23 +27,12 @@ def output(command: list[str], timeout: float = 10) -> str:
 
 
 def _run_cancellable(command: list[str], timeout: float, cancel: threading.Event | None) -> tuple[int, str]:
-    """Run `command`, killing its process group on timeout or when `cancel` is set."""
-    proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                            stderr=subprocess.PIPE, text=True, start_new_session=True)
-    deadline = time.monotonic() + timeout
-    while True:
-        try:
-            _, stderr = proc.communicate(timeout=.5)
-            return proc.returncode, stderr
-        except subprocess.TimeoutExpired:
-            cancelled = cancel is not None and cancel.is_set()
-            if cancelled or time.monotonic() > deadline:
-                try:
-                    os.killpg(proc.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-                proc.communicate()
-                raise InstrumentError(f"INSTRUMENT_{'CANCELLED' if cancelled else 'FAILED'}: {command[0]}") from None
+    """Run `command`, killing its process group on timeout or when `cancel` is set; returns its stderr."""
+    try:
+        return run_cancellable(command, timeout, cancel)
+    except CommandFailed as error:
+        raise InstrumentError(f"INSTRUMENT_{'CANCELLED' if error.kind == CANCELLED else 'FAILED'}: "
+                              f"{command[0]}") from None
 
 
 def wakeup_events(pids: set[int], duration: float, cancel: threading.Event | None = None) -> float:
@@ -74,26 +63,19 @@ def wakeup_events(pids: set[int], duration: float, cancel: threading.Event | Non
 
 
 def gpu_memory_mb(pids: set[int]) -> float | str:
-    """NVIDIA per-process GPU memory; other GPUs report `unavailable` (YAN-1007)."""
+    """NVIDIA per-process GPU memory; other GPUs report `unavailable` (YAN-1007).
+
+    The pmon row parsing lives in `bench_gpu`; `bench_gpu.sample` is the
+    vendor-neutral adapter (fdinfo first) used by the G8 sampler."""
     if shutil.which("nvidia-smi") is None:
         return "unavailable"
     # pmon covers graphics and compute contexts; fb is per (GPU, PID) MB, "-" when unavailable.
     rows = output(["nvidia-smi", "pmon", "-s", "m", "-c", "1"])
-    values = []
-    for row in rows.splitlines():
-        fields = row.split()
-        if len(fields) < 4 or row.startswith("#") or not fields[1].isdigit() or int(fields[1]) not in pids:
-            continue
-        if fields[3] == "-":
-            continue
-        try:
-            value = float(fields[3])
-        except ValueError as error:
-            raise InstrumentError("INSTRUMENT_FAILED: invalid NVIDIA memory") from error
-        if not math.isfinite(value) or value < 0:
-            raise InstrumentError("INSTRUMENT_FAILED: invalid NVIDIA memory")
-        values.append(value)
-    return sum(values) if values else "unavailable"
+    try:
+        totals = bench_gpu.parse_pmon(rows, pids)
+    except ValueError as error:
+        raise InstrumentError("INSTRUMENT_FAILED: invalid NVIDIA memory") from error
+    return totals.mb if totals.numeric else "unavailable"
 
 
 def battery_power_w() -> float:

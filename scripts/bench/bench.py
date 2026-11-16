@@ -41,7 +41,7 @@ from bench_provenance import (
 REPO = Path(__file__).resolve().parents[2]
 TOOLS = ("hyperfine", "ydotool", "gpu-screen-recorder", "perf", "pidstat", "upower", "flatpak", "ffmpeg", "cc",
          "gdbus")
-INPUT_DRIVEN = ("G4", "G5", "G9")  # presentation runs of these launch the app and inject input
+INPUT_DRIVEN = ("G4", "G5", "G8", "G9")  # presentation runs of these launch the app and inject input
 EXIT_PRESENTATION = ("NO_PRESENTATION_GLOBAL", "PRESENTATION_CLOCK", "REFRESH_MISMATCH",
                      "UNSUPPORTED_COMPOSITOR", "INPUT_DEVICE_DENIED")
 
@@ -186,6 +186,7 @@ def _run(args, outcome: dict[str, bool]) -> int:
         if presenting:
             run_id = new_run_id()
             raw = create_raw_dir(paths["output"], run_id)
+            args.run_id = run_id  # the G8 collector binds its frames and memory samples to this run
             meta.update(run_id=run_id, collector="wlpresent/1", raw_dir=str(raw))
             provenance = {"run_id": run_id, "collector": "wlpresent/1", "commit": meta["commit"],
                           "dirty": meta["dirty"],
@@ -199,7 +200,8 @@ def _run(args, outcome: dict[str, bool]) -> int:
                     provenance["trials"] = args.trials
             if binary_sha256 is not None:
                 provenance["binary_sha256"] = binary_sha256
-        external_only = all(m in ("G6", "G10") or (m in INPUT_DRIVEN and m not in driven)
+        # CSV-mode G8 is the one INPUT_DRIVEN metric that still launches the app (replay and memory sample).
+        external_only = all(m in ("G6", "G10") or (m in INPUT_DRIVEN and m != "G8" and m not in driven)
                             for m in args.selected)
         command: list[str] = []
         env: dict[str, str] = {}
@@ -231,7 +233,8 @@ def _run(args, outcome: dict[str, bool]) -> int:
             command = launch_command(args, env)
         partial = False
         for metric in args.selected:
-            if metric == "G8" and not args.dry_run:
+            if metric == "G8" and not args.dry_run and metric not in driven:
+                # CSV-mode G8 only: the driven G8 sets its own replay env per launch (bench_collect).
                 env["CROSSHOOK_BENCH_LOG"] = str(target / "logs/launch-50k.log")
                 env["CROSSHOOK_BENCH_LOG_RATE"] = "5000"
                 command = launch_command(args, env)

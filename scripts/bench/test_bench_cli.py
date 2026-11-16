@@ -46,7 +46,7 @@ class ArgumentTests(unittest.TestCase):
         self.assertEqual(bench.arguments([*BASE, "--metric", "G2"]).collect, "csv")
 
     def test_presentation_gate_matrix(self):
-        allowed = {"G1", "G2", "G4", "G5", "G9"}
+        allowed = {"G1", "G2", "G4", "G5", "G8", "G9"}
         for metric in bench.SCHEMAS:
             with self.subTest(metric=metric):
                 args, error = parse([*PRESENT, "--metric", metric])
@@ -54,18 +54,15 @@ class ArgumentTests(unittest.TestCase):
                     self.assertEqual(args.collect, "presentation")
                     continue
                 self.assertIsNone(args)
-                if metric == "G8":
-                    self.assertIn("G8 producer arrives with YAN-2056", error)
-                else:
-                    self.assertIn("supports G1/G2/G4/G5/G9 only", error)
+                self.assertIn("supports G1/G2/G4/G5/G8/G9 only", error)
 
     def test_presentation_rejects_a_mixed_selection_with_a_refused_metric(self):
-        for refused in ("G8", "G3"):
+        for refused in ("G6", "G3"):
             with self.subTest(refused=refused):
                 self.assertIsNone(parse([*PRESENT, "--metrics", f"G4,{refused}"])[0])
 
     def test_capture_csv_is_incompatible_with_presentation(self):
-        for metric in ("G2", "G4", "G5", "G9"):
+        for metric in ("G2", "G4", "G5", "G8", "G9"):
             with self.subTest(metric=metric):
                 args, error = parse([*PRESENT, "--metric", metric, "--capture-csv", "x.csv"])
                 self.assertIsNone(args)
@@ -107,7 +104,7 @@ class ArgumentTests(unittest.TestCase):
                  (["--metric", "G4", "--scenario", "library,"], "''"),
                  (["--metric", "G4", "--scenario", ""], "''"),
                  (["--metric", "G4", "--scenario", "LIBRARY"], "LIBRARY"),
-                 (["--metric", "G2", "--scenario", "library"], "requires --collect presentation with G4, G5 or G9")]
+                 (["--metric", "G2", "--scenario", "library"], "requires --collect presentation with G4, G5, G8 or G9")]
         for extra, text in cases:
             with self.subTest(extra=extra):
                 args, error = parse([*PRESENT, *extra])
@@ -147,12 +144,6 @@ class ArgumentTests(unittest.TestCase):
                 args, error = parse([*PRESENT, "--metric", "G5", "--trials", value])
                 self.assertIsNone(args)
                 self.assertIn("--trials requires an even number 2..200", error)
-
-    def test_g8_refusal_names_the_followup_issue(self):
-        args, error = parse([*PRESENT, "--metrics", "G5,G8"])
-        self.assertIsNone(args)
-        self.assertIn("G8 producer arrives with YAN-2056", error)
-        self.assertEqual(bench_cli.PHASE_3_REFUSAL, "G8 producer arrives with YAN-2056")
 
 
 class PresentationRunTests(unittest.TestCase):
@@ -299,12 +290,6 @@ class PresentationRunTests(unittest.TestCase):
         self.assertEqual(code, 30)
         self.assertIn("MISSING_TOOL: gdbus", err)
         self.assertFalse(self.output.exists())
-
-    def test_g8_stays_refused_with_the_followup_issue(self):
-        err = io.StringIO()
-        with contextlib.redirect_stderr(err), self.assertRaises(SystemExit):
-            bench.arguments([*PRESENT, "--metric", "G8"])
-        self.assertIn("G8 producer arrives with YAN-2056", err.getvalue())
 
     def test_dry_run_rows_leave_scenario_blank(self):
         original = Originals("/nonexistent-home", "/nonexistent-home", {}, None)

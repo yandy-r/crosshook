@@ -408,7 +408,9 @@ class G5StateTests(G5CollectTestCase):
 class G5ConsistencyTests(unittest.TestCase):
     def test_the_scenario_allowlists_cannot_drift_apart(self):
         names = set(bench_cli.SCENARIOS["G5"])
-        self.assertEqual(set(bench_events.SCENARIOS), names)
+        self.assertEqual(set(bench_events.G5_SCENARIOS), names)
+        # The reader also accepts G8's `replay_scroll`, and nothing else beyond the G5 set.
+        self.assertEqual(set(bench_events.SCENARIOS), names | {"replay_scroll"})
         self.assertEqual(set(bench_drivers_g5.G5_KEYS), names)
 
     def test_the_scenario_env_var_has_one_definition(self):

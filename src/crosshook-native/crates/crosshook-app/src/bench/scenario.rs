@@ -1,4 +1,4 @@
-//! The G5 scenario allowlist and the `CROSSHOOK_BENCH_SCENARIO` decision.
+//! The G5/G8 scenario allowlist and the `CROSSHOOK_BENCH_SCENARIO` decision.
 
 use std::sync::atomic::AtomicBool;
 
@@ -10,12 +10,13 @@ use super::util::claim;
 static SCENARIO_ERROR_REPORTED: AtomicBool = AtomicBool::new(false);
 
 /// Compiled-in scenario names, in the order the runner drives them.
-const ALL: [Scenario; 5] = [
+const ALL: [Scenario; 6] = [
     Scenario::Search,
     Scenario::ToggleFavorite,
     Scenario::ToggleOptimization,
     Scenario::Dpad,
     Scenario::RouteSwitch,
+    Scenario::ReplayScroll,
 ];
 
 /// The scenario the runner selected for this process.
@@ -32,6 +33,7 @@ pub(super) enum Scenario {
     ToggleOptimization,
     Dpad,
     RouteSwitch,
+    ReplayScroll,
 }
 
 impl Scenario {
@@ -43,7 +45,14 @@ impl Scenario {
             Self::ToggleOptimization => "toggle_optimization",
             Self::Dpad => "dpad",
             Self::RouteSwitch => "route_switch",
+            Self::ReplayScroll => "replay_scroll",
         }
+    }
+
+    /// True when READY must not start the log replay: the runner starts it with a `GO`
+    /// line on stdin once the frontend probe has called `bench_begin`.
+    pub(super) fn defers_replay(self) -> bool {
+        matches!(self, Self::ReplayScroll)
     }
 
     /// Exact match against the allowlist; no trimming, no case folding.

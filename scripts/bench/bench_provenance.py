@@ -23,6 +23,7 @@ SUMS = "SHA256SUMS"
 LOCK_NAME = ".bench.lock"
 BOOT_ID_PATH = Path("/proc/sys/kernel/random/boot_id")
 MAX_WALK_LEVELS = 4
+OBSERVATION_GLOBS = ("G5-*.csv", "G8-*.csv")  # driven metrics' raw observations, sealed with the shim logs
 
 
 def lock_output(output: Path) -> int:
@@ -119,7 +120,7 @@ def _copy_private(source: Path, target: Path) -> None:
 
 def finalize_raw(raw_dir: Path, root: Path | None, output: Path, written: list[Path],
                  manifest: dict, binary_sha256: str | None = None) -> None:
-    """Move shim logs, G5 observation CSVs and result files into the raw run directory, then seal it.
+    """Move shim logs, G5/G8 observation CSVs and result files into the raw run directory, then seal it.
 
     Runs even after a failed capture so partial evidence stays checksummed. Only the
     result files this run wrote (`written`) are sealed; symlinks are never followed.
@@ -129,9 +130,10 @@ def finalize_raw(raw_dir: Path, root: Path | None, output: Path, written: list[P
         if log.is_file():
             _copy_private(log, raw_dir / "present" / log.relative_to(present))
     observations = root / "observations" if root else None
-    for csv_file in sorted(observations.glob("G5-*.csv")) if observations and observations.is_dir() else []:
-        if csv_file.is_file():
-            _copy_private(csv_file, raw_dir / "observations" / csv_file.name)
+    for pattern in OBSERVATION_GLOBS:
+        for csv_file in sorted(observations.glob(pattern)) if observations and observations.is_dir() else []:
+            if csv_file.is_file():
+                _copy_private(csv_file, raw_dir / "observations" / csv_file.name)
     for path in [*written, output / "meta.json"]:
         if path.is_file():
             _copy_private(path, raw_dir / path.name)
