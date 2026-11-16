@@ -84,9 +84,21 @@ workspace_packages() {
   done < <(awk '
       /^members[[:space:]]*=/ { on = 1 }
       on { sub(/#.*/, "") }
-      on { while (match($0, /"[^"]+"/)) { print substr($0, RSTART + 1, RLENGTH - 2); $0 = substr($0, RSTART + RLENGTH) } }
+      on { while (match($0, /"[^"]+"|\047[^\047]+\047/)) { print substr($0, RSTART + 1, RLENGTH - 2); $0 = substr($0, RSTART + RLENGTH) } }
       on && /\]/ { exit }
     ' "$ws/Cargo.toml") | sort
+}
+
+# workspace_packages_checked <root>: workspace_packages, but an empty member
+# list (unparsed or unsupported `members` syntax) is an explicit error.
+workspace_packages_checked() {
+  local out
+  out="$(workspace_packages "$1")" || return 1
+  if [[ -z "$out" ]]; then
+    echo "error: no workspace members parsed from $1/src/crosshook-native/Cargo.toml (unsupported members syntax?)" >&2
+    return 1
+  fi
+  printf '%s\n' "$out"
 }
 
 # crate_map_packages <file>: prints sorted "<crate> <path>" lines from the first
@@ -136,7 +148,7 @@ check_root() {
     fi
   done
 
-  expected="$(workspace_packages "$root")" || return 1
+  expected="$(workspace_packages_checked "$root")" || return 1
   actual="$(crate_map_packages "$claude")"
   if [[ "$expected" != "$actual" ]]; then
     echo "error: CLAUDE.md crate map does not match the workspace members:" >&2
@@ -209,6 +221,10 @@ selftest() {
   make_fixture "$tmp/wrong-path"; sed -i 's/(`crates\/core`)/(`crates\/cor`)/' "$tmp/wrong-path/CLAUDE.md" "$tmp/wrong-path/AGENTS.md"; run_case wrong-path fail
   make_fixture "$tmp/members-comment"
   printf '[workspace]\nmembers = ["crates/core", # [legacy] note\n    "shell"]\n' >"$tmp/members-comment/src/crosshook-native/Cargo.toml"; run_case members-comment pass
+  make_fixture "$tmp/members-literal"
+  printf "[workspace]\nmembers = ['crates/core', 'shell']\n" >"$tmp/members-literal/src/crosshook-native/Cargo.toml"; run_case members-literal pass
+  make_fixture "$tmp/members-empty"
+  printf '[workspace]\nmembers = []\n' >"$tmp/members-empty/src/crosshook-native/Cargo.toml"; run_case members-empty fail
   make_fixture "$tmp/pointer"; echo 'Read the rules.' >"$tmp/pointer/.cursorrules"; run_case pointer fail
   make_fixture "$tmp/no-pointer"; rm "$tmp/no-pointer/.ai/rules/project.md"; run_case no-pointer fail
   make_fixture "$tmp/missing-crate"
