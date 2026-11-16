@@ -2,10 +2,14 @@
 from __future__ import annotations
 
 import math
+import os
 import re
 import shutil
+import signal
 import subprocess
 import tempfile
+import threading
+import time
 from pathlib import Path
 
 
@@ -22,27 +26,48 @@ def output(command: list[str], timeout: float = 10) -> str:
         raise InstrumentError(f"INSTRUMENT_FAILED: {command[0]}") from error
 
 
-def wakeup_events(pids: set[int], duration: float) -> float:
-    """Count sched_wakeup events targeting the app tree; requires perf permission."""
+def _run_cancellable(command: list[str], timeout: float, cancel: threading.Event | None) -> tuple[int, str]:
+    """Run `command`, killing its process group on timeout or when `cancel` is set."""
+    proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                            stderr=subprocess.PIPE, text=True, start_new_session=True)
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            _, stderr = proc.communicate(timeout=.5)
+            return proc.returncode, stderr
+        except subprocess.TimeoutExpired:
+            cancelled = cancel is not None and cancel.is_set()
+            if cancelled or time.monotonic() > deadline:
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                proc.communicate()
+                raise InstrumentError(f"INSTRUMENT_{'CANCELLED' if cancelled else 'FAILED'}: {command[0]}") from None
+
+
+def wakeup_events(pids: set[int], duration: float, cancel: threading.Event | None = None) -> float:
+    """Count sched_wakeup events targeting the app tree; requires perf permission.
+    Setting `cancel` stops the perf run early (the capture failed elsewhere)."""
     if not pids:
         raise InstrumentError("WAKEUP_TARGETS_EMPTY")
     filter_expr = " || ".join(f"pid == {pid}" for pid in sorted(pids))
     try:
-        result = subprocess.run(["perf", "stat", "-x,", "-a", "-e", "sched:sched_wakeup",
-                                 "--filter", filter_expr, "--", "sleep", str(duration)],
-                                capture_output=True, text=True, timeout=duration + 30,
-                                check=False)  # parse perf's explicit unsupported/denied rows
+        # check=False semantics: parse perf's explicit unsupported/denied rows
+        returncode, stderr = _run_cancellable(["perf", "stat", "-x,", "-a", "-e", "sched:sched_wakeup",
+                                               "--filter", filter_expr, "--", "sleep", str(duration)],
+                                              duration + 30, cancel)
     except FileNotFoundError as error:
         raise InstrumentError("MISSING_TOOL: perf") from error
-    except subprocess.SubprocessError as error:
+    except (subprocess.SubprocessError, OSError) as error:
         raise InstrumentError("INSTRUMENT_FAILED: perf") from error
-    for line in result.stderr.splitlines():
+    for line in stderr.splitlines():
         fields = line.split(",")
         if len(fields) > 2 and fields[2] == "sched:sched_wakeup":
             if fields[0] in ("<not supported>", "<not counted>"):
                 break
             count = float(fields[0])
-            if result.returncode or not math.isfinite(count) or count < 0:
+            if returncode or not math.isfinite(count) or count < 0:
                 break
             return count / duration
     raise InstrumentError("INSTRUMENT_FAILED: perf sched_wakeup unavailable or permission denied")

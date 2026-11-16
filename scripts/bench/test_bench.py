@@ -10,6 +10,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bench
+import bench_capture
+import bench_session
 from bench_capture import CaptureError, ready, stats, stop
 from bench_guard import GuardError, Originals, build_env, check_path, preflight
 
@@ -127,16 +129,137 @@ class InstrumentTests(unittest.TestCase):
             bench.arguments(["--variant", "A", "--env", "E1", "--metrics", "G2,G6"])
         self.assertEqual(bench.arguments(["--variant", "A", "--env", "E1", "--metric", "G2"]).tmp_root, tempfile.gettempdir())
         stderr = "300,,sched:sched_wakeup,1000,100.00,,\n"
-        with patch.object(instruments.subprocess, "run",
-                          return_value=instruments.subprocess.CompletedProcess([], 0, "", stderr)):
+        with patch.object(instruments, "_run_cancellable", return_value=(0, stderr)):
             self.assertEqual(instruments.wakeup_events({10}, 10), 30)
-        denied = instruments.subprocess.CompletedProcess([], 255, "", "<not counted>,,sched:sched_wakeup,,,,\n")
-        with patch.object(instruments.subprocess, "run", return_value=denied), \
+        denied = (255, "<not counted>,,sched:sched_wakeup,,,,\n")
+        with patch.object(instruments, "_run_cancellable", return_value=denied), \
                 self.assertRaises(instruments.InstrumentError):
             instruments.wakeup_events({10}, 1)
 
 
+class SessionTests(unittest.TestCase):
+    def setUp(self):
+        bus = patch.object(bench_session, "_session_bus_available", return_value=True)
+        bus.start()
+        self.addCleanup(bus.stop)
+
+    def probes(self, logind, screensaver):
+        if logind is not None and "=" not in logind:
+            logind = f"Type=wayland\nLockedHint={logind}"
+        replies = {tuple(bench_session.LOCKED_HINT): logind, tuple(bench_session.SCREENSAVER_ACTIVE): screensaver,
+                   tuple(bench_session.SCREENSAVER_OWNED): None if screensaver is None else "(true,)"}
+
+        def run(command, **_):
+            reply = replies[tuple(command)]
+            if reply is None:
+                raise FileNotFoundError(command[0])
+            return bench_session.subprocess.CompletedProcess(command, 0, reply + "\n", "")
+        return patch.object(bench_session.subprocess, "run", side_effect=run)
+
+    def test_lock_state(self):
+        cases = [("yes", "(false,)", True), ("no", "(true,)", True), ("no", "(false,)", False),
+                 ("no", None, False), (None, "(true,)", True), (None, None, None), ("garbage", None, None)]
+        for logind, screensaver, expected in cases:
+            with self.subTest(logind=logind, screensaver=screensaver), self.probes(logind, screensaver):
+                self.assertIs(bench_session.session_locked(), expected)
+
+    def test_non_graphical_session_is_unknown(self):
+        with self.probes("Type=tty\nLockedHint=no", None):
+            self.assertIsNone(bench_session.session_locked())
+
+    def test_no_session_bus_skips_gdbus(self):
+        def run(command, **_):
+            if command[0] == "gdbus":
+                raise AssertionError("gdbus called without a session bus")
+            return bench_session.subprocess.CompletedProcess(command, 0, "Type=x11\nLockedHint=no\n", "")
+        with patch.object(bench_session, "_session_bus_available", return_value=False), \
+                patch.object(bench_session.subprocess, "run", side_effect=run):
+            self.assertIs(bench_session.session_locked(), False)
+
+    def test_unowned_screensaver_is_not_called(self):
+        def run(command, **_):
+            if command == bench_session.SCREENSAVER_ACTIVE:
+                raise AssertionError("GetActive called on an unowned name")
+            reply = "(false,)" if command == bench_session.SCREENSAVER_OWNED else "Type=wayland\nLockedHint=no"
+            return bench_session.subprocess.CompletedProcess(command, 0, reply + "\n", "")
+        with patch.object(bench_session.subprocess, "run", side_effect=run):
+            self.assertIs(bench_session.session_locked(), False)
+
+    def test_hung_probe_is_unknown(self):
+        hung = bench_session.subprocess.TimeoutExpired(["loginctl"], 2)
+        with patch.object(bench_session.subprocess, "run", side_effect=hung):
+            self.assertIsNone(bench_session.session_locked())
+
+    def test_failed_probe_is_unknown(self):
+        failed = bench_session.subprocess.CompletedProcess([], 1, "yes\n", "")
+        with patch.object(bench_session.subprocess, "run", return_value=failed):
+            self.assertIsNone(bench_session.session_locked())
+
+
+class CancellableRunTests(unittest.TestCase):
+    def test_cancel_kills_running_command(self):
+        import threading
+        import time
+        import bench_instruments as instruments
+        cancel = threading.Event()
+        threading.Timer(.2, cancel.set).start()
+        began = time.monotonic()
+        with self.assertRaisesRegex(instruments.InstrumentError, "^INSTRUMENT_CANCELLED: "):
+            instruments._run_cancellable([sys.executable, "-c", "import time;time.sleep(30)"], 60, cancel)
+        self.assertLess(time.monotonic() - began, 5)
+
+    def test_completed_command_returns_stderr(self):
+        import bench_instruments as instruments
+        code, stderr = instruments._run_cancellable(
+            [sys.executable, "-c", "import sys;print('row',file=sys.stderr);sys.exit(3)"], 10, None)
+        self.assertEqual((code, stderr), (3, "row\n"))
+
+
 class CaptureTests(unittest.TestCase):
+    def setUp(self):
+        unlocked = patch.object(bench_capture, "session_locked", return_value=False)
+        unlocked.start()
+        self.addCleanup(unlocked.stop)
+
+    def test_locked_session_refused_before_launch(self):
+        with patch.object(bench_capture, "session_locked", return_value=True), \
+                patch.object(bench_capture.subprocess, "Popen") as popen, \
+                self.assertRaisesRegex(CaptureError, "^SESSION_LOCKED: the session is locked before launch; .*unlock"):
+            ready([sys.executable, "-c", "pass"], dict(os.environ), 1, True)
+        popen.assert_not_called()
+
+    def test_lock_during_wait_reported(self):
+        states = iter([False])
+        with patch.object(bench_capture, "session_locked", side_effect=lambda: next(states, True)), \
+                self.assertRaisesRegex(CaptureError, "^SESSION_LOCKED: the session is locked after waiting for READY"):
+            ready([sys.executable, "-c", "import time;time.sleep(30)"], dict(os.environ), .2, True)
+
+    def test_timeout_names_presentation_requirement(self):
+        code = "import sys,time;print('booted',file=sys.stderr,flush=True);time.sleep(30)"
+        with self.assertRaisesRegex(CaptureError, "^READY_TIMEOUT: no READY within 0.5 s; .*minimize.*Last stderr: booted$"):
+            ready([sys.executable, "-c", code], dict(os.environ), .5, True)
+
+    def test_lock_during_sampling_stops_capture(self):
+        from types import SimpleNamespace
+        proc = bench_capture.subprocess.Popen([sys.executable, "-c", "import time;time.sleep(30)"],
+                                              start_new_session=True, stderr=bench_capture.subprocess.PIPE)
+        args = SimpleNamespace(timeout=1, duration=60)
+        with patch.object(bench_capture, "ready", return_value=(proc, 1.0)), \
+                patch.object(bench_capture, "session_locked", return_value=True), \
+                self.assertRaisesRegex(CaptureError, "^SESSION_LOCKED: the session is locked during G3"):
+            bench_capture.capture("G3", args, ["app"], {})
+        self.assertIsNotNone(proc.poll())
+
+    def test_session_locked_exits_one(self):
+        original = Originals("/nonexistent-home", "/nonexistent-home", {}, None)
+        with tempfile.TemporaryDirectory() as temp, \
+                patch.object(bench.Originals, "capture", return_value=original), \
+                patch.object(bench, "capture", side_effect=CaptureError("SESSION_LOCKED: x")), \
+                patch.object(bench, "launch_command", return_value=["app"]), \
+                patch.object(bench, "make_dirs"):
+            self.assertEqual(bench.main(["--variant", "A", "--env", "E1", "--metric", "G2", "--binary", sys.executable,
+                                         "--output", f"{temp}/out", "--tmp-root", f"{temp}/runs"]), 1)
+
     def test_percentiles(self):
         self.assertEqual(stats([1, 2, 3])["p50_ms"], 2)
         self.assertAlmostEqual(stats([1, 2, 3])["p95_ms"], 2.9)
