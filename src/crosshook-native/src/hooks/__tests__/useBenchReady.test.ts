@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const callCommandMock = vi.fn<(name: string) => Promise<unknown>>();
 const startBenchProbeMock = vi.fn<(name: string) => Promise<void>>();
+const healthModuleLoaded = vi.fn();
 
 vi.mock('@/lib/ipc', () => ({
   callCommand: (name: string) => callCommandMock(name),
@@ -12,6 +13,16 @@ vi.mock('@/lib/ipc', () => ({
 vi.mock('@/lib/bench/benchProbe', () => ({
   startBenchProbe: (name: string) => startBenchProbeMock(name),
 }));
+
+// Probe modules whose factory runs only when something imports them; each still returns the real module.
+vi.mock('@/lib/bench/healthTable', async (importOriginal) => {
+  healthModuleLoaded('healthTable');
+  return importOriginal();
+});
+vi.mock('@/lib/bench/healthScrollProbe', async (importOriginal) => {
+  healthModuleLoaded('healthScrollProbe');
+  return importOriginal();
+});
 
 // The hook uses module-level one-shot flags; import it fresh for every test.
 async function importHook() {
@@ -26,6 +37,7 @@ describe('useBenchReady', () => {
     vi.useFakeTimers();
     callCommandMock.mockReset().mockResolvedValue(null);
     startBenchProbeMock.mockReset().mockResolvedValue(undefined);
+    healthModuleLoaded.mockReset();
   });
 
   afterEach(() => {
@@ -132,6 +144,7 @@ describe('useBenchReady', () => {
 
     expect(callCommandMock.mock.calls).toEqual([['bench_ready']]);
     expect(startBenchProbeMock).not.toHaveBeenCalled();
+    expect(healthModuleLoaded).not.toHaveBeenCalled(); // the health probes stay unloaded in production
     expect(addDocument).not.toHaveBeenCalled();
     expect(addWindow).not.toHaveBeenCalled();
     expect(observerSpy).not.toHaveBeenCalled();
@@ -169,5 +182,21 @@ describe('useBenchReady', () => {
     expect(benchReadyCalls()).toHaveLength(1);
     expect(startBenchProbeMock).toHaveBeenCalledTimes(1);
     expect(startBenchProbeMock).toHaveBeenCalledWith('search');
+  });
+
+  it('loads the health modules through the real bench probe for a health_table result (positive control)', async () => {
+    vi.doUnmock('@/lib/bench/benchProbe');
+    callCommandMock.mockImplementation(async (name: string) =>
+      name === 'bench_ready' ? { name: 'health_table' } : null
+    );
+    const useBenchReady = await importHook();
+    renderHook(() => useBenchReady(true));
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
+    await vi.waitFor(() => expect(healthModuleLoaded).toHaveBeenCalledWith('healthTable'));
+
+    expect(startBenchProbeMock).not.toHaveBeenCalled(); // the mocked probe is out of the way
+    expect(healthModuleLoaded).toHaveBeenCalledWith('healthScrollProbe');
   });
 });

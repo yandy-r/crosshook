@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetBenchWarning } from '../benchMark';
 import { CONSOLE_WAIT_TIMEOUT_MS, startReplayProbe } from '../replayProbe';
 
 type Call = { name: string; args?: Record<string, unknown> };
@@ -55,6 +56,7 @@ function expand() {
 
 describe('startReplayProbe', () => {
   beforeEach(() => {
+    resetBenchWarning();
     calls.length = 0;
     callCommandMock.mockReset().mockImplementation(async (name, args) => {
       calls.push({ name, args });

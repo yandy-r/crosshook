@@ -68,6 +68,8 @@ fn only_replay_scroll_defers_the_replay() {
         (None, false),
         (Some("search"), false),
         (Some("route_switch"), false),
+        (Some("health_table"), false),
+        (Some("health_scroll"), false),
         (Some("replay_scroll"), true),
         (Some("not_a_scenario"), false),
     ] {

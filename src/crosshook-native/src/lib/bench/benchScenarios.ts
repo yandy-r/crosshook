@@ -6,6 +6,17 @@
  * listener is removed by `ScenarioTrial.dispose`.
  */
 
+import { activate, focusTarget, focusWithoutActivation, tabTrigger, waitForElement } from './benchDom';
+import {
+  CONTENT_ROOT,
+  HEALTH_MIN_ROWS,
+  HEALTH_TABLE_SCENARIO,
+  LIBRARY_CONTENT,
+  liveHealthRowCount,
+  openRoute,
+  reportHealthTable,
+} from './healthTable';
+
 export interface ScenarioTrial {
   /** Resolves with `performance.now()` read inside the callback that saw the change. */
   changed: Promise<number>;
@@ -15,7 +26,9 @@ export interface ScenarioTrial {
 
 export interface BenchScenario {
   /** One-time setup (reach the screen that holds the target). Resolves false when it cannot. */
-  prepare?: () => Promise<boolean>;
+  prepare?: (signal?: AbortSignal) => Promise<boolean>;
+  /** Untimed setup before every `arm` (return to the starting screen). Resolves false when it cannot. */
+  reset?: (signal?: AbortSignal) => Promise<boolean>;
   /** Focuses the target and starts watching for the change; null when the target is missing. */
   arm: () => ScenarioTrial | null;
 }
@@ -65,67 +78,11 @@ function eventTrial(target: EventTarget, type: string, accept: (event: Event) =>
   });
 }
 
-function focusTarget(element: HTMLElement): void {
-  element.focus({ preventScroll: true });
-}
-
-/**
- * Radix Tabs (automatic activation) switches route on `focus`, which would fire
- * the change before `armed`. Swallow that one focusin so only the runner's key
- * triggers the switch. Capture on window runs before React's root listener.
- */
-function focusWithoutActivation(element: HTMLElement): void {
-  const swallow = (event: Event) => event.stopImmediatePropagation();
-  window.addEventListener('focusin', swallow, true);
-  try {
-    focusTarget(element);
-  } finally {
-    window.removeEventListener('focusin', swallow, true);
-  }
-}
-
-/** Radix tab triggers/content carry the tab value as the id suffix (`<base>-trigger-<value>`). */
-function tabTrigger(value: string): HTMLElement | null {
-  return document.querySelector<HTMLElement>(`[role="tab"][id$="-trigger-${value}"]`);
-}
-
-/** Radix tabs activate on mousedown (not click); a click covers plain buttons. */
-function activate(element: Element): void {
-  element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
-  if (element instanceof HTMLElement) {
-    element.click();
-  }
-}
-
-function waitForElement(selector: string, timeoutMs: number): Promise<Element | null> {
-  const existing = document.querySelector(selector);
-  if (existing) {
-    return Promise.resolve(existing);
-  }
-  return new Promise((resolve) => {
-    const finish = (found: Element | null) => {
-      observer.disconnect();
-      clearTimeout(timer);
-      resolve(found);
-    };
-    const observer = new MutationObserver(() => {
-      const found = document.querySelector(selector);
-      if (found) {
-        finish(found);
-      }
-    });
-    const timer = setTimeout(() => finish(null), timeoutMs);
-    observer.observe(document.body, { childList: true, subtree: true });
-  });
-}
-
 const SEARCH_INPUT = 'input[aria-label="Search games"]';
-const LIBRARY_CONTENT = '.crosshook-library-page__content';
 const LIBRARY_TOOLBAR = '.crosshook-library-toolbar';
 const FAVORITE_BUTTON = 'button[aria-pressed][aria-label^="Toggle favorite"]';
 const FIRST_CARD_FOCUSABLE = '.crosshook-library-grid .crosshook-library-card__details-hitbox';
 const GAMEPAD_ROOT = 'main.crosshook-focus-scope';
-const ROUTE_CONTENT_ROOT = '[data-crosshook-page-scroll="true"]';
 const OPTIMIZATION_CHECKBOX =
   '[role="tabpanel"][id$="-content-optimizations"] input.crosshook-launch-optimizations__checkbox:not(:disabled)';
 
@@ -211,12 +168,37 @@ const routeSwitch: BenchScenario = {
   arm: () => {
     const libraryActive = tabTrigger('library')?.getAttribute('aria-selected') === 'true';
     const target = tabTrigger(libraryActive ? 'settings' : 'library');
-    const contentRoot = document.querySelector(ROUTE_CONTENT_ROOT);
+    const contentRoot = document.querySelector(CONTENT_ROOT);
     if (!target || !contentRoot) {
       return null;
     }
     focusWithoutActivation(target);
     return mutationTrial(contentRoot, { childList: true });
+  },
+};
+
+const healthTable: BenchScenario = {
+  prepare: async (signal) =>
+    (await reportHealthTable(HEALTH_TABLE_SCENARIO, signal)) && (await openRoute('library', signal)),
+  // Back to the library before every `armed`, so each timed switch is library -> health.
+  reset: async (signal) => {
+    if (tabTrigger('health')?.getAttribute('aria-selected') !== 'true') {
+      return true;
+    }
+    return openRoute('library', signal);
+  },
+  arm: () => {
+    const trigger = tabTrigger('health');
+    const contentRoot = document.querySelector(CONTENT_ROOT);
+    if (!trigger || !contentRoot) {
+      return null;
+    }
+    focusWithoutActivation(trigger);
+    return mutationTrial(
+      contentRoot,
+      { childList: true, subtree: true },
+      () => liveHealthRowCount(contentRoot) >= HEALTH_MIN_ROWS
+    );
   },
 };
 
@@ -226,6 +208,7 @@ const SCENARIOS: ReadonlyMap<string, BenchScenario> = new Map([
   ['toggle_optimization', toggleOptimization],
   ['dpad', dpad],
   ['route_switch', routeSwitch],
+  [HEALTH_TABLE_SCENARIO, healthTable],
 ]);
 
 /** Returns the scenario for an allowlisted name, or null for anything else. */

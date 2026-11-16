@@ -1,5 +1,5 @@
 import { callCommand } from '@/lib/ipc';
-import type { BenchMarkPhase } from './benchProbe';
+import { type BenchMarkPhase, sendMark } from './benchMark';
 
 /** Scenario name the runner passes for the G8 session replay. */
 export const REPLAY_SCENARIO = 'replay_scroll';
@@ -70,14 +70,8 @@ function isFollowing(body: HTMLElement): boolean {
   return body.scrollHeight - (body.scrollTop + body.clientHeight) <= FOLLOW_THRESHOLD_PX;
 }
 
-async function sendMark(phase: BenchMarkPhase): Promise<boolean> {
-  try {
-    await callCommand('bench_mark', { scenario: REPLAY_SCENARIO, seq: 0, phase, tPerfMs: performance.now() });
-    return true;
-  } catch (error) {
-    console.warn('bench replay probe: bench_mark failed', error);
-    return false;
-  }
+function sendReplayMark(phase: BenchMarkPhase): Promise<boolean> {
+  return sendMark(REPLAY_SCENARIO, 0, phase, performance.now());
 }
 
 /** Removes the blur witness the previous `startReplayProbe` registered, so a second start never doubles it. */
@@ -100,7 +94,7 @@ function watchFocusLoss(signal?: AbortSignal): void {
       return;
     }
     sent = true;
-    void sendMark('focus_lost');
+    void sendReplayMark('focus_lost');
   };
   const remove = () => {
     window.removeEventListener('blur', onBlur);
@@ -130,10 +124,10 @@ export async function startReplayProbe(options: ReplayProbeOptions = {}): Promis
       return;
     }
     if (!body) {
-      await sendMark('console_hidden');
+      await sendReplayMark('console_hidden');
       return;
     }
-    if (!(await sendMark(isFollowing(body) ? 'follow_on' : 'follow_off'))) {
+    if (!(await sendReplayMark(isFollowing(body) ? 'follow_on' : 'follow_off'))) {
       return;
     }
     await callCommand('bench_begin');

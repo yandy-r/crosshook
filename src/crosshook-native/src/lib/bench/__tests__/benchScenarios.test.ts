@@ -1,5 +1,13 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getScenario, type ScenarioTrial } from '../benchScenarios';
+import { HEALTH_MIN_ROWS } from '../healthTable';
+import { appendLiveTable, buildRoutes, CACHED_LABEL, healthTableHtml } from './healthFixture';
+
+const callCommandMock = vi.fn<(name: string, args?: Record<string, unknown>) => Promise<unknown>>();
+
+vi.mock('@/lib/ipc', () => ({
+  callCommand: (name: string, args?: Record<string, unknown>) => callCommandMock(name, args),
+}));
 
 const trials: ScenarioTrial[] = [];
 
@@ -14,6 +22,10 @@ function arm(name: string): ScenarioTrial | null {
 async function settle(trial: ScenarioTrial): Promise<number | 'pending'> {
   return Promise.race([trial.changed, new Promise<'pending'>((resolve) => setTimeout(() => resolve('pending'), 20))]);
 }
+
+beforeEach(() => {
+  callCommandMock.mockReset().mockResolvedValue(undefined);
+});
 
 afterEach(() => {
   trials.splice(0).forEach((trial) => {
@@ -31,7 +43,14 @@ describe('getScenario', () => {
 });
 
 describe('scenario arm() with a missing target', () => {
-  it.each(['search', 'toggle_favorite', 'toggle_optimization', 'dpad', 'route_switch'])('%s returns null', (name) => {
+  it.each([
+    'search',
+    'toggle_favorite',
+    'toggle_optimization',
+    'dpad',
+    'route_switch',
+    'health_table',
+  ])('%s returns null', (name) => {
     expect(() => arm(name)).not.toThrow();
     expect(arm(name)).toBeNull();
   });
@@ -186,5 +205,89 @@ describe('route_switch', () => {
     build('settings');
     arm('route_switch');
     expect(document.activeElement?.id).toBe('r-trigger-library');
+  });
+});
+
+describe('health_table', () => {
+  function content(): HTMLElement {
+    return document.querySelector('[data-crosshook-page-scroll="true"]') as HTMLElement;
+  }
+
+  it('returns null without the health trigger or the content root', () => {
+    document.body.innerHTML = '<div data-crosshook-page-scroll="true"></div>';
+    expect(arm('health_table')).toBeNull();
+    document.body.innerHTML = '<button role="tab" id="r-trigger-health"></button>';
+    expect(arm('health_table')).toBeNull();
+  });
+
+  it('focuses the health trigger without activating it', () => {
+    buildRoutes({ healthRows: HEALTH_MIN_ROWS });
+    const focusInSeen: Event[] = [];
+    document.addEventListener('focusin', (event) => focusInSeen.push(event));
+    arm('health_table');
+    expect(document.activeElement?.id).toBe('r-trigger-health');
+    expect(focusInSeen).toHaveLength(0);
+  });
+
+  it('fires when the live table reaches 300 rows', async () => {
+    buildRoutes({ healthRows: 0, selected: 'library' });
+    const trial = arm('health_table') as ScenarioTrial;
+    content().innerHTML = '<div role="tabpanel"></div>';
+    appendLiveTable(content(), HEALTH_MIN_ROWS);
+    expect(typeof (await settle(trial))).toBe('number');
+  });
+
+  it('does not fire at 299 rows', async () => {
+    buildRoutes({ healthRows: 0, selected: 'library' });
+    const trial = arm('health_table') as ScenarioTrial;
+    appendLiveTable(content(), HEALTH_MIN_ROWS - 1);
+    expect(await settle(trial)).toBe('pending');
+  });
+
+  it('does not fire for a cached-only table', async () => {
+    buildRoutes({ healthRows: 0, selected: 'library' });
+    const trial = arm('health_table') as ScenarioTrial;
+    content().insertAdjacentHTML('beforeend', healthTableHtml(CACHED_LABEL, 500));
+    expect(await settle(trial)).toBe('pending');
+  });
+
+  it('reset reopens the library only when health is the selected route', async () => {
+    const scenario = getScenario('health_table');
+    buildRoutes({ healthRows: 1, selected: 'health' });
+    await expect(scenario?.reset?.()).resolves.toBe(true);
+    expect(document.getElementById('r-trigger-library')?.getAttribute('aria-selected')).toBe('true');
+    expect(document.getElementById('r-content-library')).not.toBeNull();
+
+    const root = content();
+    const before = root.innerHTML;
+    await expect(scenario?.reset?.()).resolves.toBe(true);
+    expect(root.innerHTML).toBe(before); // already on the library: nothing activated
+  });
+
+  it('prepare reports the table, then returns to the library', async () => {
+    buildRoutes({ healthRows: HEALTH_MIN_ROWS });
+    await expect(getScenario('health_table')?.prepare?.()).resolves.toBe(true);
+    expect(callCommandMock).toHaveBeenCalledWith(
+      'bench_mark',
+      expect.objectContaining({ scenario: 'health_table', phase: 'health_ready', seq: 0 })
+    );
+    expect(document.getElementById('r-trigger-library')?.getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('prepare returns false at the timeout with too few rows', async () => {
+    vi.useFakeTimers();
+    try {
+      buildRoutes({ healthRows: HEALTH_MIN_ROWS - 1 });
+      const pending = getScenario('health_table')?.prepare?.() as Promise<boolean>;
+      await vi.advanceTimersByTimeAsync(61_000);
+      await expect(pending).resolves.toBe(false);
+      expect(callCommandMock).toHaveBeenCalledWith(
+        'bench_mark',
+        expect.objectContaining({ scenario: 'health_table', phase: 'health_rows_too_few', seq: 0 })
+      );
+      expect(document.getElementById('r-trigger-health')?.getAttribute('aria-selected')).toBe('true');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
