@@ -8,10 +8,14 @@ all-features = true
 [advisories]
 db-urls = ["https://github.com/rustsec/advisory-db"]
 yanked = "deny"
+# Unsound advisories fail anywhere in the graph, not only on direct dependencies.
+unsound = "all"
 # Unmaintained crates fail only when a workspace crate depends on them directly.
 # Transitive ones are reviewed once a year (see the policy doc).
 unmaintained = "workspace"
 ignore = [
+    { id = "RUSTSEC-2024-0429", reason = "glib 0.18 (GitHub #26) is confined to the Tauri shell by the bans below and scripts/check-app-deps.sh. Removed with src-tauri (M7)." },
+    { id = "RUSTSEC-2026-0097", reason = "Only rand 0.7.3 is affected, a build-time dependency of phf_codegen <- selectors (Tauri HTML tooling) that never installs a custom logger. Removed with src-tauri (M7)." },
     { id = "RUSTSEC-2026-0370", reason = "zvariant was merged into zbus 6 as zbus::wire; crosshook-core still uses zbus 5. Remove when the workspace moves to zbus 6." },
     { id = "RUSTSEC-2026-0194", reason = "quick-xml 0.38 is only reached through plist <- tauri-utils, which reads bundled plist files, not untrusted XML. Removed with src-tauri (M7)." },
     { id = "RUSTSEC-2026-0195", reason = "quick-xml 0.38 is only reached through plist <- tauri-utils, which reads bundled plist files, not untrusted XML. Removed with src-tauri (M7)." },
