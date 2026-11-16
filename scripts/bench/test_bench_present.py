@@ -41,6 +41,14 @@ class PresentLogTests(unittest.TestCase):
         self.assertEqual(bench_present.first_present_ns(logs), 5000000)
         self.assertEqual(logs[0].roles, {1: "toplevel", 2: "cursor"})
 
+    def test_missing_clock_or_incomplete_log_refused(self):
+        with self.assertRaisesRegex(CaptureError, r"^PRESENT_LOG_MALFORMED: header without clock_id"):
+            bench_present.require_clock(self.logs(HAPPY.replace("\tclock_id=1", "")))
+        for condition in ("log_cap", "bind_failed"):
+            with self.subTest(condition=condition), \
+                    self.assertRaisesRegex(CaptureError, f"^PRESENT_LOG_INCOMPLETE: {condition}"):
+                bench_present.require_clock(self.logs(HAPPY + f"X\t9\t{condition}\n"))
+
     def test_wrong_clock(self):
         logs = self.logs(HAPPY.replace("clock_id=1", "clock_id=7"))
         with self.assertRaisesRegex(CaptureError, r"^PRESENTATION_CLOCK: clock_id=7, expected 1"):

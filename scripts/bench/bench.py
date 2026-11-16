@@ -145,6 +145,7 @@ def main(argv: list[str] | None = None) -> int:
     meta: dict = {}
     raw: Path | None = None
     output: Path | None = None
+    written: list[Path] = []  # set before try: finally seals the raw dir even if setup fails
     provenance: dict = {}
     try:
         original = Originals.capture()
@@ -223,7 +224,6 @@ def main(argv: list[str] | None = None) -> int:
                 env.update(VK_ICD_FILENAMES="/dev/null", LIBGL_ALWAYS_SOFTWARE="1")
             command = launch_command(args, env)
         partial = False
-        written: list[Path] = []
         for metric in args.selected:
             if metric == "G8" and not args.dry_run:
                 env["CROSSHOOK_BENCH_LOG"] = str(target / "logs/launch-50k.log")

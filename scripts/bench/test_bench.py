@@ -316,6 +316,20 @@ class CaptureTests(unittest.TestCase):
             self.assertEqual(bench.main(["--variant", "A", "--env", "E1", "--metric", "G2", "--binary", sys.executable,
                                          "--output", f"{temp}/out", "--tmp-root", f"{temp}/runs"]), 1)
 
+    def test_shim_build_failure_exits_cleanly_and_seals_raw_dir(self):
+        import bench_shim
+        original = Originals("/nonexistent-home", "/nonexistent-home", {}, None)
+        with tempfile.TemporaryDirectory() as temp, \
+                patch.object(bench.Originals, "capture", return_value=original), \
+                patch.object(bench_shim, "build", side_effect=CaptureError("MISSING_TOOL: cc")), \
+                patch.object(bench, "make_dirs"):
+            code = bench.main(["--variant", "A", "--env", "E1", "--metric", "G2", "--collect", "presentation",
+                               "--binary", sys.executable, "--output", f"{temp}/out", "--tmp-root", f"{temp}/runs"])
+            self.assertEqual(code, 30)
+            manifests = list(Path(temp, "out", "raw").glob("*/provenance.json"))
+            self.assertEqual(len(manifests), 1)
+            self.assertEqual(json.loads(manifests[0].read_text())["status"], "failed")
+
     def test_presentation_arguments_validated(self):
         base = ["--variant", "A", "--env", "E1", "--collect", "presentation"]
         with self.assertRaises(SystemExit) as caught:

@@ -123,9 +123,18 @@ def require_clock(logs: list[PresentLog]) -> None:
     if len(without_global) == len(logs):
         raise CaptureError("NO_PRESENTATION_GLOBAL: compositor does not expose wp_presentation")
     for log in logs:
+        if log in without_global:
+            continue
         clock = log.header.get("clock_id")
-        if log not in without_global and clock is not None and clock != CLOCK_MONOTONIC_ID:
+        if clock is None:
+            raise CaptureError("PRESENT_LOG_MALFORMED: header without clock_id")
+        if clock != CLOCK_MONOTONIC_ID:
             raise CaptureError(f"PRESENTATION_CLOCK: clock_id={clock}, expected 1 (CLOCK_MONOTONIC)")
+        # A capped log stops mid-run and a failed bind never observed presentation:
+        # neither may stand in for a complete capture.
+        for condition in ("log_cap", "bind_failed"):
+            if condition in log.conditions:
+                raise CaptureError(f"PRESENT_LOG_INCOMPLETE: {condition}")
 
 
 def _is_toplevel_frame(log: PresentLog, seq: int) -> bool:
