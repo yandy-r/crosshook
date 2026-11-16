@@ -210,7 +210,7 @@ burden and a class of consistency bugs with no compensating benefit.
 
 ## Related
 
-- [ADR-0001 — `platform.rs` host-command gateway](./adr-0001-platform-host-gateway.md):
+- [ADR-0001 — `platform/` host-command gateway](./adr-0001-platform-host-gateway.md):
   establishes the host-tool denylist and `flatpak-spawn` gateway contract.
   This ADR's host-gateway exemption (in-process library code) is grounded in
   ADR-0001's scope boundary section, which explicitly excludes in-sandbox

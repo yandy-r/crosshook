@@ -1,7 +1,7 @@
 # ADR-0002: Flatpak portal contracts — GameMode and Background
 
 **Status**: Accepted — 2026-04-17
-**Supersedes / extends**: [ADR-0001 — `platform.rs` host-command gateway](./adr-0001-platform-host-gateway.md) (additive; no behaviour change to ADR-0001)
+**Supersedes / extends**: [ADR-0001 — `platform/` host-command gateway](./adr-0001-platform-host-gateway.md) (additive; no behaviour change to ADR-0001)
 
 ---
 

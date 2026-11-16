@@ -175,7 +175,7 @@ never memoized for jobs, because a job's state changes after the first read.
 ## References
 
 - `crates/crosshook-app/tests/bootstrap_ordering.rs` — ordering integration test
-- [ADR-0001 — `platform.rs` host-command gateway](./adr-0001-platform-host-gateway.md)
+- [ADR-0001 — `platform/` host-command gateway](./adr-0001-platform-host-gateway.md)
 - [ADR-0002 — Flatpak portal contracts](./adr-0002-flatpak-portal-contracts.md)
 - Issue [#276] — Flatpak distribution tracker
 

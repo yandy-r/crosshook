@@ -161,6 +161,12 @@ jobs:
       - name: Async Tauri commands guardrail self-test
         run: ./scripts/check-async-commands.sh --self-test
 
+      - name: Agent rules drift check
+        run: ./scripts/check-agent-rules-sync.sh
+
+      - name: Agent rules drift check self-test
+        run: ./scripts/check-agent-rules-sync.sh --selftest
+
       - name: Mock coverage contract gate
         run: ./scripts/check-mock-coverage.sh
 
