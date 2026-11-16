@@ -9,6 +9,10 @@
 #   - crosshook-view-model (normal, build and dev edges): no UI toolkit and no
 #     async runtime (tokio, mio, async-std, smol, async-executor,
 #     futures-executor and their families: tokio-util, tokio_stream).
+#   - crosshook-core, crosshook-cli (normal edges): no UI toolkit.
+# Every row also bans the rest of the gtk3 stack (gdk, gio, gobject, pango,
+# cairo, atk, soup3, javascriptcore, rfd, tao, muda and families). deny.toml
+# can only confine those by direct parent; this check is transitive (GitHub #26).
 # Trees cover every target platform (`--target all`).
 #
 # Usage: ./scripts/check-app-deps.sh [--help|-h] [--selftest]
@@ -22,6 +26,9 @@ MANIFEST="src/crosshook-native/Cargo.toml"
 # Exact name, or name followed by - _ or a digit (gtk4, glib-sys, iced_core).
 # `glibc`, `winitx`, etc. do not match.
 TOOLKIT_RE='^(tauri|wry|webkit2gtk|gtk|glib|iced|gpui|winit)([-_0-9].*)?$'
+# The rest of the gtk3 stack, same matching rule as TOOLKIT_RE (gdk-pixbuf,
+# cairo-rs, gio-sys). `atkinson`, `taobao`, etc. do not match.
+GTK3_RE='^(gdk|gio|gobject|pango|cairo|atk|soup3|javascriptcore|rfd|tao|muda)([-_0-9].*)?$'
 # Exact name, or name followed by - or _ (tokio-util, tokio_stream,
 # async-std-macros). `tokioz`, `smolder`, `futures-util`, etc. do not match.
 ASYNC_RE='^(tokio|mio|async-std|smol|async-executor|futures-executor)([-_].*)?$'
@@ -29,8 +36,10 @@ ASYNC_RE='^(tokio|mio|async-std|smol|async-executor|futures-executor)([-_].*)?$'
 # package|cargo-tree edges|space-separated banned regexes. The regexes contain
 # `|`, so split only on the first two separators (see the main loop).
 CHECKS=(
-  "crosshook-app|normal|$TOOLKIT_RE"
-  "crosshook-view-model|normal,build,dev|$TOOLKIT_RE $ASYNC_RE"
+  "crosshook-app|normal|$TOOLKIT_RE $GTK3_RE"
+  "crosshook-view-model|normal,build,dev|$TOOLKIT_RE $GTK3_RE $ASYNC_RE"
+  "crosshook-core|normal|$TOOLKIT_RE $GTK3_RE"
+  "crosshook-cli|normal|$TOOLKIT_RE $GTK3_RE"
 )
 
 usage() {
@@ -45,6 +54,10 @@ Fails if a UI-free crate's transitive dependencies include a banned crate:
                         no async runtime (tokio, mio, async-std, smol,
                         async-executor, futures-executor and families such
                         as tokio-util, tokio_stream).
+  crosshook-core,       normal edges; no UI toolkit crate.
+  crosshook-cli
+Every package also rejects the rest of the gtk3 stack (gdk, gio, gobject,
+pango, cairo, atk, soup3, javascriptcore, rfd, tao, muda and families).
 Dependency trees cover every target platform (cargo tree --target all).
 
 Options:
@@ -107,6 +120,8 @@ selftest_cases() {
 1|winit proc-macro marker|crosshook-app v0.1.0\nwinit v0.30.0 (proc-macro)
 1|renamed dep (shows real package)|crosshook-app v0.1.0\nmy-ui-shim v1.0.0\nwry v0.45.0 (*)
 1|git source|crosshook-app v0.1.0\ngpui v0.1.0 (https://github.com/zed-industries/zed#abc)
+1|pango (gtk3 stack)|crosshook-app v0.1.0\npango v0.18.3
+1|gdk-pixbuf-sys via intermediate|crosshook-app v0.1.0\nfoo v1.0.0\ngdk-pixbuf-sys v0.18.0
 0|async runtimes allowed|crosshook-app v0.1.0\ntokio v1.40.0\nmio v1.0.0\nasync-std v1.13.0\nsmol v2.0.0\nfutures-executor v0.3.31
 EOF
       ;;
@@ -124,6 +139,19 @@ EOF
 1|async-executor|crosshook-view-model v0.1.0\nasync-executor v1.13.0
 1|futures-executor|crosshook-view-model v0.1.0\nfutures-executor v0.3.31
 1|toolkit gtk4|crosshook-view-model v0.1.0\ngtk4 v0.9.0
+1|cairo-rs (gtk3 stack)|crosshook-view-model v0.1.0\ncairo-rs v0.18.5
+EOF
+      ;;
+    crosshook-core|crosshook-cli)
+      sed "s/^\([01]|[^|]*|\)PKG/\1$1/" <<'EOF'
+0|clean tree (tokio, zbus, atkinson, taobao, glibc-compat accepted)|PKG v0.1.0\ntokio v1.40.0\nzbus v5.14.0\natkinson v1.0.0\ntaobao v0.1.0\nglibc-compat v1.0.0
+1|empty tree|
+1|direct tauri|PKG v0.1.0\ntauri v2.0.0
+1|pango via intermediate|PKG v0.1.0\nfoo v1.0.0\npango v0.18.3
+1|rfd|PKG v0.1.0\nrfd v0.16.0
+1|glib-sys|PKG v0.1.0\nglib-sys v0.18.1
+1|soup3-sys|PKG v0.1.0\nsoup3-sys v0.5.0
+1|iced|PKG v0.1.0\niced v0.15.0
 EOF
       ;;
   esac

@@ -1,0 +1,85 @@
+# cargo-deny policy for the CrossHook native workspace.
+# Run: cargo deny --manifest-path src/crosshook-native/Cargo.toml check
+# Rules and review cadence: docs/internal-docs/dependency-policy.md
+
+[graph]
+all-features = true
+
+[advisories]
+db-urls = ["https://github.com/rustsec/advisory-db"]
+yanked = "deny"
+# Unmaintained crates fail only when a workspace crate depends on them directly.
+# Transitive ones are reviewed once a year (see the policy doc).
+unmaintained = "workspace"
+ignore = [
+    { id = "RUSTSEC-2026-0370", reason = "zvariant was merged into zbus 6 as zbus::wire; crosshook-core still uses zbus 5. Remove when the workspace moves to zbus 6." },
+    { id = "RUSTSEC-2026-0194", reason = "quick-xml 0.38 is only reached through plist <- tauri-utils, which reads bundled plist files, not untrusted XML. Removed with src-tauri (M7)." },
+    { id = "RUSTSEC-2026-0195", reason = "quick-xml 0.38 is only reached through plist <- tauri-utils, which reads bundled plist files, not untrusted XML. Removed with src-tauri (M7)." },
+]
+
+[licenses]
+confidence-threshold = 0.93
+# OFL-1.1 is pre-approved for bundled UI fonts that are not in the tree yet.
+unused-allowed-license = "allow"
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "CC0-1.0",
+    "BSL-1.0",
+    "OFL-1.1",
+]
+exceptions = [
+    # MPL-2.0 is file-level copyleft; these crates are used unmodified.
+    # dirs-sys <- directories (crosshook-core)
+    { crate = "option-ext", allow = ["MPL-2.0"] },
+    # Tauri HTML tooling; removed with src-tauri (M7)
+    { crate = "cssparser", allow = ["MPL-2.0"] },
+    { crate = "cssparser-macros", allow = ["MPL-2.0"] },
+    { crate = "dtoa-short", allow = ["MPL-2.0"] },
+    { crate = "selectors", allow = ["MPL-2.0"] },
+    # Permissive data license for the Mozilla root certificate bundle (rustls)
+    { crate = "webpki-root-certs", allow = ["CDLA-Permissive-2.0"] },
+]
+
+[licenses.private]
+# Workspace crates are not published (publish = false) and carry the repo's MIT LICENSE.
+ignore = true
+
+[bans]
+multiple-versions = "allow"
+wildcards = "deny"
+allow-wildcard-paths = true
+# The gtk3/glib stack (GitHub #26) may only be reached through the Tauri/Classic
+# shell. `wrappers` lists the only crates allowed to depend on each one directly,
+# so a new path from crosshook-app, crosshook-view-model, crosshook-cli,
+# crosshook-core or a native UI crate fails.
+deny = [
+    { crate = "gtk", wrappers = ["crosshook-native", "muda", "tao", "tauri", "tauri-runtime", "tauri-runtime-wry", "webkit2gtk", "wry"], reason = "gtk3 is allowed only in the Tauri/Classic shell (GitHub #26)." },
+    { crate = "gtk-sys", wrappers = ["gtk", "rfd", "webkit2gtk", "webkit2gtk-sys"], reason = "gtk3 is allowed only in the Tauri/Classic shell (GitHub #26)." },
+    { crate = "gdk", wrappers = ["gdkx11", "gtk", "webkit2gtk"], reason = "gtk3 is allowed only in the Tauri/Classic shell (GitHub #26)." },
+    { crate = "gdk-sys", wrappers = ["gdk", "gdkwayland-sys", "gdkx11-sys", "gtk-sys", "webkit2gtk", "webkit2gtk-sys"], reason = "gtk3 is allowed only in the Tauri/Classic shell (GitHub #26)." },
+    { crate = "glib", wrappers = ["atk", "cairo-rs", "gdk", "gdk-pixbuf", "gdkx11", "gio", "gtk", "javascriptcore-rs", "pango", "soup3", "webkit2gtk"], reason = "glib 0.18 is allowed only in the Tauri/Classic shell (GitHub #26)." },
+    { crate = "glib-sys", wrappers = ["atk-sys", "cairo-sys-rs", "gdk-pixbuf-sys", "gdk-sys", "gdkwayland-sys", "gdkx11-sys", "gio-sys", "glib", "gobject-sys", "gtk-sys", "javascriptcore-rs-sys", "pango-sys", "rfd", "soup3-sys", "webkit2gtk", "webkit2gtk-sys"], reason = "glib is allowed only in the Tauri/Classic shell (GitHub #26)." },
+    { crate = "gobject-sys", wrappers = ["atk-sys", "gdk-pixbuf-sys", "gdk-sys", "gdkwayland-sys", "gio-sys", "glib", "gtk-sys", "javascriptcore-rs-sys", "pango-sys", "rfd", "soup3-sys", "webkit2gtk", "webkit2gtk-sys"], reason = "glib is allowed only in the Tauri/Classic shell (GitHub #26)." },
+    { crate = "gio", wrappers = ["gdk", "gdk-pixbuf", "gdkx11", "gtk", "pango", "soup3", "webkit2gtk"], reason = "glib is allowed only in the Tauri/Classic shell (GitHub #26)." },
+    { crate = "gio-sys", wrappers = ["gdk-pixbuf-sys", "gdk-sys", "gio", "glib", "gtk-sys", "soup3-sys", "webkit2gtk", "webkit2gtk-sys"], reason = "glib is allowed only in the Tauri/Classic shell (GitHub #26)." },
+    { crate = "webkit2gtk", wrappers = ["tauri", "tauri-runtime", "tauri-runtime-wry", "wry"], reason = "WebKitGTK is allowed only in the Tauri/Classic shell (GitHub #26)." },
+    { crate = "webkit2gtk-sys", wrappers = ["webkit2gtk", "wry"], reason = "WebKitGTK is allowed only in the Tauri/Classic shell (GitHub #26)." },
+    # rfd links gtk3 directly and cannot be split by feature while Tauri also uses it.
+    # Native file dialogs use xdg-desktop-portal (ashpd) instead.
+    { crate = "rfd", wrappers = ["tauri-plugin-dialog"], reason = "rfd's gtk3 backend pulls in gtk3/glib; native dialogs use xdg-desktop-portal." },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+# The native UI toolkit's pinned git upstream is added here by the crate that
+# first depends on it, once the framework ADR has chosen it.
+allow-git = []

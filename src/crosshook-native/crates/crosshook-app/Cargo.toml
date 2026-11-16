@@ -3,6 +3,8 @@
 name = "crosshook-app"
 version.workspace = true
 edition = "2021"
+rust-version.workspace = true
+publish = false
 description = "Application layer: runtime owner handle, bounded event bus, sanitized presenter errors, and toolkit-independent services."
 
 [lints]
@@ -33,7 +35,7 @@ zbus = { version = "5", default-features = false, features = ["tokio"] }
 crosshook-app = { path = ".", features = ["test-seams"] }
 
 flate2 = "1"
-rusqlite = { version = "0.40.0", features = ["bundled"] }
+rusqlite = { version = "0.41.0", features = ["bundled"] }
 tar = "0.4"
 tempfile = "3"
 tokio = { version = "1", features = ["test-util", "macros", "rt", "io-util"] }
