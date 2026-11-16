@@ -126,6 +126,11 @@ def _size_mb(value: str) -> float | None:
     return int(match.group(1)) * _MIB[match.group(2) or ""]
 
 
+# drm-usage-stats also defines `drm-total-cycles-<engine>` (a unitless GPU cycle count, e.g. Xe):
+# it shares the `drm-total-` prefix but is not memory, so it never enters the sum.
+_CYCLES_KEYS = ("drm-total-cycles-", "drm-resident-cycles-")
+
+
 def parse_fdinfo(text: str) -> tuple[tuple[str, str], float] | None:
     """Return `((drm-pdev, drm-client-id), MiB)` for one fdinfo text.
 
@@ -142,7 +147,8 @@ def parse_fdinfo(text: str) -> tuple[tuple[str, str], float] | None:
     if not client:
         return None
     for prefix in ("drm-total-", "drm-resident-"):
-        sizes = [size for key, raw in keys.items() if key.startswith(prefix)
+        sizes = [size for key, raw in keys.items()
+                 if key.startswith(prefix) and not key.startswith(_CYCLES_KEYS)
                  if (size := _size_mb(raw)) is not None]
         if sizes:
             return (keys.get("drm-pdev", ""), client), sum(sizes)

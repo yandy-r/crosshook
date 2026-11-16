@@ -200,5 +200,38 @@ class PresentLogTests(unittest.TestCase):
                          [bench_present.Geometry(11, 1, 800, 600, True, True)])
 
 
+    def test_toplevel_pids_ignores_a_log_that_never_presented(self):
+        self.write(HAPPY, "wlpresent-1.log")
+        self.write(HEADER.replace("pid=42", "pid=99") + SURFACES + "C\t1000\t1\t10\t1\n", "wlpresent-2.log")
+        self.assertEqual(bench_present.toplevel_pids(bench_present.parse_dir(self.root)), {42})
+
+    def test_toplevel_pids_ignores_a_log_that_only_presented_a_cursor(self):
+        self.write(HAPPY, "wlpresent-1.log")
+        self.write(HEADER.replace("pid=42", "pid=99") + SURFACES
+                   + "C\t2500\t2\t12\t1\nP\t9300\t12\t6000000\t8341675\t3\t1\n", "wlpresent-2.log")
+        self.assertEqual(bench_present.toplevel_pids(bench_present.parse_dir(self.root)), {42})
+
+    def test_toplevel_pids_returns_every_presenting_pid(self):
+        self.write(HAPPY, "wlpresent-1.log")
+        self.write(HAPPY.replace("pid=42", "pid=43"), "wlpresent-2.log")
+        self.assertEqual(bench_present.toplevel_pids(bench_present.parse_dir(self.root)), {42, 43})
+
+    def test_toplevel_pids_malformed_header_pid_is_refused(self):
+        for header in (HAPPY.replace("\tpid=42", ""), HAPPY.replace("pid=42", "pid=forty")):
+            with self.subTest(header=header.splitlines()[0]):
+                logs = self.logs(header)
+                with self.assertRaisesRegex(CaptureError,
+                                            r"^PRESENT_LOG_MALFORMED: header without an integer pid"):
+                    bench_present.toplevel_pids(logs)
+
+    def test_toplevel_pids_with_no_presenting_log_is_empty(self):
+        self.assertEqual(bench_present.toplevel_pids(self.logs(HEADER + SURFACES)), set())
+
+    def test_a_header_field_without_a_value_is_malformed_at_parse(self):
+        self.write(HEADER.replace("pid=42", "pid") + SURFACES)
+        with self.assertRaisesRegex(CaptureError, r"^PRESENT_LOG_MALFORMED: wlpresent-1\.log:1$"):
+            bench_present.parse_log(self.root / "wlpresent-1.log")
+
+
 if __name__ == "__main__":
     unittest.main()

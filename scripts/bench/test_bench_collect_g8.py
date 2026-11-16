@@ -25,6 +25,7 @@ BASE_NS = 1_000_000_000_000
 PERIOD_NS = 8_333_333
 RUN_ID = "a" * 32
 PID = 4242
+START_TIME_BASE = 700_000  # the fake /proc stat start time of a pid is this plus the pid
 WINDOW_START, DONE, WINDOW_END = 5_000_000_000, 15_000_000_000, 15_300_000_000  # offsets from the launch
 
 
@@ -128,6 +129,8 @@ class G8CollectTestCase(unittest.TestCase):
         self.row_shift_ns = 0
         self.root_pid = PID
         self.shim_pid = PID  # the `pid=` the shim wrote into its log header
+        self.extra_logs: dict[str, str] = {}  # more shim logs of the same launch, by file name
+        self.recorder_roots: list[int] = []  # the root pid every PidRecorder was constructed with
         self.sampler_args: list[tuple] = []
         FakeDevice.instances = []
         self.settings = self.root / "config/crosshook/settings.toml"
@@ -143,6 +146,8 @@ class G8CollectTestCase(unittest.TestCase):
                 raise self.drive_error
             (present_dir / "wlpresent-1.log").write_text(
                 present_log(proc.launch_ns, self.log_offset, self.refresh_ns, self.shim_pid))
+            for name, text in self.extra_logs.items():
+                (present_dir / name).write_text(text)
             rows = memory_rows(proc.launch_ns, gpu=self.gpu, tail=self.tail, shift_ns=self.row_shift_ns)
             return G8Result(proc.launch_ns + WINDOW_START, proc.launch_ns + DONE, proc.launch_ns + DONE + 1_200_000_000,
                             "on", rows, 300, 9_900_000_000, proc.launch_ns + WINDOW_START,
@@ -153,12 +158,18 @@ class G8CollectTestCase(unittest.TestCase):
                 inner.pids_fn, inner.gpu_fn = pids_fn, gpu_fn
                 self.sampler_args.append((pids_fn, gpu_fn))
 
+        def proc_file(pid, p, name):
+            if name == "status":
+                return f"Name:\t{'WebKitWebProces' if p != pid else 'crosshook'}\nNSpid:\t{p}\t{p - 4000}\n"
+            if name == "stat":
+                return f"{p} (x) " + " ".join(["S", *["0"] * 18, str(START_TIME_BASE + p)]) + " 0 0\n"
+            return "/usr/lib/WebKitWebProcess\0" if p != pid else "/usr/bin/crosshook\0"
+
         def recorder(pid, flatpak):
-            return bench_g8session.PidRecorder(
-                self.root_pid, flatpak, pids_fn=lambda: {pid, pid + 1},
-                read=lambda p, name: (f"Name:\t{'WebKitWebProces' if p != pid else 'crosshook'}\n"
-                                      f"NSpid:\t{p}\t{p - 4000}\n" if name == "status"
-                                      else ("/usr/lib/WebKitWebProcess\0" if p != pid else "/usr/bin/crosshook\0")))
+            self.recorder_roots.append(pid)
+            # `root_pid` is the tag the memory rows carry; tests move it to model a sampler of another launch.
+            return bench_g8session.PidRecorder(self.root_pid, flatpak, pids_fn=lambda: {pid, pid + 1},
+                                               read=lambda p, name: proc_file(pid, p, name))
 
         for target, replacement in (
                 ("ready", self.fake), ("stop", self.stopped.append), ("InputDevice", FakeDevice),
@@ -237,8 +248,14 @@ class G8RowTests(G8CollectTestCase):
 
 
 class G8SessionBindingTests(G8CollectTestCase):
-    def test_memory_sampled_from_another_launch_is_rejected(self):
-        self.root_pid = PID + 1  # the sampler tracked a different process
+    def test_the_recorder_is_built_for_the_launched_process(self):
+        self.rows()
+        self.assertEqual(self.recorder_roots, [PID, PID])
+
+    def test_a_memory_pid_tag_of_another_launch_is_rejected_as_a_defensive_check(self):
+        # The recorder is built from `proc.pid`, so the tag cannot differ in a real run; the session check
+        # still refuses it, should a sampler ever be bound to another process.
+        self.root_pid = PID + 1
         with self.assertRaisesRegex(CaptureError, "^SESSION_MISMATCH: the memory come from another session \\(pid"):
             self.rows()
 
@@ -401,6 +418,19 @@ class G8ObservationTests(G8CollectTestCase):
         self.assertTrue(entry["web_process_sampled"])
         self.assertEqual([item["pid"] for item in entry["sampled_pids"]], [PID, PID + 1])
         self.assertNotIn("nspid", entry["sampled_pids"][0])  # NSpid is only recorded for Flatpak
+
+    def test_every_sampled_pid_carries_its_start_time(self):
+        evidence: dict = {}
+        self.rows(evidence=evidence)
+        for entry in evidence["G8"]["replay_scroll"]:
+            self.assertEqual([(item["pid"], item["start_time"]) for item in entry["sampled_pids"]],
+                             [(pid, START_TIME_BASE + pid) for pid in (PID, PID + 1)])
+
+    def test_a_sampled_pid_whose_start_time_is_unknown_records_null(self):
+        evidence: dict = {}
+        with patch.object(bench_g8session, "stat_start_time", side_effect=ValueError):
+            self.rows(evidence=evidence)
+        self.assertEqual({item["start_time"] for item in evidence["G8"]["replay_scroll"][0]["sampled_pids"]}, {None})
 
     def test_flatpak_evidence_carries_nspid(self):
         flatpak_root = self.root / "home/.var/app/dev.crosshook.CrossHook"

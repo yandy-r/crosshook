@@ -113,6 +113,14 @@ def no_fdinfo(_pid: int) -> FdinfoScan:
 
 
 class ParseFdinfoTests(unittest.TestCase):
+    def test_cycle_counters_are_not_memory(self):
+        text = "drm-driver:\txe\ndrm-client-id:\t7\ndrm-total-cycles-rcs:\t123456789\ndrm-total-vram:\t10 MiB\n"
+        self.assertEqual(bench_gpu.parse_fdinfo(text), (("", "7"), 10.0))
+
+    def test_only_cycle_counters_is_no_memory(self):
+        text = "drm-client-id:\t7\ndrm-total-cycles-rcs:\t123456789\ndrm-cycles-rcs:\t5\n"
+        self.assertIsNone(bench_gpu.parse_fdinfo(text))
+
     def test_drivers(self):
         for name, text, mb in (("amdgpu", AMDGPU, AMDGPU_MB), ("i915", I915, I915_MB), ("xe", XE, XE_MB)):
             with self.subTest(name):

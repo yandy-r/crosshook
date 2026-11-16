@@ -23,11 +23,19 @@ function runFrames() {
   }
 }
 
-async function until(predicate: () => boolean) {
-  for (let i = 0; i < 200 && !predicate(); i += 1) {
+/** Waits on wall time, not a flush count: under CPU load happy-dom delivers observer callbacks late. */
+async function until(predicate: () => boolean, timeoutMs = 3000) {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate() && Date.now() < deadline) {
     await flush();
   }
   expect(predicate()).toBe(true);
+}
+
+/** Runs the probe's next frame once it is queued; under load the probe may queue it late. */
+async function runNextFrame() {
+  await until(() => frames.length > 0);
+  runFrames();
 }
 
 function buildFavoriteDom() {
@@ -87,20 +95,21 @@ describe('startBenchProbe', () => {
     await until(() => phases().includes('armed:1'));
     button.setAttribute('aria-pressed', 'false');
     await flush();
-    runFrames();
+    await runNextFrame();
     await probe;
     expect(phases()).toEqual(['armed:0', 'render:0', 'armed:1', 'render:1']);
   });
 
   it('does not re-send the render mark time from the frame callback', async () => {
-    const button = buildFavoriteDom();
-    const probe = startBenchProbe('toggle_favorite', { signal: controller.signal, maxTrials: 1 });
+    // dpad observes a synchronous focusin, so the change time is exact and no observer delivery is involved.
+    document.body.innerHTML = `<main class="crosshook-focus-scope"><div class="crosshook-library-grid">
+      <button class="crosshook-library-card__details-hitbox">A</button><button id="next">B</button></div></main>`;
+    const probe = startBenchProbe('dpad', { signal: controller.signal, maxTrials: 1 });
     await until(() => phases().includes('armed:0'));
-    button.setAttribute('aria-pressed', 'true');
-    await flush();
+    (document.getElementById('next') as HTMLButtonElement).focus();
     const observed = performance.now();
     await new Promise((resolve) => setTimeout(resolve, 15));
-    runFrames();
+    await runNextFrame();
     await probe;
     const render = marks().find((m) => m.phase === 'render');
     expect(render?.tPerfMs as number).toBeLessThanOrEqual(observed);
@@ -183,7 +192,7 @@ describe('startBenchProbe', () => {
     await until(() => phases().includes('armed:0'));
     button.setAttribute('aria-pressed', 'true');
     await flush();
-    runFrames();
+    await runNextFrame();
     await probe;
     expect(phases()).toEqual(['armed:0', 'render:0']);
   });
@@ -196,7 +205,7 @@ describe('startBenchProbe', () => {
     await until(() => phases().includes('armed:0'));
     button.setAttribute('aria-pressed', 'true');
     await flush();
-    runFrames();
+    await runNextFrame();
     await probe;
     document.body.querySelector('button')?.setAttribute('aria-pressed', 'false');
     expect(document.body.children).toHaveLength(1);

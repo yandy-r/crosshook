@@ -301,8 +301,8 @@ def _g8_evidence(session: G8Session, result: G8Result, iteration: G8Iteration, r
             "follow": result.follow, "gpu_source": iteration.gpu_source, "nvidia_smi_path": probe.tool_path,
             "gpu_denied_max": probe.denied_max,
             "web_process_sampled": recorder.web_process_sampled(),
-            "sampled_pids": [{"pid": entry.pid, "comm": entry.comm, **({"nspid": list(entry.nspid)}
-                                                                         if entry.nspid else {})}
+            "sampled_pids": [{"pid": entry.pid, "comm": entry.comm, "start_time": entry.start_time,
+                              **({"nspid": list(entry.nspid)} if entry.nspid else {})}
                              for entry in recorder.sampled()]}
 
 
