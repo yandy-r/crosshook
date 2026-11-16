@@ -75,6 +75,9 @@ class PresentLog:
     conditions: list[str]
     focus: list[Focus] = field(default_factory=list)  # in log order
     geometry: list[Geometry] = field(default_factory=list)  # in log order
+    # Per device, the latest focus event (log order breaks ties) whose surface no later S record
+    # destroyed: what `FocusTail` ends with. `focus` keeps every event as it was at event time.
+    live_focus: dict[str, Focus] = field(default_factory=dict)
 
 
 def _read_from(path: Path, offset: int = 0) -> tuple[bytes, int]:
@@ -115,6 +118,19 @@ def _decode_focus(fields: list[str], roles: dict[int, str]) -> Focus:
                  roles.get(surface_id) == "toplevel")
 
 
+def _track_focus(live: dict[str, Focus], event: Focus) -> None:
+    """Make `event` the device's live focus unless an event stamped later is already live."""
+    previous = live.get(event.device)
+    if previous is None or event.ns >= previous.ns:
+        live[event.device] = event
+
+
+def _end_focus(live: dict[str, Focus], surface_id: int) -> None:
+    """A surface was destroyed: a focus on it, entered or not, is over for both devices."""
+    for device in [device for device, event in live.items() if event.surface_id == surface_id]:
+        del live[device]
+
+
 def parse_log(path: Path) -> PresentLog:
     """Parse a log, including one the shim is still writing: an incomplete last line is dropped."""
     path = Path(path)
@@ -132,6 +148,7 @@ def _parse_text(text: str, name: str) -> PresentLog:
     conditions: list[str] = []
     focus: list[Focus] = []
     geometry: list[Geometry] = []
+    live_focus: dict[str, Focus] = {}
     for lineno, line in enumerate(lines, 1):
         fields = line.split("\t")
         kind = fields[0]
@@ -147,6 +164,8 @@ def _parse_text(text: str, name: str) -> PresentLog:
             elif kind == "S":
                 surface_id, role = _decode_role(fields)
                 roles[surface_id] = role
+                if role == "destroyed":
+                    _end_focus(live_focus, surface_id)
             elif kind == "C":
                 surface_id = int(fields[2])
                 commit = Commit(int(fields[1]), surface_id, int(fields[3]), int(fields[4]) == 1,
@@ -157,6 +176,7 @@ def _parse_text(text: str, name: str) -> PresentLog:
                 presented[record.seq] = record
             elif kind in FOCUS_DEVICES:
                 focus.append(_decode_focus(fields, roles))
+                _track_focus(live_focus, focus[-1])
             elif kind == "G":
                 surface_id = int(fields[2])
                 activated = int(fields[5])
@@ -172,7 +192,7 @@ def _parse_text(text: str, name: str) -> PresentLog:
                 conditions.append(fields[2])
         except (ValueError, KeyError) as error:
             raise CaptureError(f"PRESENT_LOG_MALFORMED: {name}:{lineno}") from error
-    return PresentLog(header, roles, commits, presented, discarded, conditions, focus, geometry)
+    return PresentLog(header, roles, commits, presented, discarded, conditions, focus, geometry, live_focus)
 
 
 def parse_dir(directory: Path) -> list[PresentLog]:
@@ -269,6 +289,7 @@ class _Cursor:
     size: int = 0  # file size at the last read, partial record included
     lines: int = 0
     roles: dict[int, str] = field(default_factory=dict)
+    live_focus: dict[str, Focus] = field(default_factory=dict)  # per device, this log's undestroyed focus
 
 
 class FocusTail:
@@ -283,7 +304,6 @@ class FocusTail:
     def __init__(self, log_dir: Path):
         self._dir = Path(log_dir)
         self._cursors: dict[str, _Cursor] = {}
-        self._latest: dict[str, Focus] = {}
 
     @property
     def size(self) -> int:
@@ -291,11 +311,19 @@ class FocusTail:
         return sum(cursor.size for cursor in self._cursors.values())
 
     def focused(self, device: str) -> bool:
-        """True when the latest `device` focus event, across every log, is an enter on a toplevel."""
+        """True when the latest `device` focus event, across every log, is an enter on a toplevel.
+
+        A log that reports its focused surface destroyed drops that focus, even without a leave;
+        surface ids are per process, so only that log's focus ends.
+        """
         for path in sorted(self._dir.glob(LOG_GLOB)):
             self._read_new(path, self._cursors.setdefault(path.name, _Cursor()))
-        event = self._latest.get(device)
-        return event is not None and event.entered and event.toplevel
+        latest: Focus | None = None
+        for name in sorted(self._cursors):
+            event = self._cursors[name].live_focus.get(device)
+            if event is not None and (latest is None or event.ns >= latest.ns):
+                latest = event
+        return latest is not None and latest.entered and latest.toplevel
 
     def _read_new(self, path: Path, cursor: _Cursor) -> None:
         data, cursor.size = _read_from(path, cursor.offset)
@@ -305,7 +333,8 @@ class FocusTail:
             cursor.lines += 1
             self._apply(path.name, cursor, line)
 
-    def _apply(self, name: str, cursor: _Cursor, line: str) -> None:
+    @staticmethod
+    def _apply(name: str, cursor: _Cursor, line: str) -> None:
         fields = line.split("\t")
         kind = fields[0]
         if kind not in ("S", "X", *FOCUS_DEVICES):
@@ -316,6 +345,8 @@ class FocusTail:
             if kind == "S":
                 surface_id, role = _decode_role(fields)
                 cursor.roles[surface_id] = role
+                if role == "destroyed":
+                    _end_focus(cursor.live_focus, surface_id)
                 return
             if kind == "X":
                 int(fields[1])
@@ -325,6 +356,4 @@ class FocusTail:
             event = _decode_focus(fields, cursor.roles)
         except (ValueError, KeyError) as error:
             raise CaptureError(f"PRESENT_LOG_MALFORMED: {name}:{cursor.lines}") from error
-        previous = self._latest.get(event.device)
-        if previous is None or event.ns >= previous.ns:
-            self._latest[event.device] = event
+        _track_focus(cursor.live_focus, event)

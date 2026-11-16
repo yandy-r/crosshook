@@ -275,23 +275,24 @@ def _run(args, outcome: dict[str, bool]) -> int:
     finally:
         # A second signal while sealing would abort the seal and leak the isolated root.
         handlers = {number: signal.signal(number, signal.SIG_IGN) for number in sealing_signals}
-        if binary is not None and binary_sha256 is not None and _binary_changed(binary, binary_sha256):
-            outcome["binary_changed"] = True
-            meta["status"] = "failed"
-            meta["error"] = f"BINARY_CHANGED: {binary} changed while the capture ran"
-            provenance["error"] = meta["error"]
-            print(meta["error"], file=sys.stderr)
-        if meta.get("status") == "pending":
-            meta["status"] = "failed"
-        if meta_path:
-            meta_path.write_text(json.dumps(meta, indent=2)+"\n")
         try:
-            if raw is not None:
-                provenance["status"] = meta.get("status", "failed")
-                finalize_raw(raw, root, output, written, provenance, binary_sha256)
-        except (OSError, CaptureError, ValueError) as error:
-            print(f"RAW_FINALIZE_FAILED: {error}", file=sys.stderr)
-        finally:
+            if binary is not None and binary_sha256 is not None and _binary_changed(binary, binary_sha256):
+                outcome["binary_changed"] = True
+                meta["status"] = "failed"
+                meta["error"] = f"BINARY_CHANGED: {binary} changed while the capture ran"
+                provenance["error"] = meta["error"]
+                print(meta["error"], file=sys.stderr)
+            if meta.get("status") == "pending":
+                meta["status"] = "failed"
+            if meta_path:
+                meta_path.write_text(json.dumps(meta, indent=2)+"\n")
+            try:
+                if raw is not None:
+                    provenance["status"] = meta.get("status", "failed")
+                    finalize_raw(raw, root, output, written, provenance, binary_sha256)
+            except (OSError, CaptureError, ValueError) as error:
+                print(f"RAW_FINALIZE_FAILED: {error}", file=sys.stderr)
+        finally:  # whatever a sealing step raised: the lock, the root and the handlers are always released
             try:
                 if lock_fd is not None:
                     os.close(lock_fd)

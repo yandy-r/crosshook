@@ -42,6 +42,31 @@ class FocusTailTests(unittest.TestCase):
         self.append("S\t2\t7\tdestroyed\nK\t11\tenter\t7\n")
         self.assertFalse(self.tail.focused("keyboard"))
 
+    def test_destroying_the_focused_surface_ends_focus_without_a_leave(self):
+        self.append("S\t1\t7\ttoplevel\nK\t10\tenter\t7\nM\t11\tenter\t7\n")
+        self.assertTrue(self.tail.focused("keyboard"))
+        self.assertTrue(self.tail.focused("pointer"))
+        self.append("S\t12\t7\tdestroyed\n")
+        self.assertFalse(self.tail.focused("keyboard"))
+        self.assertFalse(self.tail.focused("pointer"))
+        self.append("S\t13\t7\ttoplevel\n")  # a reused id is a new surface that nothing has entered
+        self.assertFalse(self.tail.focused("keyboard"))
+        self.append("K\t14\tenter\t7\n")
+        self.assertTrue(self.tail.focused("keyboard"))
+        self.assertFalse(self.tail.focused("pointer"))
+
+    def test_destroying_another_surface_keeps_focus(self):
+        self.append("S\t1\t7\ttoplevel\nS\t2\t8\ttoplevel\nK\t10\tenter\t7\nS\t11\t8\tdestroyed\n")
+        self.assertTrue(self.tail.focused("keyboard"))
+
+    def test_a_destroy_in_one_log_does_not_end_focus_held_through_another(self):
+        # surface ids are per process: id 7 destroyed in log 2 is not the surface log 1 focused
+        self.append("S\t1\t7\ttoplevel\nK\t10\tenter\t7\n")
+        self.append("S\t1\t7\ttoplevel\nS\t2\t7\tdestroyed\n", self.dir / "wlpresent-2.log")
+        self.assertTrue(self.tail.focused("keyboard"))
+        self.append("S\t20\t7\tdestroyed\n")
+        self.assertFalse(self.tail.focused("keyboard"))
+
     def test_reads_only_new_complete_lines(self):
         reads = []
         original = os.pread
@@ -139,11 +164,9 @@ class IncompleteLogTests(unittest.TestCase):
 
 
 def final_focus(log, device):
-    """The full parser's answer: the latest event of `device` (log order breaks ties) is an enter on a toplevel."""
-    latest = None
-    for event in log.focus:
-        if event.device == device and (latest is None or event.ns >= latest.ns):
-            latest = event
+    """The full parser's answer: the latest event of `device` (log order breaks ties), unless its surface
+    was destroyed afterwards, is an enter on a toplevel."""
+    latest = log.live_focus.get(device)
     return latest is not None and latest.entered and latest.toplevel
 
 
@@ -158,6 +181,11 @@ CORPORA = {
     "interleaved_records": HEADER + "S\t1\t7\ttoplevel\nC\t2\t7\t1\t1\nK\t10\tenter\t7\nP\t11\t1\t11\t8\t1\t0\n"
                          "G\t12\t7\t1280\t900\t1\nX\t13\tsomething_else\nD\t14\t2\nM\t15\tenter\t7\n",
     "unterminated_last_record": HEADER + "S\t1\t7\ttoplevel\nK\t10\tenter\t7\nK\t20\tleave\t7",
+    "enter_then_destroy": HEADER + "S\t1\t7\ttoplevel\nK\t10\tenter\t7\nM\t11\tenter\t7\nS\t12\t7\tdestroyed\n",
+    "destroy_then_reused_id": HEADER + "S\t1\t7\ttoplevel\nK\t10\tenter\t7\nS\t11\t7\tdestroyed\n"
+                              "S\t12\t7\ttoplevel\nM\t13\tenter\t7\n",
+    "destroy_of_an_unfocused_surface": HEADER + "S\t1\t7\ttoplevel\nS\t2\t8\ttoplevel\nK\t10\tenter\t7\n"
+                                       "S\t11\t8\tdestroyed\n",
     "no_focus_records": HEADER + "S\t1\t7\ttoplevel\nC\t2\t7\t1\t1\n",
 }
 

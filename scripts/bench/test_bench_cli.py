@@ -316,6 +316,25 @@ class PresentationRunTests(unittest.TestCase):
                        owner="(true,)", extra=("--cold-cache-ack",))
         self.assertEqual(self.probes, [])
 
+    def test_a_failing_seal_still_releases_the_lock_the_root_and_the_signal_handlers(self):
+        numbers = (signal.SIGTERM, signal.SIGHUP, signal.SIGINT)
+        before = {n: signal.getsignal(n) for n in numbers}
+        real_write_text = Path.write_text
+        meta_writes = []
+
+        def write_text(path, *args, **kwargs):
+            if path.name == "meta.json":
+                meta_writes.append(path)
+                if len(meta_writes) == 2:  # the seal in `finally`, not the initial write
+                    raise OSError("disk full")
+            return real_write_text(path, *args, **kwargs)
+        with patch.object(Path, "write_text", write_text), self.assertRaisesRegex(OSError, "disk full"):
+            self.run_bench("G4", capture=self.ok_rows)
+        self.assertEqual(len(meta_writes), 2)
+        self.assertEqual({n: signal.getsignal(n) for n in numbers}, before)
+        os.close(bench.lock_output(self.output / "A/E1"))  # raises OUTPUT_BUSY while the lock is still held
+        self.assertEqual(list((self.root / "runs").iterdir()), [])  # the isolated root was removed
+
     def test_termination_signals_abort_with_sealed_raw_dir(self):
         for number in (signal.SIGTERM, signal.SIGHUP):
             with self.subTest(signal=number.name):
