@@ -196,7 +196,8 @@ class G4ScrollTests(DriverTestCase):
     def test_window_is_placed_per_scenario(self):
         self.g4("library")
         self.g4("console")
-        self.assertEqual(self.kwin.placed, [(1280, 900, 640, 450), (1280, 900, 640, 780)])
+        # The console scenario uses the wide layout, where the console log renders.
+        self.assertEqual(self.kwin.placed, [(1280, 900, 640, 450), (1600, 1000, 800, 860)])
 
     def test_pointer_never_entering_raises_and_starts_no_timed_scroll(self):
         self.world.pointer_on_notch = None

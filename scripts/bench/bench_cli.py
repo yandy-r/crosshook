@@ -14,16 +14,17 @@ SCHEMAS = {
     "G5": "scenario,p50_ms,p95_ms,p99_ms,measured,ambiguous,timeout,early,status",
     "G6": "stalls_over_16ms,stalls_over_50ms,duration_s,status",
     "G7": "elapsed_s,cpu_percent,wakeups_s,power_w,status",
-    "G8": "p50_ms,p95_ms,p99_ms,stddev_ms,over_interval_percent,memory_growth_mb,status",
+    "G8": "scenario,p50_ms,p95_ms,p99_ms,stddev_ms,over_interval_percent,frames,memory_growth_mb,peak_pss_mb,"
+          "gpu_growth_mb,gpu_source,follow,status",
     "G9": _SCENARIO_COLUMNS,
     "G10": "binary_mb,bundle_mb,installed_mb,runtime_delta_mb,status",
 }
 # Metrics a presentation run can produce, and the input-driven scenarios each one owns (default order).
-PRESENTATION_METRICS = ("G1", "G2", "G4", "G5", "G9")
+PRESENTATION_METRICS = ("G1", "G2", "G4", "G5", "G8", "G9")
 SCENARIOS = {"G4": ("library", "console", "settings"),
              "G5": ("search", "toggle_favorite", "toggle_optimization", "dpad", "route_switch"),
+             "G8": ("replay_scroll",),
              "G9": ("resize",)}
-PHASE_3_REFUSAL = "G8 producer arrives with YAN-2056"
 DEFAULT_TRIALS, MIN_TRIALS, MAX_TRIALS = 20, 2, 200
 
 
@@ -35,7 +36,7 @@ def positive(raw: str) -> float:
 
 
 def _scenarios(parser: argparse.ArgumentParser, args) -> dict[str, list[str]]:
-    """Resolve `--scenario` into {metric: [scenario, ...]} for the selected G4/G5/G9 metrics.
+    """Resolve `--scenario` into {metric: [scenario, ...]} for the selected G4/G5/G8/G9 metrics.
 
     Each listed value must belong to a selected metric's allowlist; a selected metric
     that no listed value addresses keeps its full default list.
@@ -44,7 +45,7 @@ def _scenarios(parser: argparse.ArgumentParser, args) -> dict[str, list[str]]:
     if args.scenario is None:
         return {m: list(names) for m, names in owners.items()}
     if args.collect != "presentation" or not owners:
-        parser.error("--scenario requires --collect presentation with G4, G5 or G9")
+        parser.error("--scenario requires --collect presentation with G4, G5, G8 or G9")
     requested = [item.strip() for item in args.scenario.split(",")]
     for item in requested:
         if not any(item in names for names in owners.values()):
@@ -79,7 +80,7 @@ def arguments(argv: list[str] | None = None):
     parser.add_argument("--scenario", help="comma list of input scenarios for --collect presentation: "
                         "G4 library,console,settings (default all); "
                         "G5 search,toggle_favorite,toggle_optimization,dpad,route_switch (default all); "
-                        "G9 resize (default)")
+                        "G8 replay_scroll (default); G9 resize (default)")
     parser.add_argument("--trials", type=int, default=DEFAULT_TRIALS,
                         help=f"G5 trials per scenario and iteration (even, {MIN_TRIALS}..{MAX_TRIALS}, "
                         f"default {DEFAULT_TRIALS})")
@@ -101,10 +102,8 @@ def arguments(argv: list[str] | None = None):
         parser.error(f"--trials requires an even number {MIN_TRIALS}..{MAX_TRIALS}, "
                      "so toggles return to their start state")
     if args.collect == "presentation":
-        if "G8" in args.selected:
-            parser.error(f"--collect presentation: {PHASE_3_REFUSAL}")
         if any(m not in PRESENTATION_METRICS for m in args.selected):
-            parser.error("--collect presentation supports G1/G2/G4/G5/G9 only")
+            parser.error("--collect presentation supports G1/G2/G4/G5/G8/G9 only")
         if args.capture_csv:
             parser.error("--collect presentation cannot be combined with --capture-csv")
     if not args.branch or args.branch.startswith("-"):

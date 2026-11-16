@@ -238,6 +238,22 @@ def toplevel_frames(logs: list[PresentLog]) -> list[Presented]:
     return sorted(frames, key=lambda frame: frame.presented_ns)
 
 
+def toplevel_pids(logs: list[PresentLog]) -> set[int]:
+    """The header `pid=` of every log that presented a toplevel frame (the shim writes it at load time).
+
+    PRESENT_LOG_MALFORMED when such a log has no integer `pid=`.
+    """
+    pids = set()
+    for log in logs:
+        if not any(_is_toplevel_frame(log, seq) for seq in log.presented):
+            continue
+        try:
+            pids.add(int(log.header["pid"]))
+        except (KeyError, ValueError) as error:
+            raise CaptureError("PRESENT_LOG_MALFORMED: header without an integer pid") from error
+    return pids
+
+
 def first_present_ns(logs: list[PresentLog]) -> int:
     return toplevel_frames(logs)[0].presented_ns
 

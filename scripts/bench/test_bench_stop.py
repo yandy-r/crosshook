@@ -1,4 +1,5 @@
-"""bench_capture.stop() is signal-safe: a signal during the teardown waits until the app group is gone."""
+"""bench_capture.stop() is signal-safe: a signal during the teardown waits until the app group is gone;
+`ready(..., stdin=True)` keeps the go pipe the G8 runner writes to."""
 import os
 import signal
 import subprocess
@@ -10,6 +11,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bench_capture
+import bench_collect
 
 NUMBERS = (signal.SIGTERM, signal.SIGHUP, signal.SIGINT)
 
@@ -107,6 +109,35 @@ class StopSignalTests(unittest.TestCase):
         thread.join(15)
         self.assertEqual(errors, [])
         self.assertIsNotNone(self.proc.returncode)
+
+
+class StdinLaunchTests(unittest.TestCase):
+    CODE = ("import sys,time;t=time.clock_gettime_ns(time.CLOCK_MONOTONIC);"
+            "sys.stderr.write('READY %d\\n'%t);sys.stderr.flush();"
+            "sys.stderr.write('got '+sys.stdin.readline());sys.stderr.flush();time.sleep(30)")
+
+    def setUp(self):
+        unlocked = patch.object(bench_capture, "session_locked", return_value=False)
+        unlocked.start()
+        self.addCleanup(unlocked.stop)
+
+    def test_stdin_true_keeps_a_pipe_the_app_reads_and_stop_app_closes_it(self):
+        proc, _ = bench_capture.ready([sys.executable, "-c", self.CODE], dict(os.environ), 5, False,
+                                      events=True, stdin=True)
+        self.addCleanup(bench_capture.stop, proc)
+        self.assertIsNotNone(proc.stdin)
+        proc.stdin.write(b"GO\n")
+        proc.stdin.flush()
+        self.assertTrue(proc.events._thread.is_alive())
+        bench_collect._stop_app(proc)
+        self.assertTrue(proc.stdin.closed)
+
+    def test_stdin_defaults_to_the_runners_own(self):
+        proc, _ = bench_capture.ready([sys.executable, "-c", self.CODE.replace("sys.stdin.readline()", "''")],
+                                      dict(os.environ), 5, False)
+        self.addCleanup(proc.stderr.close)
+        self.addCleanup(bench_capture.stop, proc)  # runs first: closing stderr under the drain thread would block
+        self.assertIsNone(proc.stdin)
 
 
 if __name__ == "__main__":

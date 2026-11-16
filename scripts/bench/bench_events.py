@@ -4,6 +4,7 @@ Wire contract, one integer-only line per marker:
   BENCH_BEGIN <ns> <scenario>
   BENCH_MARK <ns> <scenario> <seq> <phase> <t_perf_us>
   BENCH_CLOCK <ns> <seq> <t_perf_us>
+  BENCH_REPLAY <ns> start|done <lines>
   BENCH_ERROR: <text>
 Every other line is discarded. A malformed `BENCH_*` line is recorded, never guessed at.
 """
@@ -18,8 +19,12 @@ from dataclasses import dataclass
 from bench_capture import CaptureError
 
 LINE_CAP = 65536
-SCENARIOS = frozenset({"search", "toggle_favorite", "toggle_optimization", "dpad", "route_switch"})
-PHASES = frozenset({"armed", "render", "focus_lost"})
+G5_SCENARIOS = frozenset({"search", "toggle_favorite", "toggle_optimization", "dpad", "route_switch"})
+SCENARIOS = G5_SCENARIOS | {"replay_scroll"}
+PHASES = frozenset({"armed", "render", "focus_lost", "console_hidden", "follow_on", "follow_off"})
+REPLAY_PHASES = frozenset({"console_hidden", "follow_on", "follow_off"})
+REPLAY_KINDS = ("start", "done")
+REPLAY_MAX_LINES = 50000
 _INT = re.compile(r"-?[0-9]+")
 
 
@@ -45,6 +50,19 @@ class ClockSample:
     t_perf_us: int
 
 
+@dataclass(frozen=True)
+class ReplayEvent:
+    """A `BENCH_REPLAY` marker: when the replay `start`ed or was `done`, and its line count."""
+    ns: int
+    lines: int
+
+
+@dataclass(frozen=True)
+class _Replay:
+    kind: str
+    event: ReplayEvent
+
+
 class EventReader:
     """Reads `stream` on a daemon thread and exposes the parsed markers.
 
@@ -60,6 +78,8 @@ class EventReader:
         self._begin: Begin | None = None
         self._marks: dict[tuple[str, int, str], Mark] = {}
         self._focus_lost: list[Mark] = []  # every blur is kept: a later one must not hide behind an earlier one
+        self._replay_marks: list[Mark] = []
+        self._replay: dict[str, ReplayEvent] = {}
         self._clocks: list[ClockSample] = []
         self._errors: list[str] = []
         self._eof = False
@@ -110,7 +130,7 @@ class EventReader:
             return
         fields = text.split()
         kind = fields[0] if fields else ""
-        if kind not in ("BENCH_BEGIN", "BENCH_MARK", "BENCH_CLOCK"):
+        if kind not in ("BENCH_BEGIN", "BENCH_MARK", "BENCH_CLOCK", "BENCH_REPLAY"):
             return
         try:
             record = self._parse(kind, fields)
@@ -118,8 +138,16 @@ class EventReader:
             self._record("BENCH_EVENT_MALFORMED: " + text[:80])
             return
         with self._cond:
-            if isinstance(record, Begin):
+            if isinstance(record, _Replay):
+                problem = self._replay_problem(record)
+                if problem:
+                    self._errors.append(f"BENCH_EVENT_MALFORMED: {problem}: {text[:80]}")
+                else:
+                    self._replay[record.kind] = record.event
+            elif isinstance(record, Begin):
                 self._begin = self._begin or record
+            elif isinstance(record, Mark) and record.phase in REPLAY_PHASES:
+                self._replay_marks.append(record)
             elif isinstance(record, Mark) and record.phase == "focus_lost":
                 self._focus_lost.append(record)
             elif isinstance(record, Mark):
@@ -127,6 +155,15 @@ class EventReader:
             else:
                 self._clocks.append(record)
             self._cond.notify_all()
+
+    def _replay_problem(self, record: _Replay) -> str:
+        """Why `record` breaks the once-each, start-before-done contract, or "" (caller holds the lock)."""
+        if record.kind in self._replay:
+            return f"duplicate replay {record.kind}"
+        start = self._replay.get("start")
+        if record.kind == "done" and (start is None or record.event.ns <= start.ns):
+            return "replay done without an earlier start"
+        return ""
 
     def _number(self, token: str, minimum: int = 0) -> int:
         if not _INT.fullmatch(token):
@@ -136,13 +173,20 @@ class EventReader:
             raise ValueError(token)
         return value
 
-    def _parse(self, kind: str, fields: list[str]) -> Begin | Mark | ClockSample:
-        count = {"BENCH_BEGIN": 3, "BENCH_MARK": 6, "BENCH_CLOCK": 4}[kind]
+    def _parse(self, kind: str, fields: list[str]) -> Begin | Mark | ClockSample | _Replay:
+        count = {"BENCH_BEGIN": 3, "BENCH_MARK": 6, "BENCH_CLOCK": 4, "BENCH_REPLAY": 4}[kind]
         if len(fields) != count:
             raise ValueError("field count")
         ns = self._number(fields[1])
         if not self._launch_ns <= ns <= self._clock():
             raise ValueError("ns outside the launch window")
+        if kind == "BENCH_REPLAY":
+            if fields[2] not in REPLAY_KINDS:
+                raise ValueError("replay kind")
+            lines = self._number(fields[3])
+            if lines > REPLAY_MAX_LINES:
+                raise ValueError("replay lines")
+            return _Replay(fields[2], ReplayEvent(ns, lines))
         if kind == "BENCH_CLOCK":
             return ClockSample(ns, self._number(fields[2]), self._number(fields[3]))
         if fields[2] not in SCENARIOS:
@@ -178,6 +222,19 @@ class EventReader:
         """The first `armed`/`render` mark of the trial; `focus_lost` marks are read with `focus_lost`."""
         return self._wait(lambda: self._marks.get((scenario, seq, phase)), timeout_s,
                           "MARK_TIMEOUT", f"{scenario} seq {seq} {phase}")
+
+    def wait_replay(self, kind: str, timeout_s: float) -> ReplayEvent:
+        """The app's `BENCH_REPLAY` `start` or `done` marker (each is accepted once, `done` after `start`)."""
+        if kind not in REPLAY_KINDS:
+            raise ValueError(f"replay kind must be one of {REPLAY_KINDS}: {kind!r}")
+        code = "REPLAY_NOT_STARTED" if kind == "start" else "REPLAY_NOT_DONE"
+        return self._wait(lambda: self._replay.get(kind), timeout_s, code)
+
+    def replay_mark(self, scenario: str) -> Mark | None:
+        """The earliest `console_hidden`/`follow_on`/`follow_off` mark of `scenario`, if one arrived."""
+        with self._cond:
+            marks = [mark for mark in self._replay_marks if mark.scenario == scenario]
+        return min(marks, key=lambda mark: mark.ns) if marks else None
 
     def focus_lost(self, scenario: str, since_ns: int) -> Mark | None:
         """The first `focus_lost` mark of `scenario` stamped at or after `since_ns`, if any arrived.
