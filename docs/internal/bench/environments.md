@@ -26,26 +26,26 @@ E1 target metrics: G1–G10 (see [`README.md`](README.md)).
 
 ### E1 available tooling (2026-11-16)
 
-| Tool                                 | Status                                           |
-| ------------------------------------ | ------------------------------------------------ |
-| cc (GCC)                             | available (16.2.1)                               |
-| wayland-scanner / wayland-client     | available (1.26.0)                               |
+| Tool                                     | Status                                         |
+| ---------------------------------------- | ---------------------------------------------- |
+| cc (GCC)                                 | available (16.2.1)                             |
+| wayland-scanner / wayland-client         | available (1.26.0)                             |
 | `org.gnome.Sdk//50` (Flatpak shim build) | available (GCC 15.2.0, wayland-scanner 1.24.0) |
-| `/dev/uinput`                        | user-writable (ACL)                              |
-| ydotool / ydotoold                   | available (1.0.4; daemon not running)            |
-| gpu-screen-recorder                  | available (6.1.7; not evidence, optional)        |
-| upower                               | available                                        |
-| flatpak                              | available (1.18.4)                               |
-| ffmpeg                               | available                                        |
-| MangoHud (`mangohud`)                | available                                        |
-| gamescope                            | available                                        |
-| python3                              | available (3.15.2)                               |
-| ImageMagick (`magick`)               | available                                        |
-| bats                                 | available                                        |
-| hyperfine                            | missing                                          |
-| pidstat                              | missing                                          |
-| perf                                 | missing                                          |
-| bpftrace                             | missing                                          |
+| `/dev/uinput`                            | user-writable (ACL)                            |
+| ydotool / ydotoold                       | available (1.0.4; daemon not running)          |
+| gpu-screen-recorder                      | available (6.1.7; not evidence, optional)      |
+| upower                                   | available                                      |
+| flatpak                                  | available (1.18.4)                             |
+| ffmpeg                                   | available                                      |
+| MangoHud (`mangohud`)                    | available                                      |
+| gamescope                                | available                                      |
+| python3                                  | available (3.15.2)                             |
+| ImageMagick (`magick`)                   | available                                      |
+| bats                                     | available                                      |
+| hyperfine                                | missing                                        |
+| pidstat                                  | missing                                        |
+| perf                                     | missing                                        |
+| bpftrace                                 | missing                                        |
 
 Kernel tracing is root-only on E1 (`/sys/kernel/tracing` is 0700, `perf_event_paranoid=2`); the runner never uses `sudo`. NVIDIA exposes no `drm-*` keys in `fdinfo`, so per-process GPU memory comes from `nvidia-smi pmon`. Missing tools block the affected captures; [README.md](README.md) requires a real capture to fail `MISSING_TOOL` rather than approximate.
 
