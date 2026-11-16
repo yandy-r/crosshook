@@ -5,6 +5,7 @@ pub(super) const ENV_EXIT: &str = "CROSSHOOK_BENCH_EXIT_AFTER_READY";
 pub(super) const ENV_ROOT: &str = "CROSSHOOK_BENCH_ROOT";
 pub(super) const ENV_LOG: &str = "CROSSHOOK_BENCH_LOG";
 pub(super) const ENV_RATE: &str = "CROSSHOOK_BENCH_LOG_RATE";
+pub(super) const ENV_SCENARIO: &str = "CROSSHOOK_BENCH_SCENARIO";
 
 /// True when benchmark mode is on (`CROSSHOOK_BENCH=1`).
 pub fn bench_enabled() -> bool {
@@ -18,6 +19,7 @@ pub(super) struct BenchEnv {
     pub(super) root: Option<String>,
     pub(super) log: Option<String>,
     pub(super) rate: Option<String>,
+    pub(super) scenario: Option<String>,
 }
 
 impl BenchEnv {
@@ -29,7 +31,13 @@ impl BenchEnv {
             root: get(ENV_ROOT),
             log: get(ENV_LOG),
             rate: get(ENV_RATE),
+            scenario: get(ENV_SCENARIO),
         }
+    }
+
+    /// True when benchmark mode is on (`CROSSHOOK_BENCH=1`).
+    pub(super) fn enabled(&self) -> bool {
+        self.bench.as_deref() == Some("1")
     }
 }
 

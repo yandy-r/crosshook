@@ -1,4 +1,5 @@
-"""Presentation-time collection via the wlpresent shim: G1/G2 first frame, G4/G9 driven frame intervals."""
+"""Presentation-time collection via the wlpresent shim: G1/G2 first frame, G4/G9 driven frame
+intervals, G5 input-to-photon trials."""
 from __future__ import annotations
 
 import contextlib
@@ -7,8 +8,9 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from bench_capture import CaptureError, over_interval_percent, ready, stats, stop
+from bench_capture import CaptureError, _signals_deferred, over_interval_percent, ready, stats, stop
 from bench_drivers import (
+    LOG_ENV,
     DriveResult,
     drive_g4,
     drive_g9,
@@ -16,7 +18,10 @@ from bench_drivers import (
     remove_scenario_settings,
     settle_device,
 )
-from bench_guard import require_no_instance
+from bench_drivers_g5 import G5Result, drive_g5, mark_timeout_s
+from bench_g5io import TOGGLE_SCENARIOS, ToggleState, write_observations
+from bench_g5select import summarize
+from bench_guard import ENV_SCENARIO, require_no_instance
 from bench_input import InputDevice
 from bench_kwin import KWinScripts, require_kwin
 from bench_present import (
@@ -32,7 +37,7 @@ from bench_present import (
 PRESENT_POLL_S = 2.0
 PRESENT_POLL_STEP_S = 0.05
 # Flatpak receives these only through --env; the host `flatpak`/bwrap must never preload the shim.
-FLATPAK_ONLY_ENV = ("LD_PRELOAD", "CROSSHOOK_BENCH_PRESENT_DIR",
+FLATPAK_ONLY_ENV = ("LD_PRELOAD", "CROSSHOOK_BENCH_PRESENT_DIR", ENV_SCENARIO,
                     "CROSSHOOK_BENCH_LOG", "CROSSHOOK_BENCH_LOG_RATE")
 MIN_INTERVALS = 30  # per scenario, pooled; the library grid presents ~9 fps on E1, so 6 s of scroll yields ~50
 MIN_ITERATION_INTERVALS = 5  # per iteration: a pooled count must not hide an iteration that barely presented
@@ -146,9 +151,68 @@ def _driven_iteration(args, command_for: Callable[[dict[str, str]], list[str]], 
     return frame_intervals_ms(frames, result.start_ns, result.end_ns), result
 
 
+def _stop_app(proc) -> None:
+    stop(proc)
+    events = getattr(proc, "events", None)
+    if events is not None:
+        events.close()
+    if proc.stderr:
+        proc.stderr.close()
+
+
+def _g5_iteration(args, command_for: Callable[[dict[str, str]], list[str]], env: dict[str, str],
+                  scenario: str, number: int, dev: InputDevice, state: ToggleState | None) -> G5Result:
+    present_dir = _present_dir(env, "G5", number, scenario)
+    env_s = {key: value for key, value in env.items() if key not in LOG_ENV}
+    env_s[ENV_SCENARIO] = scenario
+    command_i, env_i = _launch_spec(command_for, env_s, present_dir)
+    try:
+        require_no_instance()  # a CrossHook started since the last check would absorb this launch
+        proc, _ = ready(command_i, env_i, args.timeout, exit_after=False, events=True)
+        try:
+            kwin = KWinScripts(Path(env["HOME"]).parent / "bench-tools", secrets.token_hex(4))
+            result = drive_g5(proc, scenario, present_dir, kwin, dev, proc.events, args.trials,
+                              mark_timeout_s(args.timeout, args.flatpak))
+        finally:
+            _stop_app(proc)
+    finally:
+        if state is not None:
+            with _signals_deferred():  # a signal must not leave the profile half restored
+                state.restore()  # the app is stopped (or never started): back to the fixture state
+    logs = parse_dir(present_dir)
+    require_clock(logs)
+    check_refresh(toplevel_frames(logs), args.refresh_hz)
+    return result
+
+
+def _g5_row(args, command_for: Callable[[dict[str, str]], list[str]], env: dict[str, str], scenario: str,
+            dev: InputDevice, evidence: dict | None) -> dict:
+    """One G5 row: the trials of every iteration pooled; the observation CSV is rewritten per iteration."""
+    if args.trials % 2:
+        raise CaptureError(f"INVALID_TRIALS: {args.trials} is odd; toggles must return to their start state")
+    state = ToggleState(env, args.flatpak) if scenario in TOGGLE_SCENARIOS else None
+    records = []
+    try:
+        if state is not None:
+            state.capture()
+        for number in range(1, args.iterations + 1):
+            result = _g5_iteration(args, command_for, env, scenario, number, dev, state)
+            records += result.records
+            write_observations(env, scenario, records)
+            if evidence is not None:
+                evidence.setdefault("G5", {}).setdefault(scenario, []).append(
+                    {"iteration": number, "injected": len(result.records),
+                     "driven_s": round(result.driven_ns / 1e9, 3),
+                     "uncertainty_ms": round(result.clock.uncertainty_ns / 1e6, 3)})
+    finally:
+        if state is not None:
+            state.discard()
+    return summarize(scenario, [record.trial for record in records])
+
+
 def driven_rows(args, metric: str, command_for: Callable[[dict[str, str]], list[str]],
                 env: dict[str, str], evidence: dict | None = None) -> list[dict]:
-    """One row per scenario: frame intervals inside the driven window, pooled over iterations.
+    """One row per scenario: frame intervals inside the driven window (G5: trial latencies), pooled over iterations.
 
     `evidence`, when given, gains `{metric: {scenario: [{iteration, injected, driven_s}, ...]}}`:
     what each iteration achieved, for provenance (the CSV schema has no column for it).
@@ -164,11 +228,14 @@ def driven_rows(args, metric: str, command_for: Callable[[dict[str, str]], list[
 def _scenario_rows(args, metric: str, command_for: Callable[[dict[str, str]], list[str]],
                    env: dict[str, str], evidence: dict | None) -> list[dict]:
     rows = []
-    # Only G4 injects uinput input; G9 resizes through KWin and never opens a device.
-    with (InputDevice() if metric == "G4" else contextlib.nullcontext()) as dev:  # closed on every exit path
+    # Only G4 and G5 inject uinput input; G9 resizes through KWin and never opens a device.
+    with (InputDevice() if metric in ("G4", "G5") else contextlib.nullcontext()) as dev:  # closed on every exit path
         if dev is not None:
             settle_device(dev)
         for scenario in args.scenarios[metric]:
+            if metric == "G5":
+                rows.append(_g5_row(args, command_for, env, scenario, dev, evidence))
+                continue
             values: list[float] = []
             for number in range(1, args.iterations + 1):
                 intervals, result = _driven_iteration(args, command_for, env, metric, scenario, number, dev)

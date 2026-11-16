@@ -69,6 +69,9 @@ const EXPLICIT_READ_COMMANDS: ReadonlySet<string> = new Set<string>([
   'collection_import_from_toml',
   // Startup-benchmark signal: no-op in browser mode, must not reject under ?errors=true.
   'bench_ready',
+  'bench_begin',
+  'bench_mark',
+  'bench_clock',
 ]);
 
 /**

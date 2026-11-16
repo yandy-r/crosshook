@@ -68,6 +68,9 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             commands::bench::bench_ready,
+            commands::bench::bench_begin,
+            commands::bench::bench_mark,
+            commands::bench::bench_clock,
             commands::startup::get_startup_report,
             commands::export::export_launchers,
             commands::export::validate_launcher_export,

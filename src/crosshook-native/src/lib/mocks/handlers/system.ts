@@ -491,9 +491,20 @@ export function registerSystem(map: Map<string, Handler>): void {
 
   // --- bench (YAN-782) ---
 
-  map.set('bench_ready', async (): Promise<void> => {
-    // No-op: benchmark hooks are inert unless the real backend sees CROSSHOOK_BENCH=1.
+  map.set('bench_ready', async (): Promise<null> => {
+    // No scenario: benchmark hooks are inert unless the real backend sees CROSSHOOK_BENCH=1.
+    return null;
   });
+
+  map.set('bench_begin', async (): Promise<void> => {
+    // No-op: marker recording only exists in the real backend.
+  });
+
+  map.set('bench_mark', async (): Promise<void> => {
+    // No-op: marker recording only exists in the real backend.
+  });
+
+  map.set('bench_clock', async (): Promise<number> => 0);
 
   // --- discovery ---
 

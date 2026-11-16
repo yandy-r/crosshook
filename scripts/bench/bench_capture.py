@@ -108,7 +108,8 @@ def drain_stderr(proc: subprocess.Popen) -> None:
 
 
 def ready(command: list[str], env: dict[str, str], timeout: float,
-          exit_after: bool) -> tuple[subprocess.Popen, float]:
+          exit_after: bool, events: bool = False) -> tuple[subprocess.Popen, float]:
+    """Launch and wait for READY. With `events`, `proc.events` reads the BENCH_* markers after READY."""
     import selectors
     child_env = dict(env)
     if exit_after:
@@ -154,7 +155,12 @@ def ready(command: list[str], env: dict[str, str], timeout: float,
                             if not start <= ns <= now:
                                 raise CaptureError("INVALID_READY_CLOCK")
                             proc.launch_ns = start
-                            drain_stderr(proc)
+                            if events:
+                                from bench_events import EventReader
+                                os.set_blocking(proc.stderr.fileno(), True)
+                                proc.events = EventReader(proc.stderr, start, initial=pending)
+                            else:
+                                drain_stderr(proc)
                             if exit_after:
                                 proc.wait(timeout=max(.1, deadline-time.monotonic()))
                                 if proc.returncode != 0:
@@ -320,7 +326,7 @@ def capture(metric: str, args, command: list[str], env: dict[str, str], command_
         if not args.binary or not args.bundle or args.runtime_delta_mb is None:
             raise CaptureError("SIZE_INPUT_REQUIRED: --binary, --bundle, --runtime-delta-mb (measured download delta)")
         return [sizes(Path(args.binary), Path(args.bundle), args.branch, args.runtime_delta_mb)]
-    if metric in ("G4", "G9") and getattr(args, "collect", "csv") == "presentation":
+    if metric in ("G4", "G5", "G9") and getattr(args, "collect", "csv") == "presentation":
         from bench_collect import driven_rows
         return driven_rows(args, metric, command_for or (lambda _env: command), env, evidence)
     # External captures are raw observations, not invented samples or compositor rAF proxies.
@@ -331,9 +337,9 @@ def capture(metric: str, args, command: list[str], env: dict[str, str], command_
         return [{"stalls_over_16ms": sum(v>16 for v in values), "stalls_over_50ms": sum(v>50 for v in values),
                  "duration_s": args.duration, "status": "measured"}]
     result = stats(values)
-    if metric == "G5":
-        return [{"scenario": row.get("scenario", "unspecified"), "latency_ms": value, "status": "measured"}
-                for row, value in zip(rows, values)] + [{"scenario": "summary", "p95_ms": result["p95_ms"], "status": "measured"}]
+    if metric == "G5":  # external observations carry no trial statuses: `ambiguous`, `timeout` and `early` stay empty
+        return [{"scenario": "external", "p50_ms": result["p50_ms"], "p95_ms": result["p95_ms"],
+                 "p99_ms": result["p99_ms"], "measured": len(values), "status": "measured"}]
     result["over_interval_percent"] = over_interval_percent(values, args.refresh_hz)
     result.update(scenario="external", frames=len(values), status="measured")
     return [result]

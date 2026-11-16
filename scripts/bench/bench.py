@@ -17,6 +17,7 @@ import bench_guard
 from bench_capture import CaptureError, capture
 from bench_cli import SCHEMAS, arguments
 from bench_guard import (
+    ENV_SCENARIO,
     FLATPAK_APP_ID,
     GuardError,
     Originals,
@@ -40,7 +41,7 @@ from bench_provenance import (
 REPO = Path(__file__).resolve().parents[2]
 TOOLS = ("hyperfine", "ydotool", "gpu-screen-recorder", "perf", "pidstat", "upower", "flatpak", "ffmpeg", "cc",
          "gdbus")
-INPUT_DRIVEN = ("G4", "G9")  # presentation runs of these launch the app and inject input
+INPUT_DRIVEN = ("G4", "G5", "G9")  # presentation runs of these launch the app and inject input
 EXIT_PRESENTATION = ("NO_PRESENTATION_GLOBAL", "PRESENTATION_CLOCK", "REFRESH_MISMATCH",
                      "UNSUPPORTED_COMPOSITOR", "INPUT_DEVICE_DENIED")
 
@@ -68,7 +69,7 @@ def launch_command(args, env: dict[str, str]) -> list[str]:
     command = ["flatpak", "run", f"--branch={args.branch}", "--nofilesystem=host:reset",
                f"--filesystem={home.parent}", "--env=CROSSHOOK_FLATPAK_HOST_XDG=0", "--env=CROSSHOOK_BENCH=1"]
     for key in ("CROSSHOOK_BENCH_ROOT", "CROSSHOOK_BENCH_LOG", "CROSSHOOK_BENCH_LOG_RATE",
-                "LD_PRELOAD", "CROSSHOOK_BENCH_PRESENT_DIR"):
+                "LD_PRELOAD", "CROSSHOOK_BENCH_PRESENT_DIR", ENV_SCENARIO):
         if key in env:
             command.append(f"--env={key}={env[key]}")
     command.append(FLATPAK_APP_ID)
@@ -194,9 +195,11 @@ def _run(args, outcome: dict[str, bool]) -> int:
                 provenance["drivers"] = "uinput+kwin/1"
                 provenance["drive_stats"] = {}  # filled by the collector: injected events and driven span
                 provenance["scenarios"] = {metric: args.scenarios[metric] for metric in driven}
+                if "G5" in driven:
+                    provenance["trials"] = args.trials
             if binary_sha256 is not None:
                 provenance["binary_sha256"] = binary_sha256
-        external_only = all(m in ("G5", "G6", "G10") or (m in INPUT_DRIVEN and m not in driven)
+        external_only = all(m in ("G6", "G10") or (m in INPUT_DRIVEN and m not in driven)
                             for m in args.selected)
         command: list[str] = []
         env: dict[str, str] = {}

@@ -119,7 +119,7 @@ def _copy_private(source: Path, target: Path) -> None:
 
 def finalize_raw(raw_dir: Path, root: Path | None, output: Path, written: list[Path],
                  manifest: dict, binary_sha256: str | None = None) -> None:
-    """Move shim logs and result files into the raw run directory, then seal it.
+    """Move shim logs, G5 observation CSVs and result files into the raw run directory, then seal it.
 
     Runs even after a failed capture so partial evidence stays checksummed. Only the
     result files this run wrote (`written`) are sealed; symlinks are never followed.
@@ -128,6 +128,10 @@ def finalize_raw(raw_dir: Path, root: Path | None, output: Path, written: list[P
     for log in sorted(present.rglob("wlpresent-*.log")) if present and present.is_dir() else []:
         if log.is_file():
             _copy_private(log, raw_dir / "present" / log.relative_to(present))
+    observations = root / "observations" if root else None
+    for csv_file in sorted(observations.glob("G5-*.csv")) if observations and observations.is_dir() else []:
+        if csv_file.is_file():
+            _copy_private(csv_file, raw_dir / "observations" / csv_file.name)
     for path in [*written, output / "meta.json"]:
         if path.is_file():
             _copy_private(path, raw_dir / path.name)
