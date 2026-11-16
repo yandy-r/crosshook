@@ -5,10 +5,11 @@ import csv
 import os
 import signal
 import subprocess
+import threading
 import time
 from pathlib import Path
 
-from bench_session import PRESENTATION_HINT, session_locked
+from bench_session import PRESENTATION_HINT, locked_error, session_locked
 
 
 class CaptureError(RuntimeError):
@@ -73,7 +74,7 @@ def ready(command: list[str], env: dict[str, str], timeout: float,
     if command[0] == "flatpak":
         command.insert(-1, f"--env=CROSSHOOK_BENCH_EXIT_AFTER_READY={int(exit_after)}")
     if session_locked():
-        raise CaptureError(f"SESSION_LOCKED: {PRESENTATION_HINT}")
+        raise CaptureError(locked_error("before launch"))
     start = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
     proc = subprocess.Popen(command, env=child_env, start_new_session=True,
                             stderr=subprocess.PIPE, stdout=subprocess.DEVNULL)
@@ -115,7 +116,7 @@ def ready(command: list[str], env: dict[str, str], timeout: float,
                     if len(pending) > 65536:
                         raise CaptureError("UNBOUNDED_STDERR_LINE")
         if session_locked():
-            raise CaptureError(f"SESSION_LOCKED: the session locked while waiting for READY; {PRESENTATION_HINT}")
+            raise CaptureError(locked_error("after waiting for READY"))
         raise CaptureError(f"READY_TIMEOUT: no READY within {timeout:g} s; {PRESENTATION_HINT}. "
                            "Last stderr: " + " | ".join(recent[-5:]))
     except BaseException:
@@ -229,17 +230,18 @@ def capture(metric: str, args, command: list[str], env: dict[str, str]) -> list[
         proc, _ = ready(command, env, args.timeout, False)
         rows = []
         worker = ThreadPoolExecutor(max_workers=1)
-        wakeups = worker.submit(wakeup_events, process_tree(proc.pid), args.duration) if metric == "G7" else None
+        cancel = threading.Event()
+        wakeups = worker.submit(wakeup_events, process_tree(proc.pid), args.duration, cancel) if metric == "G7" else None
         try:
             start = time.monotonic()
             ticks = cpu_ticks(proc.pid)
             pss0, _ = memory(proc.pid)
             while True:
+                if session_locked():  # before timing, so probe latency never skews a sample
+                    raise CaptureError(locked_error(f"during {metric}"))
                 elapsed = time.monotonic()-start
                 if proc.poll() is not None:
                     raise CaptureError(f"APP_EXIT: {proc.returncode}")
-                if session_locked():
-                    raise CaptureError(f"SESSION_LOCKED: the session locked during {metric}; {PRESENTATION_HINT}")
                 if metric == "G3":
                     pss, uss = memory(proc.pid)
                     rows.append({"elapsed_s": elapsed, "pss_mb": pss, "uss_mb": uss,
@@ -257,6 +259,7 @@ def capture(metric: str, args, command: list[str], env: dict[str, str]) -> list[
                     row["wakeups_s"] = rate
             return rows
         finally:
+            cancel.set()  # no-op once perf finished; otherwise a failed capture stops it now
             stop(proc)
             worker.shutdown(wait=True)
             if proc.stderr:

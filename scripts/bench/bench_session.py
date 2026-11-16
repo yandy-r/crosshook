@@ -7,9 +7,12 @@ webview blank and READY never arrives (YAN-1985). These probes are read-only.
 """
 from __future__ import annotations
 
+import os
 import subprocess
+from pathlib import Path
 
-LOCKED_HINT = ["loginctl", "show-session", "auto", "-p", "LockedHint", "--value"]
+LOCKED_HINT = ["loginctl", "show-session", "auto", "-p", "Type", "-p", "LockedHint"]
+GRAPHICAL_TYPES = ("wayland", "x11")
 SCREENSAVER_OWNED = ["gdbus", "call", "--session", "--dest", "org.freedesktop.DBus",
                      "--object-path", "/org/freedesktop/DBus",
                      "--method", "org.freedesktop.DBus.NameHasOwner", "org.freedesktop.ScreenSaver"]
@@ -23,20 +26,31 @@ PRESENTATION_HINT = ("READY waits for two painted frames, so the app window must
 
 def _probe(command: list[str]) -> str | None:
     try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=2, check=False)
+        result = subprocess.run(command, stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                                timeout=2, check=False)
     except (OSError, subprocess.SubprocessError):
         return None
     return result.stdout.strip() if result.returncode == 0 else None
 
 
 def _logind_locked() -> bool | None:
-    value = _probe(LOCKED_HINT)
-    return {"yes": True, "no": False}.get(value or "")
+    """LockedHint of the caller's session; unknown unless that session is graphical
+    (from ssh or a TTY, `auto` resolves to a session that never locks)."""
+    fields = dict(line.split("=", 1) for line in (_probe(LOCKED_HINT) or "").splitlines() if "=" in line)
+    if fields.get("Type") not in GRAPHICAL_TYPES:
+        return None
+    return {"yes": True, "no": False}.get(fields.get("LockedHint", ""))
+
+
+def _session_bus_available() -> bool:
+    # Without a bus address gdbus would autolaunch a stray dbus-daemon.
+    runtime = os.environ.get("XDG_RUNTIME_DIR")
+    return bool(os.environ.get("DBUS_SESSION_BUS_ADDRESS")) or bool(runtime and Path(runtime, "bus").exists())
 
 
 def _screensaver_active() -> bool | None:
     # Only ask a running service: calling an unowned name could bus-activate a screensaver.
-    if _probe(SCREENSAVER_OWNED) != "(true,)":
+    if not _session_bus_available() or _probe(SCREENSAVER_OWNED) != "(true,)":
         return None
     value = _probe(SCREENSAVER_ACTIVE)
     return {"(true,)": True, "(false,)": False}.get(value or "")
@@ -44,8 +58,16 @@ def _screensaver_active() -> bool | None:
 
 def session_locked() -> bool | None:
     """True if any probe reports a locked session, False if one reports it unlocked,
-    None when no probe answered (no logind session or no screensaver service)."""
-    answers = [answer for answer in (_logind_locked(), _screensaver_active()) if answer is not None]
-    if not answers:
-        return None
-    return any(answers)
+    None when no probe answered (no graphical logind session, no screensaver service)."""
+    answers = []
+    for probe in (_logind_locked, _screensaver_active):
+        answer = probe()
+        if answer:
+            return True
+        answers.append(answer)
+    return False if False in answers else None
+
+
+def locked_error(context: str) -> str:
+    """The SESSION_LOCKED failure text; `bench.py` matches error codes by prefix."""
+    return f"SESSION_LOCKED: the session is locked {context}; {PRESENTATION_HINT}"
