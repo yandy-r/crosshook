@@ -123,7 +123,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install shell tooling
-        run: sudo apt-get update && sudo apt-get install -y ripgrep shellcheck
+        run: sudo apt-get update && sudo apt-get install -y ripgrep shellcheck gcc pkg-config libwayland-dev libwayland-bin
 
       - name: Run ShellCheck
         run: shellcheck --severity=warning scripts/*.sh scripts/lib/*.sh scripts/bench/*.sh scripts/tests/*/*.sh
@@ -132,7 +132,10 @@ jobs:
         run: python3 -m unittest scripts/test_build_deps.py
 
       - name: Bench harness tests
-        run: python3 -m unittest scripts/bench/test_bench.py
+        run: python3 -m unittest discover -s scripts/bench -p 'test_*.py'
+
+      - name: Bench presentation shim compile check
+        run: python3 scripts/bench/bench_shim.py --check
 
       - name: Host-gateway guardrail
         run: ./scripts/check-host-gateway.sh

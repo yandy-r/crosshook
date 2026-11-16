@@ -30,6 +30,19 @@ def stats(values: list[float]) -> dict[str, float]:
             "p99_ms": percentile(.99), "stddev_ms": (sum((v - mean)**2 for v in values) / len(values))**.5}
 
 
+def over_interval_percent(values: list[float], refresh_hz: float) -> float:
+    """Share of frame intervals longer than 1.5 refresh periods (a missed vblank).
+
+    Presentation intervals land on whole refresh periods, so a missed vblank shows
+    up as roughly two periods, while a normal frame is one period plus jitter. The
+    1.5-period threshold sits between them. A bare 1000/refresh_hz threshold would
+    misfire: at a 119.88 Hz mode the normal 8.342 ms interval already exceeds
+    1000/120 (8.333 ms), flagging nearly every frame.
+    """
+    limit = 1.5 * 1000 / refresh_hz
+    return 100 * sum(v > limit for v in values) / len(values)
+
+
 def stop(proc: subprocess.Popen) -> None:
     # Child owns a new process group; never match or kill by application name.
     for sig in (signal.SIGTERM, signal.SIGKILL):
@@ -107,6 +120,7 @@ def ready(command: list[str], env: dict[str, str], timeout: float,
                             now = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
                             if not start <= ns <= now:
                                 raise CaptureError("INVALID_READY_CLOCK")
+                            proc.launch_ns = start
                             drain_stderr(proc)
                             if exit_after:
                                 proc.wait(timeout=max(.1, deadline-time.monotonic()))
@@ -189,10 +203,13 @@ def numeric(rows: list[dict[str, str]], field: str) -> list[float]:
     return values
 
 
-def capture(metric: str, args, command: list[str], env: dict[str, str]) -> list[dict]:
+def capture(metric: str, args, command: list[str], env: dict[str, str], command_for=None) -> list[dict]:
     if metric in ("G1", "G2"):
         if metric == "G1" and not args.cold_cache_ack:
             raise CaptureError("NEEDS_COLD_CACHE_PREP: G1 requires --cold-cache-ack; never label warm runs cold")
+        if getattr(args, "collect", "csv") == "presentation":
+            from bench_collect import presentation_rows
+            return presentation_rows(args, command_for or (lambda _env: command), env, metric)
         rows = []
         for iteration in range(args.iterations):
             proc, ms = ready(command, env, args.timeout, True)
@@ -217,7 +234,7 @@ def capture(metric: str, args, command: list[str], env: dict[str, str]) -> list[
                 pss, _ = memory(proc.pid)
                 peak = max(peak, pss)
                 time.sleep(.1)
-            return [{**stats(values), "over_interval_percent": sum(v>1000/args.refresh_hz for v in values)/len(values)*100,
+            return [{**stats(values), "over_interval_percent": over_interval_percent(values, args.refresh_hz),
                      "memory_growth_mb": peak-baseline, "status": "measured"}]
         finally:
             stop(proc)
@@ -280,6 +297,6 @@ def capture(metric: str, args, command: list[str], env: dict[str, str]) -> list[
     if metric == "G5":
         return [{"scenario": row.get("scenario", "unspecified"), "latency_ms": value, "status": "measured"}
                 for row, value in zip(rows, values)] + [{"scenario": "summary", "p95_ms": result["p95_ms"], "status": "measured"}]
-    result["over_interval_percent"] = sum(v>1000/args.refresh_hz for v in values)/len(values)*100
+    result["over_interval_percent"] = over_interval_percent(values, args.refresh_hz)
     result["status"] = "measured"
     return [result]

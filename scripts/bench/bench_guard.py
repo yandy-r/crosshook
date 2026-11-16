@@ -7,8 +7,10 @@ profile dirs) BEFORE any filesystem mutation.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import pwd
+import stat
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -137,11 +139,62 @@ def preflight(o: Originals, **paths: str | os.PathLike[str] | None) -> dict[str,
     return {k: check_path(v, k, o) for k, v in paths.items() if v is not None}
 
 
+# Loader/debug variables that could inject code or noise into the app under test.
+# The runner sets its own LD_PRELOAD later, only for `--collect presentation`.
+SCRUBBED = ("LD_PRELOAD", "LD_LIBRARY_PATH", "LD_AUDIT", "WAYLAND_DEBUG",
+            "LD_DEBUG", "LD_DEBUG_OUTPUT", "LD_PROFILE", "LD_PROFILE_OUTPUT", "GLIBC_TUNABLES",
+            "GTK_MODULES", "GTK3_MODULES", "GIO_EXTRA_MODULES", "GST_PLUGIN_PATH")
+# Flatpak override files that change the sandbox the app runs in, relative to the user installation.
+FLATPAK_OVERRIDE_FILES = ("overrides/global", f"overrides/{FLATPAK_APP_ID}")
+
+
+def _owned_real_dir(path: str | os.PathLike[str]) -> bool:
+    """A real directory (not a symlink) owned by the current user."""
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return False
+    return stat.S_ISDIR(st.st_mode) and st.st_uid == os.getuid()
+
+
+def _user_flatpak_dir(env: dict[str, str]) -> str | None:
+    """The real per-user Flatpak installation, so an isolated launcher HOME can still find
+    apps and runtimes installed with `--user`. Only the installation is shared, never app data.
+    It must be a real directory owned by the current user, otherwise nothing is shared."""
+    if env.get("FLATPAK_USER_DIR"):
+        candidate = env["FLATPAK_USER_DIR"]
+    else:
+        data = env.get("XDG_DATA_HOME") or (str(Path(env["HOME"]) / ".local/share") if env.get("HOME") else "")
+        candidate = str(Path(data) / "flatpak") if data else ""
+    return candidate if candidate and _owned_real_dir(candidate) else None
+
+
+def flatpak_overrides(user_dir: str | None) -> dict[str, str]:
+    """sha256 of the Flatpak override files that apply to CrossHook, so provenance records them.
+    Only regular files are read (never through a symlink); missing ones are left out."""
+    found: dict[str, str] = {}
+    if not user_dir:
+        return found
+    for name in FLATPAK_OVERRIDE_FILES:
+        path = Path(user_dir) / name
+        try:  # O_NONBLOCK so a FIFO planted here cannot hang the open
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+        except OSError:
+            continue
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            os.close(fd)
+            continue
+        with os.fdopen(fd, "rb") as handle:
+            found[name] = hashlib.sha256(handle.read()).hexdigest()
+    return found
+
+
 def build_env(root: Path, base: dict[str, str] | None = None, *, flatpak: bool = False) -> dict[str, str]:
     """Fresh isolated env. Caller creates the dirs (and runtime dir) after guards pass."""
     env = dict(os.environ if base is None else base)
+    user_flatpak = _user_flatpak_dir(env) if flatpak else None
     for k in list(env):
-        if k in ("HOME", *XDG_DEFAULTS) or k.startswith(("CROSSHOOK_", "BENCH_ORIG_", "HOST_XDG_")):
+        if k in ("HOME", *XDG_DEFAULTS, *SCRUBBED) or k.startswith(("CROSSHOOK_", "BENCH_ORIG_", "HOST_XDG_")):
             del env[k]
     env["HOME"] = str(root / "home")
     env["CROSSHOOK_FLATPAK_HOST_XDG"] = "0"
@@ -149,6 +202,8 @@ def build_env(root: Path, base: dict[str, str] | None = None, *, flatpak: bool =
     if flatpak:  # flatpak overwrites XDG_* to <HOME>/.var/app/<id>/...; keep launcher XDG under HOME
         for k, rel in XDG_DEFAULTS.items():
             env[k] = str(root / "home" / rel)
+        if user_flatpak:  # locate a --user install; per-app data still derives from the isolated HOME
+            env["FLATPAK_USER_DIR"] = user_flatpak
     else:
         for k, sub in (("XDG_CONFIG_HOME", "config"), ("XDG_DATA_HOME", "data"),
                        ("XDG_CACHE_HOME", "cache"), ("XDG_STATE_HOME", "state")):
