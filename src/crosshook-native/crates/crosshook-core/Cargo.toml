@@ -2,6 +2,8 @@
 name = "crosshook-core"
 version = "0.6.1"
 edition = "2021"
+rust-version.workspace = true
+publish = false
 
 [features]
 default = []
@@ -36,8 +38,8 @@ tracing-subscriber = { version = "0.3", features = [
   "fmt",
   "time",
 ] }
-rusqlite = { version = "0.40.0", features = ["bundled"] }
-quick-xml = "0.40.1"
+rusqlite = { version = "0.41.0", features = ["bundled"] }
+quick-xml = "0.41.0"
 async-trait = "0.1"
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
 reqwest = { version = "0.13.2", default-features = false, features = ["json", "rustls", "stream"] }

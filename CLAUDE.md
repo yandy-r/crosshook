@@ -59,7 +59,7 @@ Certain repo scripts (`./scripts/lint.sh`, `./scripts/format.sh`) require extra 
 - **Default to worktrees**: For non-trivial work (multi-step features, refactors, changes touching multiple files), start in a git worktree at `~/.claude-worktrees/crosshook-<branch>/` instead of the main checkout. See [Worktrees](#worktrees) above for the full contract, including the setup prerequisites required for `./scripts/lint.sh` and `./scripts/format.sh` to succeed. Fall back to the main checkout only when the task is a one-liner, must observe the current working tree state, or worktree creation is blocked.
 - **Naming**: Intention-revealing names for functions, types, and modules. Public APIs should read like documentation.
 - **No dead code**: Remove unused code, imports, and commented-out blocks. Git preserves history.
-- **Dependency hygiene**: Before adding a new dependency, check whether an existing one does the job. New deps need a justification (maintenance cost, license, security).
+- **Dependency hygiene**: Before adding a new dependency, check whether an existing one does the job. New deps need a justification (maintenance cost, license, security), and `cargo deny check` must pass (licenses, advisories, the gtk3/glib bans, sources). See [`docs/internal-docs/dependency-policy.md`](docs/internal-docs/dependency-policy.md).
 - **Fail fast at boundaries**: Validate inputs at module and system boundaries; propagate via typed errors. Never silently swallow errors.
 - **Tests alongside changes**: New or modified behavior ships with tests in the same change.
 - **Rust**: `snake_case`; modules as directories with `mod.rs`; errors via `Result` with `anyhow` or project error types.
@@ -125,6 +125,7 @@ cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core
 ./scripts/lint.sh --fix              # auto-fix all
 ./scripts/check-host-gateway.sh      # check platform gateway contract (ADR-0001)
 ./scripts/check-app-deps.sh          # no UI toolkit in crosshook-app; no toolkit/tokio in crosshook-view-model
+cargo deny --manifest-path src/crosshook-native/Cargo.toml --locked check   # dependency policy (deny.toml)
 ./scripts/format.sh                  # format all
 npm test                             # Vitest (happy-dom)
 npm run test:watch                   # Vitest watch

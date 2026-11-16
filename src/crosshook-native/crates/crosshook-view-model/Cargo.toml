@@ -2,6 +2,8 @@
 name = "crosshook-view-model"
 version.workspace = true
 edition = "2021"
+rust-version.workspace = true
+publish = false
 description = "Pure, toolkit-agnostic view state and reducers for CrossHook screens: no tokio, no I/O, no UI toolkit."
 
 [lints]

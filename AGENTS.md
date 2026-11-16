@@ -130,6 +130,7 @@ cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core
 ./scripts/lint.sh --fix              # auto-fix all linters
 ./scripts/check-host-gateway.sh      # check platform gateway contract (ADR-0001)
 ./scripts/check-app-deps.sh          # no UI toolkit in crosshook-app; no toolkit/tokio in crosshook-view-model
+cargo deny --manifest-path src/crosshook-native/Cargo.toml --locked check   # dependency policy (deny.toml)
 ./scripts/format.sh                  # format all code
 npm test                             # Vitest (happy-dom)
 npm run test:watch                   # Vitest watch
