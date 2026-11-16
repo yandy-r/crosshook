@@ -133,10 +133,10 @@ Validated on E1 (2026-11-16, 180.06 Hz) as baseline B evidence, not a gate:
 
 | Run        | Iterations | p50 / p95 ms per scenario                                |
 | ---------- | ---------- | -------------------------------------------------------- |
-| Native G4 | 2 | library 211 / 418, console 125 / 403, settings 117 / 344 |
-| Native G9 | 2 | resize 33 / 39 |
-| Flatpak G4 | 4 | library 139 / 494, console 128 / 446, settings 594 / 755 |
-| Flatpak G9 | 2 | resize 33 / 39 |
+| Native G4  | 2          | library 211 / 418, console 125 / 403, settings 117 / 344 |
+| Native G9  | 2          | resize 33 / 39                                           |
+| Flatpak G4 | 4          | library 139 / 494, console 128 / 446, settings 594 / 755 |
+| Flatpak G9 | 2          | resize 33 / 39                                           |
 
 Scrolling presents at roughly 2–9 fps on E1, so one iteration of about 6 s of timed scrolling yields only 12–54 frame intervals. That is why `CAPTURE_TOO_SHORT` requires 30 pooled intervals per scenario instead of a count that suits a 120 Hz cadence: use at least 2 native or 4 Flatpak iterations to clear it. Each iteration must also yield at least 5 intervals on its own (`CAPTURE_TOO_SHORT: <scenario> iteration <n>: <k> frame intervals, need 5`), so a pooled count cannot hide an iteration that barely presented. The discard check (`DISCARD_RATE`) counts only presentations committed inside the timed window.
 
