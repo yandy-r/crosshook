@@ -1,44 +1,53 @@
 # Benchmark environments inventory
 
-E1 is inventoried on hardware (values below observed directly). E2 and E3 are **not inventoried** here; their hardware rows stay unavailable until first capture. Do not use target definitions to infer machine details.
+E1 is inventoried on hardware (values below observed directly). E2 and E3 are **not inventoried** here; their hardware rows stay unavailable until first capture. The maintainer has no Steam Deck, so E2 captures are out of scope until hardware is available. Do not use target definitions to infer machine details.
 
-## E1 — developer laptop (inventoried 2026-10-08)
+## E1 — developer laptop (re-inventoried 2026-11-16)
 
-| Component    | Observed value                                                        |
-| ------------ | --------------------------------------------------------------------- |
-| OS           | CachyOS Linux (`/etc/os-release` ID=cachyos)                          |
-| Kernel       | 7.2.9-1-cachyos                                                       |
-| GPU          | NVIDIA GeForce RTX 5070 Laptop GPU                                    |
-| Driver       | 615.71.09 (`nvidia-smi`)                                              |
-| Compositor   | kwin 6.7.5 (KDE, Wayland session)                                     |
-| Display mode | 3840×2160 @ 180.06 Hz (active), 120 Hz available                      |
-| Scale        | 1.05 (`kscreen-doctor -o`)                                            |
-| CPU governor | `powersave` (`/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor`) |
-| Flatpak      | 1.18.4                                                                |
+| Component    | Observed value                                                                                    |
+| ------------ | ------------------------------------------------------------------------------------------------- |
+| Host         | Minisforum G7 Pro (Intel Core i9-14900HX)                                                         |
+| OS           | Fedora Linux 45                                                                                   |
+| Kernel       | 7.3.3-300.fc45                                                                                    |
+| GPU          | NVIDIA GeForce RTX 5070 Laptop GPU (GB206M)                                                       |
+| Driver       | 620.70.06, open kernel module, `nvidia-drm.modeset=Y`, `nvidia-drm.vblank=N`                      |
+| Compositor   | KWin 6.8.2 (KDE Plasma, Wayland session); `wp_presentation` v2, `clock_id` CLOCK_MONOTONIC        |
+| Display      | HDMI-A-1, 3840×2160 @ 180.06 Hz active; the 120 Hz-class mode at that resolution is **119.88 Hz** |
+| Scale        | 1.05 (`kscreen-doctor -o`)                                                                        |
+| Web stack    | WebKitGTK 4.1 2.54.2, GTK 3.24.52, libwayland 1.26.0, glibc 2.44                                  |
+| CPU governor | `performance`                                                                                     |
+| Flatpak      | 1.18.4; app on `org.gnome.Platform//50` (glibc 2.42, libwayland 1.24)                             |
 
-Inventory records the active mode (180.06 Hz). **Frame captures (G4/G5/G8/G9) require the 120 Hz mode:** switch the panel to 120 Hz before capturing and pass `--refresh-hz 120`, so frame-interval thresholds (8.3 ms) stay comparable. Record the mode actually used per capture.
+The earlier 2026-10-08 inventory (CachyOS, driver 615.71.09, KWin 6.7.5) is superseded.
+
+Frame captures (G4/G5/G8/G9) need the 120 Hz-class mode: switch the panel to 3840×2160 @ 119.88 Hz and pass `--refresh-hz 119.88`. The presentation collector checks the compositor's reported refresh against `--refresh-hz` and refuses a mismatch (`REFRESH_MISMATCH`). Record the mode actually used per capture.
 
 E1 target metrics: G1–G10 (see [`README.md`](README.md)).
 
-### E1 available tooling (2026-10-08)
+### E1 available tooling (2026-11-16)
 
-| Tool                             | Status                        |
-| -------------------------------- | ----------------------------- |
-| hyperfine                        | available                     |
-| pidstat                          | available                     |
-| upower                           | available                     |
-| flatpak                          | available (1.18.4)            |
-| ffmpeg                           | available (9.0.2)             |
-| MangoHud (`mangohud`)            | available                     |
-| gamescope                        | available                     |
-| python3                          | available (3.14.7)            |
-| ImageMagick (`magick`/`convert`) | available (7.1.2-32 Q16-HDRI) |
-| ydotool                          | missing                       |
-| gpu-screen-recorder              | missing                       |
-| perf                             | missing                       |
-| bats                             | missing                       |
+| Tool                                     | Status                                         |
+| ---------------------------------------- | ---------------------------------------------- |
+| cc (GCC)                                 | available (16.2.1)                             |
+| wayland-scanner / wayland-client         | available (1.26.0)                             |
+| `org.gnome.Sdk//50` (Flatpak shim build) | available (GCC 15.2.0, wayland-scanner 1.24.0) |
+| `/dev/uinput`                            | user-writable (ACL)                            |
+| ydotool / ydotoold                       | available (1.0.4; daemon not running)          |
+| gpu-screen-recorder                      | available (6.1.7; not evidence, optional)      |
+| upower                                   | available                                      |
+| flatpak                                  | available (1.18.4)                             |
+| ffmpeg                                   | available                                      |
+| MangoHud (`mangohud`)                    | available                                      |
+| gamescope                                | available                                      |
+| python3                                  | available (3.15.2)                             |
+| ImageMagick (`magick`)                   | available                                      |
+| bats                                     | available                                      |
+| hyperfine                                | missing                                        |
+| pidstat                                  | missing                                        |
+| perf                                     | missing                                        |
+| bpftrace                                 | missing                                        |
 
-Missing tools block affected captures; no tools were installed during inventory, per safety contract. Re-check this table at capture time; [README.md](README.md) requires a real capture to fail `MISSING_TOOL` rather than approximate.
+Kernel tracing is root-only on E1 (`/sys/kernel/tracing` is 0700, `perf_event_paranoid=2`); the runner never uses `sudo`. NVIDIA exposes no `drm-*` keys in `fdinfo`, so per-process GPU memory comes from `nvidia-smi pmon`. Missing tools block the affected captures; [README.md](README.md) requires a real capture to fail `MISSING_TOOL` rather than approximate.
 
 ## E2-D — Steam Deck Desktop Mode
 
