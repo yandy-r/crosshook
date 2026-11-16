@@ -1,5 +1,6 @@
 """Provenance regression checks for raw capture directories; stdlib only."""
 import json
+import os
 import stat
 import sys
 import tempfile
@@ -83,6 +84,44 @@ class ProvenanceTests(unittest.TestCase):
         write_private(other, "late\n")
         with self.assertRaisesRegex(CaptureError, "^STALE_CAPTURE: capture not listed in SHA256SUMS"):
             verify_capture(other, EXPECTED)
+
+    def test_manifest_must_be_listed_in_sums(self):
+        sums = self.raw / "SHA256SUMS"
+        sums.write_text("".join(line for line in sums.read_text().splitlines(True)
+                                if not line.endswith("  provenance.json\n")))
+        with self.assertRaisesRegex(CaptureError, "^STALE_CAPTURE: provenance.json not listed in SHA256SUMS$"):
+            verify_capture(self.csv, EXPECTED)
+
+    def test_sealed_sums_list_the_manifest(self):
+        listed = [line.split("  ", 1)[1] for line in (self.raw / "SHA256SUMS").read_text().splitlines()]
+        self.assertIn("provenance.json", listed)
+
+    def test_output_lock_is_exclusive_and_released(self):
+        out = Path(self.temp.name) / "locked"
+        out.mkdir()
+        first = bench_provenance.lock_output(out)
+        try:
+            self.assertEqual(stat.S_IMODE((out / ".bench.lock").stat().st_mode), 0o600)
+            with self.assertRaisesRegex(CaptureError, "^OUTPUT_BUSY: another bench run is writing "):
+                bench_provenance.lock_output(out)
+        finally:
+            os.close(first)
+        os.close(bench_provenance.lock_output(out))
+
+    def test_output_lock_refuses_symlink(self):
+        out = Path(self.temp.name) / "linked"
+        out.mkdir()
+        (out / ".bench.lock").symlink_to(Path(self.temp.name) / "elsewhere")
+        with self.assertRaisesRegex(CaptureError, "^OUTPUT_BUSY: "):
+            bench_provenance.lock_output(out)
+
+    def test_finalize_records_given_binary_hash(self):
+        output = Path(self.temp.name) / "results"
+        output.mkdir()
+        (output / "meta.json").write_text("{}\n")
+        run = create_raw_dir(Path(self.temp.name) / "out3", new_run_id())
+        bench_provenance.finalize_raw(run, None, output, [], MANIFEST, "f" * 64)
+        self.assertEqual(json.loads((run / "provenance.json").read_text())["binary_sha256"], "f" * 64)
 
     def test_existing_run_dir(self):
         with self.assertRaisesRegex(CaptureError, "^RAW_DIR_EXISTS: "):

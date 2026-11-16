@@ -58,6 +58,25 @@ class FlatpakDirTests(unittest.TestCase):
         env = bench_guard.build_env(self.root / "run", {"XDG_DATA_HOME": str(self.root)}, flatpak=True)
         self.assertNotIn("FLATPAK_USER_DIR", env)
 
+    def test_rejected_inherited_flatpak_user_dir_is_scrubbed(self):
+        target = self.root / "target"
+        target.mkdir()
+        link = self.root / "link"
+        link.symlink_to(target, target_is_directory=True)
+        base = {"FLATPAK_USER_DIR": str(link), "XDG_DATA_HOME": str(self.root / "nowhere")}
+        for flatpak in (True, False):
+            with self.subTest(flatpak=flatpak):
+                env = bench_guard.build_env(self.root / "run", dict(base), flatpak=flatpak)
+                self.assertNotIn("FLATPAK_USER_DIR", env)
+
+    def test_valid_inherited_flatpak_user_dir_is_kept_only_in_flatpak_mode(self):
+        user = self.root / "user-installation"
+        user.mkdir()
+        base = {"FLATPAK_USER_DIR": str(user)}
+        self.assertEqual(bench_guard.build_env(self.root / "run", dict(base), flatpak=True)["FLATPAK_USER_DIR"],
+                         str(user))
+        self.assertNotIn("FLATPAK_USER_DIR", bench_guard.build_env(self.root / "run", dict(base)))
+
 
 class OverrideTests(unittest.TestCase):
     def setUp(self):

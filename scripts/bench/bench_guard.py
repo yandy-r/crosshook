@@ -194,7 +194,7 @@ def build_env(root: Path, base: dict[str, str] | None = None, *, flatpak: bool =
     env = dict(os.environ if base is None else base)
     user_flatpak = _user_flatpak_dir(env) if flatpak else None
     for k in list(env):
-        if k in ("HOME", *XDG_DEFAULTS, *SCRUBBED) or k.startswith(("CROSSHOOK_", "BENCH_ORIG_", "HOST_XDG_")):
+        if k in ("HOME", "FLATPAK_USER_DIR", *XDG_DEFAULTS, *SCRUBBED) or k.startswith(("CROSSHOOK_", "BENCH_ORIG_", "HOST_XDG_")):
             del env[k]
     env["HOME"] = str(root / "home")
     env["CROSSHOOK_FLATPAK_HOST_XDG"] = "0"
@@ -202,7 +202,8 @@ def build_env(root: Path, base: dict[str, str] | None = None, *, flatpak: bool =
     if flatpak:  # flatpak overwrites XDG_* to <HOME>/.var/app/<id>/...; keep launcher XDG under HOME
         for k, rel in XDG_DEFAULTS.items():
             env[k] = str(root / "home" / rel)
-        if user_flatpak:  # locate a --user install; per-app data still derives from the isolated HOME
+        if user_flatpak:  # validated path only; an inherited value was scrubbed above
+            # locate a --user install; per-app data still derives from the isolated HOME
             env["FLATPAK_USER_DIR"] = user_flatpak
     else:
         for k, sub in (("XDG_CONFIG_HOME", "config"), ("XDG_DATA_HOME", "data"),

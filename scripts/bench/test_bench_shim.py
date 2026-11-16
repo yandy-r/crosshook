@@ -51,10 +51,11 @@ class BuildTests(unittest.TestCase):
         runner = Runner(self.out)
         result = self.build("native", runner)
         argv = [call[0] for call in runner.calls]
-        self.assertEqual(argv[0][:2], ["wayland-scanner", "client-header"])
-        self.assertEqual(argv[1][:2], ["wayland-scanner", "private-code"])
-        self.assertEqual(argv[2], ["pkg-config", "--cflags", "--libs", "wayland-client"])
-        cc = argv[3]
+        self.assertEqual(argv[0], ["pkg-config", "--atleast-version=1.24", "wayland-client"])
+        self.assertEqual(argv[1][:2], ["wayland-scanner", "client-header"])
+        self.assertEqual(argv[2][:2], ["wayland-scanner", "private-code"])
+        self.assertEqual(argv[3], ["pkg-config", "--cflags", "--libs", "wayland-client"])
+        cc = argv[4]
         self.assertEqual(cc[0], "cc")
         for flag in ("-shared", "-fPIC", "-pthread", f"-I{self.out}", "-I/usr/include/x", "-lwayland-client",
                      *bench_shim.CFLAGS):
@@ -104,6 +105,28 @@ class BuildTests(unittest.TestCase):
         with self.assertRaisesRegex(CaptureError, "^MISSING_TOOL: cc$"):
             self.build("native", Runner(self.out), which=lambda tool: None if tool == "cc" else "/x")
 
+    def test_old_libwayland_is_refused_before_compiling(self):
+        def old(argv):
+            return done(argv, 1) if "--atleast-version=1.24" in argv else None
+        runner = Runner(self.out, fail=old)
+        with self.assertRaisesRegex(CaptureError, r"^MISSING_TOOL: libwayland-client >= 1\.24$"):
+            self.build("native", runner)
+        self.assertEqual([call[0][0] for call in runner.calls], ["pkg-config"])
+        runner = Runner(self.out, fail=old)
+        with patch.object(bench_shim.subprocess, "run", runner), \
+                patch.object(bench_shim.shutil, "which", lambda tool: f"/usr/bin/{tool}"), \
+                patch("sys.stderr") as stderr:
+            self.assertEqual(bench_shim.check(), 1)
+        written = "".join(call.args[0] for call in stderr.write.call_args_list)
+        self.assertIn("MISSING_TOOL: libwayland-client >= 1.24", written)
+
+    def test_flatpak_script_checks_libwayland_and_reports_it(self):
+        self.assertIn("pkg-config --atleast-version=1.24 wayland-client", bench_shim.SCRIPT)
+        runner = Runner(self.out, fail=lambda argv: done(
+            argv, 1, stderr="noise\nMISSING_TOOL: libwayland-client >= 1.24\n") if argv[1] == "run" else None)
+        with self.assertRaisesRegex(CaptureError, r"^MISSING_TOOL: libwayland-client >= 1\.24$"):
+            self.build("flatpak", runner)
+
     def test_missing_sdk(self):
         runner = Runner(self.out, fail=lambda argv: done(argv, 1, stderr="not installed") if argv[1] == "info" else None)
         with self.assertRaisesRegex(CaptureError, r"^MISSING_TOOL: org\.gnome\.Sdk//50$"):
@@ -124,9 +147,12 @@ class BuildTests(unittest.TestCase):
             self.build("native", Runner(self.out, fail=fail))
 
 
-@unittest.skipUnless(shutil.which("cc") and shutil.which("wayland-scanner") and shutil.which("pkg-config")
-                     and subprocess.run(["pkg-config", "--exists", "wayland-client"]).returncode == 0,
-                     "native wayland toolchain unavailable")
+def _native_toolchain() -> bool:
+    return bool(shutil.which("cc") and shutil.which("wayland-scanner") and shutil.which("pkg-config")
+                and subprocess.run(["pkg-config", "--atleast-version=1.24", "wayland-client"]).returncode == 0)
+
+
+@unittest.skipUnless(_native_toolchain(), "native toolchain with libwayland-client >= 1.24 unavailable")
 class RealBuildTests(unittest.TestCase):
     def test_native_build(self):
         # build() has no -Werror, so warnings from a newer compiler never fail this test.

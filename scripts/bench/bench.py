@@ -24,7 +24,16 @@ from bench_guard import (
     preflight,
 )
 from bench_instruments import InstrumentError
-from bench_provenance import boot_id, create_raw_dir, finalize_raw, git_state, new_run_id, verify_capture
+from bench_provenance import (
+    boot_id,
+    create_raw_dir,
+    finalize_raw,
+    git_state,
+    lock_output,
+    new_run_id,
+    sha256_file,
+    verify_capture,
+)
 
 REPO = Path(__file__).resolve().parents[2]
 SCHEMAS = {
@@ -140,6 +149,19 @@ def metadata(args) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     args = arguments(argv)
+    outcome = {"binary_changed": False}
+    code = _run(args, outcome)
+    return 1 if code == 0 and outcome["binary_changed"] else code
+
+
+def _binary_changed(binary: Path, expected: str) -> bool:
+    try:
+        return sha256_file(binary) != expected
+    except OSError:
+        return True
+
+
+def _run(args, outcome: dict[str, bool]) -> int:
     root: Path | None = None
     meta_path: Path | None = None
     meta: dict = {}
@@ -147,12 +169,18 @@ def main(argv: list[str] | None = None) -> int:
     output: Path | None = None
     written: list[Path] = []  # set before try: finally seals the raw dir even if setup fails
     provenance: dict = {}
+    lock_fd: int | None = None
+    binary: Path | None = None
+    binary_sha256: str | None = None  # hashed before launch: what ran must be what is recorded
     try:
         original = Originals.capture()
         paths = preflight(original, output=args.output, fixtures=args.fixtures,
                           tmp_root=args.tmp_root, capture_csv=args.capture_csv)
         if args.binary and not Path(args.binary).is_file():
             raise CaptureError("BINARY_REQUIRED: executable file not found")
+        if args.binary and not args.flatpak and not args.dry_run:
+            binary = Path(args.binary).resolve()
+            binary_sha256 = sha256_file(binary)
         if args.bundle:
             preflight(original, bundle=args.bundle)
         if not args.dry_run:
@@ -175,6 +203,7 @@ def main(argv: list[str] | None = None) -> int:
         # No filesystem mutation before all path/schema preflights succeed.
         output = paths["output"] / args.variant / args.env
         output.mkdir(parents=True, exist_ok=True)
+        lock_fd = lock_output(output)  # held until the raw dir is sealed; before any CSV or meta write
         meta_path = output / "meta.json"
         meta_path.write_text(json.dumps(meta, indent=2)+"\n")
         if not args.dry_run:
@@ -194,6 +223,8 @@ def main(argv: list[str] | None = None) -> int:
                           "dirty": meta["dirty"],
                           "variant": args.variant, "environment": args.env, "boot_id": boot_id(),
                           "flatpak": args.flatpak, "fixtures_seed": meta["seed"], "shim": None}
+            if binary_sha256 is not None:
+                provenance["binary_sha256"] = binary_sha256
         external_only = all(m in ("G4", "G5", "G6", "G9", "G10") for m in args.selected)
         command: list[str] = []
         env: dict[str, str] = {}
@@ -259,6 +290,12 @@ def main(argv: list[str] | None = None) -> int:
             return 40
         return 30 if str(error).startswith("MISSING_TOOL") else 1
     finally:
+        if binary is not None and binary_sha256 is not None and _binary_changed(binary, binary_sha256):
+            outcome["binary_changed"] = True
+            meta["status"] = "failed"
+            meta["error"] = f"BINARY_CHANGED: {binary} changed while the capture ran"
+            provenance["error"] = meta["error"]
+            print(meta["error"], file=sys.stderr)
         if meta.get("status") == "pending":
             meta["status"] = "failed"
         if meta_path:
@@ -266,11 +303,12 @@ def main(argv: list[str] | None = None) -> int:
         try:
             if raw is not None:
                 provenance["status"] = meta.get("status", "failed")
-                finalize_raw(raw, root, output, written, provenance,
-                             Path(args.binary) if args.binary and not args.flatpak else None)
+                finalize_raw(raw, root, output, written, provenance, binary_sha256)
         except (OSError, CaptureError, ValueError) as error:
             print(f"RAW_FINALIZE_FAILED: {error}", file=sys.stderr)
         finally:
+            if lock_fd is not None:
+                os.close(lock_fd)
             if root:
                 if args.keep:
                     print(f"Retained isolated root: {root}")

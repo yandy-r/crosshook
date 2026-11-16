@@ -6,6 +6,7 @@ environment and boot produced it and that the bytes are unchanged (YAN-1007).
 """
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import os
@@ -19,8 +20,26 @@ from bench_capture import CaptureError
 SCHEMA = "crosshook-bench-provenance/1"
 MANIFEST = "provenance.json"
 SUMS = "SHA256SUMS"
+LOCK_NAME = ".bench.lock"
 BOOT_ID_PATH = Path("/proc/sys/kernel/random/boot_id")
 MAX_WALK_LEVELS = 4
+
+
+def lock_output(output: Path) -> int:
+    """Exclusive, non-blocking lock on <output>/.bench.lock; the caller closes the fd to release it.
+
+    Two runs sharing <output> would otherwise replace each other's CSVs and meta.json
+    between capture and sealing."""
+    try:
+        fd = os.open(output / LOCK_NAME, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    except OSError as error:
+        raise CaptureError(f"OUTPUT_BUSY: cannot open the lock in {output}: {error.strerror}") from error
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        os.close(fd)
+        raise CaptureError(f"OUTPUT_BUSY: another bench run is writing {output}") from None
+    return fd
 
 
 def new_run_id() -> str:
@@ -99,7 +118,7 @@ def _copy_private(source: Path, target: Path) -> None:
 
 
 def finalize_raw(raw_dir: Path, root: Path | None, output: Path, written: list[Path],
-                 manifest: dict, binary: Path | None = None) -> None:
+                 manifest: dict, binary_sha256: str | None = None) -> None:
     """Move shim logs and result files into the raw run directory, then seal it.
 
     Runs even after a failed capture so partial evidence stays checksummed. Only the
@@ -112,8 +131,8 @@ def finalize_raw(raw_dir: Path, root: Path | None, output: Path, written: list[P
     for path in [*written, output / "meta.json"]:
         if path.is_file():
             _copy_private(path, raw_dir / path.name)
-    if binary is not None:
-        manifest = {**manifest, "binary_sha256": sha256_file(binary)}
+    if binary_sha256 is not None:
+        manifest = {**manifest, "binary_sha256": binary_sha256}
     write_manifest(raw_dir, manifest)
     write_sums(raw_dir)
 
@@ -144,6 +163,8 @@ def _verify_sums(raw_dir: Path, csv_path: Path) -> None:
                 or path.is_symlink() or not path.is_file() or sha256_file(path) != digest):
             raise CaptureError(f"STALE_CAPTURE: checksum mismatch {relpath}")
         listed.add(path.resolve())
+    if (raw_dir / MANIFEST).resolve() not in listed:
+        raise CaptureError(f"STALE_CAPTURE: {MANIFEST} not listed in {SUMS}")
     if csv_path.resolve() not in listed:
         raise CaptureError("STALE_CAPTURE: capture not listed in SHA256SUMS")
 

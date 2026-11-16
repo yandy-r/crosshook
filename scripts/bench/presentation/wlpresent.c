@@ -34,6 +34,10 @@
  *                                       log_cap (500,000 records, then silent)
  */
 #define _GNU_SOURCE
+#include <wayland-version.h>
+#if WAYLAND_VERSION_MAJOR < 1 || (WAYLAND_VERSION_MAJOR == 1 && WAYLAND_VERSION_MINOR < 24)
+#error "wlpresent needs libwayland-client >= 1.24 (wl_proxy_get_interface)"
+#endif
 #include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>

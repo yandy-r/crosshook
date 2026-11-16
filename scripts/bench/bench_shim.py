@@ -17,6 +17,9 @@ SOURCE_DIR = Path(__file__).resolve().parent / "presentation"
 SOURCE = SOURCE_DIR / "wlpresent.c"
 PROTOCOL_XML = SOURCE_DIR / "presentation-time.xml"
 TIMEOUT = 120
+# wl_proxy_get_interface arrived in libwayland 1.24; Ubuntu 24.04 ships 1.22.
+WAYLAND_MIN = "1.24"
+MISSING_WAYLAND = f"MISSING_TOOL: libwayland-client >= {WAYLAND_MIN}"
 # Warning flags shared by every compile. Real builds omit -Werror so a newer compiler's new
 # warnings never block a measurement; check() (CI) adds it.
 CFLAGS = ("-O2", "-fPIC", "-std=gnu11", "-pthread", "-Wall", "-Wextra")
@@ -26,6 +29,7 @@ STRICT = "-Werror"
 SCRIPT = (
     "set -e\n"
     'xml="$1"; src="$2"; out="$3"; shift 3\n'
+    f'pkg-config --atleast-version={WAYLAND_MIN} wayland-client || {{ echo "{MISSING_WAYLAND}" >&2; exit 1; }}\n'
     'wayland-scanner client-header "$xml" "$out/presentation-time-client-protocol.h"\n'
     'wayland-scanner private-code "$xml" "$out/presentation-time-protocol.c"\n'
     'cc "$@" -shared -I"$out" -o "$out/libwlpresent.so" '
@@ -50,6 +54,8 @@ def _run(command: list[str]) -> subprocess.CompletedProcess:
         raise CaptureError(f"MISSING_TOOL: {command[0]}") from error
     if done.returncode != 0:
         lines = [line for line in (done.stderr or "").splitlines() if line.strip()]
+        if lines and lines[-1].strip() == MISSING_WAYLAND:  # reported by the SDK script
+            raise CaptureError(MISSING_WAYLAND)
         raise CaptureError(f"SHIM_BUILD_FAILED: {lines[-1].strip()[:200] if lines else command[0]}")
     return done
 
@@ -58,6 +64,16 @@ def _require(*tools: str) -> None:
     for tool in tools:
         if shutil.which(tool) is None:
             raise CaptureError(f"MISSING_TOOL: {tool}")
+
+
+def _require_wayland() -> None:
+    try:
+        found = subprocess.run(["pkg-config", f"--atleast-version={WAYLAND_MIN}", "wayland-client"],
+                               capture_output=True, text=True, timeout=TIMEOUT).returncode == 0
+    except (subprocess.SubprocessError, OSError):
+        found = False
+    if not found:
+        raise CaptureError(MISSING_WAYLAND)
 
 
 def _scan(out: Path) -> None:
@@ -76,6 +92,7 @@ def build(out_dir: Path, target: str) -> ShimBuild:
     so = out_dir / "libwlpresent.so"
     if target == "native":
         _require("wayland-scanner", "cc", "pkg-config")
+        _require_wayland()
         _scan(out_dir)
         _run(["cc", *CFLAGS, "-shared", f"-I{out_dir}", "-o", str(so), str(SOURCE),
               str(out_dir / "presentation-time-protocol.c"), *_pkg_flags(), "-ldl"])
@@ -103,6 +120,7 @@ def check() -> int:
     """Syntax-only compile of the shim for CI."""
     try:
         _require("wayland-scanner", "cc", "pkg-config")
+        _require_wayland()
         with tempfile.TemporaryDirectory() as tmp:
             _scan(Path(tmp))
             _run(["cc", "-fsyntax-only", *CFLAGS, STRICT, f"-I{tmp}", str(SOURCE), *_pkg_flags()])

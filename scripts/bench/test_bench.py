@@ -11,6 +11,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bench
 import bench_capture
+import bench_provenance
 import bench_session
 from bench_capture import CaptureError, over_interval_percent, ready, stats, stop
 from bench_guard import GuardError, Originals, build_env, check_path, preflight
@@ -98,6 +99,8 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(command[-1], bench.FLATPAK_APP_ID)
 
     def test_stale_csv_is_deleted_not_sealed(self):
+        import bench_shim
+        fake = bench_shim.ShimBuild(self.root / "libwlpresent.so", "0" * 64, "0" * 64, "host")
         output = self.root / "results"
         target = output / "A/E1"
         target.mkdir(parents=True)
@@ -106,6 +109,7 @@ class GuardTests(unittest.TestCase):
         outside.write_text("keep\n")
         (target / "G1.csv").symlink_to(outside)
         with patch.object(bench.Originals, "capture", return_value=self.original), \
+                patch.object(bench_shim, "build", return_value=fake), \
                 patch.object(bench, "capture", side_effect=CaptureError("NO_READY: x")), \
                 patch.object(bench, "launch_command", return_value=["app"]), \
                 patch.object(bench, "make_dirs"):
@@ -122,6 +126,60 @@ class GuardTests(unittest.TestCase):
         (raw,) = (output / "raw").iterdir()
         self.assertFalse(any(path.suffix == ".csv" for path in raw.iterdir()))
         self.assertEqual(json.loads((raw / "provenance.json").read_text())["status"], "failed")
+
+    def test_busy_output_refused_before_any_write(self):
+        output = self.root / "shared"
+        target = output / "A/E1"
+        target.mkdir(parents=True)
+        (target / "G2.csv").write_text("other run\n")
+        fd = bench_provenance.lock_output(target)
+        self.addCleanup(os.close, fd)
+        with patch.object(bench.Originals, "capture", return_value=self.original), \
+                patch("sys.stderr") as stderr:
+            code = bench.main(["--variant", "A", "--env", "E1", "--metric", "G2", "--binary", sys.executable,
+                               "--output", str(output), "--tmp-root", str(self.root / "runs")])
+        self.assertEqual(code, 1)
+        written = "".join(call.args[0] for call in stderr.write.call_args_list)
+        self.assertIn("OUTPUT_BUSY: another bench run is writing", written)
+        self.assertEqual((target / "G2.csv").read_text(), "other run\n")
+        self.assertFalse((target / "meta.json").exists())
+
+    def test_binary_hashed_before_launch_and_change_fails_run(self):
+        import hashlib
+        import bench_shim
+        binary = self.root / "app"
+        binary.write_bytes(b"first")
+        before = hashlib.sha256(b"first").hexdigest()
+        fake = bench_shim.ShimBuild(self.root / "libwlpresent.so", "0" * 64, "0" * 64, "host")
+
+        def run_and_replace(*_args, **_kwargs):
+            binary.write_bytes(b"second")
+            return [{"iteration": "1", "status": "ok"}]
+        for mutate, expect_code, expect_status in ((True, 1, "failed"), (False, 0, "captured")):
+            binary.write_bytes(b"first")
+            output = self.root / f"out-{mutate}"
+            with self.subTest(mutate=mutate), patch.object(bench.Originals, "capture", return_value=self.original), \
+                    patch.object(bench_shim, "build", return_value=fake), \
+                    patch.object(bench, "capture", side_effect=run_and_replace if mutate
+                                 else lambda *a, **k: [{"iteration": "1", "status": "ok"}]), \
+                    patch.object(bench, "launch_command", return_value=["app"]), \
+                    patch.object(bench, "make_dirs"), patch("sys.stderr") as stderr:
+                code = bench.main(["--variant", "A", "--env", "E1", "--metric", "G2", "--cold-cache-ack",
+                                   "--binary", str(binary), "--collect", "presentation",
+                                   "--output", str(output), "--tmp-root", str(self.root / "runs")])
+            self.assertEqual(code, expect_code)
+            (raw,) = (output / "raw").iterdir()
+            manifest = json.loads((raw / "provenance.json").read_text())
+            meta = json.loads((output / "A/E1/meta.json").read_text())
+            self.assertEqual(manifest["binary_sha256"], before)
+            self.assertEqual((manifest["status"], meta["status"]), (expect_status, expect_status))
+            if mutate:
+                self.assertTrue(manifest["error"].startswith("BINARY_CHANGED: "))
+                self.assertTrue(meta["error"].startswith("BINARY_CHANGED: "))
+                written = "".join(call.args[0] for call in stderr.write.call_args_list)
+                self.assertIn("BINARY_CHANGED: ", written)
+            else:
+                self.assertNotIn("error", manifest)
 
     def test_guard_error_marks_meta_failed(self):
         output = self.root / "guarded"
