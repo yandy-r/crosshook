@@ -1,14 +1,12 @@
 //! The one-shot READY marker: one `READY <CLOCK_MONOTONIC ns>` line on stderr
 //! per process, after the frontend signals it is ready.
 
-use std::io::Write;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use nix::time::{clock_gettime, ClockId};
-
 use super::env::{decide, BenchEnv, BenchMode};
 use super::plan::{resolve_replay_plan, ReplayPlan};
+use super::util::{claim, monotonic_ns, write_line};
 
 static READY_FIRED: AtomicBool = AtomicBool::new(false);
 
@@ -21,25 +19,6 @@ pub enum ReadyAction {
     Exit,
     /// Replay the log through [`replay_log`](super::replay_log).
     Replay(ReplayPlan),
-}
-
-fn timespec_to_ns(sec: i64, nsec: i64) -> Option<u64> {
-    u64::try_from(sec)
-        .ok()?
-        .checked_mul(1_000_000_000)?
-        .checked_add(u64::try_from(nsec).ok()?)
-}
-
-fn monotonic_ns() -> Result<u64, String> {
-    let ts = clock_gettime(ClockId::CLOCK_MONOTONIC)
-        .map_err(|e| format!("clock_gettime(CLOCK_MONOTONIC) failed: {e}"))?;
-    timespec_to_ns(ts.tv_sec(), ts.tv_nsec())
-        .ok_or_else(|| "CLOCK_MONOTONIC value out of u64 nanosecond range".to_string())
-}
-
-/// True for exactly one caller per flag.
-fn claim(flag: &AtomicBool) -> bool {
-    !flag.swap(true, Ordering::AcqRel)
 }
 
 #[derive(Debug)]
@@ -87,10 +66,7 @@ fn begin(flag: &AtomicBool, env: &BenchEnv) -> Result<Option<Started>, String> {
 }
 
 fn write_ready(ns: u64) -> Result<(), String> {
-    let mut err = std::io::stderr().lock();
-    writeln!(err, "READY {ns}")
-        .and_then(|()| err.flush())
-        .map_err(|e| format!("failed to write READY marker: {e}"))
+    write_line(&format!("READY {ns}")).map_err(|e| format!("failed to write READY marker: {e}"))
 }
 
 /// Frontend-ready signal for the startup benchmark. A no-op unless
