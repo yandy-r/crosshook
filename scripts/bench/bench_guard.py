@@ -19,6 +19,7 @@ import tomllib
 import bench_session
 
 FLATPAK_APP_ID = "dev.crosshook.CrossHook"
+ENV_SCENARIO = "CROSSHOOK_BENCH_SCENARIO"  # names the G5 scenario the app arms (bench mode only)
 SYSTEM_TOPS = {"usr", "etc", "opt", "bin", "sbin", "lib", "lib64", "boot", "dev", "proc", "sys", "run"}
 # (XDG var, default relative to home)
 XDG_DEFAULTS = {

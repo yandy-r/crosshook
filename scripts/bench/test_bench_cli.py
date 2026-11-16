@@ -13,11 +13,13 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bench
+import bench_cli
 import bench_guard
 import bench_session
 import bench_shim
 from bench_capture import CaptureError
 from bench_guard import GuardError, Originals
+from bench_provenance import verify_capture
 
 BASE = ["--variant", "A", "--env", "E1"]
 PRESENT = [*BASE, "--collect", "presentation"]
@@ -44,7 +46,7 @@ class ArgumentTests(unittest.TestCase):
         self.assertEqual(bench.arguments([*BASE, "--metric", "G2"]).collect, "csv")
 
     def test_presentation_gate_matrix(self):
-        allowed = {"G1", "G2", "G4", "G9"}
+        allowed = {"G1", "G2", "G4", "G5", "G9"}
         for metric in bench.SCHEMAS:
             with self.subTest(metric=metric):
                 args, error = parse([*PRESENT, "--metric", metric])
@@ -52,18 +54,18 @@ class ArgumentTests(unittest.TestCase):
                     self.assertEqual(args.collect, "presentation")
                     continue
                 self.assertIsNone(args)
-                if metric in ("G5", "G8"):
-                    self.assertIn("G5/G8 producers arrive with app markers (YAN-1007 Phase 3)", error)
+                if metric == "G8":
+                    self.assertIn("G8 producer arrives with YAN-2056", error)
                 else:
-                    self.assertIn("supports G1/G2/G4/G9 only", error)
+                    self.assertIn("supports G1/G2/G4/G5/G9 only", error)
 
     def test_presentation_rejects_a_mixed_selection_with_a_refused_metric(self):
-        for refused in ("G5", "G8", "G3"):
+        for refused in ("G8", "G3"):
             with self.subTest(refused=refused):
                 self.assertIsNone(parse([*PRESENT, "--metrics", f"G4,{refused}"])[0])
 
     def test_capture_csv_is_incompatible_with_presentation(self):
-        for metric in ("G2", "G4", "G9"):
+        for metric in ("G2", "G4", "G5", "G9"):
             with self.subTest(metric=metric):
                 args, error = parse([*PRESENT, "--metric", metric, "--capture-csv", "x.csv"])
                 self.assertIsNone(args)
@@ -105,7 +107,7 @@ class ArgumentTests(unittest.TestCase):
                  (["--metric", "G4", "--scenario", "library,"], "''"),
                  (["--metric", "G4", "--scenario", ""], "''"),
                  (["--metric", "G4", "--scenario", "LIBRARY"], "LIBRARY"),
-                 (["--metric", "G2", "--scenario", "library"], "requires --collect presentation with G4 or G9")]
+                 (["--metric", "G2", "--scenario", "library"], "requires --collect presentation with G4, G5 or G9")]
         for extra, text in cases:
             with self.subTest(extra=extra):
                 args, error = parse([*PRESENT, *extra])
@@ -120,7 +122,37 @@ class ArgumentTests(unittest.TestCase):
     def test_input_driven_schemas_carry_scenario_and_frames(self):
         self.assertEqual(bench.SCHEMAS["G4"], COLUMNS)
         self.assertEqual(bench.SCHEMAS["G9"], COLUMNS)
-        self.assertEqual(bench.SCHEMAS["G5"], "scenario,latency_ms,p95_ms,status")
+        self.assertEqual(bench.SCHEMAS["G5"],
+                         "scenario,p50_ms,p95_ms,p99_ms,measured,ambiguous,timeout,early,status")
+
+    def test_g5_scenarios_default_to_all_five_and_subsets_parse(self):
+        names = ["search", "toggle_favorite", "toggle_optimization", "dpad", "route_switch"]
+        self.assertEqual(bench.arguments([*PRESENT, "--metric", "G5"]).scenarios, {"G5": names})
+        args = bench.arguments([*PRESENT, "--metric", "G5", "--scenario", "route_switch,search"])
+        self.assertEqual(args.scenarios, {"G5": ["search", "route_switch"]})
+        args = bench.arguments([*PRESENT, "--metric", "G4", "--metric", "G5", "--scenario", "dpad,console"])
+        self.assertEqual(args.scenarios, {"G4": ["console"], "G5": ["dpad"]})
+        args, error = parse([*PRESENT, "--metric", "G5", "--scenario", "library"])
+        self.assertIsNone(args)
+        self.assertIn("'library'", error)
+
+    def test_trials_default_and_bounds(self):
+        self.assertEqual(bench.arguments([*PRESENT, "--metric", "G5"]).trials, 20)
+        for value in ("2", "40", "200"):
+            with self.subTest(value=value):
+                self.assertEqual(bench.arguments([*PRESENT, "--metric", "G5", "--trials", value]).trials,
+                                 int(value))
+        for value in ("1", "3", "21", "0", "-2", "202", "400"):
+            with self.subTest(value=value):
+                args, error = parse([*PRESENT, "--metric", "G5", "--trials", value])
+                self.assertIsNone(args)
+                self.assertIn("--trials requires an even number 2..200", error)
+
+    def test_g8_refusal_names_the_followup_issue(self):
+        args, error = parse([*PRESENT, "--metrics", "G5,G8"])
+        self.assertIsNone(args)
+        self.assertIn("G8 producer arrives with YAN-2056", error)
+        self.assertEqual(bench_cli.PHASE_3_REFUSAL, "G8 producer arrives with YAN-2056")
 
 
 class PresentationRunTests(unittest.TestCase):
@@ -184,6 +216,95 @@ class PresentationRunTests(unittest.TestCase):
         with (self.output / "A/E1/G9.csv").open() as stream:
             (row,) = csv.DictReader(stream)
         self.assertEqual((row["scenario"], row["frames"], row["status"]), ("", "", "ok"))
+
+    def g5_rows(self, _metric, args, _command, env, **kwargs):
+        self.assertEqual(args.scenarios["G5"], ["search", "toggle_favorite", "toggle_optimization",
+                                                "dpad", "route_switch"])
+        self.assertEqual(args.trials, 20)
+        self.assertIn("LD_PRELOAD", env)  # a driven run launches the app, it is not external-only
+        observations = Path(env["CROSSHOOK_BENCH_ROOT"]) / "observations"
+        observations.mkdir()
+        (observations / "G5-search.csv").write_text("seq,inject_ns\n0,1\n")
+        kwargs["evidence"]["G5"] = {"search": [{"iteration": 1, "injected": 20}]}
+        return [{"scenario": name, "p50_ms": 40.0, "p95_ms": 50.0, "p99_ms": 55.0, "measured": 20,
+                 "ambiguous": 0, "timeout": 0, "early": 0, "status": "captured"} for name in args.scenarios["G5"]]
+
+    def test_g5_launches_without_capture_csv_and_seals_provenance_and_observations(self):
+        code, _ = self.run_bench("G5", capture=self.g5_rows)
+        self.assertEqual(code, 0)
+        with (self.output / "A/E1/G5.csv").open() as stream:
+            reader = csv.DictReader(stream)
+            rows = list(reader)
+        self.assertEqual(",".join(reader.fieldnames), bench.SCHEMAS["G5"])
+        self.assertEqual([row["scenario"] for row in rows],
+                         ["search", "toggle_favorite", "toggle_optimization", "dpad", "route_switch"])
+        self.assertEqual(rows[0]["measured"], "20")
+        (raw,) = (self.output / "raw").iterdir()
+        manifest = json.loads((raw / "provenance.json").read_text())
+        self.assertEqual((manifest["status"], manifest["drivers"], manifest["trials"]), ("captured", "uinput+kwin/1", 20))
+        self.assertEqual(manifest["scenarios"]["G5"][0], "search")
+        self.assertEqual(manifest["drive_stats"]["G5"]["search"][0]["injected"], 20)
+        self.assertTrue((raw / "observations/G5-search.csv").is_file())
+        sums = (raw / "SHA256SUMS").read_text()
+        self.assertIn("observations/G5-search.csv", sums)
+        self.assertIn("G5.csv", sums)
+
+    def test_a_partial_g5_run_exits_zero_is_marked_partial_and_is_refused_by_capture_csv(self):
+        def partial_rows(_metric, args, _command, _env, **_kwargs):
+            return [{"scenario": name, "p50_ms": 40.0, "p95_ms": 50.0, "p99_ms": 55.0, "measured": 17,
+                     "ambiguous": 1, "timeout": 2, "early": 0, "status": "partial"}
+                    for name in args.scenarios["G5"]]
+        code, _ = self.run_bench("G5", capture=partial_rows)
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads((self.output / "A/E1/meta.json").read_text())["status"], "partial")
+        (raw,) = (self.output / "raw").iterdir()
+        self.assertEqual(json.loads((raw / "provenance.json").read_text())["status"], "partial")
+        with (self.output / "A/E1/G5.csv").open() as stream:
+            self.assertEqual({row["status"] for row in csv.DictReader(stream)}, {"partial"})
+        with self.assertRaisesRegex(CaptureError, "^STALE_CAPTURE: run status is not captured"):
+            verify_capture(raw / "G5.csv", {})  # the sealed copy a later run would ingest
+
+    def test_g5_scenario_and_trials_flags_reach_the_collector(self):
+        seen = {}
+
+        def capture(_metric, args, _command, _env, **_kwargs):
+            seen.update(scenarios=args.scenarios, trials=args.trials, iterations=args.iterations)
+            return [{"scenario": "dpad", "status": "captured"}]
+        code, _ = self.run_bench("G5", capture=capture, extra=("--scenario", "dpad", "--trials", "40",
+                                                             "--iterations", "2"))
+        self.assertEqual(code, 0)
+        self.assertEqual(seen, {"scenarios": {"G5": ["dpad"]}, "trials": 40, "iterations": 2})
+
+    def test_g5_marker_failures_exit_one(self):
+        for code in ("MARK_TIMEOUT", "CLOCK_SYNC_FAILED", "BENCH_EVENT_MALFORMED", "NOT_QUIET", "STATE_UNSAFE"):
+            with self.subTest(code=code):
+                result, err = self.run_bench("G5", capture=CaptureError(f"{code}: x"))
+                self.assertEqual(result, 1)
+                self.assertIn(f"{code}: x", err)
+
+    def test_g5_dry_run_writes_the_schema_row(self):
+        original = Originals("/nonexistent-home", "/nonexistent-home", {}, None)
+        with patch.object(bench.Originals, "capture", return_value=original):
+            code = bench.main([*PRESENT, "--metric", "G5", "--dry-run", "--output", str(self.output),
+                               "--tmp-root", str(self.root / "runs")])
+        self.assertEqual(code, 0)
+        with (self.output / "A/E1/G5.csv").open() as stream:
+            reader = csv.DictReader(stream)
+            (row,) = reader
+        self.assertEqual(",".join(reader.fieldnames), bench.SCHEMAS["G5"])
+        self.assertEqual((row["scenario"], row["status"]), ("", "dry-run"))
+
+    def test_g5_without_gdbus_is_refused_before_any_write(self):
+        code, err = self.run_bench("G5", capture=AssertionError("launched"), has_gdbus=False)
+        self.assertEqual(code, 30)
+        self.assertIn("MISSING_TOOL: gdbus", err)
+        self.assertFalse(self.output.exists())
+
+    def test_g8_stays_refused_with_the_followup_issue(self):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), self.assertRaises(SystemExit):
+            bench.arguments([*PRESENT, "--metric", "G8"])
+        self.assertIn("G8 producer arrives with YAN-2056", err.getvalue())
 
     def test_dry_run_rows_leave_scenario_blank(self):
         original = Originals("/nonexistent-home", "/nonexistent-home", {}, None)

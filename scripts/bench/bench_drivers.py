@@ -74,13 +74,19 @@ def _notice() -> None:
         print(NOTICE, file=sys.stderr, flush=True)
 
 
-def _settings_path(env: dict[str, str], flatpak: bool) -> Path:
+def app_dir(env: dict[str, str], flatpak: bool, kind: str) -> Path:
+    """The isolated app's `crosshook` directory under its `config` or `data` home (Flatpak sandbox or
+    native XDG); only the variable that `kind` needs must be set."""
     try:
-        config = (Path(env["HOME"]) / ".var/app" / bench_guard.FLATPAK_APP_ID / "config" if flatpak
-                  else Path(env["XDG_CONFIG_HOME"])) / "crosshook"
+        if flatpak:
+            return Path(env["HOME"]) / ".var/app" / bench_guard.FLATPAK_APP_ID / kind / "crosshook"
+        return Path(env[f"XDG_{kind.upper()}_HOME"]) / "crosshook"
     except KeyError as error:
         raise CaptureError(f"BENCH_ENV_INCOMPLETE: {error.args[0]} is not set") from error
-    return config / "settings.toml"
+
+
+def _settings_path(env: dict[str, str], flatpak: bool) -> Path:
+    return app_dir(env, flatpak, "config") / "settings.toml"
 
 
 def _bench_root(env: dict[str, str]) -> Path:

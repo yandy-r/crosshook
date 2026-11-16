@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bench_input as bi
 from bench_capture import CaptureError
 
-ALLOWED = {29, 37, 28, 31, 18, 20, 23, 49, 34}
+ALLOWED = {29, 37, 28, 31, 18, 20, 23, 49, 34, 16, 14, 105, 106}
 REAL_WRITE = bi._write  # the module's own write, before any test replaces the seam
 
 
@@ -99,7 +99,11 @@ class InputDeviceTests(unittest.TestCase):
         self.assertEqual(keybits, set(bi.ALLOWED_KEYS))
         relbits = [a for _f, r, a in self.kernel.ioctls if r == bi.UI_SET_RELBIT]
         self.assertEqual(relbits, [8])
-        self.assertEqual(set(bi.LETTER_KEYS), set("settings"))
+        self.assertEqual(set(bi.LETTER_KEYS), set("settings") | set(bi.ALLOWED_SEARCH))
+        self.assertEqual(bi.ALLOWED_SEARCH, "q")
+        self.assertEqual((bi.KEY_RIGHT, bi.KEY_LEFT, bi.KEY_BACKSPACE), (106, 105, 14))
+        for forbidden in (1, 15, 56, 100, 125, 126):  # Escape, Tab, Alt, Super, ...
+            self.assertNotIn(forbidden, bi.ALLOWED_KEYS)
 
     def test_sysname_and_event_node(self):
         dev = self.device()
@@ -141,6 +145,56 @@ class InputDeviceTests(unittest.TestCase):
         dev.wheel(-1)
         self.assertEqual(len(self.kernel.writes), 2)
 
+    def test_key_stamped_stamp_ordering_and_bytes(self):
+        dev = self.device()
+        before = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
+        stamps = []
+        real_write = self.kernel.write
+
+        def write(fd, data):
+            if not stamps:
+                stamps.append(time.clock_gettime_ns(time.CLOCK_MONOTONIC))
+            return real_write(fd, data)
+        with unittest.mock.patch.object(bi, "_write", write):
+            stamp = dev.key_stamped(bi.KEY_RIGHT)
+        after = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
+        self.assertTrue(before <= stamp <= stamps[0] <= after)  # stamped before the down write
+        self.assertEqual(self.kernel.events(), [(1, 106, 1), (0, 0, 0), (1, 106, 0), (0, 0, 0)])
+        self.assertEqual(dev._held, [])
+        (_, down), (_, up) = self.kernel.writes
+        self.assertEqual(down[:24], struct.pack("llHHi", 0, 0, 1, 106, 1))
+        self.assertEqual(up[:24], struct.pack("llHHi", 0, 0, 1, 106, 0))
+
+    def test_key_stamped_accepts_each_new_key(self):
+        dev = self.device()
+        for code in (bi.KEY_RIGHT, bi.KEY_LEFT, bi.KEY_BACKSPACE, bi.KEY_ENTER, bi.LETTER_KEYS["q"]):
+            with self.subTest(code=code):
+                self.kernel.writes.clear()
+                dev.key_stamped(code)
+                self.assertEqual([(c, v) for t, c, v in self.kernel.events() if t == 1], [(code, 1), (code, 0)])
+
+    def test_key_stamped_refuses_disallowed_codes_without_writing(self):
+        dev = self.device()
+        for code in (1, 15, 56, 125, 0, 999):
+            with self.subTest(code=code), self.assertRaises(ValueError):
+                dev.key_stamped(code)
+        self.assertEqual(self.kernel.writes, [])
+        self.assertEqual(dev._held, [])
+
+    def test_key_stamped_releases_a_key_whose_down_failed(self):
+        dev = self.device()
+        calls = []
+
+        def write(fd, data):
+            calls.append(struct.unpack("llHHi", data[:24])[2:])
+            if len(calls) == 1:
+                raise OSError(errno.EAGAIN, "would block")
+            return len(data)
+        with unittest.mock.patch.object(bi, "_write", write), self.assertRaises(OSError):
+            dev.key_stamped(bi.KEY_LEFT)
+        self.assertEqual(calls, [(1, bi.KEY_LEFT, 1), (1, bi.KEY_LEFT, 0)])
+        self.assertEqual(dev._held, [])
+
     def test_chord_orders_and_pairs(self):
         dev = self.device()
         dev.chord(bi.KEY_LEFTCTRL, bi.KEY_K)
@@ -158,6 +212,11 @@ class InputDeviceTests(unittest.TestCase):
         for i, event in enumerate(events):
             if event[0] == 1:
                 self.assertEqual(events[i + 1], (0, 0, 0))
+
+    def test_type_text_accepts_the_search_letter(self):
+        dev = self.device()
+        dev.type_text("q")
+        self.assertEqual([(c, v) for t, c, v in self.kernel.events() if t == 1], [(16, 1), (16, 0)])
 
     def test_type_text_runs_the_hook_before_every_key(self):
         dev = self.device()
@@ -236,10 +295,10 @@ class InputDeviceTests(unittest.TestCase):
     def test_disallowed_codes_raise_without_writing(self):
         dev = self.device()
         with self.assertRaises(ValueError):
-            dev.key(30)  # KEY_A
+            dev.key(15)  # KEY_TAB
         with self.assertRaises(ValueError):
-            dev.chord(bi.KEY_LEFTCTRL, 30)
-        for text in ("Set", "x", "settings!", "a b"):
+            dev.chord(bi.KEY_LEFTCTRL, 1)  # KEY_ESC
+        for text in ("Set", "x", "settings!", "a b", "A"):
             with self.assertRaises(ValueError):
                 dev.type_text(text)
         self.assertEqual(self.kernel.writes, [])

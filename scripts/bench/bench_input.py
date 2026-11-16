@@ -28,8 +28,12 @@ EV_SYN, EV_KEY, EV_REL = 0, 1, 2
 SYN_REPORT = 0
 REL_WHEEL = 8
 KEY_ENTER, KEY_LEFTCTRL, KEY_K = 28, 29, 37
-LETTER_KEYS = {"s": 31, "e": 18, "t": 20, "i": 23, "n": 49, "g": 34}  # the letters of "settings"
-ALLOWED_KEYS = frozenset({KEY_LEFTCTRL, KEY_K, KEY_ENTER, *LETTER_KEYS.values()})
+KEY_BACKSPACE, KEY_LEFT, KEY_RIGHT = 14, 105, 106
+ALLOWED_SEARCH = "q"  # the one extra letter the G5 search scenario types
+# The letters of "settings" plus ALLOWED_SEARCH; type_text accepts exactly these.
+LETTER_KEYS = {"s": 31, "e": 18, "t": 20, "i": 23, "n": 49, "g": 34, ALLOWED_SEARCH: 16}
+ALLOWED_KEYS = frozenset({KEY_LEFTCTRL, KEY_K, KEY_ENTER, KEY_BACKSPACE, KEY_LEFT, KEY_RIGHT,
+                          *LETTER_KEYS.values()})
 
 _SETUP = struct.Struct("HHHH80sI")  # bustype, vendor, product, version, name, ff_effects_max
 _EVENT = struct.Struct("llHHi")     # sec, usec (kernel ignores both), type, code, value
@@ -152,9 +156,13 @@ class InputDevice:
         self._emit(data)
         return stamp_ns
 
-    def _press(self, code: int) -> None:
+    def _press(self, code: int) -> int:
+        """Emit the key down; returns the CLOCK_MONOTONIC ns read immediately before the write."""
+        data = _event(EV_KEY, code, 1) + _syn()
         self._held.append(code)  # before the write: a down that fails midway must still be released
-        self._emit(_event(EV_KEY, code, 1) + _syn())
+        stamp_ns = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
+        self._emit(data)
+        return stamp_ns
 
     def _release(self, code: int) -> None:
         self._emit(_event(EV_KEY, code, 0) + _syn())
@@ -162,6 +170,17 @@ class InputDevice:
 
     def key(self, code: int) -> None:
         self.chord(code)
+
+    def key_stamped(self, code: int) -> int:
+        """Press and release one allowlisted key; returns the ns read immediately before the down write."""
+        _require_allowed((code,))
+        try:
+            stamp_ns = self._press(code)
+            self._release(code)
+        except BaseException:
+            self._release_held()
+            raise
+        return stamp_ns
 
     def chord(self, *codes: int) -> None:
         """Press in order, then release in reverse order."""
@@ -176,7 +195,7 @@ class InputDevice:
             raise
 
     def type_text(self, text: str, before_each: Callable[[], None] | None = None) -> None:
-        """Type lowercase text made only of the LETTER_KEYS letters.
+        """Type lowercase text made only of the LETTER_KEYS letters (those of "settings", plus ALLOWED_SEARCH).
 
         `before_each` runs before every key, so a caller can refuse the next key when its
         precondition (window focus) no longer holds; whatever it raises stops the typing.
