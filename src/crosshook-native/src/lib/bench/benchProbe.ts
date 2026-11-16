@@ -1,37 +1,18 @@
 import { callCommand } from '@/lib/ipc';
+import { sendMark, warnOnce } from './benchMark';
 import { getScenario, type ScenarioTrial } from './benchScenarios';
 import { runClockSync } from './clockSync';
+import { HEALTH_SCROLL_SCENARIO, startHealthScrollProbe } from './healthScrollProbe';
 import { REPLAY_SCENARIO, startReplayProbe } from './replayProbe';
 
 /** Upper bound on trials per probe run; the runner stops the app long before this. */
 export const TRIAL_CAP = 10_000;
-
-export type BenchMarkPhase = 'armed' | 'render' | 'focus_lost' | 'console_hidden' | 'follow_on' | 'follow_off';
 
 export interface BenchProbeOptions {
   /** Stops the probe and removes its listeners (tests; production never passes one). */
   signal?: AbortSignal;
   /** Overrides `TRIAL_CAP` (tests). */
   maxTrials?: number;
-}
-
-let warned = false;
-
-function warnOnce(message: string, error: unknown): void {
-  if (!warned) {
-    warned = true;
-    console.warn(message, error);
-  }
-}
-
-async function sendMark(scenario: string, seq: number, phase: BenchMarkPhase, tPerfMs: number): Promise<boolean> {
-  try {
-    await callCommand('bench_mark', { scenario, seq, phase, tPerfMs });
-    return true;
-  } catch (error) {
-    warnOnce('bench_mark call failed:', error);
-    return false;
-  }
 }
 
 function nextFrame(): Promise<void> {
@@ -43,12 +24,17 @@ function nextFrame(): Promise<void> {
  * clock, calls `bench_begin`, then per trial: focuses the scenario target,
  * sends `armed`, waits for the DOM change, and sends `render` after the next
  * animation frame with the `performance.now()` read at the change. The runner
- * injects the input; the probe never does. `replay_scroll` is dispatched to
- * `startReplayProbe` before any clock sync. Never rejects.
+ * injects the input; the probe never does. A scenario `reset` runs untimed before each `arm`.
+ * `replay_scroll` and `health_scroll` are dispatched to their own probes before any clock sync.
+ * Never rejects.
  */
 export async function startBenchProbe(name: string, options: BenchProbeOptions = {}): Promise<void> {
   if (name === REPLAY_SCENARIO) {
     await startReplayProbe({ signal: options.signal });
+    return;
+  }
+  if (name === HEALTH_SCROLL_SCENARIO) {
+    await startHealthScrollProbe({ signal: options.signal });
     return;
   }
   const scenario = getScenario(name);
@@ -78,11 +64,17 @@ export async function startBenchProbe(name: string, options: BenchProbeOptions =
     await callCommand('bench_begin');
     // A setup or target failure sends no mark: the runner then reports MARK_TIMEOUT for the
     // missing `armed`, and `focus_lost` stays reserved for a real window blur.
-    if (scenario.prepare && !(await scenario.prepare())) {
+    if (scenario.prepare && !(await scenario.prepare(signal))) {
       return;
     }
 
     for (seq = 0; seq < maxTrials && !signal?.aborted; seq += 1) {
+      if (scenario.reset && !(await scenario.reset(signal))) {
+        return;
+      }
+      if (signal?.aborted) {
+        return;
+      }
       trial = scenario.arm();
       if (!trial) {
         return;

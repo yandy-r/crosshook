@@ -20,7 +20,9 @@ fn every_allowlisted_name_round_trips() {
             "toggle_optimization",
             "dpad",
             "route_switch",
-            "replay_scroll"
+            "replay_scroll",
+            "health_table",
+            "health_scroll"
         ]
     );
     for scenario in ALL {
@@ -116,4 +118,27 @@ fn replay_scroll_is_selected_through_the_env() {
         parse_scenario(&env(Some("1"), Some("replay_scroll"))),
         Ok(Some(Scenario::ReplayScroll))
     );
+}
+
+#[test]
+fn health_scenarios_are_selected_through_the_env_and_do_not_defer() {
+    for (raw, expected) in [
+        ("health_table", Scenario::HealthTable),
+        ("health_scroll", Scenario::HealthScroll),
+    ] {
+        assert_eq!(
+            parse_scenario(&env(Some("1"), Some(raw))),
+            Ok(Some(expected))
+        );
+        assert!(!expected.defers_replay());
+    }
+}
+
+#[test]
+fn health_scenarios_are_ignored_when_the_gate_is_off() {
+    for bench in [None, Some("0"), Some("true"), Some("")] {
+        for raw in ["health_table", "health_scroll"] {
+            assert_eq!(parse_scenario(&env(bench, Some(raw))), Ok(None));
+        }
+    }
 }

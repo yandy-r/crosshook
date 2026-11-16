@@ -13,6 +13,7 @@ notch is sent only after KWin confirms the window is active under the cursor (`a
 """
 from __future__ import annotations
 
+import math
 import os
 import stat
 import sys
@@ -30,15 +31,16 @@ from bench_provenance import write_private
 from bench_session import locked_error, session_locked
 
 NOTICE = "BENCH_NOTICE: injecting input into the bench window; do not touch the keyboard or mouse"
-SCENARIOS = ("library", "console", "settings")
+SCENARIOS = ("library", "console", "settings", "health")
 WINDOW_W, WINDOW_H = 1280, 900
 # The console log renders only in the wide layout (>= 1440 px wide); at 1280 px the shell shows a
 # status bar instead, so console scenarios (G4 console, G8) use a wider window.
 CONSOLE_WINDOW_W, CONSOLE_WINDOW_H = 1600, 1000
 CONSOLE_CURSOR = (800, 860)       # over the console drawer of the wide layout
-CURSOR_OFFSET = {"library": (640, 450), "settings": (640, 450), "console": CONSOLE_CURSOR}
+CURSOR_OFFSET = {"library": (640, 450), "settings": (640, 450), "health": (640, 450),
+                 "console": CONSOLE_CURSOR}
 WINDOW_SIZE = {"library": (WINDOW_W, WINDOW_H), "settings": (WINDOW_W, WINDOW_H),
-               "console": (CONSOLE_WINDOW_W, CONSOLE_WINDOW_H)}
+               "health": (WINDOW_W, WINDOW_H), "console": (CONSOLE_WINDOW_W, CONSOLE_WINDOW_H)}
 SCROLL_NOTCHES = 90          # per direction; 90 notches at 33 ms is about 3 s
 IDLE_S = 1.0                 # console: no presented frame for this long means the replay is done
 IDLE_TIMEOUT_S = 25.0        # 50k lines at the 5000 lines/s cap take about 10 s
@@ -47,6 +49,8 @@ NOTCH_S = 0.033
 TAIL_NS = 300_000_000
 FOCUS_TIMEOUT_S = 1.0
 FOCUS_POLL_S = 0.05
+MARK_SLICE_S = 0.25          # a mark wait is sliced so a lost focus or dead app is noticed early
+HEALTH_SCENARIO = "health_scroll"  # the app scenario that opens and reports the health page
 LOG_STALL_S = 2.0            # a scrolling app commits far more often than this
 LOCK_CHECK_S = 0.3
 DEVICE_SETTLE_S = 1.5
@@ -143,13 +147,17 @@ def prepare_scenario(scenario: str, env: dict[str, str], flatpak: bool) -> dict[
     """Return `env` adjusted for `scenario`.
 
     Every scenario shares one isolated root, so each starts from no `settings.toml`; `console`
-    then writes the one setting it needs.
+    then writes the one setting it needs, and `health` asks the app to open the health page
+    (`health_scroll`) instead.
     """
     if scenario not in SCENARIOS:
         raise CaptureError(f"UNKNOWN_SCENARIO: {scenario[:40]!r}")
     updated = {key: value for key, value in env.items() if key not in LOG_ENV}
     path = _contained_settings_path(env, flatpak)
     _remove_settings(path)  # a console iteration's file must not leak into the next scenario
+    if scenario == "health":
+        updated[bench_guard.ENV_SCENARIO] = HEALTH_SCENARIO
+        return updated
     if scenario != "console":
         return updated
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -291,21 +299,45 @@ def _last_frame_ns(log_dir: Path) -> int:
     return frames[-1].presented_ns
 
 
+def wait_sliced(proc, gate: _LockGate, wait: Callable[[float], object], code: str, timeout_s: float,
+                context: str, probe: Callable[[], None] = lambda: None):
+    """Call `wait(slice)` until it answers or `timeout_s` of slices pass, checking the app between them.
+
+    A stream that ended is reported as the app's exit when the process confirms it.
+    """
+    for _ in range(max(1, math.ceil(timeout_s / MARK_SLICE_S))):
+        try:
+            return wait(MARK_SLICE_S)
+        except CaptureError as error:
+            text = str(error)
+            if text.startswith("EVENT_STREAM_ENDED"):
+                _require_running(proc, context)
+                raise
+            if not text.startswith(code):
+                raise
+        _require_running(proc, context)
+        gate.check(context)
+        probe()
+    raise CaptureError(f"{code}: not seen within {timeout_s:g} s {context}")
+
+
 def _wait_idle(proc, log_dir: Path, clock, sleep, timeout_s: float = IDLE_TIMEOUT_S,
-               code: str = "REPLAY_NOT_SETTLED", idle_s: float = IDLE_S) -> int:
-    """Wait until the app stops presenting (console replay finished) so G4 times scrolling only.
+               code: str = "REPLAY_NOT_SETTLED", idle_s: float = IDLE_S, what: str = "console") -> int:
+    """Wait until the app stops presenting (console replay finished, health page rendered) so G4
+    times scrolling only.
 
     The window is idle once its last presented frame is `idle_s` old. Returns the presentation time of
-    that frame, which is when the window went idle.
+    that frame, which is when the window went idle. `what` names the page in the errors.
     """
+    context = f"while waiting for the {what} " + ("replay" if what == "console" else "to settle")
     deadline = clock() + int(timeout_s * 1e9)
     while clock() < deadline:
-        _require_running(proc, "while waiting for the console replay")
+        _require_running(proc, context)
         last = _last_frame_ns(log_dir)
         if last and clock() - last >= int(idle_s * 1e9):
             return last
         sleep(0.2)
-    raise CaptureError(f"{code}: the console kept presenting for {timeout_s:.0f} s")
+    raise CaptureError(f"{code}: the {what} kept presenting for {timeout_s:.0f} s")
 
 
 def _scroll_pattern() -> list[int]:
@@ -315,8 +347,13 @@ def _scroll_pattern() -> list[int]:
 
 def drive_g4(proc, scenario: str, log_dir: Path, kwin: KWinScripts, dev: InputDevice,
              clock: Callable[[], int] = time.monotonic_ns,
-             sleep: Callable[[float], None] = time.sleep) -> DriveResult:
-    """Scroll the app window down then up and return the window of the timed notches."""
+             sleep: Callable[[float], None] = time.sleep,
+             before_prime: Callable[[], None] | None = None) -> DriveResult:
+    """Scroll the app window down then up and return the window of the timed notches.
+
+    `before_prime` runs after placement and the scenario's own setup, before the priming notch: the
+    health scenario waits there for its page to render and settle.
+    """
     if scenario not in SCENARIOS:
         raise CaptureError(f"UNKNOWN_SCENARIO: {scenario[:40]!r}")
     _notice()
@@ -327,6 +364,8 @@ def drive_g4(proc, scenario: str, log_dir: Path, kwin: KWinScripts, dev: InputDe
         _open_settings(proc, tail, gate, dev, sleep)
     if scenario == "console":
         _wait_idle(proc, log_dir, clock, sleep)
+    if before_prime is not None:
+        before_prime()
     # KWin sends no pointer enter when it moves a window under a still cursor, so one untimed
     # notch (up: a no-op at the top of the page) makes the compositor deliver it. The notch goes
     # to whatever is under the cursor, so KWin must first confirm the bench window is active and

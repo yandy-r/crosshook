@@ -160,7 +160,7 @@ class FakeEvents:
         w.step("begin")
         return Begin(1, "replay_scroll")
 
-    def replay_mark(self, scenario):
+    def status_mark(self, scenario):
         w = self.world
         return None if w.phase_mark is None else Mark(1, scenario, 0, w.phase_mark, 0)
 
@@ -267,7 +267,7 @@ class SequenceTests(G8TestCase):
         names = self.world.names()
         self.assertLess(names.index("sampler_start"), names.index("go"))
 
-    def test_phase_changes_follow_the_replay_markers(self):
+    def test_phase_changes_follow_the_status_markers(self):
         self.drive()
         trace = self.world.trace
         self.assertLess(trace.index(("replay_start",)), trace.index(("phase", "replay")))

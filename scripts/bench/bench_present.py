@@ -258,6 +258,11 @@ def first_present_ns(logs: list[PresentLog]) -> int:
     return toplevel_frames(logs)[0].presented_ns
 
 
+def first_present_at_or_after(logs: list[PresentLog], ns: int) -> int | None:
+    """`presented_ns` of the first toplevel frame presented at or after `ns`, or None if there is none."""
+    return next((frame.presented_ns for frame in toplevel_frames(logs) if frame.presented_ns >= ns), None)
+
+
 def frame_intervals_ms(frames: list[Presented], start_ns: int | None = None,
                        end_ns: int | None = None) -> list[float]:
     times = [frame.presented_ns for frame in frames

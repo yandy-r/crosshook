@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetBenchWarning } from '../benchMark';
 import { startBenchProbe } from '../benchProbe';
+import { HEALTH_MIN_ROWS } from '../healthTable';
+import { buildRoutes } from './healthFixture';
 
 type Call = { name: string; args?: Record<string, unknown> };
 
@@ -47,6 +50,7 @@ describe('startBenchProbe', () => {
   let controller: AbortController;
 
   beforeEach(() => {
+    resetBenchWarning();
     calls.length = 0;
     frames = [];
     controller = new AbortController();
@@ -145,6 +149,51 @@ describe('startBenchProbe', () => {
     expect(calls.map((c) => c.name)).toEqual(['bench_mark', 'bench_begin']);
     expect(phases()).toEqual(['follow_on:0']);
     expect(marks()[0].scenario).toBe('replay_scroll');
+  });
+
+  it('dispatches health_scroll to the health probe: no clock sync, health_ready, then bench_begin', async () => {
+    buildRoutes({ healthRows: HEALTH_MIN_ROWS });
+    vi.spyOn(window.HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {});
+    await startBenchProbe('health_scroll', { signal: controller.signal });
+    expect(calls.map((c) => c.name)).toEqual(['bench_mark', 'bench_begin']);
+    expect(phases()).toEqual(['health_ready:0']);
+    expect(marks()[0].scenario).toBe('health_scroll');
+  });
+
+  it('runs the scenario reset before every armed so each timed switch starts from the library', async () => {
+    buildRoutes({ healthRows: HEALTH_MIN_ROWS });
+    const health = document.getElementById('r-trigger-health') as HTMLElement;
+    const probe = startBenchProbe('health_table', { signal: controller.signal, maxTrials: 2 });
+    await until(() => phases().includes('armed:0'));
+    expect(document.getElementById('r-trigger-library')?.getAttribute('aria-selected')).toBe('true');
+    expect(phases()[0]).toBe('health_ready:0'); // prepare reported the table before the first arm
+    expect(document.activeElement).toBe(health);
+
+    health.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); // the runner's Enter
+    await flush();
+    await runNextFrame();
+    await until(() => phases().includes('render:0'));
+    expect(document.getElementById('r-trigger-health')?.getAttribute('aria-selected')).toBe('true');
+
+    await until(() => phases().includes('armed:1'));
+    expect(document.getElementById('r-trigger-library')?.getAttribute('aria-selected')).toBe('true'); // reset ran
+    controller.abort();
+    await probe;
+  });
+
+  it('sends no mark and stops when a scenario reset fails', async () => {
+    vi.useFakeTimers();
+    try {
+      buildRoutes({ healthRows: HEALTH_MIN_ROWS, selected: 'health' });
+      document.getElementById('r-trigger-library')?.remove(); // reset cannot reach the library
+      const probe = startBenchProbe('health_table', { signal: controller.signal });
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(11_000);
+      await expect(probe).resolves.toBeUndefined();
+      expect(phases().some((p) => p.startsWith('armed'))).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('does nothing for an unsupported scenario', async () => {

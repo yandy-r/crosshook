@@ -40,6 +40,7 @@ class World:
         self.focus_lost_at: int | None = None     # a focus_lost mark exists from this clock value on
         self.no_armed_seq: int | None = None
         self.no_render = False
+        self.status_phase: str | None = None      # a replay/health status mark the app sent
         self.commit_delay_ns = 40 * MS            # change frame commit after the key
         self.render_delay_ns = 30 * MS            # the render mark after the key (host time)
         self.present_delay_ns = 20 * MS
@@ -141,6 +142,10 @@ class FakeEvents:
         if w.focus_lost_at is not None and w.now >= w.focus_lost_at and w.focus_lost_at >= since_ns:
             return Mark(w.focus_lost_at, scenario, 0, "focus_lost", 0)
         return None
+
+    def status_mark(self, scenario):
+        phase = self.world.status_phase
+        return None if phase is None else Mark(1, scenario, 0, phase, 0)
 
     def wait_mark(self, scenario, seq, phase, timeout_s):
         w = self.world

@@ -455,6 +455,9 @@ class CaptureTests(unittest.TestCase):
                "open(d+'/wlpresent-1.log','w').write('H\\tclock_id=1\\nS\\t1\\t7\\ttoplevel\\n'"
                "+'C\\t%d\\t7\\t1\\t1\\n'%t+'P\\t%d\\t1\\t%d\\t8333333\\t1\\t0\\n'%(t,t))\n"
                "print('READY',time.monotonic_ns(),file=sys.stderr,flush=True)\n"
+               "time.sleep(.02)\n"
+               "u=time.monotonic_ns()\n"
+               "open(d+'/wlpresent-1.log','a').write('C\\t%d\\t7\\t2\\t1\\n'%u+'P\\t%d\\t2\\t%d\\t8333333\\t1\\t0\\n'%(u,u))\n"
                "time.sleep(30)\n")
         with tempfile.TemporaryDirectory() as temp:
             home = Path(temp) / "home"
@@ -466,7 +469,9 @@ class CaptureTests(unittest.TestCase):
         self.assertEqual(len(measured), 2)
         for row in measured:
             self.assertGreaterEqual(row["first_present_ms"], 0)
-        for key in ("p50_ms", "p95_ms", "first_present_p50_ms", "first_present_p95_ms"):
+            self.assertGreaterEqual(row["first_content_ms"], row["first_present_ms"])
+        for key in ("p50_ms", "p95_ms", "first_present_p50_ms", "first_present_p95_ms",
+                    "first_content_p50_ms", "first_content_p95_ms"):
             self.assertIn(key, rows[-1])
 
     def test_percentiles(self):
@@ -483,6 +488,7 @@ class CaptureTests(unittest.TestCase):
         proc, ms = ready(command, dict(os.environ), 5, True)
         try:
             self.assertGreaterEqual(ms, 0)
+            self.assertEqual(proc.ready_ns, proc.launch_ns + round(ms * 1_000_000))
             self.assertEqual(proc.returncode, 0)
         finally:
             stop(proc)

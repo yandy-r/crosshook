@@ -114,25 +114,25 @@ class StrictParseTests(unittest.TestCase):
 class ReplayMarkTests(unittest.TestCase):
     def test_the_first_replay_phase_mark_is_returned(self):
         reader = reader_for(b"BENCH_MARK 2000 replay_scroll 0 follow_on 10\nBENCH_MARK 2100 replay_scroll 1 follow_off 20\n")
-        self.assertEqual(reader.replay_mark("replay_scroll"), Mark(2000, "replay_scroll", 0, "follow_on", 10))
+        self.assertEqual(reader.status_mark("replay_scroll"), Mark(2000, "replay_scroll", 0, "follow_on", 10))
 
     def test_each_replay_phase_is_accepted(self):
         for phase in ("console_hidden", "follow_on", "follow_off"):
             line = f"BENCH_MARK 2000 replay_scroll 0 {phase} 10\n".encode()
-            self.assertEqual(reader_for(line).replay_mark("replay_scroll").phase, phase)
+            self.assertEqual(reader_for(line).status_mark("replay_scroll").phase, phase)
 
     def test_the_earliest_stamp_wins_over_arrival_order(self):
         reader = reader_for(b"BENCH_MARK 3000 replay_scroll 1 follow_off 1\nBENCH_MARK 2000 replay_scroll 0 follow_on 2\n")
-        self.assertEqual(reader.replay_mark("replay_scroll").phase, "follow_on")
+        self.assertEqual(reader.status_mark("replay_scroll").phase, "follow_on")
 
     def test_no_mark_is_none(self):
-        self.assertIsNone(reader_for(b"").replay_mark("replay_scroll"))
-        self.assertIsNone(reader_for(b"BENCH_MARK 2000 replay_scroll 0 armed 1\n").replay_mark("replay_scroll"))
+        self.assertIsNone(reader_for(b"").status_mark("replay_scroll"))
+        self.assertIsNone(reader_for(b"BENCH_MARK 2000 replay_scroll 0 armed 1\n").status_mark("replay_scroll"))
 
     def test_other_scenarios_are_ignored(self):
-        self.assertIsNone(reader_for(b"BENCH_MARK 2000 search 0 follow_on 1\n").replay_mark("replay_scroll"))
+        self.assertIsNone(reader_for(b"BENCH_MARK 2000 search 0 follow_on 1\n").status_mark("replay_scroll"))
 
-    def test_replay_marks_do_not_answer_a_mark_wait_or_a_focus_query(self):
+    def test_status_marks_do_not_answer_a_mark_wait_or_a_focus_query(self):
         reader = reader_for(b"BENCH_MARK 2000 replay_scroll 0 console_hidden 1\n")
         self.assertIsNone(reader.focus_lost("replay_scroll", 0))
         with self.assertRaisesRegex(CaptureError, "^EVENT_STREAM_ENDED: MARK_TIMEOUT"):
@@ -147,9 +147,10 @@ class ReplayMarkTests(unittest.TestCase):
 
 
 class ScenarioSetTests(unittest.TestCase):
-    def test_g5_keeps_its_own_set_and_replay_scroll_is_the_only_extra(self):
-        self.assertEqual(bench_events.G5_SCENARIOS, set(bench_cli.SCENARIOS["G5"]))
-        self.assertEqual(bench_events.SCENARIOS - bench_events.G5_SCENARIOS, {"replay_scroll"})
+    def test_g5_keeps_its_own_set_and_the_one_shot_probes_are_the_only_extras(self):
+        self.assertEqual(bench_events.G5_SCENARIOS,
+                         set(bench_cli.SCENARIOS["G5"] + bench_cli.SUPPLEMENTAL_SCENARIOS["G5"]))
+        self.assertEqual(bench_events.SCENARIOS - bench_events.G5_SCENARIOS, {"replay_scroll", "health_scroll"})
 
     def test_g5_marks_still_parse_unchanged(self):
         reader = reader_for(b"BENCH_MARK 2000 search 0 armed 1\nBENCH_MARK 3000 search 0 render 2\n")

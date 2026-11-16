@@ -27,13 +27,15 @@ const MAX_T_PERF_MS: f64 = 86_400_000.0;
 const MARKER_CAP: u64 = 100_000;
 const CAP_REACHED_LINE: &str = "BENCH_ERROR: marker cap reached";
 
-const ALL_PHASES: [Phase; 6] = [
+const ALL_PHASES: [Phase; 8] = [
     Phase::Armed,
     Phase::Render,
     Phase::FocusLost,
     Phase::ConsoleHidden,
     Phase::FollowOn,
     Phase::FollowOff,
+    Phase::HealthReady,
+    Phase::HealthRowsTooFew,
 ];
 
 /// Closed phase set; the emitted token is the variant, never the input.
@@ -46,6 +48,8 @@ pub(super) enum Phase {
     ConsoleHidden,
     FollowOn,
     FollowOff,
+    HealthReady,
+    HealthRowsTooFew,
 }
 
 impl Phase {
@@ -57,6 +61,8 @@ impl Phase {
             Self::ConsoleHidden => "console_hidden",
             Self::FollowOn => "follow_on",
             Self::FollowOff => "follow_off",
+            Self::HealthReady => "health_ready",
+            Self::HealthRowsTooFew => "health_rows_too_few",
         }
     }
 

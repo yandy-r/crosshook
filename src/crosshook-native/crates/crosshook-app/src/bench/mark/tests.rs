@@ -57,6 +57,8 @@ fn every_phase_and_scenario_formats() {
         ("console_hidden", "console_hidden"),
         ("follow_on", "follow_on"),
         ("follow_off", "follow_off"),
+        ("health_ready", "health_ready"),
+        ("health_rows_too_few", "health_rows_too_few"),
     ] {
         let mark = check_mark(&on("route_switch"), "route_switch", 0, phase, 0.0)
             .unwrap()
@@ -119,6 +121,9 @@ fn phase_serde_is_closed_snake_case() {
     assert_eq!(phase, Phase::FocusLost);
     let phase: Phase = serde_json::from_str("\"follow_off\"").unwrap();
     assert_eq!(phase, Phase::FollowOff);
+    let phase: Phase = serde_json::from_str("\"health_rows_too_few\"").unwrap();
+    assert_eq!(phase, Phase::HealthRowsTooFew);
+    assert!(serde_json::from_str::<Phase>("\"healthReady\"").is_err());
     assert!(serde_json::from_str::<Phase>("\"followOn\"").is_err());
     assert!(serde_json::from_str::<Phase>("\"focusLost\"").is_err());
     assert!(serde_json::from_str::<Phase>("\"other\"").is_err());
@@ -260,4 +265,28 @@ fn public_calls_are_inert_without_the_gate() {
     assert_eq!(bench_mark("x\ny", u32::MAX, "bad", f64::NAN), Ok(()));
     assert_eq!(bench_clock(u32::MAX, f64::NAN), Ok(0));
     assert!(!BEGIN_FIRED.load(Ordering::SeqCst));
+}
+
+#[test]
+fn health_phases_format_for_both_health_scenarios() {
+    for scenario in ["health_table", "health_scroll"] {
+        for phase in ["health_ready", "health_rows_too_few"] {
+            let mark = check_mark(&on(scenario), scenario, 0, phase, 12.5)
+                .unwrap()
+                .unwrap();
+            let line = mark.line(9);
+            assert_eq!(line, format!("BENCH_MARK 9 {scenario} 0 {phase} 12500"));
+            assert_one_line(&line);
+        }
+    }
+}
+
+#[test]
+fn health_marks_write_nothing_when_the_gate_is_off() {
+    for bench in [None, Some("0"), Some("true"), Some("")] {
+        let off = env(bench, Some("health_table"));
+        for phase in ["health_ready", "health_rows_too_few"] {
+            assert_eq!(check_mark(&off, "health_table", 0, phase, 1.0), Ok(None));
+        }
+    }
 }

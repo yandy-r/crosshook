@@ -1,4 +1,4 @@
-//! The G5/G8 scenario allowlist and the `CROSSHOOK_BENCH_SCENARIO` decision.
+//! The G4/G5/G8 scenario allowlist and the `CROSSHOOK_BENCH_SCENARIO` decision.
 
 use std::sync::atomic::AtomicBool;
 
@@ -10,13 +10,15 @@ use super::util::claim;
 static SCENARIO_ERROR_REPORTED: AtomicBool = AtomicBool::new(false);
 
 /// Compiled-in scenario names, in the order the runner drives them.
-const ALL: [Scenario; 6] = [
+const ALL: [Scenario; 8] = [
     Scenario::Search,
     Scenario::ToggleFavorite,
     Scenario::ToggleOptimization,
     Scenario::Dpad,
     Scenario::RouteSwitch,
     Scenario::ReplayScroll,
+    Scenario::HealthTable,
+    Scenario::HealthScroll,
 ];
 
 /// The scenario the runner selected for this process.
@@ -34,6 +36,8 @@ pub(super) enum Scenario {
     Dpad,
     RouteSwitch,
     ReplayScroll,
+    HealthTable,
+    HealthScroll,
 }
 
 impl Scenario {
@@ -46,6 +50,8 @@ impl Scenario {
             Self::Dpad => "dpad",
             Self::RouteSwitch => "route_switch",
             Self::ReplayScroll => "replay_scroll",
+            Self::HealthTable => "health_table",
+            Self::HealthScroll => "health_scroll",
         }
     }
 

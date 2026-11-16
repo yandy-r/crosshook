@@ -160,6 +160,7 @@ def ready(command: list[str], env: dict[str, str], timeout: float,
                             if not start <= ns <= now:
                                 raise CaptureError("INVALID_READY_CLOCK")
                             proc.launch_ns = start
+                            proc.ready_ns = ns
                             if events:
                                 from bench_events import EventReader
                                 os.set_blocking(proc.stderr.fileno(), True)
