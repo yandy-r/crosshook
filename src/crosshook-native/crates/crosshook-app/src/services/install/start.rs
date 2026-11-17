@@ -12,9 +12,12 @@ use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
 use super::{install_error, InstallService, INSTALL_GAME_JOB_KIND};
-use crate::jobs::{create_log_file_in, slugify_target, JobContext, JobKey, JobSpec, Outcome};
+use crate::jobs::{
+    create_log_file_in, require, slugify_target, JobContext, JobKey, JobSpec, LogDir, Outcome,
+};
 use crate::services::process::child::{run_child, ChildError, ChildOutput, LogFile};
 use crate::services::process::run::start_run;
+use crate::services::process::sweep::{child_was_stopped, sweep_after_cancel};
 use crate::services::process::{
     conflict_as, prefix_job_key, remove_unused_log, ProcessRun, MSG_PREFIX_BUSY,
 };
@@ -43,7 +46,7 @@ impl InstallService {
     /// completion is the reviewable result after a successful exit, the core
     /// failure text (`Io`) after a non-zero exit, or `Cancelled` when the job
     /// was cancelled (app shutdown), which also ends the installer's process
-    /// group.
+    /// group and then sweeps every process still using the prefix.
     ///
     /// # Errors
     /// `Validation { field }` for an invalid request, `Io` when the prefix or
@@ -62,7 +65,7 @@ impl InstallService {
             prefix_path,
             key,
             log,
-        } = run_blocking(move || prepare_run(&prepare_request, log_dir)).await?;
+        } = run_blocking(move || prepare_run(&prepare_request, &log_dir)).await?;
         let log_path = log.path.clone();
 
         let spec = JobSpec::new(INSTALL_GAME_JOB_KIND).with_key(key);
@@ -93,18 +96,17 @@ impl InstallService {
 
 /// Validates and provisions through core, derives the prefix key and creates
 /// the run's log file.
-fn prepare_run(request: &InstallGameRequest, log_dir: PathBuf) -> Result<PreparedRun, AppError> {
+fn prepare_run(request: &InstallGameRequest, log_dir: &LogDir) -> Result<PreparedRun, AppError> {
     let PreparedInstall {
         command,
         prefix_path,
     } = prepare_install(request).map_err(install_error)?;
     let (_, key) = prefix_job_key(&prefix_path.to_string_lossy())?;
     let (path, file) = create_log_file_in(
-        log_dir,
+        require(log_dir)?,
         "install",
         &slugify_target(&request.profile_name, "install"),
-    )
-    .map_err(|message| AppError::new(AppErrorKind::Io, message))?;
+    )?;
     Ok(PreparedRun {
         command,
         prefix_path,
@@ -146,6 +148,9 @@ async fn run_installer(
         move |batch| sink_ctx.log_batch(batch),
     )
     .await;
+    if child_was_stopped(&exit) || (exit.is_ok() && ctx.is_cancelled()) {
+        sweep_after_cancel(&ctx, prefix_path.clone()).await;
+    }
     let result = match exit {
         // Nothing was spawned and `started` was not sent: the outcome
         // becomes the error of `start` itself, no completion is read.

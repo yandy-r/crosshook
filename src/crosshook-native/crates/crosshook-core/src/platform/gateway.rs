@@ -12,28 +12,6 @@ use super::detect::{is_flatpak, normalize_flatpak_host_path};
 use super::host_fs::is_executable_file_sync;
 
 /// Creates a [`tokio::process::Command`] that executes on the host when
-/// running inside a Flatpak sandbox, and as a normal child process otherwise.
-///
-/// Inside Flatpak the returned command is equivalent to
-/// `flatpak-spawn --host <program>`; outside Flatpak it is `Command::new(program)`.
-///
-/// # Warning — env vars are silently dropped inside Flatpak
-///
-/// **Do NOT call `.env()` or `.envs()` on the `Command` returned by this
-/// function when running inside Flatpak.** `flatpak-spawn --host` does not
-/// forward env vars set on the `Command` object; they are silently ignored.
-/// Any env vars set this way will be absent from the spawned process, causing
-/// subtly wrong behaviour for Proton/Wine callers that depend on
-/// `STEAM_COMPAT_*`, `WINEPREFIX`, `MANGOHUD_CONFIG`, etc.
-///
-/// **Use [`host_command_with_env`] instead**, which threads env vars through
-/// `--env=KEY=VALUE` arguments automatically when inside Flatpak and falls
-/// back to `.envs()` outside Flatpak.
-pub fn host_command(program: &str) -> Command {
-    host_command_with(program, is_flatpak())
-}
-
-/// Creates a [`tokio::process::Command`] that executes on the host when
 /// running inside a Flatpak sandbox, and as a normal child process otherwise,
 /// forwarding the given environment variables correctly in both cases.
 ///
@@ -74,29 +52,6 @@ pub fn host_command_with_env_and_directory(
     )
 }
 
-/// Like [`host_command`], but binds the host process lifetime to the
-/// `flatpak-spawn` proxy.
-///
-/// Inside Flatpak the returned command is equivalent to
-/// `flatpak-spawn --host --watch-bus <program>`: `--watch-bus` makes Flatpak
-/// terminate the host process when the proxy dies, so killing or dropping the
-/// proxy on timeout, cancellation, or application shutdown also stops the host
-/// process. Outside Flatpak it is exactly `Command::new(program)`.
-///
-/// Supervised or cancellable jobs (`crosshook_app::jobs::supervise_child`)
-/// MUST build host commands with this function or
-/// [`host_command_with_env_and_directory_lifecycle`]; the non-lifecycle
-/// builders leave the host process running after the proxy is killed.
-///
-/// # Warning — env vars are silently dropped inside Flatpak
-///
-/// The same caveat as [`host_command`] applies: **do NOT call `.env()` or
-/// `.envs()`** on the returned `Command` inside Flatpak. Use
-/// [`host_command_with_env_and_directory_lifecycle`] to forward env vars.
-pub fn host_command_lifecycle(program: &str) -> Command {
-    host_command_lifecycle_with(program, is_flatpak())
-}
-
 /// Like [`host_command_with_env_and_directory`], but binds the host process
 /// lifetime to the `flatpak-spawn` proxy.
 ///
@@ -106,7 +61,7 @@ pub fn host_command_lifecycle(program: &str) -> Command {
 /// [`host_command_with_env_and_directory`].
 ///
 /// Supervised or cancellable jobs (`crosshook_app::jobs::supervise_child`)
-/// MUST build host commands with this function or [`host_command_lifecycle`].
+/// MUST build host commands with this function.
 pub fn host_command_with_env_and_directory_lifecycle(
     program: &str,
     envs: &BTreeMap<String, String>,
@@ -122,6 +77,7 @@ pub fn host_command_with_env_and_directory_lifecycle(
     )
 }
 
+#[cfg(test)]
 pub(crate) fn host_command_with(program: &str, flatpak: bool) -> Command {
     if flatpak {
         tracing::debug!(program, "wrapping command with flatpak-spawn --host");
@@ -133,6 +89,7 @@ pub(crate) fn host_command_with(program: &str, flatpak: bool) -> Command {
     }
 }
 
+#[cfg(test)]
 pub(super) fn host_command_lifecycle_with(program: &str, flatpak: bool) -> Command {
     if flatpak {
         tracing::debug!(
@@ -326,10 +283,10 @@ fn normalize_host_working_directory(directory: Option<&str>) -> Option<String> {
     }
 }
 
-/// Sync [`std::process::Command`] that runs on the host under Flatpak (see [`host_command`]).
+/// Sync [`std::process::Command`] that runs on the host under Flatpak.
 ///
 /// Do not call `.env()` / `.envs()` after construction in Flatpak; use
-/// [`host_std_command_with_env`] instead.
+/// [`host_std_command_with_env_and_directory`] instead.
 pub fn host_std_command(program: &str) -> StdCommand {
     host_std_command_with(program, is_flatpak())
 }
@@ -343,15 +300,6 @@ pub(crate) fn host_std_command_with(program: &str, flatpak: bool) -> StdCommand 
     } else {
         StdCommand::new(program)
     }
-}
-
-/// Like [`host_command_with_env`], but for synchronous [`std::process::Command`].
-pub fn host_std_command_with_env(
-    program: &str,
-    envs: &BTreeMap<String, String>,
-    custom_env_vars: &BTreeMap<String, String>,
-) -> StdCommand {
-    host_std_command_with_env_inner(program, envs, None, custom_env_vars, is_flatpak())
 }
 
 /// Like [`host_command_with_env_and_directory`], but for synchronous [`std::process::Command`].

@@ -3,7 +3,6 @@
 //! shapes, relays and event names live in `crosshook_app::ipc` and
 //! `crate::event_bridge`.
 
-pub mod background;
 pub mod bench;
 pub mod catalog;
 pub mod collections;

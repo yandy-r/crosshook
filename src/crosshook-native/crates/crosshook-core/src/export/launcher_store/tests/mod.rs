@@ -1,13 +1,9 @@
 mod check;
 mod delete;
 mod list;
-mod rename;
 
 use std::fs;
 use std::path::Path;
-
-use crate::export::launcher::SteamExternalLauncherExportRequest;
-use crate::profile::TrainerLoadingMode;
 
 use super::queries::check_launcher_exists;
 
@@ -53,22 +49,4 @@ pub(super) fn create_file_with_content(path: &str, content: &str) {
     let parent = Path::new(path).parent().expect("parent dir");
     fs::create_dir_all(parent).expect("create dirs");
     fs::write(path, content).expect("write file");
-}
-
-/// Helper: construct a minimal `SteamExternalLauncherExportRequest` for rename tests.
-pub(super) fn make_test_request() -> SteamExternalLauncherExportRequest {
-    SteamExternalLauncherExportRequest {
-        method: "proton_run".to_string(),
-        launcher_name: String::new(),
-        trainer_path: "/opt/trainers/TestTrainer.exe".to_string(),
-        trainer_loading_mode: TrainerLoadingMode::SourceDirectory,
-        launcher_icon_path: String::new(),
-        prefix_path: "/tmp/prefix".to_string(),
-        proton_path: "/opt/proton/proton".to_string(),
-        steam_app_id: String::new(),
-        steam_client_install_path: String::new(),
-        target_home_path: String::new(),
-        profile_name: None,
-        ..Default::default()
-    }
 }

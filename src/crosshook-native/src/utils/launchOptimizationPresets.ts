@@ -12,17 +12,3 @@ export const BUNDLED_PRESET_KEY_PREFIX = 'bundled/';
 export function bundledOptimizationTomlKey(presetId: string): string {
   return `${BUNDLED_PRESET_KEY_PREFIX}${presetId.trim()}`;
 }
-
-/** Returns true when the given preset key maps to a bundled catalog preset. */
-export function isBundledOptimizationPresetKey(key: string): boolean {
-  return key.startsWith(BUNDLED_PRESET_KEY_PREFIX);
-}
-
-/** Extracts the bundled preset id from its `[launch.presets]` key, or null. */
-export function extractBundledOptimizationPresetId(key: string): string | null {
-  if (!isBundledOptimizationPresetKey(key)) {
-    return null;
-  }
-  const id = key.slice(BUNDLED_PRESET_KEY_PREFIX.length).trim();
-  return id.length === 0 ? null : id;
-}

@@ -1,0 +1,6 @@
+# Backend events the browser-dev mocks deliberately never emit.
+# Format: <event-name> <reason>. A reason is required; scripts/check-mock-coverage.sh
+# fails on entries without one, on names the backend no longer emits, and on names
+# a mock handler already emits.
+startup-job-finished The mock startup report marks every job complete at t=0, so consumers take their already-complete path; failed/skipped/late paths are covered by Vitest.
+offline-readiness-scan-complete Legacy startup-job success event; the offline-readiness job is reported complete at t=0, and consumers read the startup report instead.

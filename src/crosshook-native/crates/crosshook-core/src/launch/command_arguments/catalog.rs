@@ -34,9 +34,6 @@ pub struct CommandArgumentEntry {
 
 #[derive(Debug, Deserialize)]
 struct RawCatalogFile {
-    #[serde(default)]
-    #[allow(dead_code)]
-    catalog_version: u32,
     #[serde(rename = "command_argument", default)]
     arguments: Vec<CommandArgumentEntry>,
 }
@@ -58,10 +55,6 @@ impl CommandArgumentCatalog {
 
     pub fn is_known_id(&self, id: &str) -> bool {
         self.entries.iter().any(|e| e.id == id)
-    }
-
-    pub fn find_by_id(&self, id: &str) -> Option<&CommandArgumentEntry> {
-        self.entries.iter().find(|e| e.id == id)
     }
 }
 

@@ -1,5 +1,6 @@
 //! C1: cancelling an install (only app shutdown does) terminates its whole
-//! process group and skips the restore: a restore started during shutdown
+//! process group and skips the restore; C2: it also sweeps processes that
+//! left the group but still use the prefix: a restore started during shutdown
 //! would outlive the process, so the `pending` row stays for startup
 //! recovery.
 
@@ -8,9 +9,10 @@ use std::os::unix::fs::OpenOptionsExt;
 
 use crosshook_core::prefix_deps::PrefixVersionRestoreState;
 
-use super::helpers::{read_calls, Harness, PROFILE};
-use super::install::{drain, gated_tool, packages, raw_prefix, wait_for_line};
-use crate::jobs::{JobEventKind, JobId, JobRegistry, Outcome};
+use super::helpers::{read_calls, Harness, ToolScript, PROFILE};
+use super::install::{drain, gated_tool, make_fifo, packages, raw_prefix, wait_for_line};
+use crate::jobs::{processes_using_prefix, JobEventKind, JobId, JobRegistry, Outcome};
+use crate::services::process::test_support::EscapeeFiles;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn c1_cancel_terminates_group_and_leaves_row_pending() {
@@ -60,5 +62,34 @@ async fn c1_cancel_terminates_group_and_leaves_row_pending() {
         .open(&fifo)
         .expect_err("the group member reading the fifo must be terminated");
     assert_eq!(error.raw_os_error(), Some(nix::libc::ENXIO));
+    assert_eq!(jobs.job_counts(), (0, 0));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn c2_cancel_sweeps_a_setsid_descendant_left_on_the_prefix() {
+    let h = Harness::new();
+    let files_dir = tempfile::tempdir().unwrap();
+    let escapee = EscapeeFiles::in_dir(files_dir.path());
+    let tool = h.tool(&ToolScript {
+        install_gate: Some(make_fifo(h.dir.path(), "gate")),
+        before_install: Some(escapee.script()),
+        ..ToolScript::default()
+    });
+    let jobs = JobRegistry::default();
+    let service = h.service(jobs.clone(), &tool);
+
+    let mut run = service
+        .start_install(PROFILE.to_string(), raw_prefix(&h), packages())
+        .await
+        .unwrap();
+    wait_for_line(&mut run, "installing dotnet48").await;
+    let escapee = escapee.attach().await;
+
+    jobs.cancel(&JobId::from_string(run.run_id())).unwrap();
+    let (_, completion) = drain(&mut run).await;
+
+    assert!(!completion.outcome.install_succeeded);
+    assert!(processes_using_prefix(h.pfx()).is_empty());
+    assert!(escapee.died().await, "the escapee survived the cancel");
     assert_eq!(jobs.job_counts(), (0, 0));
 }

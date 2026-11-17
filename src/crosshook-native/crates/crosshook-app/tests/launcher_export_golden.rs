@@ -1,4 +1,4 @@
-//! Golden byte compatibility for launcher export (YAN-847 Task 0.1, AC3).
+//! Golden byte compatibility for launcher export.
 //!
 //! Each case drives `LauncherExportService` (`export`, `preview_script`,
 //! `preview_desktop`) with a fixed request and compares the written script and desktop entry (plus the

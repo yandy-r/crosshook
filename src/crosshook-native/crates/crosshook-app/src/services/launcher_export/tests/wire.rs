@@ -3,7 +3,7 @@
 //! are pinned here next to the service that returns them.
 
 use crosshook_core::export::{
-    LauncherDeleteResult, LauncherInfo, LauncherRenameResult, SteamExternalLauncherExportRequest,
+    LauncherDeleteResult, LauncherInfo, SteamExternalLauncherExportRequest,
     SteamExternalLauncherExportResult,
 };
 
@@ -37,19 +37,6 @@ fn launcher_result_payloads_keep_snake_case_keys() {
             "script_deleted",
             "script_path",
             "script_skipped_reason",
-        ]
-    );
-    assert_eq!(
-        sorted_keys(&LauncherRenameResult::default()),
-        [
-            "desktop_entry_renamed",
-            "new_desktop_entry_path",
-            "new_script_path",
-            "new_slug",
-            "old_desktop_entry_cleanup_warning",
-            "old_script_cleanup_warning",
-            "old_slug",
-            "script_renamed",
         ]
     );
     assert_eq!(

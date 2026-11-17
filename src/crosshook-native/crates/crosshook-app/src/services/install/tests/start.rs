@@ -6,9 +6,11 @@ use std::fs;
 use crosshook_core::install::InstallGameResult;
 use tokio_util::sync::CancellationToken;
 
+use super::super::InstallService;
 use super::Fixture;
-use crate::jobs::JobRegistry;
+use crate::jobs::{processes_using_prefix, unusable_log_dir, JobRegistry};
 use crate::log_tail::LogBatch;
+use crate::services::process::test_support::EscapeeFiles;
 use crate::services::process::{
     prefix_job_key, prefix_job_key_for_path, ProcessRun, RunEvent, MSG_PREFIX_BUSY,
 };
@@ -171,6 +173,19 @@ async fn invalid_request_fails_before_any_job_or_provisioning() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_unusable_log_directory_fails_the_start_without_starting_a_job() {
+    let fixture = Fixture::new("exit 0");
+    let jobs = JobRegistry::default();
+    let service = InstallService::new(jobs.clone(), unusable_log_dir());
+
+    let error = service.start(fixture.request()).await.err().unwrap();
+
+    assert_eq!(error.kind(), AppErrorKind::Io);
+    assert_eq!(error.message(), "no private log directory available");
+    assert_eq!(jobs.job_counts(), (0, 0));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn second_install_on_the_same_prefix_conflicts_while_the_first_runs() {
     let fixture = Fixture::new("echo waiting\nread x < '@GATE@'\nexit 0");
     let jobs = JobRegistry::default();
@@ -213,6 +228,29 @@ async fn shutdown_cancels_the_installer() {
     let error = completion.unwrap_err();
     assert_eq!(error.kind(), AppErrorKind::Cancelled);
     assert_eq!(jobs.job_counts(), (0, 0));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn shutdown_sweeps_a_setsid_descendant_left_on_the_prefix() {
+    let files_dir = tempfile::tempdir().unwrap();
+    let escapee = EscapeeFiles::in_dir(files_dir.path());
+    let fixture = Fixture::new(&format!(
+        "export WINEPREFIX='@PREFIX@'\n{}\necho waiting\nread x < '@GATE@'\nexit 0",
+        escapee.script()
+    ));
+    let shutdown = CancellationToken::new();
+    let jobs = JobRegistry::for_app(tokio::runtime::Handle::current(), &shutdown);
+    let service = fixture.service(jobs.clone());
+
+    let mut run = service.start(fixture.request()).await.unwrap();
+    wait_for_line(&mut run, "waiting").await;
+    let escapee = escapee.attach().await;
+    shutdown.cancel();
+    let (_, completion) = drain(&mut run).await;
+
+    assert_eq!(completion.unwrap_err().kind(), AppErrorKind::Cancelled);
+    assert!(processes_using_prefix(&fixture.prefix).is_empty());
+    assert!(escapee.died().await, "the escapee survived the shutdown");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

@@ -68,6 +68,8 @@ pub(crate) struct ToolScript {
     pub rewrite_reg_on_restore: bool,
     /// When set, an install blocks reading this fifo until it is written.
     pub install_gate: Option<PathBuf>,
+    /// Shell lines an install runs before it announces itself.
+    pub before_install: Option<String>,
 }
 
 impl Default for ToolScript {
@@ -77,6 +79,7 @@ impl Default for ToolScript {
             restore_exit: 0,
             rewrite_reg_on_restore: true,
             install_gate: None,
+            before_install: None,
         }
     }
 }
@@ -109,8 +112,9 @@ pub(crate) fn fake_tool(dir: &Path, calls: &Path, script: &ToolScript) -> String
         .map(|fifo| format!("cat {} > /dev/null", shell_quote(fifo)))
         .unwrap_or_else(|| ":".to_string());
     let body = format!(
-        "#!/bin/sh\nprintf '%s\\n' \"$*\" >> {calls}\nlast=''\nfor arg in \"$@\"; do last=\"$arg\"; done\ncase \"$last\" in\n  win7) {win7}; echo 'restore error at /home/someone/secret' >&2; exit {restore};;\n  win10) {win10}; echo 'restore error at /home/someone/secret' >&2; exit {restore};;\nesac\necho \"installing $last\"\necho \"install warning $last\" >&2\n{gate}\nexit {install}\n",
+        "#!/bin/sh\nprintf '%s\\n' \"$*\" >> {calls}\nlast=''\nfor arg in \"$@\"; do last=\"$arg\"; done\ncase \"$last\" in\n  win7) {win7}; echo 'restore error at /home/someone/secret' >&2; exit {restore};;\n  win10) {win10}; echo 'restore error at /home/someone/secret' >&2; exit {restore};;\nesac\n{before}\necho \"installing $last\"\necho \"install warning $last\" >&2\n{gate}\nexit {install}\n",
         calls = shell_quote(calls),
+        before = script.before_install.as_deref().unwrap_or(":"),
         restore = script.restore_exit,
         install = script.install_exit,
     );
@@ -289,7 +293,7 @@ impl Harness {
             restorer,
             in_use,
             probe,
-            self.dir.path().join("logs"),
+            crate::jobs::test_log_dir(self.dir.path()),
         )
     }
 }

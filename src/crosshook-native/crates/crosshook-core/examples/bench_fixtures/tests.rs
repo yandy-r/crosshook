@@ -67,6 +67,48 @@ fn full_fixture_metadata_is_byte_identical() {
 }
 
 #[test]
+fn full_fixture_feeds_the_300_row_health_table() {
+    // The live health table lists every profile except `<unknown>` under its default `all`
+    // filter. 300 is the probe's threshold: keep it in step with `HEALTH_MIN_ROWS` in
+    // `healthTable.ts`.
+    const HEALTH_MIN_ROWS: usize = 300;
+    let d = tmp();
+    let out = gen_into(d.path(), &BenchConfig::full(42));
+    let layout = Layout::new(&out);
+
+    let names = ProfileStore::with_base_path(layout.profiles_dir.clone())
+        .list()
+        .unwrap();
+    assert!(
+        names.len() >= HEALTH_MIN_ROWS,
+        "only {} profiles listed, need >= {HEALTH_MIN_ROWS}",
+        names.len()
+    );
+    assert!(
+        !names.iter().any(|n| n == "<unknown>"),
+        "a profile is named <unknown>"
+    );
+
+    let store = MetadataStore::with_path(&layout.metadata_db).unwrap();
+    store
+        .with_sqlite_conn("health rows", |c| {
+            let mut stmt = c
+                .prepare(
+                    "SELECT COUNT(*) FROM health_snapshots h \
+                     JOIN profiles p ON p.profile_id = h.profile_id \
+                     WHERE p.current_filename = ?1",
+                )
+                .unwrap();
+            for name in &names {
+                let rows: i64 = stmt.query_row([name], |r| r.get(0)).unwrap();
+                assert_eq!(rows, 1, "profile {name} has no health_snapshots row");
+            }
+            Ok(())
+        })
+        .unwrap();
+}
+
+#[test]
 fn different_seed_differs() {
     let (a, b) = (tmp(), tmp());
     let ta = gen_into(a.path(), &BenchConfig::reduced(1));

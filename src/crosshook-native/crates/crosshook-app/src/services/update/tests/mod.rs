@@ -8,7 +8,7 @@ use crosshook_core::update::UpdateGameRequest;
 use tempfile::TempDir;
 
 use super::{UpdateCompletion, UpdateService};
-use crate::jobs::JobRegistry;
+use crate::jobs::{test_log_dir, JobRegistry};
 use crate::log_tail::LogBatch;
 use crate::services::process::{ProcessRun, RunEvent};
 
@@ -37,9 +37,10 @@ impl Fixture {
         std::fs::create_dir(&updater_dir).unwrap();
         let updater = updater_dir.join("patch.exe");
         std::fs::write(&updater, b"MZ").unwrap();
-        let log_dir = root.join("logs");
+        let log = test_log_dir(&root);
+        let log_dir = log.as_ref().expect("usable log dir").path().to_path_buf();
         let jobs = JobRegistry::default();
-        let service = UpdateService::with_log_dir(jobs.clone(), log_dir.clone());
+        let service = UpdateService::new(jobs.clone(), log);
         Self {
             dir,
             jobs,

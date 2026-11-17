@@ -3,8 +3,7 @@ use std::path::Path;
 
 use crate::launch::request::RuntimeLaunchConfig;
 use crate::launch::runtime_helpers::proton_command::{
-    build_direct_proton_command_lifecycle_with, build_direct_proton_command_with_wrappers,
-    build_gamescope_args, build_proton_command_with_gamescope,
+    build_direct_proton_command_lifecycle_with, build_gamescope_args,
     build_proton_command_with_gamescope_pid_capture_in_directory_inner,
     collect_pressure_vessel_paths,
 };
@@ -187,81 +186,7 @@ fn collect_pressure_vessel_paths_root_directory_preserved() {
 }
 
 #[test]
-fn direct_proton_command_skips_empty_wrappers() {
-    let command = build_direct_proton_command_with_wrappers(
-        "/run/host/usr/share/steam/compatibilitytools.d/proton/proton",
-        &["   ".to_string(), " \t ".to_string()],
-        &BTreeMap::new(),
-    );
-
-    assert_eq!(
-        command.as_std().get_program(),
-        "/usr/share/steam/compatibilitytools.d/proton/proton"
-    );
-    let args = command
-        .as_std()
-        .get_args()
-        .map(|arg| arg.to_string_lossy().into_owned())
-        .collect::<Vec<_>>();
-    assert_eq!(args, vec!["run".to_string()]);
-}
-
-#[test]
-fn direct_proton_command_normalizes_wrappers_and_proton_path() {
-    let command = build_direct_proton_command_with_wrappers(
-        "/run/host/usr/share/steam/compatibilitytools.d/proton/proton",
-        &[
-            " /run/host/usr/bin/env ".to_string(),
-            " /run/host/usr/bin/mangohud ".to_string(),
-        ],
-        &BTreeMap::new(),
-    );
-
-    assert_eq!(command.as_std().get_program(), "/usr/bin/env");
-    let args = command
-        .as_std()
-        .get_args()
-        .map(|arg| arg.to_string_lossy().into_owned())
-        .collect::<Vec<_>>();
-    assert_eq!(
-        args,
-        vec![
-            "/usr/bin/mangohud".to_string(),
-            "/usr/share/steam/compatibilitytools.d/proton/proton".to_string(),
-            "run".to_string(),
-        ]
-    );
-}
-
-#[test]
-fn gamescope_proton_command_normalizes_wrappers_and_proton_path() {
-    let command = build_proton_command_with_gamescope(
-        "/run/host/usr/share/steam/compatibilitytools.d/proton/proton",
-        &[" /run/host/usr/bin/mangohud ".to_string()],
-        &["-f".to_string()],
-        &BTreeMap::new(),
-    );
-
-    assert_eq!(command.as_std().get_program(), "gamescope");
-    let args = command
-        .as_std()
-        .get_args()
-        .map(|arg| arg.to_string_lossy().into_owned())
-        .collect::<Vec<_>>();
-    assert_eq!(
-        args,
-        vec![
-            "-f".to_string(),
-            "--".to_string(),
-            "/usr/bin/mangohud".to_string(),
-            "/usr/share/steam/compatibilitytools.d/proton/proton".to_string(),
-            "run".to_string(),
-        ]
-    );
-}
-
-#[test]
-fn flatpak_gamescope_pid_capture_command_creates_parent_directory_on_host() {
+fn flatpak_gamescope_pid_capture_command_runs_capture_script_on_host() {
     let command = build_proton_command_with_gamescope_pid_capture_in_directory_inner(
         "/run/host/usr/share/steam/compatibilitytools.d/proton/proton",
         &[" /run/host/usr/bin/mangohud ".to_string()],
@@ -269,7 +194,9 @@ fn flatpak_gamescope_pid_capture_command_creates_parent_directory_on_host() {
         &BTreeMap::new(),
         None,
         &BTreeMap::new(),
-        Some(Path::new("/tmp/crosshook-logs/game.gamescope.pid")),
+        Some(Path::new(
+            "/run/user/1000/crosshook/logs/game.gamescope.pid",
+        )),
         true,
         false,
     );
@@ -289,7 +216,7 @@ fn flatpak_gamescope_pid_capture_command_creates_parent_directory_on_host() {
             "-c".to_string(),
             FLATPAK_GAMESCOPE_PID_CAPTURE_SCRIPT.to_string(),
             "bash".to_string(),
-            "/tmp/crosshook-logs/game.gamescope.pid".to_string(),
+            "/run/user/1000/crosshook/logs/game.gamescope.pid".to_string(),
             "gamescope".to_string(),
             "-f".to_string(),
             "--".to_string(),
@@ -412,4 +339,89 @@ fn lifecycle_proton_command_native_sets_working_directory() {
         command.as_std().get_current_dir(),
         Some(Path::new("/tmp/installer"))
     );
+}
+
+/// Runs the capture script under `shell`, with `true` as the exec'd command.
+fn run_pid_capture(shell: &str, capture: &Path) -> std::process::ExitStatus {
+    std::process::Command::new(shell)
+        .arg("-c")
+        .arg(FLATPAK_GAMESCOPE_PID_CAPTURE_SCRIPT)
+        .arg(shell)
+        .arg(capture)
+        .arg("true")
+        .status()
+        .expect("spawn capture script")
+}
+
+#[test]
+fn pid_capture_script_records_pid_in_new_file_and_execs() {
+    for shell in ["bash", "sh"] {
+        let dir = tempfile::tempdir().unwrap();
+        let capture = dir.path().join("game.gamescope.pid");
+
+        assert!(run_pid_capture(shell, &capture).success(), "{shell}");
+
+        let recorded = std::fs::read_to_string(&capture).unwrap();
+        assert!(recorded.parse::<u32>().is_ok(), "{shell}: {recorded:?}");
+    }
+}
+
+#[test]
+fn pid_capture_script_refuses_existing_file() {
+    for shell in ["bash", "sh"] {
+        let dir = tempfile::tempdir().unwrap();
+        let capture = dir.path().join("game.gamescope.pid");
+        std::fs::write(&capture, "keep").unwrap();
+
+        let status = run_pid_capture(shell, &capture);
+
+        assert_eq!(status.code(), Some(125), "{shell}");
+        assert_eq!(std::fs::read_to_string(&capture).unwrap(), "keep");
+    }
+}
+
+#[test]
+fn pid_capture_script_refuses_symlink_and_leaves_target_untouched() {
+    for shell in ["bash", "sh"] {
+        let dir = tempfile::tempdir().unwrap();
+        let victim = dir.path().join("victim");
+        std::fs::write(&victim, "keep").unwrap();
+        let capture = dir.path().join("game.gamescope.pid");
+        std::os::unix::fs::symlink(&victim, &capture).unwrap();
+
+        let status = run_pid_capture(shell, &capture);
+
+        assert_eq!(status.code(), Some(125), "{shell}");
+        assert_eq!(std::fs::read_to_string(&victim).unwrap(), "keep");
+    }
+}
+
+#[test]
+fn pid_capture_script_refuses_dangling_symlink_without_creating_target() {
+    for shell in ["bash", "sh"] {
+        let dir = tempfile::tempdir().unwrap();
+        let victim = dir.path().join("victim");
+        let capture = dir.path().join("game.gamescope.pid");
+        std::os::unix::fs::symlink(&victim, &capture).unwrap();
+
+        let status = run_pid_capture(shell, &capture);
+
+        assert_eq!(status.code(), Some(125), "{shell}");
+        assert!(!victim.exists());
+    }
+}
+
+#[test]
+fn pid_capture_script_refuses_symlink_to_fifo_without_blocking() {
+    for shell in ["bash", "sh"] {
+        let dir = tempfile::tempdir().unwrap();
+        let fifo = dir.path().join("fifo");
+        nix::unistd::mkfifo(&fifo, nix::sys::stat::Mode::from_bits_truncate(0o600)).unwrap();
+        let capture = dir.path().join("game.gamescope.pid");
+        std::os::unix::fs::symlink(&fifo, &capture).unwrap();
+
+        let status = run_pid_capture(shell, &capture);
+
+        assert_eq!(status.code(), Some(125), "{shell}");
+    }
 }

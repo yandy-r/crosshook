@@ -4,10 +4,6 @@ mod scan;
 mod types;
 
 pub use apply::prepare_profile_migration;
-pub use proton::{
-    extract_name_from_proton_path, extract_proton_family, extract_version_segments,
-    find_best_replacement,
-};
 pub use scan::scan_proton_migrations;
 pub use types::{
     ApplyMigrationRequest, BatchMigrationRequest, BatchMigrationResult, MigrationApplyResult,

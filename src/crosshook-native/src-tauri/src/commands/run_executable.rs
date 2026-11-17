@@ -14,10 +14,6 @@ use crate::error_map::RunCommandError;
 use crate::event_bridge::relay_run_executable;
 
 // Only pass the label of the injected invoking webview, never a JS argument.
-fn run_owner(label: &str) -> JobOwner {
-    JobOwner::new(label)
-}
-
 #[tauri::command]
 pub async fn validate_run_executable_request(
     request: RunExecutableRequest,
@@ -43,7 +39,7 @@ pub async fn run_executable(
     let (response, run) = app
         .services()
         .run_executable
-        .start(run_owner(webview.label()), request)
+        .start(JobOwner::new(webview.label()), request)
         .await
         .map_err(RunCommandError::from)?;
     relay_run_executable(handle, run);
@@ -60,7 +56,7 @@ pub async fn cancel_run_executable(
 ) -> Result<(), RunCommandError> {
     app.services()
         .run_executable
-        .cancel(&run_owner(webview.label()));
+        .cancel(&JobOwner::new(webview.label()));
     Ok(())
 }
 
@@ -74,25 +70,6 @@ pub async fn stop_run_executable(
 ) -> Result<(), RunCommandError> {
     app.services()
         .run_executable
-        .stop(&run_owner(webview.label()));
+        .stop(&JobOwner::new(webview.label()));
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn run_owner_is_derived_from_the_webview_label() {
-        assert_eq!(run_owner("main"), JobOwner::new("main"));
-        assert_ne!(run_owner("main"), run_owner("other"));
-    }
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        let _ = validate_run_executable_request;
-        let _ = run_executable;
-        let _ = cancel_run_executable;
-        let _ = stop_run_executable;
-    }
 }

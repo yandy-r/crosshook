@@ -117,7 +117,7 @@ The following patterns are explicitly allowed, because they pair every non-gatew
 `scripts/check-host-gateway.sh` is a **lexical** guard. It scans `*.rs` files (excluding any `tests/` directory) under these `src` roots in `src/crosshook-native/`; absent roots are skipped so future crates need no script change:
 
 - `crates/crosshook-core/src`, `src-tauri/src`
-- `crates/crosshook-app/src`, `crates/crosshook-ui/src`, `crates/crosshook-widgets/src`, `crates/crosshook-view-model/src`
+- `crates/crosshook-app/src`, `crates/crosshook-cli/src`, `crates/crosshook-ui/src`, `crates/crosshook-widgets/src`, `crates/crosshook-view-model/src`
 
 The only exclusion is the explicit gateway file `crates/crosshook-core/src/platform/gateway.rs`. The script errors if that file is missing or is a symlink; there is no blanket `platform/` exclusion, so siblings such as `platform/portals/` are scanned. Symlink policy is fail-closed but not overbroad: symlinked scan roots, symlinked directories inside the scanned tree, and symlinked `.rs` sources (dangling included) are rejected rather than silently skipped (default `find` does not follow them, which would report a false "clean"); non-Rust asset symlinks and anything under `tests/` are allowed. A dangling non-`.rs` symlink cannot be classified as a directory and is treated as an asset. Scan errors (`rg`/`grep` status > 1, non-directory scan root) fail the check rather than being hidden.
 
@@ -178,9 +178,5 @@ ADR-0002 does **not** add tools to the denylist, does **not** reshape the gatewa
 
 ## References
 
-- `docs/research/flatpak-bundling/06-archaeological.md` — per-tool architecture audit; confirms `platform.rs` as the single abstraction gateway
-- `docs/research/flatpak-bundling/13-opportunities.md` — AO-1: protect the `platform.rs` abstraction
-- `docs/research/flatpak-bundling/14-recommendations.md` — Phase 1 task 1.7: add ADR and CI lint
-- `docs/research/flatpak-bundling/10-evidence.md` — Tier 1 claims #1, #8, #11: source-code-verified facts about CrossHook's architecture
 - Issue #273 (this ADR); parent tracker #276 (Flatpak distribution)
 - ADR-0002 — Flatpak portal contracts: `docs/architecture/adr-0002-flatpak-portal-contracts.md` (additive; portal D-Bus integrations)

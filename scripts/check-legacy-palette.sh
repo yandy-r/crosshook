@@ -3,7 +3,7 @@
 # check-legacy-palette.sh — flag legacy Microsoft-blue accent / bg color literals
 # anywhere under src/crosshook-native/src/.
 #
-# Phase 2 of the Unified Desktop Redesign (docs/prps/prds/unified-desktop-redesign.prd.md)
+# Phase 2 of the Unified Desktop Redesign
 # swaps the old `#0078d4 / #2da3ff / #1a1a2e / #20243d / #12172a` palette for the
 # steel-blue tokens defined in src/crosshook-native/src/styles/variables.css.
 #
@@ -20,7 +20,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Legacy literals that must not appear anywhere inside the scan roots.
-# Keep the list in sync with docs/internal-docs/design-tokens.md and the PRD.
+# Keep the list in sync with docs/internal-docs/design-tokens.md.
 LEGACY_PATTERNS=(
   '#0078d4'
   '#2da3ff'

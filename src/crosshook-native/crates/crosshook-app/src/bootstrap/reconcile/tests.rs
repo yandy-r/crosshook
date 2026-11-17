@@ -13,7 +13,7 @@ fn store_pair() -> (SettingsStore, ProfileStore) {
     (settings_store, profile_store)
 }
 
-// ---- auto-load resolution (moved from src-tauri/src/startup.rs) -----------
+// ---- auto-load resolution -----------
 
 #[test]
 fn returns_none_when_auto_load_is_disabled() {

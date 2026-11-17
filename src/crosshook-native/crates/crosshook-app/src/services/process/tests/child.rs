@@ -12,7 +12,9 @@ use tokio::process::Command;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
-use crate::jobs::{create_log_file_in, JobContext, JobId, JobRegistry, JobSpec, Outcome};
+use crate::jobs::{
+    create_log_file_in, test_log_dir, JobContext, JobId, JobRegistry, JobSpec, Outcome,
+};
 use crate::log_tail::LogBatch;
 use crate::services::process::child::{
     exit_code_and_signal, run_child, ChildError, ChildOutput, LogFile, DRAIN_GRACE,
@@ -35,7 +37,8 @@ async fn start_sh(
     output: ChildOutput,
     kill: CancellationToken,
 ) -> (ProcessRun<Completion>, PathBuf) {
-    let (path, file) = create_log_file_in(dir.to_path_buf(), "test", "child").unwrap();
+    let log_dir = test_log_dir(dir);
+    let (path, file) = create_log_file_in(log_dir.as_deref().unwrap(), "test", "child").unwrap();
     let log_path = path.clone();
     let mut command = Command::new("sh");
     command.arg("-c").arg(script).args(args);
@@ -324,7 +327,8 @@ fn start_failing(
     command: Command,
     before: impl FnOnce(JobContext) -> Before + Send + 'static,
 ) -> StartingRun<()> {
-    let (path, file) = create_log_file_in(dir.to_path_buf(), "test", "child").unwrap();
+    let log_dir = test_log_dir(dir);
+    let (path, file) = create_log_file_in(log_dir.as_deref().unwrap(), "test", "child").unwrap();
     start_run(
         jobs,
         JobSpec::new("test-child"),

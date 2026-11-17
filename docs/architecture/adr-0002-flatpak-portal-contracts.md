@@ -1,7 +1,7 @@
 # ADR-0002: Flatpak portal contracts — GameMode and Background
 
 **Status**: Accepted — 2026-04-17
-**Supersedes / extends**: [ADR-0001 — `platform.rs` host-command gateway](./adr-0001-platform-host-gateway.md) (additive; no behaviour change to ADR-0001)
+**Supersedes / extends**: [ADR-0001 — `platform/` host-command gateway](./adr-0001-platform-host-gateway.md) (additive; no behaviour change to ADR-0001)
 
 ---
 
@@ -12,7 +12,7 @@ CrossHook is packaged as a Flatpak (target tracked under [#276]) and launches Wi
 1. **`org.freedesktop.portal.GameMode`** — the one gaming tool in the ecosystem with a real sandbox-to-host bridge. It lets CrossHook register **its own sandbox-side PID** with the host's `gamemoded` daemon. The games CrossHook launches on the host already talk to `gamemoded` through `gamemoderun` — that path is unchanged.
 2. **`org.freedesktop.portal.Background.RequestBackground`** — the only mechanism that prevents `xdg-desktop-portal` from reaping a sandboxed process when the user minimizes its window. CrossHook runs a sandbox-side `gamescope_watchdog` that supervises long-running host gameplay; losing that task leaks the compositor.
 
-[`docs/research/flatpak-bundling/15-gamemode-and-background-ground-truth.md`](../research/flatpak-bundling/15-gamemode-and-background-ground-truth.md) documents the verified current state: neither portal is called anywhere in the repo today, and the manifest does not request access to them.
+The Flatpak bundling research documents the verified current state: neither portal is called anywhere in the repo today, and the manifest does not request access to them.
 
 This ADR defines the Rust contracts that encode these two portal integrations so every future launch path consults one owner per concern rather than scattering portal checks across `launch/`, `src-tauri/`, and `onboarding/`.
 
@@ -194,16 +194,16 @@ pub enum BackgroundError {
 
 ### Call-site table
 
-| Call site                                                                                           | Action                                                                                              | Contract function                                                        |
-| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| Tauri `.setup(...)` closure in `src-tauri/src/lib.rs`                                               | Spawn one task: `BackgroundGrantHolder::request_and_store(&XdgBackgroundPortal)` → `store_result`   | `request_background`                                                     |
-| `spawn_cancel_consumer` in `crates/crosshook-app/src/services/launch/gamescope.rs`                  | Spawn a sibling task that awaits `wait_for_initialization(500ms)` and logs the resolved grant state | `background_supported`, `BackgroundGrantHolder::wait_for_initialization` |
-| (Future) Portal `Running` signal handler                                                            | If the portal revokes background and the watchdog is still active, re-request once                  | `request_background`                                                     |
-| Synthetic `background_protection` capability, exposed via `get_background_protection_state` command | Derive the dashboard row from `protection_state()` — `Pending` surfaces as an indeterminate row     | `background_supported`, `BackgroundGrantHolder::protection_state`        |
+| Call site                                                                                             | Action                                                                                              | Contract function                                                        |
+| ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Tauri `.setup(...)` closure in `src-tauri/src/lib.rs`                                                 | Spawn one task: `BackgroundGrantHolder::request_and_store(&XdgBackgroundPortal)` → `store_result`   | `request_background`                                                     |
+| `spawn_cancel_consumer` in `crates/crosshook-app/src/services/launch/gamescope.rs`                    | Spawn a sibling task that awaits `wait_for_initialization(500ms)` and logs the resolved grant state | `background_supported`, `BackgroundGrantHolder::wait_for_initialization` |
+| (Future) Portal `Running` signal handler                                                              | If the portal revokes background and the watchdog is still active, re-request once                  | `request_background`                                                     |
+| Synthetic `background_protection` capability, exposed via `BackgroundGrantHolder::protection_state()` | Derive the dashboard row from `protection_state()` — `Pending` surfaces as an indeterminate row     | `background_supported`, `BackgroundGrantHolder::protection_state`        |
 
 ### Scope boundaries
 
-- **CrossHook itself, not host games.** `RequestBackground` is a sandbox-scoped contract: it tells the portal "do not reap my sandbox process." Host games run outside the sandbox and are never passed to this API. This aligns with [`docs/research/flatpak-bundling/12-risks.md`](../research/flatpak-bundling/12-risks.md) §1 Correction 2.
+- **CrossHook itself, not host games.** `RequestBackground` is a sandbox-scoped contract: it tells the portal "do not reap my sandbox process." Host games run outside the sandbox and are never passed to this API. This aligns with the Flatpak bundling research §1 Correction 2.
 - **No autostart.** CrossHook is not a system daemon. We pass `autostart: false` unconditionally; the user launches CrossHook explicitly.
 - **No singleton.** We explicitly do not install a global static `BackgroundGrant`. Ownership sits in Tauri's managed state so tests can construct a sandbox without leaking tokio tasks.
 - **Fake-able seam for tests.** The portal call goes through the `BackgroundPortal` trait in `crosshook-app` (`supported()`, async `request(reason, autostart)`) with the live `XdgBackgroundPortal` impl; unit tests inject a fake portal and grant handle without touching D-Bus.
@@ -221,7 +221,7 @@ A new synthetic capability `background_protection` joins the existing host-tool 
 
 This integrates cleanly with `crosshook-core/src/onboarding/capability.rs::check_generalized_readiness` — it's derived state, not a persisted column, so **no SQLite schema change is required** (schema v21 unchanged).
 
-> **UI integration deferred.** The `get_background_protection_state` Tauri command (in `src-tauri/src/commands/background.rs`, backed by `BackgroundGrantHolder` in `crates/crosshook-app/src/services/background.rs`) is registered and present in `.invoke_handler`, but no TypeScript consumer currently calls it. Wiring the dashboard row is tracked as a follow-up frontend task.
+> **UI integration deferred.** The `get_background_protection_state` Tauri command was removed in the no-caller IPC cleanup because no TypeScript consumer called it. `BackgroundGrantHolder` in `crates/crosshook-app/src/services/background.rs` still resolves the state for the startup report. Wiring the dashboard row is tracked as a follow-up frontend task.
 
 ### Error handling
 
@@ -275,10 +275,6 @@ Added for YAN-855 (picked host path resolution). A file or folder picked through
 
 ## References
 
-- [`docs/research/flatpak-bundling/15-gamemode-and-background-ground-truth.md`](../research/flatpak-bundling/15-gamemode-and-background-ground-truth.md) — verified current state (tasks 1.1–1.3 of [#271]).
-- [`docs/research/flatpak-bundling/10-evidence.md`](../research/flatpak-bundling/10-evidence.md) Tier 1 #4 — GameMode portal evidence.
-- [`docs/research/flatpak-bundling/12-risks.md`](../research/flatpak-bundling/12-risks.md) §1 Correction 2 / P-T2 — scope boundaries.
-- [`docs/research/flatpak-bundling/14-recommendations.md`](../research/flatpak-bundling/14-recommendations.md) Phase 1 row 1.4, Phase 2 row 2.4.
 - [`docs/architecture/adr-0001-platform-host-gateway.md`](./adr-0001-platform-host-gateway.md) — host-tool gateway contract (unchanged).
 - Issue [#271] (this ADR); parent tracker [#276] (Flatpak distribution); related [#269], [#273].
 

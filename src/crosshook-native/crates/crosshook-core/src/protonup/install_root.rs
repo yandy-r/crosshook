@@ -344,7 +344,7 @@ mod tests {
     ///
     /// Root bypasses directory permission bits via `DAC_OVERRIDE`, so any
     /// assertion that a `0o555` directory is *un*writable is meaningless under
-    /// root (e.g. the Forgejo `act_runner` container, which executes jobs as
+    /// root (for example a CI container that runs jobs as
     /// root). Such assertions are skipped in that environment.
     fn running_as_root() -> bool {
         // SAFETY: `geteuid` is always successful and has no preconditions.
@@ -462,7 +462,7 @@ mod tests {
         if running_as_root() {
             // Root ignores the `0o555` mode via DAC_OVERRIDE, so the probe would
             // succeed and the read-only assertion cannot hold. Skip in that
-            // environment (e.g. the Forgejo container runner).
+            // environment (for example a CI container runner).
             eprintln!(
                 "skipping resolver_marks_unwritable_flatpak_path_with_reason: \
                  read-only directory permissions do not restrict root"

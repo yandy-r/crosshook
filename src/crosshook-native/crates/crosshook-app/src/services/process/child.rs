@@ -29,7 +29,8 @@ pub(crate) enum ChildOutput {
 }
 
 /// The run's log file: its path and the open handle returned by
-/// `create_log_file_in` (never reopened by path for writing, D11).
+/// `create_log_file_in`, created relative to the private log directory handle
+/// (never reopened by path for writing, D11).
 pub(crate) struct LogFile {
     pub(crate) path: PathBuf,
     pub(crate) file: std::fs::File,

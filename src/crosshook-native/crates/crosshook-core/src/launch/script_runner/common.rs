@@ -45,8 +45,20 @@ pub(super) fn prepare_gamescope_launch(
     (gamescope_args, filtered_wrappers)
 }
 
+/// Returns the gamescope PID capture path for a launch log.
+///
+/// Invariant: the path is a sibling of `log_path`, so it is only safe when the log was
+/// created in a verified private directory. The capture script creates it exclusively
+/// (no overwrite, no symlink following) and never creates the directory.
 pub fn gamescope_pid_capture_path(log_path: &Path) -> PathBuf {
     PathBuf::from(format!("{}.gamescope.pid", log_path.to_string_lossy()))
+}
+
+/// The capture file a gamescope-wrapped launch writes, shared by the game and
+/// trainer builders: only a sandboxed launch needs one, because only there is
+/// gamescope's host PID unknown. Mirrors the service's `pid_capture_required`.
+pub(super) fn gamescope_pid_capture_for(log_path: &Path, flatpak: bool) -> Option<PathBuf> {
+    flatpak.then(|| gamescope_pid_capture_path(log_path))
 }
 
 pub(super) fn should_skip_gamescope(config: &GamescopeConfig) -> bool {

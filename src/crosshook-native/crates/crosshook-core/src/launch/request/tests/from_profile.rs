@@ -226,7 +226,6 @@ fn steam_flatpak_trainer_matches_equivalent_proton_run_trainer() {
     let compatdata = temp_dir.path().join("compatdata");
     let proton = temp_dir.path().join("proton");
     let working_directory = temp_dir.path().join("workdir");
-    let log_path = temp_dir.path().join("trainer.log");
     let steam_client_root = temp_dir.path().join("steam-root");
     std::fs::create_dir_all(compatdata.join("pfx/drive_c")).expect("compatdata");
     std::fs::create_dir_all(&working_directory).expect("workdir");
@@ -288,10 +287,15 @@ fn steam_flatpak_trainer_matches_equivalent_proton_run_trainer() {
         proton_request.resolved_trainer_gamescope()
     );
     let steam_command =
-        build_flatpak_steam_trainer_command(&steam_request, &log_path).expect("steam trainer");
+        build_flatpak_steam_trainer_command(&steam_request, std::path::Path::new(TEST_TRAINER_LOG))
+            .expect("steam trainer");
     let proton_command =
-        build_proton_trainer_command(&proton_request, &log_path).expect("proton trainer");
+        build_proton_trainer_command(&proton_request, std::path::Path::new(TEST_TRAINER_LOG))
+            .expect("proton trainer");
     let steam_shape = shape(&steam_command);
     assert_eq!(steam_shape, shape(&proton_command));
     assert_eq!(steam_shape.current_dir, Some(working_directory));
 }
+
+/// Log path for builders that only derive a capture path from it.
+const TEST_TRAINER_LOG: &str = "/tmp/crosshook-test-trainer.log";

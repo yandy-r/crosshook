@@ -1,4 +1,4 @@
-//! Version snapshot and known-good tag tests (Task 2.4).
+//! Version snapshot and known-good tag tests.
 //!
 //! These call `record_success_effects` directly (the success gate lives in the
 //! finalizer): a profile present in metadata gets a version snapshot and its

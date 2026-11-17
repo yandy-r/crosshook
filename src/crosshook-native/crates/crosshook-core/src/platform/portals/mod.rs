@@ -16,10 +16,9 @@
 //!   `user.document-portal.host-path` xattr is missing. Read-only, no
 //!   permission prompt, 2 s timeout.
 //!
-//! Pure decision helpers (`resolve_backend`, `background_supported`) are
-//! unit-testable; the D-Bus entry points (`portal_available`,
-//! `request_background`) are guarded by `is_flatpak()` and documented as
-//! requiring a live session bus.
+//! `background_supported` is unit-testable. The D-Bus entry points
+//! (`probe_and_register_via_portal`, `request_background`) are guarded by
+//! `is_flatpak()` and need a live session bus.
 
 pub mod background;
 pub(crate) mod documents;

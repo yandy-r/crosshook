@@ -24,7 +24,7 @@ use tracing::{info, warn};
 use crate::platform::{is_flatpak, SystemEnv};
 
 /// Returns `true` when the user has explicitly opted into Flatpak host-XDG
-/// shared mode (the legacy Phase 1 behavior) via `CROSSHOOK_FLATPAK_HOST_XDG`.
+/// shared mode (the legacy behavior) via `CROSSHOOK_FLATPAK_HOST_XDG`.
 ///
 /// Accepts `"1"` or any case variant of `"true"`, trimmed. Anything else —
 /// including unset, `"0"`, `"false"`, or empty — leaves per-app isolation

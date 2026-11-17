@@ -62,6 +62,13 @@ export function isPrefixBusy(status: PrefixVersionRepairStatus): boolean {
  */
 export type PrefixVersionRestoreOutcomeState = 'not_required' | 'succeeded' | 'failed' | 'pending';
 
+/** Payload of one `prefix-dep-log` line. */
+export interface PrefixDepLogPayload {
+  profile_name: string;
+  prefix_path: string;
+  line: string;
+}
+
 /** Payload emitted when dependency installation and compatibility restoration finish. */
 export interface PrefixDepCompletePayload {
   profile_name: string;

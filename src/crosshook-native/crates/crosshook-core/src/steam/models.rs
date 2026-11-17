@@ -51,14 +51,6 @@ pub struct SteamAutoPopulateResult {
     pub manual_hints: Vec<String>,
 }
 
-impl SteamAutoPopulateResult {
-    pub fn has_any_match(&self) -> bool {
-        matches!(self.app_id_state, SteamAutoPopulateFieldState::Found)
-            || matches!(self.compatdata_state, SteamAutoPopulateFieldState::Found)
-            || matches!(self.proton_state, SteamAutoPopulateFieldState::Found)
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct SteamAutoPopulateRequest {
     #[serde(default)]

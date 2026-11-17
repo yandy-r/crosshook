@@ -108,7 +108,6 @@ pub enum DiagnosticBundleError {
         source: io::Error,
     },
     Archive(String),
-    ProfileStore(String),
 }
 
 impl Display for DiagnosticBundleError {
@@ -120,7 +119,6 @@ impl Display for DiagnosticBundleError {
                 source,
             } => write!(f, "failed to {action} '{}': {source}", path.display()),
             Self::Archive(message) => write!(f, "archive error: {message}"),
-            Self::ProfileStore(message) => write!(f, "profile store error: {message}"),
         }
     }
 }
@@ -129,7 +127,7 @@ impl Error for DiagnosticBundleError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Io { source, .. } => Some(source),
-            Self::Archive(_) | Self::ProfileStore(_) => None,
+            Self::Archive(_) => None,
         }
     }
 }

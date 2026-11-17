@@ -27,30 +27,7 @@ pub struct ProfileStore {
     pub base_path: PathBuf,
 }
 
-impl Default for ProfileStore {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl ProfileStore {
-    pub fn try_new() -> Result<Self, String> {
-        let config_dir = crate::platform::base_dirs()
-            .ok_or("home directory not found — CrossHook requires a user home directory")?
-            .config_dir()
-            .join("crosshook");
-        let settings_path = config_dir.join("settings.toml");
-        let settings: AppSettingsData = if settings_path.exists() {
-            fs::read_to_string(&settings_path)
-                .ok()
-                .and_then(|s| toml::from_str(&s).ok())
-                .unwrap_or_default()
-        } else {
-            AppSettingsData::default()
-        };
-        Self::try_new_with_settings_data(&settings, &config_dir)
-    }
-
     /// Profiles directory from `settings` relative to `crosshook_config_dir` (`~/.config/crosshook`).
     pub fn try_new_with_settings_data(
         settings: &AppSettingsData,
@@ -59,10 +36,6 @@ impl ProfileStore {
         let base_path = resolve_profiles_directory_from_config(settings, crosshook_config_dir)?;
         fs::create_dir_all(&base_path).map_err(|e| format!("profiles directory: {e}"))?;
         Ok(Self { base_path })
-    }
-
-    pub fn new() -> Self {
-        Self::try_new().expect("home directory is required for CrossHook profile storage")
     }
 
     pub fn with_base_path(base_path: PathBuf) -> Self {

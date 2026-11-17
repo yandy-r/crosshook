@@ -261,24 +261,6 @@ async fn public_imports_preserve_validation_and_missing_source_errors() {
         "Unknown art type: hero"
     );
     assert!(service
-        .import_custom_cover_art(
-            temp.path()
-                .join("missing.png")
-                .to_string_lossy()
-                .into_owned()
-        )
-        .await
-        .unwrap_err()
-        .message()
-        .contains("does not exist"));
-    let missing = "/nonexistent-crosshook-test/x.png";
-    let error = service
-        .import_custom_cover_art(missing.into())
-        .await
-        .unwrap_err();
-    assert!(error.message().contains("does not exist"));
-    assert!(!error.message().contains("nonexistent-crosshook-test"));
-    assert!(service
         .fetch_cover_art("../bad".into(), None)
         .await
         .unwrap_err()

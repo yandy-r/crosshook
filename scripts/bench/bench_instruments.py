@@ -6,7 +6,11 @@ import re
 import shutil
 import subprocess
 import tempfile
+import threading
 from pathlib import Path
+
+import bench_gpu
+from bench_proc import CANCELLED, CommandFailed, run_cancellable
 
 
 class InstrumentError(RuntimeError):
@@ -22,53 +26,56 @@ def output(command: list[str], timeout: float = 10) -> str:
         raise InstrumentError(f"INSTRUMENT_FAILED: {command[0]}") from error
 
 
-def wakeup_events(pids: set[int], duration: float) -> float:
-    """Count sched_wakeup events targeting the app tree; requires perf permission."""
+def _run_cancellable(command: list[str], timeout: float, cancel: threading.Event | None) -> tuple[int, str]:
+    """Run `command`, killing its process group on timeout or when `cancel` is set; returns its stderr."""
+    try:
+        return run_cancellable(command, timeout, cancel)
+    except CommandFailed as error:
+        raise InstrumentError(f"INSTRUMENT_{'CANCELLED' if error.kind == CANCELLED else 'FAILED'}: "
+                              f"{command[0]}") from None
+
+
+def wakeup_events(pids: set[int], duration: float, cancel: threading.Event | None = None) -> float:
+    """Count sched_wakeup events targeting the app tree; requires perf permission.
+    Setting `cancel` stops the perf run early (the capture failed elsewhere)."""
     if not pids:
         raise InstrumentError("WAKEUP_TARGETS_EMPTY")
     filter_expr = " || ".join(f"pid == {pid}" for pid in sorted(pids))
     try:
-        result = subprocess.run(["perf", "stat", "-x,", "-a", "-e", "sched:sched_wakeup",
-                                 "--filter", filter_expr, "--", "sleep", str(duration)],
-                                capture_output=True, text=True, timeout=duration + 30,
-                                check=False)  # parse perf's explicit unsupported/denied rows
+        # check=False semantics: parse perf's explicit unsupported/denied rows
+        returncode, stderr = _run_cancellable(["perf", "stat", "-x,", "-a", "-e", "sched:sched_wakeup",
+                                               "--filter", filter_expr, "--", "sleep", str(duration)],
+                                              duration + 30, cancel)
     except FileNotFoundError as error:
         raise InstrumentError("MISSING_TOOL: perf") from error
-    except subprocess.SubprocessError as error:
+    except (subprocess.SubprocessError, OSError) as error:
         raise InstrumentError("INSTRUMENT_FAILED: perf") from error
-    for line in result.stderr.splitlines():
+    for line in stderr.splitlines():
         fields = line.split(",")
         if len(fields) > 2 and fields[2] == "sched:sched_wakeup":
             if fields[0] in ("<not supported>", "<not counted>"):
                 break
             count = float(fields[0])
-            if result.returncode or not math.isfinite(count) or count < 0:
+            if returncode or not math.isfinite(count) or count < 0:
                 break
             return count / duration
     raise InstrumentError("INSTRUMENT_FAILED: perf sched_wakeup unavailable or permission denied")
 
 
 def gpu_memory_mb(pids: set[int]) -> float | str:
-    """NVIDIA per-process GPU memory; other GPUs report `unavailable` (YAN-1007)."""
+    """NVIDIA per-process GPU memory; other GPUs report `unavailable` (YAN-1007).
+
+    The pmon row parsing lives in `bench_gpu`; `bench_gpu.sample` is the
+    vendor-neutral adapter (fdinfo first) used by the G8 sampler."""
     if shutil.which("nvidia-smi") is None:
         return "unavailable"
     # pmon covers graphics and compute contexts; fb is per (GPU, PID) MB, "-" when unavailable.
     rows = output(["nvidia-smi", "pmon", "-s", "m", "-c", "1"])
-    values = []
-    for row in rows.splitlines():
-        fields = row.split()
-        if len(fields) < 4 or row.startswith("#") or not fields[1].isdigit() or int(fields[1]) not in pids:
-            continue
-        if fields[3] == "-":
-            continue
-        try:
-            value = float(fields[3])
-        except ValueError as error:
-            raise InstrumentError("INSTRUMENT_FAILED: invalid NVIDIA memory") from error
-        if not math.isfinite(value) or value < 0:
-            raise InstrumentError("INSTRUMENT_FAILED: invalid NVIDIA memory")
-        values.append(value)
-    return sum(values) if values else "unavailable"
+    try:
+        totals = bench_gpu.parse_pmon(rows, pids)
+    except ValueError as error:
+        raise InstrumentError("INSTRUMENT_FAILED: invalid NVIDIA memory") from error
+    return totals.mb if totals.numeric else "unavailable"
 
 
 def battery_power_w() -> float:

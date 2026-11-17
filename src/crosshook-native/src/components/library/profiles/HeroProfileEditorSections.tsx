@@ -1,8 +1,6 @@
 /**
  * Ordered, prop-driven section list for the Hero Detail profile editor.
  *
- * Canonical section order mirrors ProfileSubTabs.tsx (lines ~184-306):
- *
  *   1. Identity
  *   2. RunnerMethod
  *   3. Runtime
@@ -19,8 +17,7 @@
  * Trainer-gamescope persistence: GamescopeConfigPanel.onChange is wired to
  * onUpdateProfile so all edits flow through the 350ms draft autosave owned
  * by useHeroProfilesAutosave — no separate granular save is used here. The
- * derived notice mirrors ProfileSubTabs.tsx via the shared
- * resolveTrainerGamescopeForDisplay utility.
+ * derived notice uses resolveTrainerGamescopeForDisplay.
  */
 import type { ReactNode, RefObject } from 'react';
 import type { TrendDirection } from '@/hooks/useProfileHealth';
@@ -128,7 +125,7 @@ export function HeroProfileEditorSections({
 }: HeroProfileEditorSectionsProps) {
   const supportsTrainerLaunch = launchMethod !== 'native';
 
-  // Resolve trainer-gamescope display config (derivation logic mirrors ProfileSubTabs)
+  // Resolve trainer-gamescope display config
   const trainerGamescopeDisplay = resolveTrainerGamescopeForDisplay(profile);
 
   // Trainer path for health-badge trainer-type chip visibility
@@ -190,7 +187,7 @@ export function HeroProfileEditorSections({
         />
       ) : null}
 
-      {/* 8. Trainer-Gamescope — mirrors ProfileSubTabs.tsx:257-284.
+      {/* 8. Trainer-Gamescope.
            Changes flow through onUpdateProfile into the 350ms draft autosave
            (useHeroProfilesAutosave), not a separate granular save. */}
       {supportsTrainerLaunch ? (

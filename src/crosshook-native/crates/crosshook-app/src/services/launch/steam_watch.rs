@@ -1,4 +1,4 @@
-//! Steam game exit watch (YAN-824, decision D3).
+//! Steam game exit watch.
 //!
 //! A `steam_applaunch` game session's child is `steam-launch-helper.sh`,
 //! which starts the game through Steam and exits about 30 s later while the

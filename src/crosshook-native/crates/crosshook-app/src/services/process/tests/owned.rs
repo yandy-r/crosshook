@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 
 use tokio::process::Command;
 
-use crate::jobs::{create_log_file_in, JobRegistry, JobSpec};
+use crate::jobs::{create_log_file_in, test_log_dir, JobRegistry, JobSpec};
 use crate::services::process::child::LogFile;
 use crate::services::process::owned::{start_owned, FailureText, OwnedRun};
 use crate::services::process::owner::ActiveJobs;
@@ -19,7 +19,8 @@ const TEXT: FailureText = FailureText {
 };
 
 fn owned_run(dir: &Path, command: Command) -> (OwnedRun, PathBuf) {
-    let (path, file) = create_log_file_in(dir.to_path_buf(), "test", "owned").unwrap();
+    let log_dir = test_log_dir(dir);
+    let (path, file) = create_log_file_in(log_dir.as_deref().unwrap(), "test", "owned").unwrap();
     let log_path = path.clone();
     (
         OwnedRun {
@@ -52,8 +53,8 @@ async fn spawn_failure_fails_the_start_and_removes_the_log() {
         JobSpec::new("test-owned"),
         slot,
         run,
-        move |killed| {
-            seen.lock().unwrap().push(killed);
+        move |_ctx, stopped| {
+            seen.lock().unwrap().push(stopped);
             async {}
         },
     )
@@ -81,10 +82,11 @@ async fn a_cancel_before_the_job_started_spawns_nothing() {
     assert!(active.cancel(&owner, &jobs));
     let (run, log_path) = owned_run(dir.path(), sh(&format!("touch '{}'", marker.display())));
 
-    let error = start_owned(&jobs, JobSpec::new("test-owned"), slot, run, |_| async {})
-        .await
-        .err()
-        .expect("cancelled before start");
+    let error = start_owned(&jobs, JobSpec::new("test-owned"), slot, run, |_, _| async {
+    })
+    .await
+    .err()
+    .expect("cancelled before start");
 
     assert_eq!(error.kind(), AppErrorKind::Cancelled);
     assert!(!marker.exists(), "nothing may run after a cancel");
@@ -94,7 +96,7 @@ async fn a_cancel_before_the_job_started_spawns_nothing() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn after_exit_runs_with_the_kill_flag_before_the_completion() {
+async fn after_exit_runs_with_the_stopped_flag_after_a_kill() {
     let dir = tempfile::tempdir().unwrap();
     let jobs = JobRegistry::default();
     let active = ActiveJobs::default();
@@ -109,8 +111,8 @@ async fn after_exit_runs_with_the_kill_flag_before_the_completion() {
         JobSpec::new("test-owned"),
         slot,
         run,
-        move |killed| {
-            seen.lock().unwrap().push(killed);
+        move |_ctx, stopped| {
+            seen.lock().unwrap().push(stopped);
             async {}
         },
     )
@@ -135,4 +137,80 @@ async fn after_exit_runs_with_the_kill_flag_before_the_completion() {
     assert_eq!(*after.lock().unwrap(), vec![true]);
     assert_eq!(active.len(), 0);
     assert_eq!(jobs.job_counts(), (0, 0));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn after_exit_reports_a_cooperative_cancel_as_stopped_and_logs_first() {
+    let dir = tempfile::tempdir().unwrap();
+    let jobs = JobRegistry::default();
+    let active = ActiveJobs::default();
+    let owner = JobOwner::new("main");
+    let slot = active.claim(owner.clone()).unwrap();
+    let (run, _) = owned_run(dir.path(), sh("echo ready; exec sleep 30"));
+    let after = Arc::new(Mutex::new(Vec::new()));
+    let seen = Arc::clone(&after);
+
+    let mut run = start_owned(
+        &jobs,
+        JobSpec::new("test-owned"),
+        slot,
+        run,
+        move |ctx, stopped| {
+            seen.lock().unwrap().push(stopped);
+            ctx.log(vec!["after-exit".to_string()]);
+            async {}
+        },
+    )
+    .await
+    .unwrap();
+    assert!(matches!(run.next().await, Some(RunEvent::Log(_))));
+    assert!(active.cancel(&owner, &jobs));
+
+    let mut lines = Vec::new();
+    let completion = loop {
+        match run.next().await.expect("Finished") {
+            RunEvent::Log(crate::log_tail::LogBatch::Lines(batch)) => lines.extend(batch),
+            RunEvent::Log(_) => {}
+            RunEvent::Finished(completion) => break completion,
+        }
+    };
+    assert_eq!(
+        completion,
+        Some(ProcessCompletion {
+            code: None,
+            signal: Some(15)
+        })
+    );
+    assert_eq!(*after.lock().unwrap(), vec![true]);
+    assert_eq!(lines.last().map(String::as_str), Some("after-exit"));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn after_exit_reports_a_natural_exit_as_not_stopped() {
+    let dir = tempfile::tempdir().unwrap();
+    let jobs = JobRegistry::default();
+    let active = ActiveJobs::default();
+    let slot = active.claim(JobOwner::new("main")).unwrap();
+    let (run, _) = owned_run(dir.path(), sh("exit 0"));
+    let after = Arc::new(Mutex::new(Vec::new()));
+    let seen = Arc::clone(&after);
+
+    let mut run = start_owned(
+        &jobs,
+        JobSpec::new("test-owned"),
+        slot,
+        run,
+        move |_ctx, stopped| {
+            seen.lock().unwrap().push(stopped);
+            async {}
+        },
+    )
+    .await
+    .unwrap();
+    while let Some(event) = run.next().await {
+        if matches!(event, RunEvent::Finished(_)) {
+            break;
+        }
+    }
+    assert_eq!(*after.lock().unwrap(), vec![false]);
 }

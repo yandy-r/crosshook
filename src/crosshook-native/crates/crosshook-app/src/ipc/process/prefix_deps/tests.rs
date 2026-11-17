@@ -47,7 +47,7 @@ fn fixture_prefix_dep_complete_pending_wire_shape() {
     );
 }
 
-/// The P0 fixture plus only the two additive runtime fields (D9).
+/// The P0 fixture plus only the two additive runtime fields.
 #[test]
 fn fixture_prefix_version_repair_status_wire_shape_is_additive() {
     let status = PrefixVersionRepairStatus {

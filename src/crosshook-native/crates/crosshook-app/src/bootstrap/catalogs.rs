@@ -32,7 +32,7 @@ pub(crate) fn initialize(settings: &SettingsStore) {
     let command_argument_catalog = load_command_argument_catalog(Some(&settings.base_path), &[]);
     initialize_command_argument_catalog(command_argument_catalog);
 
-    let trainer_type_catalog = load_trainer_type_catalog(Some(&settings.base_path), &[]);
+    let trainer_type_catalog = load_trainer_type_catalog(Some(&settings.base_path));
     initialize_trainer_type_catalog(trainer_type_catalog);
 
     let readiness_catalog = load_readiness_catalog(Some(&settings.base_path));

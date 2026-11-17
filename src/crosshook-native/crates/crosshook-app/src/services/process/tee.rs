@@ -1,5 +1,5 @@
 //! Lossy, bounded pipe tee: drains a child's stdout and stderr into one log
-//! file (moved from `services/launch/streaming.rs`).
+//! file.
 //!
 //! One reader per piped stream forwards raw bytes through a bounded channel
 //! to a single writer, so both streams interleave in arrival order. Reads are
@@ -11,7 +11,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use tokio::fs::OpenOptions;
+use crosshook_core::runtime_files::open_private_append;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
 use tokio::process::Child;
 use tokio::sync::mpsc;
@@ -87,7 +87,7 @@ pub(crate) fn spawn_pipe_tee_to_file(
 
 /// Where the tee writer appends.
 enum LogTarget {
-    /// Open the existing log file by path, append-mode.
+    /// Open the existing log file by path, append-mode, refusing symlinks.
     Append,
     /// Write through this open handle.
     Handle(std::fs::File),
@@ -171,13 +171,22 @@ where
 async fn log_writer(path: PathBuf, target: LogTarget, mut rx: mpsc::Receiver<Vec<u8>>) {
     let mut file = match target {
         LogTarget::Handle(file) => Some(tokio::fs::File::from_std(file)),
-        LogTarget::Append => match OpenOptions::new().append(true).open(&path).await {
-            Ok(file) => Some(file),
-            Err(error) => {
-                tracing::warn!(%error, path = %path.display(), "failed to open pipe-backed process log");
-                None
+        LogTarget::Append => {
+            // Never created and never through a symlink: the launch prepare
+            // step already created the log.
+            let open_path = path.clone();
+            match tokio::task::spawn_blocking(move || open_private_append(&open_path)).await {
+                Ok(Ok(file)) => Some(tokio::fs::File::from_std(file)),
+                Ok(Err(error)) => {
+                    tracing::warn!(%error, "failed to open pipe-backed process log");
+                    None
+                }
+                Err(error) => {
+                    tracing::warn!(%error, "pipe-backed process log open task failed");
+                    None
+                }
             }
-        },
+        }
     };
     while let Some(chunk) = rx.recv().await {
         if let Some(open) = file.as_mut() {

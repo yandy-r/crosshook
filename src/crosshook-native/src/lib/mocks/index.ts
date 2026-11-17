@@ -31,7 +31,7 @@ import { registerProtonDb, resetProtonDbMockState } from './handlers/protondb';
 import { registerProtonUp, resetProtonUpMockState } from './handlers/protonup';
 import { registerRunExecutable, resetRunExecutableMockState } from './handlers/run_executable';
 import { registerStartup } from './handlers/startup';
-import { registerSystem, resetSystemMockState } from './handlers/system';
+import { registerSystem } from './handlers/system';
 import type { Handler } from './handlers/types';
 import { registerUmuDatabase } from './handlers/umu_database';
 import { registerUpdate, resetUpdateMockState } from './handlers/update';
@@ -93,7 +93,6 @@ export function resetMockEnvironment(): void {
   resetProtonDbMockState();
   resetProtonUpMockState();
   resetRunExecutableMockState();
-  resetSystemMockState();
   resetUpdateMockState();
   resetWrappedHandlerState();
 }

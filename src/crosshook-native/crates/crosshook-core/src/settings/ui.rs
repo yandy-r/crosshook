@@ -1,12 +1,10 @@
 use std::fmt;
 
 mod enums;
-mod keys;
 mod lenient;
 mod palette;
 
 pub use enums::*;
-pub use keys::{UiKey, UiKeySet};
 pub use palette::is_valid_palette_id;
 
 #[cfg(test)]
@@ -166,30 +164,5 @@ impl UiSettings {
         let recent_len = self.palette_recent.len();
         palette::sanitize_palette_recent(&mut self.palette_recent);
         changed || self.palette_recent.len() != recent_len
-    }
-
-    /// Move a valid command identifier to the front, deduplicating and capping at 20.
-    /// Invalid identifiers return `false` without changing the list.
-    pub fn push_palette_recent(&mut self, id: &str) -> bool {
-        palette::push_recent(&mut self.palette_recent, id)
-    }
-
-    /// Copy one preference from `src`; `WindowSize` copies both dimensions.
-    pub fn copy_key_from(&mut self, src: &UiSettings, key: UiKey) {
-        match key {
-            UiKey::LibraryViewMode => self.library_view_mode = src.library_view_mode,
-            UiKey::WindowSize => {
-                self.window_width = src.window_width;
-                self.window_height = src.window_height;
-            }
-            UiKey::UiScale => self.ui_scale = src.ui_scale,
-            UiKey::Density => self.density = src.density,
-            UiKey::Renderer => self.renderer = src.renderer,
-            UiKey::ControllerMode => self.controller_mode = src.controller_mode,
-            UiKey::SidebarCollapsed => self.sidebar_collapsed = src.sidebar_collapsed,
-            UiKey::InspectorWidth => self.inspector_width = src.inspector_width,
-            UiKey::ConsoleDrawerHeight => self.console_drawer_height = src.console_drawer_height,
-            UiKey::PaletteRecent => self.palette_recent.clone_from(&src.palette_recent),
-        }
     }
 }

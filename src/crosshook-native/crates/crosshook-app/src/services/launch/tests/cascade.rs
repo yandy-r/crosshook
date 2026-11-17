@@ -1,4 +1,4 @@
-//! AC3 cascade tests (Task 4.1).
+//! AC3 cascade tests.
 //!
 //! A game's exit records `LinkedSessionExit` for its linked trainer only
 //! (D1: it records the reason, it does not kill a non-gamescope trainer).

@@ -13,13 +13,3 @@ use crosshook_core::metadata::MetadataStatus;
 pub async fn metadata_store_status(app: AppState<'_>) -> IpcResult<MetadataStatus> {
     Ok(app.services().diagnostics.metadata_status())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        let _ = metadata_store_status;
-    }
-}

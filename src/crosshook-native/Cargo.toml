@@ -10,6 +10,8 @@ resolver = "2"
 
 [workspace.package]
 version = "0.6.1"
+# MSRV; bumped together with rust-toolchain.toml (docs/internal-docs/dependency-policy.md).
+rust-version = "1.95"
 
 [workspace.lints.clippy]
 # Correctness (deny — these are bugs)

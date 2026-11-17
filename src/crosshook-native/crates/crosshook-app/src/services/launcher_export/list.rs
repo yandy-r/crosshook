@@ -4,8 +4,8 @@ use std::collections::HashMap;
 
 use crosshook_core::export::{
     check_launcher_exists_for_request, check_launcher_for_profile, export_launchers,
-    find_orphaned_launchers, list_launchers, validate, LauncherInfo,
-    SteamExternalLauncherExportRequest, SteamExternalLauncherExportResult,
+    list_launchers, validate, LauncherInfo, SteamExternalLauncherExportRequest,
+    SteamExternalLauncherExportResult,
 };
 use crosshook_core::profile::{resolve_launch_method, GameProfile, ProfileStore};
 use crosshook_core::settings::{SettingsStore, UmuPreference};
@@ -41,27 +41,6 @@ impl LauncherExportService {
         .await;
         outcome.unwrap_or_else(|error| {
             tracing::warn!(%error, "launcher listing task failed");
-            Vec::new()
-        })
-    }
-
-    /// Lists launchers whose slugs are not in `known_profile_slugs`.
-    pub async fn find_orphaned(
-        &self,
-        known_profile_slugs: Vec<String>,
-        target_home_path: String,
-        steam_client_install_path: String,
-    ) -> Vec<LauncherInfo> {
-        let outcome = run_blocking(move || {
-            Ok(find_orphaned_launchers(
-                &known_profile_slugs,
-                &target_home_path,
-                &steam_client_install_path,
-            ))
-        })
-        .await;
-        outcome.unwrap_or_else(|error| {
-            tracing::warn!(%error, "orphaned launcher scan task failed");
             Vec::new()
         })
     }

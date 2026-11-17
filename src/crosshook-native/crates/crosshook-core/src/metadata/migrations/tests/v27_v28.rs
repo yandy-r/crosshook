@@ -12,12 +12,12 @@ fn migrated_conn() -> Connection {
 }
 
 #[test]
-fn fresh_db_reaches_user_version_28_with_hmac_signature_column() {
+fn fresh_db_reaches_at_least_user_version_28_with_hmac_signature_column() {
     let conn = migrated_conn();
     let version: u32 = conn
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 28, "fresh DB should migrate to schema v28");
+    assert!(version >= 28, "fresh DB should migrate past schema v28");
     assert!(conn
         .prepare("SELECT hmac_signature FROM config_revisions")
         .is_ok());
@@ -46,7 +46,7 @@ fn migration_27_to_28_adds_nullable_column_and_preserves_rows() {
     let version: u32 = conn
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 28);
+    assert!(version >= 28);
     let row: (String, String, bool, Option<String>) = conn
         .query_row(
             "SELECT content_hash, snapshot_toml, is_last_known_working, hmac_signature

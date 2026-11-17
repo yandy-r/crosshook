@@ -34,7 +34,6 @@ async fn tool_details_sanitizes_home_resolved_path() {
     let home = std::env::var("HOME").expect("test environment has HOME");
     let probe = Arc::new(FakeHostProbe::new(
         readiness(),
-        readiness(),
         details(Some(format!("{home}/.local/bin/gamescope"))),
     ));
     let service = HostToolsService::with_probe(JobRegistry::default(), probe.clone());
@@ -48,13 +47,12 @@ async fn tool_details_sanitizes_home_resolved_path() {
     assert_eq!(result.tool_id, "gamescope");
     assert_eq!(result.tool_version.as_deref(), Some("3.16.0"));
     assert_eq!(probe.details_calls.load(Ordering::SeqCst), 1);
-    assert_eq!(probe.system_calls.load(Ordering::SeqCst), 0);
     assert_eq!(probe.generalized_calls.load(Ordering::SeqCst), 0);
 }
 
 #[test]
 fn tool_details_yields_while_probe_is_gated_and_reaps_job() {
-    let (probe, gate) = FakeHostProbe::gated(readiness(), readiness(), details(None));
+    let (probe, gate) = FakeHostProbe::gated(readiness(), details(None));
     let probe = Arc::new(probe);
     let gate = Arc::new(gate);
     let jobs = JobRegistry::default();
@@ -103,15 +101,4 @@ fn gamescope_session_reflects_the_core_predicate() {
         service.gamescope_session(),
         crosshook_core::launch::is_inside_gamescope_session()
     );
-}
-
-#[tokio::test]
-async fn platform_status_serializes_the_camel_case_capability_flags() {
-    let service = HostToolsService::new(JobRegistry::default());
-
-    let status = service.platform_status().await.expect("platform status");
-
-    let json = serde_json::to_value(status).unwrap();
-    assert!(json["isFlatpak"].is_boolean(), "{json}");
-    assert!(json["unshareNetAvailable"].is_boolean(), "{json}");
 }

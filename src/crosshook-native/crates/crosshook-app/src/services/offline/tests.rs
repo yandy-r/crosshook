@@ -56,18 +56,6 @@ async fn verify_trainer_hash_rejects_empty_trainer_path() {
     assert_eq!(error.message(), "trainer path is empty");
 }
 
-#[tokio::test]
-async fn network_status_runs_off_the_executor_and_answers_a_bool() {
-    let root = tempfile::tempdir().unwrap();
-    let service = OfflineService::new(
-        ProfileStore::with_base_path(root.path().join("profiles")),
-        MetadataStore::disabled(),
-    );
-
-    // The answer depends on the host; the contract is that it never errors.
-    service.network_status().await.expect("network probe");
-}
-
 #[test]
 fn trainer_type_catalog_returns_the_global_entries() {
     let root = tempfile::tempdir().unwrap();

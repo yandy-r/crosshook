@@ -4,6 +4,7 @@ use std::io::SeekFrom;
 use std::path::Path;
 
 use crosshook_core::launch::{DiagnosticReport, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH};
+use crosshook_core::runtime_files::open_private_read;
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
 use crate::presenter::display_path_tilde;
@@ -12,13 +13,20 @@ use crate::presenter::display_path_tilde;
 ///
 /// When the file is larger than `max_bytes` the read starts at
 /// `End(-max_bytes)`, so the first character can be cut and decode as U+FFFD.
-/// Any I/O error is logged (without the path) and yields an empty string, so
-/// callers never fail a launch over an unreadable log.
+/// The file is opened without following symlinks and must be a regular file
+/// owned by the current user. A symlink, FIFO, other non-regular file, missing
+/// file or any I/O error is logged (without the path) and yields an empty
+/// string, so callers never fail a launch over an unreadable log.
 pub async fn read_log_tail(path: &Path, max_bytes: u64) -> String {
-    let mut file = match tokio::fs::File::open(path).await {
-        Ok(file) => file,
-        Err(error) => {
+    let owned_path = path.to_path_buf();
+    let mut file = match tokio::task::spawn_blocking(move || open_private_read(&owned_path)).await {
+        Ok(Ok(file)) => tokio::fs::File::from_std(file),
+        Ok(Err(error)) => {
             tracing::warn!(%error, "failed to open launch log tail");
+            return String::new();
+        }
+        Err(error) => {
+            tracing::warn!(%error, "launch log tail open task failed");
             return String::new();
         }
     };

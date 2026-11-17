@@ -1,6 +1,5 @@
 import type { InstallGameRequest, InstallGameResult } from '../../../types/install';
 import { createDefaultProfile } from '../../../types/profile';
-import { emitMockEvent } from '../eventBus';
 import type { Handler } from './types';
 
 /** Tracks the profile name of the currently in-flight install, if any. */
@@ -67,47 +66,6 @@ function scheduleInstallTimeout(callback: () => void, delayMs: number): number {
   return id;
 }
 
-function scheduleInstallEvents(profileName: string): void {
-  const started = { profileName, phase: 'started', progress: 0, message: 'Starting installer…' };
-  emitMockEvent('install-started', started);
-
-  scheduleInstallTimeout(() => {
-    emitMockEvent('install-progress', {
-      profileName,
-      phase: 'running_installer',
-      progress: 10,
-      message: 'Extracting installer resources…',
-    });
-  }, 200);
-
-  scheduleInstallTimeout(() => {
-    emitMockEvent('install-progress', {
-      profileName,
-      phase: 'running_installer',
-      progress: 30,
-      message: 'Running installer under Proton…',
-    });
-  }, 500);
-
-  scheduleInstallTimeout(() => {
-    emitMockEvent('install-progress', {
-      profileName,
-      phase: 'running_installer',
-      progress: 60,
-      message: 'Writing game files…',
-    });
-  }, 900);
-
-  scheduleInstallTimeout(() => {
-    emitMockEvent('install-progress', {
-      profileName,
-      phase: 'running_installer',
-      progress: 90,
-      message: 'Finalising installation…',
-    });
-  }, 1300);
-}
-
 export function registerInstall(map: Map<string, Handler>): void {
   map.set('install_default_prefix_path', async (args) => {
     const { profileName } = args as { profileName: string };
@@ -148,24 +106,13 @@ export function registerInstall(map: Map<string, Handler>): void {
     installInFlight = runToken;
 
     try {
-      scheduleInstallEvents(profileName);
-
+      // The backend emits no install events; the result is the only signal.
       // Simulate install duration (~1.5 s total)
       await new Promise<void>((resolve) => {
         scheduleInstallTimeout(resolve, 1500);
       });
 
-      const result = buildMockInstallResult(request);
-
-      emitMockEvent('install-complete', {
-        profileName,
-        phase: 'complete',
-        progress: 100,
-        message: result.message,
-        result,
-      });
-
-      return result;
+      return buildMockInstallResult(request);
     } finally {
       if (installInFlight === runToken) {
         installInFlight = null;

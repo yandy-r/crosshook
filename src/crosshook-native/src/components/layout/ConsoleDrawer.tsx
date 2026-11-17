@@ -20,7 +20,7 @@ function formatLineCount(count: number): string {
 }
 
 function resolveCountTone(readyCount: number, totalCount: number): 'success' | 'warning' | 'danger' | 'muted' {
-  // Match CapabilitySummaryStrip: zero total means nothing to wait on (treated as available/success).
+  // Zero total means nothing to wait on (treated as available/success).
   if (totalCount === 0) {
     return 'success';
   }

@@ -41,7 +41,7 @@ pub fn resolve_trainer_launch_method(profile_method: &str, is_flatpak: bool) -> 
 /// Returns the effective Steam App ID to use for art/metadata resolution.
 ///
 /// Priority: `steam.app_id` (non-empty) → `runtime.steam_app_id`.
-/// This field is media-only and does NOT affect how games launch (BR-9).
+/// This field is media-only and does NOT affect how games launch.
 pub fn resolve_art_app_id(profile: &GameProfile) -> &str {
     let steam = profile.steam.app_id.trim();
     if !steam.is_empty() {

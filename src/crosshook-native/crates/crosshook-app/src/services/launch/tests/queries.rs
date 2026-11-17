@@ -1,6 +1,6 @@
-//! Read-only query tests (Task 2.6): history guards (I-61), key consistency
+//! Read-only query tests: history guards, key consistency
 //! between `reset_sessions` and the running-session snapshot, preview's
-//! mod-coexistence scope (I-16) and UMU enrichment.
+//! mod-coexistence scope and UMU enrichment.
 
 use crosshook_core::launch::{
     session_profile_key_for_name, SessionKind, TeardownReason, METHOD_STEAM_APPLAUNCH,

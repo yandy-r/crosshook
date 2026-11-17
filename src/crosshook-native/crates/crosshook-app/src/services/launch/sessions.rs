@@ -1,4 +1,4 @@
-//! Running-session events and snapshot (YAN-824).
+//! Running-session events and snapshot.
 //!
 //! The registry reports every membership change to an observer while its lock
 //! is held; [`session_observer`] turns each change into an

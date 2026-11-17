@@ -1,29 +1,10 @@
 use chrono::{Duration as ChronoDuration, Utc};
 
 use crate::metadata::{MetadataStore, ProtonCatalogRow};
-use crate::protonup::{ProtonUpAvailableVersion, ProtonUpProvider};
+use crate::protonup::ProtonUpAvailableVersion;
 
 use super::cache::logical_provider_id_for_registry;
 use super::*;
-
-#[test]
-fn catalog_configs_have_distinct_cache_keys_and_urls() {
-    let ge = catalog_config(ProtonUpProvider::GeProton);
-    let cachy = catalog_config(ProtonUpProvider::ProtonCachyos);
-    let em = catalog_config(ProtonUpProvider::ProtonEm);
-    assert_ne!(ge.cache_key, cachy.cache_key);
-    assert_ne!(ge.cache_key, em.cache_key);
-    assert_ne!(cachy.cache_key, em.cache_key);
-    assert_ne!(ge.gh_releases_url, cachy.gh_releases_url);
-    assert_ne!(ge.gh_releases_url, em.gh_releases_url);
-    assert_ne!(cachy.gh_releases_url, em.gh_releases_url);
-    assert_ne!(ge.provider_id, cachy.provider_id);
-    assert_ne!(ge.provider_id, em.provider_id);
-    assert_ne!(cachy.provider_id, em.provider_id);
-    assert!(ge.gh_releases_url.contains("GloriousEggroll"));
-    assert!(cachy.gh_releases_url.contains("CachyOS/proton-cachyos"));
-    assert!(em.gh_releases_url.contains("Etaash-mathamsetty/Proton"));
-}
 
 #[test]
 fn scoped_cache_key_parts() {

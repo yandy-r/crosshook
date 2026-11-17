@@ -1,5 +1,5 @@
 //! Best-effort exported-launcher cleanup for profile delete and rename
-//! (moved from the Tauri shell). Deletion is confined to core's launcher
+//! Deletion is confined to core's launcher
 //! store, which only removes CrossHook-watermarked files.
 
 use crosshook_core::export::{

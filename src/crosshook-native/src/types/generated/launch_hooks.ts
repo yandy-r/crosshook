@@ -4,7 +4,7 @@
  * When a launch hook fires relative to the game lifecycle.
  *
  * Serializes kebab-case: `"pre-launch"` / `"post-exit"` — this exact wire
- * format is the Phase 6 stage-pill contract (issue #471).
+ * format is the stage-pill contract.
  */
 export type HookStage = 'pre-launch' | 'post-exit';
 

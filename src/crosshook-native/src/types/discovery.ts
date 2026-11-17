@@ -1,5 +1,3 @@
-export type VersionMatchStatus = 'exact' | 'compatible' | 'newer_available' | 'outdated' | 'unknown';
-
 export interface CatalogQuery {
   query?: string;
   gameTitles?: string[];
@@ -58,13 +56,6 @@ export interface CatalogPage {
   totalCount: number;
   tapCount: number;
   degraded: boolean;
-}
-
-export interface VersionMatchResult {
-  status: VersionMatchStatus;
-  trainerGameVersion?: string;
-  installedGameVersion?: string;
-  detail?: string;
 }
 
 // Phase B: External trainer search types

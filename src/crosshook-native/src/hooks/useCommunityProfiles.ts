@@ -153,10 +153,6 @@ function deriveProfileNameFrom(gameName: string, relativePath: string): string {
   return 'community-profile';
 }
 
-export function deriveCommunityImportProfileName(entry: CommunityProfileIndexEntry): string {
-  return deriveProfileNameFrom(entry.manifest.metadata.game_name, entry.relative_path);
-}
-
 export function deriveCatalogEntryProfileName(entry: CatalogEntry): string {
   return deriveProfileNameFrom(entry.gameName ?? '', entry.relativePath);
 }
@@ -299,16 +295,16 @@ export function useCommunityProfiles(_options: UseCommunityProfilesOptions): Use
     async (tap: CommunityTapSubscription) => {
       setError(null);
       const normalized = normalizeTap(tap);
-      const nextTaps = taps.filter((entry) => tapIdentityKey(normalizeTap(entry)) !== tapIdentityKey(normalized));
-      const deduped = dedupeTaps(nextTaps);
-      await saveSettingsTaps(deduped);
-      setTaps(deduped);
+      const response = await callCommand<CommunityTapSubscription[]>('community_remove_tap', {
+        tap: normalized,
+      });
+      persistTaps(response);
       setLastTapSyncResults((prev) =>
         prev.filter((r) => tapIdentityKey(normalizeTap(r.workspace.subscription)) !== tapIdentityKey(normalized))
       );
       await refreshProfiles();
     },
-    [refreshProfiles, saveSettingsTaps, taps]
+    [persistTaps, refreshProfiles]
   );
 
   const getTapHeadCommit = useCallback(

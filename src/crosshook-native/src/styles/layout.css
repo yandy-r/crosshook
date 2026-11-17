@@ -75,55 +75,6 @@
   margin: 0 auto;
 }
 
-/* Route illustration integrated into a primary panel/card (see PanelRouteDecor) */
-.crosshook-panel.crosshook-panel--with-route-decor,
-.crosshook-card.crosshook-card--with-route-decor,
-.crosshook-page.crosshook-page--with-route-decor {
-  position: relative;
-  isolation: isolate;
-}
-
-.crosshook-panel--with-route-decor > *:not(.crosshook-panel-route-decor),
-.crosshook-card--with-route-decor > *:not(.crosshook-panel-route-decor),
-.crosshook-page--with-route-decor > *:not(.crosshook-panel-route-decor) {
-  position: relative;
-  z-index: 1;
-}
-
-.crosshook-panel-route-decor {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  overflow: hidden;
-  border-radius: inherit;
-}
-
-.crosshook-panel-route-decor__glow {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse 52% 38% at 92% 8%, rgba(74, 125, 181, 0.09), transparent 70%);
-}
-
-.crosshook-panel-route-decor__art {
-  position: absolute;
-  top: -6px;
-  right: -2px;
-  width: min(180px, 42%);
-  aspect-ratio: 200 / 120;
-  max-height: min(108px, 26vh);
-  color: var(--crosshook-color-accent-strong);
-  opacity: 0.2;
-  mask-image: linear-gradient(125deg, rgb(0 0 0 / 0.9) 26%, transparent 76%);
-  -webkit-mask-image: linear-gradient(125deg, rgb(0 0 0 / 0.9) 26%, transparent 76%);
-}
-
-.crosshook-panel-route-decor__art svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
 .crosshook-page-scroll-body {
   flex: 1 1 auto;
   min-height: 0;
@@ -230,12 +181,6 @@
   backdrop-filter: blur(16px);
 }
 
-.crosshook-page-header {
-  display: grid;
-  gap: var(--crosshook-page-header-gap);
-  margin-bottom: var(--crosshook-page-header-margin-bottom);
-}
-
 .crosshook-resize-handle {
   position: relative;
   flex: 0 0 auto;
@@ -263,17 +208,6 @@
 .crosshook-resize-handle[data-resize-handle-active='pointer'],
 .crosshook-resize-handle[data-resize-handle-state='drag'] {
   background: rgba(107, 163, 217, 0.12);
-}
-
-.crosshook-resize-handle--vertical {
-  width: var(--crosshook-resize-handle-thickness);
-  min-width: var(--crosshook-resize-handle-thickness);
-  cursor: col-resize;
-}
-
-.crosshook-resize-handle--vertical::before {
-  width: 4px;
-  height: 72px;
 }
 
 .crosshook-resize-handle--horizontal {
@@ -329,10 +263,6 @@
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 26%),
     var(--crosshook-color-surface-strong);
-}
-
-.crosshook-inspector--collapsed {
-  /* Reserved for future user-pinnable / collapsed inspector width */
 }
 
 .crosshook-inspector__body {

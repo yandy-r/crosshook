@@ -1,12 +1,16 @@
 """Linux benchmark captures. No synthetic measurement values."""
 from __future__ import annotations
 
+import contextlib
 import csv
 import os
 import signal
 import subprocess
+import threading
 import time
 from pathlib import Path
+
+from bench_session import PRESENTATION_HINT, locked_error, session_locked
 
 
 class CaptureError(RuntimeError):
@@ -27,7 +31,52 @@ def stats(values: list[float]) -> dict[str, float]:
             "p99_ms": percentile(.99), "stddev_ms": (sum((v - mean)**2 for v in values) / len(values))**.5}
 
 
+def over_interval_percent(values: list[float], refresh_hz: float) -> float:
+    """Share of frame intervals longer than 1.5 refresh periods (a missed vblank).
+
+    Presentation intervals land on whole refresh periods, so a missed vblank shows
+    up as roughly two periods, while a normal frame is one period plus jitter. The
+    1.5-period threshold sits between them. A bare 1000/refresh_hz threshold would
+    misfire: at a 119.88 Hz mode the normal 8.342 ms interval already exceeds
+    1000/120 (8.333 ms), flagging nearly every frame.
+    """
+    limit = 1.5 * 1000 / refresh_hz
+    return 100 * sum(v > limit for v in values) / len(values)
+
+
+_UNWIND_SIGNALS = (signal.SIGTERM, signal.SIGHUP, signal.SIGINT)
+
+
+@contextlib.contextmanager
+def _signals_deferred():
+    """Hold SIGTERM, SIGHUP and SIGINT while an app is torn down, then deliver the first one.
+
+    A signal that arrives while a first one is already unwinding the run would otherwise raise
+    out of `stop()` and leave the app's process group alive. Handlers can only be installed from
+    the main thread; elsewhere there is nothing to defer.
+    """
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+    caught: list[int] = []
+    previous = {number: signal.signal(number, lambda signum, _frame: caught.append(signum))
+                for number in _UNWIND_SIGNALS}
+    try:
+        yield
+    finally:
+        for number, handler in previous.items():
+            signal.signal(number, handler if handler is not None else signal.SIG_DFL)
+        if caught:
+            signal.raise_signal(caught[0])  # the restored handler decides: abort, ignore or default
+
+
 def stop(proc: subprocess.Popen) -> None:
+    """Terminate the app's whole process group and reap it; a signal received meanwhile waits."""
+    with _signals_deferred():
+        _terminate(proc)
+
+
+def _terminate(proc: subprocess.Popen) -> None:
     # Child owns a new process group; never match or kill by application name.
     for sig in (signal.SIGTERM, signal.SIGKILL):
         try:
@@ -59,7 +108,12 @@ def drain_stderr(proc: subprocess.Popen) -> None:
 
 
 def ready(command: list[str], env: dict[str, str], timeout: float,
-          exit_after: bool) -> tuple[subprocess.Popen, float]:
+          exit_after: bool, events: bool = False, stdin: bool = False) -> tuple[subprocess.Popen, float]:
+    """Launch and wait for READY. With `events`, `proc.events` reads the BENCH_* markers after READY.
+
+    With `stdin`, the app's stdin is a pipe the caller keeps as `proc.stdin` (the G8 go signal) and
+    closes; otherwise the app inherits the runner's stdin as before.
+    """
     import selectors
     child_env = dict(env)
     if exit_after:
@@ -70,8 +124,11 @@ def ready(command: list[str], env: dict[str, str], timeout: float,
     command = list(command)
     if command[0] == "flatpak":
         command.insert(-1, f"--env=CROSSHOOK_BENCH_EXIT_AFTER_READY={int(exit_after)}")
+    if session_locked():
+        raise CaptureError(locked_error("before launch"))
     start = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
     proc = subprocess.Popen(command, env=child_env, start_new_session=True,
+                            stdin=subprocess.PIPE if stdin else None,
                             stderr=subprocess.PIPE, stdout=subprocess.DEVNULL)
     assert proc.stderr is not None
     os.set_blocking(proc.stderr.fileno(), False)
@@ -102,7 +159,14 @@ def ready(command: list[str], env: dict[str, str], timeout: float,
                             now = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
                             if not start <= ns <= now:
                                 raise CaptureError("INVALID_READY_CLOCK")
-                            drain_stderr(proc)
+                            proc.launch_ns = start
+                            proc.ready_ns = ns
+                            if events:
+                                from bench_events import EventReader
+                                os.set_blocking(proc.stderr.fileno(), True)
+                                proc.events = EventReader(proc.stderr, start, initial=pending)
+                            else:
+                                drain_stderr(proc)
                             if exit_after:
                                 proc.wait(timeout=max(.1, deadline-time.monotonic()))
                                 if proc.returncode != 0:
@@ -110,10 +174,15 @@ def ready(command: list[str], env: dict[str, str], timeout: float,
                             return proc, (ns-start)/1_000_000
                     if len(pending) > 65536:
                         raise CaptureError("UNBOUNDED_STDERR_LINE")
-        raise CaptureError("READY_TIMEOUT: " + " | ".join(recent[-5:]))
+        if session_locked():
+            raise CaptureError(locked_error("after waiting for READY"))
+        raise CaptureError(f"READY_TIMEOUT: no READY within {timeout:g} s; {PRESENTATION_HINT}. "
+                           "Last stderr: " + " | ".join(recent[-5:]))
     except BaseException:
         stop(proc)
         proc.stderr.close()
+        if proc.stdin is not None:
+            proc.stdin.close()
         raise
 
 
@@ -181,10 +250,14 @@ def numeric(rows: list[dict[str, str]], field: str) -> list[float]:
     return values
 
 
-def capture(metric: str, args, command: list[str], env: dict[str, str]) -> list[dict]:
+def capture(metric: str, args, command: list[str], env: dict[str, str], command_for=None,
+            evidence: dict | None = None) -> list[dict]:
     if metric in ("G1", "G2"):
         if metric == "G1" and not args.cold_cache_ack:
             raise CaptureError("NEEDS_COLD_CACHE_PREP: G1 requires --cold-cache-ack; never label warm runs cold")
+        if getattr(args, "collect", "csv") == "presentation":
+            from bench_collect import presentation_rows
+            return presentation_rows(args, command_for or (lambda _env: command), env, metric)
         rows = []
         for iteration in range(args.iterations):
             proc, ms = ready(command, env, args.timeout, True)
@@ -195,7 +268,7 @@ def capture(metric: str, args, command: list[str], env: dict[str, str]) -> list[
         summary = stats([r["ready_ms"] for r in rows])
         rows.append({"iteration": "summary", **{k: summary[k] for k in ("p50_ms", "p95_ms")}, "status": "measured"})
         return rows
-    if metric == "G8":
+    if metric == "G8" and getattr(args, "collect", "csv") != "presentation":
         rows = artifact_rows(Path(args.capture_csv) if args.capture_csv else None, "frame_ms")
         values = numeric(rows, "frame_ms")
         proc, _ = ready(command, env, args.timeout, False)
@@ -209,8 +282,10 @@ def capture(metric: str, args, command: list[str], env: dict[str, str]) -> list[
                 pss, _ = memory(proc.pid)
                 peak = max(peak, pss)
                 time.sleep(.1)
-            return [{**stats(values), "over_interval_percent": sum(v>1000/args.refresh_hz for v in values)/len(values)*100,
-                     "memory_growth_mb": peak-baseline, "status": "measured"}]
+            # External frames: the single-session columns (peak PSS, GPU, follow) stay blank.
+            return [{"scenario": "external", **stats(values),
+                     "over_interval_percent": over_interval_percent(values, args.refresh_hz),
+                     "frames": len(values), "memory_growth_mb": peak-baseline, "status": "measured"}]
         finally:
             stop(proc)
             if proc.stderr:
@@ -222,12 +297,15 @@ def capture(metric: str, args, command: list[str], env: dict[str, str]) -> list[
         proc, _ = ready(command, env, args.timeout, False)
         rows = []
         worker = ThreadPoolExecutor(max_workers=1)
-        wakeups = worker.submit(wakeup_events, process_tree(proc.pid), args.duration) if metric == "G7" else None
+        cancel = threading.Event()
+        wakeups = worker.submit(wakeup_events, process_tree(proc.pid), args.duration, cancel) if metric == "G7" else None
         try:
             start = time.monotonic()
             ticks = cpu_ticks(proc.pid)
             pss0, _ = memory(proc.pid)
             while True:
+                if session_locked():  # before timing, so probe latency never skews a sample
+                    raise CaptureError(locked_error(f"during {metric}"))
                 elapsed = time.monotonic()-start
                 if proc.poll() is not None:
                     raise CaptureError(f"APP_EXIT: {proc.returncode}")
@@ -248,6 +326,7 @@ def capture(metric: str, args, command: list[str], env: dict[str, str]) -> list[
                     row["wakeups_s"] = rate
             return rows
         finally:
+            cancel.set()  # no-op once perf finished; otherwise a failed capture stops it now
             stop(proc)
             worker.shutdown(wait=True)
             if proc.stderr:
@@ -257,6 +336,9 @@ def capture(metric: str, args, command: list[str], env: dict[str, str]) -> list[
         if not args.binary or not args.bundle or args.runtime_delta_mb is None:
             raise CaptureError("SIZE_INPUT_REQUIRED: --binary, --bundle, --runtime-delta-mb (measured download delta)")
         return [sizes(Path(args.binary), Path(args.bundle), args.branch, args.runtime_delta_mb)]
+    if metric in ("G4", "G5", "G8", "G9") and getattr(args, "collect", "csv") == "presentation":
+        from bench_collect import driven_rows
+        return driven_rows(args, metric, command_for or (lambda _env: command), env, evidence)
     # External captures are raw observations, not invented samples or compositor rAF proxies.
     field = "stall_ms" if metric == "G6" else "latency_ms" if metric == "G5" else "frame_ms"
     rows = artifact_rows(Path(args.capture_csv) if args.capture_csv else None, field)
@@ -265,9 +347,9 @@ def capture(metric: str, args, command: list[str], env: dict[str, str]) -> list[
         return [{"stalls_over_16ms": sum(v>16 for v in values), "stalls_over_50ms": sum(v>50 for v in values),
                  "duration_s": args.duration, "status": "measured"}]
     result = stats(values)
-    if metric == "G5":
-        return [{"scenario": row.get("scenario", "unspecified"), "latency_ms": value, "status": "measured"}
-                for row, value in zip(rows, values)] + [{"scenario": "summary", "p95_ms": result["p95_ms"], "status": "measured"}]
-    result["over_interval_percent"] = sum(v>1000/args.refresh_hz for v in values)/len(values)*100
-    result["status"] = "measured"
+    if metric == "G5":  # external observations carry no trial statuses: `ambiguous`, `timeout` and `early` stay empty
+        return [{"scenario": "external", "p50_ms": result["p50_ms"], "p95_ms": result["p95_ms"],
+                 "p99_ms": result["p99_ms"], "measured": len(values), "status": "measured"}]
+    result["over_interval_percent"] = over_interval_percent(values, args.refresh_hz)
+    result.update(scenario="external", frames=len(values), status="measured")
     return [result]

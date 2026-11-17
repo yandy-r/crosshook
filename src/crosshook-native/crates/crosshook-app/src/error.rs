@@ -218,10 +218,6 @@ impl From<crosshook_core::export::DiagnosticBundleError> for AppError {
                 AppErrorKind::Internal,
                 "failed to write the diagnostic archive",
             ),
-            E::ProfileStore(_) => Self::new(
-                AppErrorKind::Internal,
-                "failed to read profiles for the diagnostic bundle",
-            ),
         }
     }
 }
@@ -273,7 +269,6 @@ impl From<crosshook_core::profile::LutrisImportError> for AppError {
                 "failed to parse Lutris config",
             ),
             E::Pga { .. } => Self::new(AppErrorKind::Io, "failed to read Lutris pga.db"),
-            E::ProfileStore { .. } => Self::new(AppErrorKind::Io, "failed to access profiles"),
         }
     }
 }

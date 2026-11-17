@@ -38,7 +38,6 @@ pub struct MangoHudPreset {
 /// In-memory MangoHud preset catalog deserialized from TOML.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MangoHudPresetCatalog {
-    pub catalog_version: u32,
     /// Matches the `[[preset]]` TOML array key.
     #[serde(default)]
     pub preset: Vec<MangoHudPreset>,
@@ -55,13 +54,7 @@ fn parse_mangohud_presets(toml_str: &str) -> (MangoHudPresetCatalog, Vec<String>
         }
         Err(e) => {
             warnings.push(format!("Failed to parse MangoHud presets: {e}"));
-            (
-                MangoHudPresetCatalog {
-                    catalog_version: 0,
-                    preset: Vec::new(),
-                },
-                warnings,
-            )
+            (MangoHudPresetCatalog { preset: Vec::new() }, warnings)
         }
     }
 }

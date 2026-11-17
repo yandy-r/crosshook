@@ -6,7 +6,7 @@ use crate::platform::{
 
 use super::models::{BinaryDetectionResult, PrefixDepsTool};
 
-/// Walk PATH for the given binary name, returning its absolute path if found.
+/// Return the binary name when it resolves on PATH.
 fn resolve_binary_on_path(name: &str) -> Option<String> {
     host_command_exists(name).then(|| name.to_string())
 }
@@ -96,11 +96,6 @@ fn detect_binary_with(
 /// Resolve winetricks binary on PATH.
 pub fn resolve_winetricks_path() -> Option<String> {
     resolve_binary_on_path("winetricks")
-}
-
-/// Resolve protontricks binary on PATH.
-pub fn resolve_protontricks_path() -> Option<String> {
-    resolve_binary_on_path("protontricks")
 }
 
 #[cfg(test)]

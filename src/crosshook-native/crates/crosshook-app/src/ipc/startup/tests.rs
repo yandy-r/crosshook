@@ -186,25 +186,6 @@ fn resync_emits_conservative_saved_with_no_names() {
 }
 
 #[test]
-fn ui_settings_persist_failed_payload_is_an_object_with_message() {
-    let payload = UiSettingsPersistFailedPayload {
-        message: "could not save settings".to_owned(),
-    };
-    assert_eq!(
-        serde_json::to_value(payload).unwrap(),
-        json!({"message": "could not save settings"})
-    );
-}
-
-#[test]
-fn ui_settings_persist_failed_uses_classic_event_name() {
-    assert_eq!(
-        UI_SETTINGS_PERSIST_FAILED_EVENT,
-        "ui-settings-persist-failed"
-    );
-}
-
-#[test]
 fn named_scan_completion_events_are_not_bridged() {
     for event in [
         AppEvent::HealthScanCompleted {
@@ -229,9 +210,6 @@ fn named_scan_completion_events_are_not_bridged() {
         AppEvent::ProfilesChanged {
             reason: ProfileChangeReason::Saved,
             names: vec![],
-        },
-        AppEvent::UiSettingsPersistFailed {
-            message: "x".into(),
         },
         AppEvent::SessionStarted {
             session_id: serde_json::from_value(json!("550e8400-e29b-41d4-a716-446655440000"))
@@ -416,16 +394,5 @@ fn profiles_changed_and_persist_failures_map_to_their_events() {
     assert_eq!(
         events[0].value(),
         json!({"reason": {"kind": "deleted"}, "names": ["Alpha"]})
-    );
-    let events = wire_events(
-        AppEvent::UiSettingsPersistFailed {
-            message: "could not save settings".into(),
-        },
-        jobs,
-    );
-    assert_eq!(names(&events), vec!["ui-settings-persist-failed"]);
-    assert_eq!(
-        events[0].value(),
-        json!({"message": "could not save settings"})
     );
 }

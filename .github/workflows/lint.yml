@@ -132,7 +132,7 @@ jobs:
         run: python3 -m unittest scripts/test_build_deps.py
 
       - name: Bench harness tests
-        run: python3 -m unittest scripts/bench/test_bench.py
+        run: python3 -m unittest discover -s scripts/bench -p 'test_*.py'
 
       - name: Host-gateway guardrail
         run: ./scripts/check-host-gateway.sh
@@ -161,12 +161,35 @@ jobs:
       - name: Async Tauri commands guardrail self-test
         run: ./scripts/check-async-commands.sh --self-test
 
+      - name: Agent rules drift check
+        run: ./scripts/check-agent-rules-sync.sh
+
+      - name: Agent rules drift check self-test
+        run: ./scripts/check-agent-rules-sync.sh --selftest
+
       - name: Mock coverage contract gate
         run: ./scripts/check-mock-coverage.sh
 
+      - name: Mock coverage contract gate self-test
+        run: ./scripts/check-mock-coverage.sh --self-test
+
+  bench-shim:
+    name: Bench shim (compile check)
+    # The shim needs libwayland-client >= 1.24 (wl_proxy_get_interface); Ubuntu 24.04 ships 1.22.
+    # Pinned: ubuntu-latest may still pick 24.04 while the 26.04 rollout finishes.
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shim build tooling
+        run: sudo apt-get update && sudo apt-get install -y gcc pkg-config libwayland-dev libwayland-bin
+
+      - name: Bench presentation shim compile check
+        run: python3 scripts/bench/bench_shim.py --check
+
   smoke:
     name: Playwright smoke
-    # Playwright 1.60.0 cannot install Chromium dependencies on Ubuntu 26.04.
+    # ubuntu-latest is Ubuntu 26.04. Playwright 1.60 cannot install Chromium deps there.
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

@@ -60,11 +60,7 @@ pub(crate) fn deps_error(field: &'static str, error: PrefixDepsError) -> AppErro
         PrefixDepsError::ValidationError(_) | PrefixDepsError::PrefixNotInitialized { .. } => {
             AppError::validation(field, message)
         }
-        PrefixDepsError::BinaryNotFound { .. } | PrefixDepsError::Timeout { .. } => {
-            AppError::new(AppErrorKind::Unavailable, message)
-        }
-        PrefixDepsError::ProcessFailed { .. } | PrefixDepsError::Database { .. } => {
-            AppError::new(AppErrorKind::Internal, message)
-        }
+        PrefixDepsError::Timeout { .. } => AppError::new(AppErrorKind::Unavailable, message),
+        PrefixDepsError::ProcessFailed { .. } => AppError::new(AppErrorKind::Internal, message),
     }
 }

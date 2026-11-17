@@ -9,10 +9,8 @@ use super::HostProbe;
 
 /// Canned host results with per-operation call counts and an optional gate.
 pub(crate) struct FakeHostProbe {
-    pub system: ReadinessCheckResult,
     pub generalized: ReadinessCheckResult,
     pub details: HostToolDetails,
-    pub system_calls: AtomicUsize,
     pub generalized_calls: AtomicUsize,
     pub details_calls: AtomicUsize,
     gate: Option<Arc<GateState>>,
@@ -20,16 +18,10 @@ pub(crate) struct FakeHostProbe {
 
 impl FakeHostProbe {
     /// Returns the supplied results without inspecting the live host.
-    pub(crate) fn new(
-        system: ReadinessCheckResult,
-        generalized: ReadinessCheckResult,
-        details: HostToolDetails,
-    ) -> Self {
+    pub(crate) fn new(generalized: ReadinessCheckResult, details: HostToolDetails) -> Self {
         Self {
-            system,
             generalized,
             details,
-            system_calls: AtomicUsize::new(0),
             generalized_calls: AtomicUsize::new(0),
             details_calls: AtomicUsize::new(0),
             gate: None,
@@ -38,7 +30,6 @@ impl FakeHostProbe {
 
     /// Blocks probe calls until the returned gate is released.
     pub(crate) fn gated(
-        system: ReadinessCheckResult,
         generalized: ReadinessCheckResult,
         details: HostToolDetails,
     ) -> (Self, ProbeGate) {
@@ -47,7 +38,7 @@ impl FakeHostProbe {
             released: Mutex::new(false),
             wake: Condvar::new(),
         });
-        let mut probe = Self::new(system, generalized, details);
+        let mut probe = Self::new(generalized, details);
         probe.gate = Some(gate.clone());
         (probe, ProbeGate(gate))
     }
@@ -66,12 +57,6 @@ impl FakeHostProbe {
 }
 
 impl HostProbe for FakeHostProbe {
-    fn system_readiness(&self) -> ReadinessCheckResult {
-        self.system_calls.fetch_add(1, Ordering::SeqCst);
-        self.wait_for_release();
-        self.system.clone()
-    }
-
     fn generalized_readiness(&self) -> ReadinessCheckResult {
         self.generalized_calls.fetch_add(1, Ordering::SeqCst);
         self.wait_for_release();

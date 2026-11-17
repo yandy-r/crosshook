@@ -1,6 +1,6 @@
 use std::fs;
 
-use super::support::{command_env_value, write_executable_file};
+use super::support::{command_env_value, test_trainer_log_path, write_executable_file};
 use crate::launch::script_runner::{
     build_flatpak_steam_trainer_command, build_proton_trainer_command,
 };
@@ -14,7 +14,6 @@ fn flatpak_steam_trainer_command_reuses_direct_proton_builder_inputs() {
     let trainer_source_dir = temp_dir.path().join("trainer");
     let trainer_path = trainer_source_dir.join("sample.exe");
     let steam_client_path = temp_dir.path().join("steam-client");
-    let log_path = temp_dir.path().join("trainer.log");
 
     fs::create_dir_all(compatdata_path.join("pfx/drive_c")).expect("compatdata dir");
     fs::create_dir_all(&trainer_source_dir).expect("trainer source dir");
@@ -47,7 +46,7 @@ fn flatpak_steam_trainer_command_reuses_direct_proton_builder_inputs() {
         ..Default::default()
     };
 
-    let command = build_flatpak_steam_trainer_command(&request, &log_path)
+    let command = build_flatpak_steam_trainer_command(&request, test_trainer_log_path())
         .expect("flatpak steam trainer command");
     let args = command
         .as_std()
@@ -84,7 +83,6 @@ fn proton_trainer_command_stages_support_files_into_prefix() {
     let trainer_path = trainer_source_dir.join("sample.exe");
     let trainer_config_path = trainer_source_dir.join("sample.ini");
     let proton_path = temp_dir.path().join("proton");
-    let log_path = temp_dir.path().join("trainer.log");
 
     fs::create_dir_all(prefix_path.join("drive_c")).expect("prefix dir");
     fs::create_dir_all(&trainer_source_dir).expect("trainer source dir");
@@ -120,7 +118,8 @@ fn proton_trainer_command_stages_support_files_into_prefix() {
         ..Default::default()
     };
 
-    let command = build_proton_trainer_command(&request, &log_path).expect("trainer command");
+    let command =
+        build_proton_trainer_command(&request, test_trainer_log_path()).expect("trainer command");
     let args = command
         .as_std()
         .get_args()
@@ -149,7 +148,6 @@ fn proton_trainer_command_uses_source_directory_without_staging() {
     let proton_path = temp_dir.path().join("proton");
     let trainer_source_dir = temp_dir.path().join("trainer");
     let trainer_path = trainer_source_dir.join("sample.exe");
-    let log_path = temp_dir.path().join("trainer.log");
 
     fs::create_dir_all(prefix_path.join("drive_c")).expect("prefix dir");
     fs::create_dir_all(&trainer_source_dir).expect("trainer source dir");
@@ -184,7 +182,8 @@ fn proton_trainer_command_uses_source_directory_without_staging() {
         ..Default::default()
     };
 
-    let command = build_proton_trainer_command(&request, &log_path).expect("trainer command");
+    let command =
+        build_proton_trainer_command(&request, test_trainer_log_path()).expect("trainer command");
     let args = command
         .as_std()
         .get_args()
@@ -218,7 +217,6 @@ fn proton_trainer_command_uses_pfx_child_when_prefix_path_is_compatdata_root() {
     let trainer_source_dir = temp_dir.path().join("trainer");
     let trainer_path = trainer_source_dir.join("aurora.exe");
     let proton_path = temp_dir.path().join("proton");
-    let log_path = temp_dir.path().join("trainer.log");
 
     fs::create_dir_all(wine_prefix_path.join("drive_c")).expect("prefix dir");
     fs::create_dir_all(&trainer_source_dir).expect("trainer source dir");
@@ -253,7 +251,8 @@ fn proton_trainer_command_uses_pfx_child_when_prefix_path_is_compatdata_root() {
         ..Default::default()
     };
 
-    let command = build_proton_trainer_command(&request, &log_path).expect("trainer command");
+    let command =
+        build_proton_trainer_command(&request, test_trainer_log_path()).expect("trainer command");
     let envs = command
         .as_std()
         .get_envs()

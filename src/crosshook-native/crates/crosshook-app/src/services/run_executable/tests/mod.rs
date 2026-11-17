@@ -10,7 +10,7 @@ use crosshook_core::run_executable::RunExecutableRequest;
 use tempfile::TempDir;
 
 use super::{RunCompletion, RunExecutableResponse, RunExecutableService};
-use crate::jobs::{JobKey, JobRegistry};
+use crate::jobs::{test_log_dir, JobKey, JobRegistry, LogDir};
 use crate::log_tail::LogBatch;
 use crate::services::process::{prefix_job_key, JobOwner, ProcessRun, RunEvent};
 
@@ -34,6 +34,7 @@ struct Fixture {
     exe: PathBuf,
     adhoc_root: PathBuf,
     log_dir: PathBuf,
+    log: LogDir,
 }
 
 impl Fixture {
@@ -46,10 +47,11 @@ impl Fixture {
         let exe = game_dir.join("Setup.exe");
         std::fs::write(&exe, b"MZ").unwrap();
         let adhoc_root = root.join("prefixes").join("_run-adhoc");
-        let log_dir = root.join("logs");
+        let log = test_log_dir(&root);
+        let log_dir = log.as_ref().expect("usable log dir").path().to_path_buf();
         let jobs = JobRegistry::default();
         let service =
-            RunExecutableService::with_dirs(jobs.clone(), log_dir.clone(), adhoc_root.clone());
+            RunExecutableService::with_dirs(jobs.clone(), log.clone(), adhoc_root.clone());
         Self {
             _dir: dir,
             proton: root.join("fake-proton"),
@@ -59,6 +61,7 @@ impl Fixture {
             exe,
             adhoc_root,
             log_dir,
+            log,
         }
     }
 

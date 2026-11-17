@@ -59,15 +59,6 @@ fn migration_13_to_14_creates_game_image_cache_table() {
         )
         .unwrap();
     assert_eq!(idx, 1, "missing index idx_game_image_cache_app_type_source");
-
-    let expires_idx: i64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_game_image_cache_expires'",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap();
-    assert_eq!(expires_idx, 1, "missing index idx_game_image_cache_expires");
 }
 
 #[test]
@@ -231,18 +222,6 @@ fn migration_17_to_18_creates_trainer_sources_table() {
     assert!(
         game_idx_exists,
         "index idx_trainer_sources_game should exist"
-    );
-
-    let app_id_idx_exists: bool = conn
-        .prepare(
-            "SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_trainer_sources_app_id'",
-        )
-        .unwrap()
-        .exists([])
-        .unwrap();
-    assert!(
-        app_id_idx_exists,
-        "index idx_trainer_sources_app_id should exist"
     );
 }
 

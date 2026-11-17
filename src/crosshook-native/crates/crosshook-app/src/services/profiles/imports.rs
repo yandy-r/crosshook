@@ -1,6 +1,6 @@
 //! Lutris and community import facades.
 //!
-//! Both run the core importer under the writer lock (D3), so an import
+//! Both run the core importer under the writer lock, so an import
 //! cannot interleave with another profile write, then queue the shared
 //! effects (observe → `Import` revision → health invalidation) and publish
 //! one `Imported` event naming every written profile.
@@ -40,7 +40,7 @@ impl ProfileWriter {
     /// seeds its display-only version snapshot from the manifest metadata.
     /// The profile takes the derived name, or the first free `<name>-N` when
     /// that name is taken, so an existing profile is never overwritten; the
-    /// collision check runs under the writer lock (D3). The caller has
+    /// collision check runs under the writer lock. The caller has
     /// already checked that `path` is allowed. Publishes `Imported` with the
     /// name actually written ([`CommunityImportResult::profile_name`]).
     ///

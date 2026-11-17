@@ -14,7 +14,7 @@ pub enum HealthStatus {
     Broken,
 }
 
-/// Per-issue severity — distinct from `ValidationSeverity` which always returns Fatal.
+/// Per-issue severity, distinct from `ValidationSeverity`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "ts-rs", derive(TS))]

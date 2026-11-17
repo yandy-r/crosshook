@@ -45,39 +45,15 @@ pub struct LauncherDeleteResult {
     pub desktop_entry_skipped_reason: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
-pub struct LauncherRenameResult {
-    #[serde(default)]
-    pub old_slug: String,
-    #[serde(default)]
-    pub new_slug: String,
-    #[serde(default)]
-    pub new_script_path: String,
-    #[serde(default)]
-    pub new_desktop_entry_path: String,
-    #[serde(default)]
-    pub script_renamed: bool,
-    #[serde(default)]
-    pub desktop_entry_renamed: bool,
-    #[serde(default)]
-    pub old_script_cleanup_warning: Option<String>,
-    #[serde(default)]
-    pub old_desktop_entry_cleanup_warning: Option<String>,
-}
-
 #[derive(Debug)]
 pub enum LauncherStoreError {
     Io(io::Error),
-    HomePathResolutionFailed,
 }
 
 impl fmt::Display for LauncherStoreError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Io(error) => write!(f, "{error}"),
-            Self::HomePathResolutionFailed => {
-                f.write_str("Could not resolve a host home path for launcher operations.")
-            }
         }
     }
 }
@@ -86,7 +62,6 @@ impl Error for LauncherStoreError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Io(error) => Some(error),
-            _ => None,
         }
     }
 }

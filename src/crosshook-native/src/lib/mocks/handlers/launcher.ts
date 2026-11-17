@@ -1,4 +1,4 @@
-import type { LauncherDeleteResult, LauncherInfo, LauncherRenameResult } from '../../../types/launcher';
+import type { LauncherDeleteResult, LauncherInfo } from '../../../types/launcher';
 import type { Handler } from './types';
 
 // ---- Synthetic data (BR-10 / W-3: fictional names, /home/devuser paths) ----
@@ -98,27 +98,8 @@ export function registerLauncher(map: Map<string, Handler>): void {
     return structuredClone(SYNTHETIC_DELETE_RESULT);
   });
 
-  map.set('rename_launcher', async (_args): Promise<LauncherRenameResult> => {
-    console.warn('[dev-mock] rename_launcher suppressed — no files renamed');
-    const result: LauncherRenameResult = {
-      old_slug: 'test-game-alpha-trainer',
-      new_slug: 'test-game-alpha-trainer',
-      new_script_path: '/home/devuser/.local/share/crosshook/launchers/test-game-alpha-trainer.sh',
-      new_desktop_entry_path: '/home/devuser/.local/share/applications/test-game-alpha-trainer.desktop',
-      script_renamed: false,
-      desktop_entry_renamed: false,
-      old_script_cleanup_warning: null,
-      old_desktop_entry_cleanup_warning: null,
-    };
-    return result;
-  });
-
   map.set('reexport_launcher_by_slug', async (_args) => {
     console.warn('[dev-mock] reexport_launcher_by_slug suppressed — no files written to disk');
     return structuredClone(SYNTHETIC_EXPORT_RESULT);
-  });
-
-  map.set('find_orphaned_launchers', async (_args): Promise<LauncherInfo[]> => {
-    return [];
   });
 }

@@ -1,4 +1,4 @@
-//! Token scoring, RSS title normalization, and advisory version matching for Phase B discovery.
+//! Token scoring, RSS title normalization, and advisory version matching for discovery.
 
 use super::models::{VersionMatchResult, VersionMatchStatus};
 
@@ -158,7 +158,7 @@ fn is_stop_word(token: &str) -> bool {
 
 /// Scores how relevant an RSS result's game name is to a search query.
 ///
-/// Returns `0.0..=1.0`. Results scoring `< 0.3` should be filtered by the caller.
+/// Returns `0.0..=1.0`.
 pub fn score_fling_result(query: &str, rss_game_name: &str) -> f64 {
     let query_tokens: Vec<String> = tokenize(query)
         .into_iter()

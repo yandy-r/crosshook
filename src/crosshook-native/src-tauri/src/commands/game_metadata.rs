@@ -39,15 +39,6 @@ pub async fn fetch_game_cover_art(
 }
 
 #[tauri::command]
-pub async fn import_custom_cover_art(source_path: String, app: AppState<'_>) -> IpcResult<String> {
-    ipc(app
-        .services()
-        .steam
-        .import_custom_cover_art(source_path)
-        .await)
-}
-
-#[tauri::command]
 pub async fn import_custom_art(
     source_path: String,
     art_type: Option<String>,
@@ -58,17 +49,4 @@ pub async fn import_custom_art(
         .steam
         .import_custom_art(source_path, art_type)
         .await)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        let _ = fetch_game_metadata;
-        let _ = fetch_game_cover_art;
-        let _ = import_custom_cover_art;
-        let _ = import_custom_art;
-    }
 }

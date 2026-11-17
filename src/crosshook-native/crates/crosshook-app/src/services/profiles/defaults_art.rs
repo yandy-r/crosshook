@@ -1,5 +1,4 @@
 //! New-profile creation defaults and custom-art auto-import for full saves
-//! (moved from the Tauri `profile_save` command).
 
 use crosshook_core::game_images::{
     import_custom_art, import_custom_cover_art, is_in_managed_media_dir, GameImageType,

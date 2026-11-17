@@ -362,7 +362,7 @@ pub(crate) fn copy_data_subtrees(
     (imported, skipped_existed, errors)
 }
 
-/// Unused sibling name for a leftover key: `<key>.orphaned-<unix_ts>[-n]`.
+/// Sibling name for a leftover key: `<key>.orphaned-<unix_ts>[-n]`.
 fn orphan_path(key: &Path) -> PathBuf {
     let ts = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

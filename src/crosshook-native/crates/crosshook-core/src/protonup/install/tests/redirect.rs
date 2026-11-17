@@ -4,7 +4,7 @@ use sha2::{Digest, Sha512};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-use super::super::{hex_encode, install_version};
+use super::super::{hex_encode, install_version_with_progress};
 use super::support::{make_version, minimal_ge_proton_tar_gz};
 use crate::protonup::{ProtonUpInstallErrorKind, ProtonUpInstallRequest, ProtonUpInstallResult};
 
@@ -45,10 +45,11 @@ async fn run_install(
         force: false,
     };
     let version_info = make_version(version, Some(download_url), Some(checksum_url));
-    tokio::time::timeout(
-        std::time::Duration::from_secs(30),
-        install_version(&request, &version_info),
-    )
+    tokio::time::timeout(std::time::Duration::from_secs(30), async {
+        install_version_with_progress(&request, &version_info, None, None)
+            .await
+            .unwrap_or_else(|error| error.to_result())
+    })
     .await
     .expect("install timed out")
 }

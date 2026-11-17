@@ -68,23 +68,4 @@ impl MetadataStore {
             Ok(keys)
         })
     }
-
-    /// Evict all expired dismissals across all profiles. Returns the number of rows deleted.
-    pub fn evict_expired_dismissals(&self) -> Result<usize, MetadataStoreError> {
-        let now = Utc::now().to_rfc3339();
-
-        self.with_conn_mut("evict all expired suggestion dismissals", |conn| {
-            let count = conn
-                .execute(
-                    "DELETE FROM suggestion_dismissals WHERE expires_at < ?1",
-                    rusqlite::params![now],
-                )
-                .map_err(|source| MetadataStoreError::Database {
-                    action: "evict all expired suggestion dismissals",
-                    source,
-                })?;
-
-            Ok(count)
-        })
-    }
 }

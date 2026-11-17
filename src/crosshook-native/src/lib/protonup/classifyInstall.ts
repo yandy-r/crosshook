@@ -13,8 +13,6 @@ const PROVIDER_PREFIXES: ReadonlyArray<readonly [RegExp, string]> = [
   [/^GE-Proton/i, 'ge-proton'],
   [/^proton-?cachyos/i, 'proton-cachyos'],
   [/^Proton-EM/i, 'proton-em'],
-  [/^Luxtorpeda/i, 'luxtorpeda'],
-  [/^Boxtron/i, 'boxtron'],
 ];
 
 export function classifyInstallProvider(name: string): string | null {

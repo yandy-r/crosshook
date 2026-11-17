@@ -1,4 +1,4 @@
-//! Steam game exit watch (YAN-824, D3). Unit tests drive
+//! Steam game exit watch. Unit tests drive
 //! [`watch_steam_game`] with a scripted probe on paused Tokio time; one
 //! service-level test checks the finalizer handoff end to end.
 

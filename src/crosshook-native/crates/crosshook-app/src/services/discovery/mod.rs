@@ -5,9 +5,7 @@ use crosshook_core::metadata::MetadataStore;
 use crosshook_core::settings::SettingsStore;
 
 mod catalog;
-mod compatibility;
 mod search;
-mod sources;
 #[cfg(test)]
 mod tests;
 

@@ -1,4 +1,4 @@
-//! Schema migrations. Current: v28. Tier files: [`v1_v10`], [`v11_v20`], [`v21_v23`], [`v24_v25`], [`v25_v26`], [`v26_v27`], [`v27_v28`].
+//! Schema migrations. Current: v29. Tier files: [`v1_v10`], [`v11_v20`], [`v21_v23`], [`v24_v25`], [`v25_v26`], [`v26_v27`], [`v27_v28`], [`v28_v29`].
 //! See [`super`] for the metadata facade.
 
 mod v11_v20;
@@ -8,6 +8,7 @@ mod v24_v25;
 mod v25_v26;
 mod v26_v27;
 mod v27_v28;
+mod v28_v29;
 
 #[cfg(test)]
 mod tests;
@@ -17,7 +18,7 @@ use rusqlite::Connection;
 
 /// Highest schema version this binary understands. Must equal the last rung of the
 /// ladder in [`run_migrations`]; `scripts/check-schema-version.sh` parses this line.
-pub const SUPPORTED_MAX_VERSION: u32 = 28;
+pub const SUPPORTED_MAX_VERSION: u32 = 29;
 
 pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
     let version = conn
@@ -282,6 +283,15 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
         conn.pragma_update(None, "user_version", 28_u32)
             .map_err(|source| MetadataStoreError::Database {
                 action: "update metadata schema version to 28",
+                source,
+            })?;
+    }
+
+    if version < 29 {
+        v28_v29::migrate_28_to_29(conn)?;
+        conn.pragma_update(None, "user_version", 29_u32)
+            .map_err(|source| MetadataStoreError::Database {
+                action: "update metadata schema version to 29",
                 source,
             })?;
     }

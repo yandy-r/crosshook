@@ -3,8 +3,10 @@ use std::time::Duration;
 
 use crate::platform::is_flatpak;
 
+mod capture;
 mod descendants;
 mod host;
+mod host_table;
 mod process;
 mod resolver;
 mod tasks;
@@ -21,7 +23,7 @@ pub(super) const GAMESCOPE_HOST_PID_CAPTURE_WAIT_ITERATIONS: u32 = 20;
 pub(super) const GAMESCOPE_HOST_PID_CAPTURE_WAIT_INTERVAL: Duration = Duration::from_millis(200);
 pub(super) const TASK_COMM_LEN: usize = 15;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct ShutdownTarget {
     pub(super) pid: u32,
     pub(super) host_namespace: bool,
@@ -79,7 +81,6 @@ mod tests {
 
     use super::{
         descendants::{collect_descendant_pids_from_children_map, parse_status_ppid},
-        host::{host_process_line_parts, parse_host_process_entry},
         process::{comm_matches_candidates, process_name_candidates},
         resolver::resolve_unique_gamescope_ancestor,
     };
@@ -115,34 +116,6 @@ mod tests {
             Some("/games/1234567890123456.exe\0--fullscreen"),
             &candidates
         ));
-    }
-
-    #[test]
-    fn host_process_line_parses_pid_and_comm_name() {
-        assert_eq!(
-            host_process_line_parts("4242\twitcher3.exe"),
-            Some((4242, "witcher3.exe"))
-        );
-    }
-
-    #[test]
-    fn host_process_line_preserves_names_with_spaces() {
-        assert_eq!(
-            host_process_line_parts("4242\tWitcher 3.exe"),
-            Some((4242, "Witcher 3.exe"))
-        );
-    }
-
-    #[test]
-    fn host_process_entry_parses_pid_ppid_and_comm() {
-        let entry = parse_host_process_entry("4242\t41\tgamescope");
-
-        assert_eq!(entry.as_ref().map(|entry| entry.pid), Some(4242));
-        assert_eq!(entry.as_ref().map(|entry| entry.ppid), Some(41));
-        assert_eq!(
-            entry.as_ref().map(|entry| entry.comm.as_str()),
-            Some("gamescope")
-        );
     }
 
     // Tests for the host-process matching primitives used by the watchdog fallback.

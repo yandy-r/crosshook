@@ -1,6 +1,7 @@
 use super::*;
 
 use std::fs;
+use std::os::unix::fs::PermissionsExt;
 
 use crosshook_core::settings::AppSettingsData;
 use tempfile::tempdir;
@@ -115,6 +116,31 @@ fn init_remaining_explicit_file_as_data_dir_is_fatal_for_recent_files() {
     }
 }
 
+#[test]
+fn open_log_dir_explicit_creates_private_logs_under_data_dir() {
+    let temp = tempdir().unwrap();
+    let data = temp.path().join("data");
+    let roots = explicit_roots(&temp.path().join("config"), &data);
+
+    let log_dir = open_log_dir(&roots).expect("log dir under the explicit data dir");
+
+    assert_eq!(log_dir.path(), data.join("logs"));
+    let mode = fs::metadata(log_dir.path()).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o700);
+}
+
+#[test]
+fn open_log_dir_unusable_root_degrades_instead_of_failing() {
+    let temp = tempdir().unwrap();
+    let file_root = temp.path().join("a-file");
+    fs::write(&file_root, b"x").unwrap();
+    let roots = explicit_roots(&temp.path().join("config"), &file_root);
+
+    let log_dir = open_log_dir(&roots);
+
+    assert!(log_dir.is_err(), "a file as data root yields no log dir");
+}
+
 #[tokio::test]
 async fn services_new_builds_bundle_from_stores() {
     let temp = tempdir().unwrap();
@@ -125,12 +151,9 @@ async fn services_new_builds_bundle_from_stores() {
     let (stores, _) = init_remaining(&roots, &settings, &AppSettingsData::default()).unwrap();
     let jobs = crate::jobs::JobRegistry::default();
 
-    let services = Services::new(
-        &stores,
-        crate::EventBus::default(),
-        tokio::runtime::Handle::current(),
-        jobs.clone(),
-    );
+    let log_dir = crate::jobs::test_log_dir(temp.path());
+
+    let services = Services::new(&stores, crate::EventBus::default(), jobs.clone(), log_dir);
 
     // Bundle is built; clones are cheap and Arc-shared background holder.
     let cloned = services.clone();

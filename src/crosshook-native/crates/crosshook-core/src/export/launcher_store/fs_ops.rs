@@ -62,49 +62,6 @@ pub(super) fn remove_file_if_exists(path: &str) -> Result<bool, io::Error> {
     }
 }
 
-pub(super) fn remove_old_launcher_file(
-    path: &str,
-    watermark: &str,
-    artifact_label: &str,
-) -> Option<String> {
-    match verify_crosshook_file(path, watermark) {
-        Ok(Some(reason)) => {
-            let warning = format!("Skipped old {artifact_label} cleanup: {reason}");
-            tracing::warn!(
-                path = %path,
-                artifact = artifact_label,
-                reason = %reason,
-                "skipping old launcher cleanup during rename"
-            );
-            Some(warning)
-        }
-        Ok(None) => {
-            if let Err(error) = remove_file_if_exists(path) {
-                let warning = format!("Failed to remove old {artifact_label} at {path}: {error}");
-                tracing::warn!(
-                    path = %path,
-                    artifact = artifact_label,
-                    %error,
-                    "failed to remove old launcher during rename"
-                );
-                Some(warning)
-            } else {
-                None
-            }
-        }
-        Err(error) => {
-            let warning = format!("Failed to verify old {artifact_label} at {path}: {error}");
-            tracing::warn!(
-                path = %path,
-                artifact = artifact_label,
-                %error,
-                "failed to verify old launcher during rename"
-            );
-            Some(warning)
-        }
-    }
-}
-
 pub(super) fn extract_display_name_from_desktop(
     desktop_path: &str,
 ) -> Result<Option<String>, io::Error> {

@@ -1,14 +1,14 @@
 //! The one-shot READY marker: one `READY <CLOCK_MONOTONIC ns>` line on stderr
 //! per process, after the frontend signals it is ready.
 
-use std::io::Write;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use nix::time::{clock_gettime, ClockId};
-
+use super::deferred::park_deferred;
 use super::env::{decide, BenchEnv, BenchMode};
 use super::plan::{resolve_replay_plan, ReplayPlan};
+use super::scenario::{parse_scenario, Scenario};
+use super::util::{claim, monotonic_ns, write_line};
 
 static READY_FIRED: AtomicBool = AtomicBool::new(false);
 
@@ -19,27 +19,10 @@ pub enum ReadyAction {
     None,
     /// Exit the process right away (`CROSSHOOK_BENCH_EXIT_AFTER_READY=1`).
     Exit,
-    /// Replay the log through [`replay_log`](super::replay_log).
+    /// Replay the log through [`replay_log`](super::replay_log). Never returned for a scenario
+    /// that defers the replay: READY parks that plan for
+    /// [`take_deferred_replay`](super::take_deferred_replay) and returns [`ReadyAction::None`].
     Replay(ReplayPlan),
-}
-
-fn timespec_to_ns(sec: i64, nsec: i64) -> Option<u64> {
-    u64::try_from(sec)
-        .ok()?
-        .checked_mul(1_000_000_000)?
-        .checked_add(u64::try_from(nsec).ok()?)
-}
-
-fn monotonic_ns() -> Result<u64, String> {
-    let ts = clock_gettime(ClockId::CLOCK_MONOTONIC)
-        .map_err(|e| format!("clock_gettime(CLOCK_MONOTONIC) failed: {e}"))?;
-    timespec_to_ns(ts.tv_sec(), ts.tv_nsec())
-        .ok_or_else(|| "CLOCK_MONOTONIC value out of u64 nanosecond range".to_string())
-}
-
-/// True for exactly one caller per flag.
-fn claim(flag: &AtomicBool) -> bool {
-    !flag.swap(true, Ordering::AcqRel)
 }
 
 #[derive(Debug)]
@@ -47,6 +30,17 @@ struct Started {
     ns: u64,
     exit_after_ready: bool,
     replay: Option<ReplayPlan>,
+    /// The active scenario starts the replay later (`bench_begin` plus the runner's go line).
+    defer_replay: bool,
+}
+
+/// Whether the configured scenario defers the replay. An unknown scenario does not: it is
+/// reported by [`active_scenario`](super::active_scenario), and READY behaves as without one.
+fn defers_replay(env: &BenchEnv) -> bool {
+    parse_scenario(env)
+        .ok()
+        .flatten()
+        .is_some_and(Scenario::defers_replay)
 }
 
 /// Validate everything, then claim the one-shot. Any error leaves the flag unclaimed.
@@ -83,14 +77,28 @@ fn begin(flag: &AtomicBool, env: &BenchEnv) -> Result<Option<Started>, String> {
         ns,
         exit_after_ready,
         replay,
+        defer_replay: defers_replay(env),
     }))
 }
 
 fn write_ready(ns: u64) -> Result<(), String> {
-    let mut err = std::io::stderr().lock();
-    writeln!(err, "READY {ns}")
-        .and_then(|()| err.flush())
-        .map_err(|e| format!("failed to write READY marker: {e}"))
+    write_line(&format!("READY {ns}")).map_err(|e| format!("failed to write READY marker: {e}"))
+}
+
+/// Hand the replay plan to the shell, or park it when the scenario defers the replay.
+fn route_replay(
+    replay: Option<ReplayPlan>,
+    defer: bool,
+    park: impl FnOnce(ReplayPlan),
+) -> ReadyAction {
+    match replay {
+        Some(plan) if defer => {
+            park(plan);
+            ReadyAction::None
+        }
+        Some(plan) => ReadyAction::Replay(plan),
+        None => ReadyAction::None,
+    }
 }
 
 /// Frontend-ready signal for the startup benchmark. A no-op unless
@@ -112,9 +120,7 @@ pub fn signal_ready() -> Result<ReadyAction, String> {
     Ok(if started.exit_after_ready {
         ReadyAction::Exit
     } else {
-        started
-            .replay
-            .map_or(ReadyAction::None, ReadyAction::Replay)
+        route_replay(started.replay, started.defer_replay, park_deferred)
     })
 }
 

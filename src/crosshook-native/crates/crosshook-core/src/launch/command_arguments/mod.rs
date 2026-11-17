@@ -11,6 +11,6 @@ pub use catalog::{
     CommandArgumentEntry, DEFAULT_CATALOG_TOML,
 };
 pub use resolver::{
-    is_known_command_argument_id, resolve_command_arguments, resolve_command_arguments_for_method,
-    CommandArgumentResolveError, ResolvedCommandArguments,
+    resolve_command_arguments, resolve_command_arguments_for_method, CommandArgumentResolveError,
+    ResolvedCommandArguments,
 };

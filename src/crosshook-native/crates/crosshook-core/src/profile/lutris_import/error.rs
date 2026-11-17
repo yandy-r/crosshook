@@ -1,4 +1,3 @@
-use crate::profile::ProfileStoreError;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
@@ -16,9 +15,6 @@ pub enum LutrisImportError {
         message: String,
     },
     Pga {
-        message: String,
-    },
-    ProfileStore {
         message: String,
     },
 }
@@ -39,17 +35,8 @@ impl Display for LutrisImportError {
                 )
             }
             Self::Pga { message } => write!(f, "failed to read Lutris pga.db: {message}"),
-            Self::ProfileStore { message } => write!(f, "{message}"),
         }
     }
 }
 
 impl Error for LutrisImportError {}
-
-impl From<ProfileStoreError> for LutrisImportError {
-    fn from(value: ProfileStoreError) -> Self {
-        Self::ProfileStore {
-            message: value.to_string(),
-        }
-    }
-}

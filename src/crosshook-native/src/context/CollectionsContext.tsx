@@ -41,11 +41,11 @@ export interface UseCollectionsResult {
   removeProfile: (collectionId: string, profileName: string) => Promise<CollectionMutationResult>;
   listMembers: (collectionId: string) => Promise<string[]>;
   collectionsForProfile: (profileName: string) => Promise<CollectionRow[]>;
-  /** Phase 4: preview-only parse for a preset file path (no SQLite writes). */
+  /** Preview-only parse for a preset file path (no SQLite writes). */
   prepareCollectionImportPreview: (path: string) => Promise<CollectionImportPreview>;
-  /** Phase 4: create collection + defaults + memberships from a preview; one `refresh()` on success. */
+  /** Create collection + defaults + memberships from a preview; one `refresh()` on success. */
   applyImportedCollection: (input: ApplyImportedCollectionInput) => Promise<CollectionImportApplyResult>;
-  /** Phase 4: save preset for the current collection; returns `'cancelled'` if the save dialog was dismissed. */
+  /** Save preset for the current collection; returns `'cancelled'` if the save dialog was dismissed. */
   exportCollectionPreset: (
     collectionId: string,
     options?: { /** Browser dev: skip native save dialog and use this path for mock IPC */ outputPathOverride?: string }

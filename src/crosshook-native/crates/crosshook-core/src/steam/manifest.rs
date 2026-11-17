@@ -2,14 +2,13 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::models::{SteamAutoPopulateFieldState, SteamGameMatch, SteamLibrary};
+use super::paths::{canonical_or_raw, trim_path};
 use super::vdf::parse_vdf;
 
 #[derive(Debug, Clone)]
 pub struct ManifestData {
     pub build_id: String,
-    pub install_dir: String,
     pub state_flags: Option<u32>,
-    pub last_updated: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -23,18 +22,21 @@ pub fn find_game_match(
     libraries: &[SteamLibrary],
     diagnostics: &mut Vec<String>,
 ) -> SteamGameMatchSelection {
-    let game_path = normalize_path(game_path.as_ref());
+    let game_path = trim_path(game_path.as_ref());
     if game_path.as_os_str().is_empty() {
         diagnostics.push("No game executable path was provided.".to_string());
         return SteamGameMatchSelection::default();
     }
+    // Discovered libraries are canonical, so an executable picked through a
+    // symlinked root (`~/.steam/root/...`) must be compared canonically too.
+    let canonical_game_path = canonical_or_raw(&game_path);
 
     let mut matches = Vec::new();
 
     for library in libraries {
         let manifest_paths = safe_manifest_paths(&library.steamapps_path, diagnostics);
         for manifest_path in manifest_paths {
-            let normalized_manifest_path = normalize_path(&manifest_path);
+            let normalized_manifest_path = trim_path(&manifest_path);
 
             match parse_manifest(&manifest_path) {
                 Ok((steam_app_id, install_dir_name)) => {
@@ -47,7 +49,12 @@ pub fn find_game_match(
                         .join("common")
                         .join(&install_dir_name);
 
-                    if !path_is_same_or_child(&game_path, &install_dir_path) {
+                    if !path_is_same_or_child(&game_path, &install_dir_path)
+                        && !path_is_same_or_child(
+                            &canonical_game_path,
+                            &canonical_or_raw(&install_dir_path),
+                        )
+                    {
                         continue;
                     }
 
@@ -137,28 +144,14 @@ pub fn parse_manifest_full(manifest_path: &Path) -> Result<ManifestData, String>
         ));
     }
 
-    let install_dir = app_state_node
-        .get_child("installdir")
-        .and_then(|node| node.value.as_ref())
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_default();
-
     let state_flags = app_state_node
         .get_child("stateflags")
         .and_then(|node| node.value.as_ref())
         .and_then(|value| value.trim().parse::<u32>().ok());
 
-    let last_updated = app_state_node
-        .get_child("lastupdated")
-        .and_then(|node| node.value.as_ref())
-        .and_then(|value| value.trim().parse::<u64>().ok());
-
     Ok(ManifestData {
         build_id,
-        install_dir,
         state_flags,
-        last_updated,
     })
 }
 
@@ -243,15 +236,6 @@ fn path_is_same_or_child(path: &Path, root: &Path) -> bool {
     }
 
     path.starts_with(root)
-}
-
-fn normalize_path(path: &Path) -> PathBuf {
-    let trimmed = path.as_os_str().to_string_lossy().trim().to_string();
-    if trimmed.is_empty() {
-        return PathBuf::new();
-    }
-
-    PathBuf::from(trimmed)
 }
 
 fn dedupe_matches(matches: Vec<SteamGameMatch>) -> Vec<SteamGameMatch> {
@@ -421,9 +405,7 @@ mod tests {
 
         let data = parse_manifest_full(&path).expect("parse");
         assert_eq!(data.build_id, "9876543");
-        assert_eq!(data.install_dir, "MyGame");
         assert_eq!(data.state_flags, Some(4));
-        assert_eq!(data.last_updated, Some(1700000000));
     }
 
     #[test]
@@ -445,9 +427,7 @@ mod tests {
 
         let data = parse_manifest_full(&path).expect("parse");
         assert_eq!(data.build_id, "1111111");
-        assert_eq!(data.install_dir, "AnotherGame");
         assert_eq!(data.state_flags, None);
-        assert_eq!(data.last_updated, None);
     }
 
     #[test]
@@ -490,8 +470,6 @@ mod tests {
 
         let data = parse_manifest_full(&path).expect("parse");
         assert_eq!(data.build_id, "");
-        assert_eq!(data.install_dir, "NoVerGame");
         assert_eq!(data.state_flags, None);
-        assert_eq!(data.last_updated, None);
     }
 }

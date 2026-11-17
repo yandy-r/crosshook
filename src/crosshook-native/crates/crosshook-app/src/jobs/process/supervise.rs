@@ -87,7 +87,6 @@ pub async fn supervise_child(
 /// signals reach only the proxy and the sandbox-side group. The host process
 /// dies with the proxy only when it was spawned with `--watch-bus`, so host
 /// commands supervised here must be built with
-/// [`crosshook_core::platform::host_command_lifecycle`] or
 /// [`crosshook_core::platform::host_command_with_env_and_directory_lifecycle`].
 /// The other public `host_command*` builders omit `--watch-bus` and leave the
 /// host process running after cancel.

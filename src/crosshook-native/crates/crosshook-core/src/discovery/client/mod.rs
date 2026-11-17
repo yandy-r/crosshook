@@ -1,4 +1,4 @@
-//! Data-driven external trainer discovery client (Phase B).
+//! Data-driven external trainer discovery client.
 //!
 //! Searches configured external sources (stored in TOML settings) using a
 //! 3-stage cache→live→stale-fallback pattern via `external_cache_entries`.
@@ -48,7 +48,6 @@ impl fmt::Display for DiscoveryError {
 pub(super) struct CachedRssRow {
     pub(super) payload_json: String,
     pub(super) fetched_at: String,
-    pub(super) _expires_at: Option<String>,
 }
 
 /// Raw RSS item parsed from a WordPress search feed.

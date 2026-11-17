@@ -186,8 +186,7 @@ pub fn normalize_db(db: &Path, layout: &Layout, seed: u64) -> Result<(), String>
     // Random-key signatures would break byte identity; keep history unsigned.
     conn.execute_batch("UPDATE config_revisions SET hmac_signature = NULL;")
         .map_err(|e| format!("clear config revision signatures: {e}"))?;
-    // AUTOINCREMENT counters are rowid-derived and already deterministic; just rewrite
-    // nothing there. Commit.
+    // AUTOINCREMENT counters are rowid-derived and already deterministic.
     conn.execute_batch("COMMIT;").map_err(|e| e.to_string())?;
 
     conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode=DELETE; VACUUM;")

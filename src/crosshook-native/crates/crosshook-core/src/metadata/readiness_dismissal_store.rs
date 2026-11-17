@@ -60,23 +60,4 @@ impl MetadataStore {
             Ok(keys)
         })
     }
-
-    /// Evict all expired readiness nag dismissals. Returns rows deleted.
-    pub fn evict_expired_readiness_dismissals(&self) -> Result<usize, MetadataStoreError> {
-        let now = Utc::now().to_rfc3339();
-
-        self.with_conn_mut("evict all expired readiness nag dismissals", |conn| {
-            let count = conn
-                .execute(
-                    "DELETE FROM readiness_nag_dismissals WHERE expires_at < ?1",
-                    rusqlite::params![now],
-                )
-                .map_err(|source| MetadataStoreError::Database {
-                    action: "evict all expired readiness nag dismissals",
-                    source,
-                })?;
-
-            Ok(count)
-        })
-    }
 }

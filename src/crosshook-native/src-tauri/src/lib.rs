@@ -46,7 +46,6 @@ pub fn run() {
         Err(error) => fatal::show_and_exit(context, error),
     };
     let startup_events = core.subscribe();
-    let ui_settings = core.services().ui_settings.clone();
     let app_owner = core.app().clone();
     let instance_owner = core.clone();
     tauri::Builder::default()
@@ -56,16 +55,22 @@ pub fn run() {
             // Delivers any activation that arrived before the window existed.
             core.instance()
                 .set_activation_handler(activation::TauriActivation::new(app.handle().clone()));
-            event_bridge::spawn_startup_bridge(app.handle().clone(), core.startup(), startup_events);
+            event_bridge::spawn_startup_bridge(
+                app.handle().clone(),
+                core.startup(),
+                startup_events,
+            );
             // SIGINT/SIGTERM/SIGHUP take the normal exit path below.
             signals::exit_on_termination(app.handle().clone());
             Ok(())
         })
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
             commands::bench::bench_ready,
+            commands::bench::bench_begin,
+            commands::bench::bench_mark,
+            commands::bench::bench_clock,
             commands::startup::get_startup_report,
             commands::export::export_launchers,
             commands::export::validate_launcher_export,
@@ -73,13 +78,12 @@ pub fn run() {
             commands::export::check_launcher_for_profile,
             commands::export::delete_launcher,
             commands::export::delete_launcher_by_slug,
-            commands::export::rename_launcher,
             commands::export::list_launchers,
             commands::export::reexport_launcher_by_slug,
-            commands::export::find_orphaned_launchers,
             commands::export::preview_launcher_script,
             commands::export::preview_launcher_desktop,
             commands::community::community_add_tap,
+            commands::community::community_remove_tap,
             commands::community::community_export_profile,
             commands::community::community_import_profile,
             commands::community::community_prepare_import,
@@ -98,7 +102,6 @@ pub fn run() {
             commands::launch::preview_launch,
             commands::launch::build_steam_launch_options_command,
             commands::launch::check_gamescope_session,
-            commands::launch::launch_platform_status,
             commands::launch::check_game_running,
             commands::launch::list_running_sessions,
             commands::launch::list_launch_history_for_profile,
@@ -110,7 +113,6 @@ pub fn run() {
             commands::mods::analyze_mod_coexistence,
             commands::profile::profile_delete,
             commands::profile::profile_duplicate,
-            commands::profile::profile_import_legacy,
             commands::profile::profile_list,
             commands::profile::profile_list_summaries,
             commands::profile::profile_load,
@@ -131,7 +133,6 @@ pub fn run() {
             commands::protondb::protondb_dismiss_suggestion,
             commands::game_metadata::fetch_game_metadata,
             commands::game_metadata::fetch_game_cover_art,
-            commands::game_metadata::import_custom_cover_art,
             commands::game_metadata::import_custom_art,
             commands::settings::recent_files_load,
             commands::settings::recent_files_save,
@@ -183,27 +184,22 @@ pub fn run() {
             commands::migration::apply_proton_migration,
             commands::migration::apply_batch_migration,
             commands::version::check_version_status,
-            commands::version::get_version_snapshot,
             commands::version::set_trainer_version,
             commands::version::acknowledge_version_change,
-            commands::onboarding::check_readiness,
             commands::onboarding::check_generalized_readiness,
             commands::onboarding::probe_host_tool_details,
             commands::onboarding::get_cached_host_readiness_snapshot,
             commands::onboarding::get_capabilities,
-            commands::background::get_background_protection_state,
             commands::onboarding::dismiss_onboarding,
             commands::onboarding::dismiss_umu_install_nag,
             commands::onboarding::dismiss_steam_deck_caveats,
             commands::onboarding::dismiss_readiness_nag,
-            commands::onboarding::get_trainer_guidance,
             commands::catalog::get_optimization_catalog,
             commands::catalog::get_command_argument_catalog,
             commands::catalog::get_mangohud_presets,
             commands::offline::check_offline_readiness,
             commands::offline::batch_offline_readiness,
             commands::offline::verify_trainer_hash,
-            commands::offline::check_network_status,
             commands::offline::get_trainer_type_catalog,
             // Prefix dependency management
             commands::prefix_deps::detect_protontricks_binary,
@@ -215,10 +211,6 @@ pub fn run() {
             // Trainer discovery
             commands::discovery::discovery_catalog,
             commands::discovery::discovery_search_external,
-            commands::discovery::discovery_check_version_compatibility,
-            commands::discovery::discovery_list_external_sources,
-            commands::discovery::discovery_add_external_source,
-            commands::discovery::discovery_remove_external_source,
             // ProtonUp integration
             commands::protonup::protonup_list_available_versions,
             commands::protonup::protonup_install_version,
@@ -250,10 +242,6 @@ pub fn run() {
             // tao ends the process with `process::exit`: `App`'s drop never
             // runs, so shut down explicitly here.
             if let tauri::RunEvent::Exit = event {
-                // Persist any trailing `[ui]` write still waiting on the throttle.
-                if let Err(error) = tauri::async_runtime::block_on(ui_settings.flush()) {
-                    tracing::warn!(error = %error.message(), "failed to flush [ui] settings on exit");
-                }
                 // Cancel every job so supervised process groups (installers,
                 // updaters, ad-hoc executables, winetricks) end with the app;
                 // bounded (`App::DEFAULT_SHUTDOWN_TIMEOUT`), so a job ignoring

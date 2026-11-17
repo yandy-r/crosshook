@@ -1,4 +1,4 @@
-//! Post-exit version snapshot and known-good tag effects (Task 2.4).
+//! Post-exit version snapshot and known-good tag effects.
 //!
 //! Moved verbatim from the Tauri stream finalizer: on a clean or
 //! indeterminate exit the service records a version snapshot correlating the
@@ -52,7 +52,7 @@ pub(super) async fn record_success_effects(ctx: &SessionContext) {
     }
 }
 
-/// Version snapshot (I-48), moved verbatim. An `UpdateInProgress` correlation
+/// Version snapshot, moved verbatim. An `UpdateInProgress` correlation
 /// skips the snapshot; the known-good tag is a separate step and still runs.
 fn record_version_snapshot(
     metadata: &MetadataStore,
@@ -155,7 +155,7 @@ fn record_version_snapshot(
     }
 }
 
-/// Known-good tagging (I-49), moved verbatim. Independent of the snapshot: it
+/// Known-good tagging, moved verbatim. Independent of the snapshot: it
 /// runs even when the snapshot was skipped (for example `UpdateInProgress`).
 fn record_known_good(metadata: &MetadataStore, profile_name: &str) {
     let profile_id = match metadata.lookup_profile_id(profile_name) {

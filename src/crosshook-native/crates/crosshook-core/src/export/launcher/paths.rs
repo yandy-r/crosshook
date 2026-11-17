@@ -124,7 +124,7 @@ fn try_resolve_home_from_steam_client_install_path(
     None
 }
 
-fn resolve_desktop_icon_value(launcher_icon_path: &str) -> String {
+pub(crate) fn resolve_desktop_icon_value(launcher_icon_path: &str) -> String {
     let normalized_launcher_icon_path = normalize_host_unix_path(launcher_icon_path);
     if normalized_launcher_icon_path.trim().is_empty() {
         "applications-games".to_string()
@@ -152,8 +152,4 @@ pub(crate) fn escape_desktop_exec_argument(value: &str) -> String {
         .replace('%', "%%")
         .replace(' ', "\\ ")
         .replace('"', "\\\"")
-}
-
-pub(crate) fn desktop_icon_value(launcher_icon_path: &str) -> String {
-    resolve_desktop_icon_value(launcher_icon_path)
 }

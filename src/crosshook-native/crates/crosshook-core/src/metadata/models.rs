@@ -267,52 +267,6 @@ impl ProfileLaunchPresetOrigin {
     }
 }
 
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub(crate) struct ProfileRow {
-    pub profile_id: String,
-    pub current_filename: String,
-    pub current_path: String,
-    pub game_name: Option<String>,
-    pub launch_method: Option<String>,
-    pub source: Option<String>,
-    pub is_favorite: bool,
-    pub created_at: String,
-    pub updated_at: String,
-}
-
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub(crate) struct LauncherRow {
-    pub launcher_id: String,
-    pub profile_id: Option<String>,
-    pub launcher_slug: String,
-    pub display_name: String,
-    pub script_path: String,
-    pub desktop_entry_path: String,
-    pub drift_state: String,
-    pub created_at: String,
-    pub updated_at: String,
-}
-
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub(crate) struct LaunchOperationRow {
-    pub operation_id: String,
-    pub profile_id: Option<String>,
-    pub profile_name: Option<String>,
-    pub launch_method: String,
-    pub status: String,
-    pub exit_code: Option<i32>,
-    pub signal: Option<i32>,
-    pub log_path: Option<String>,
-    pub diagnostic_json: Option<String>,
-    pub severity: Option<String>,
-    pub failure_mode: Option<String>,
-    pub started_at: String,
-    pub finished_at: Option<String>,
-}
-
 /// Maps to the `external_cache_entries` status classification.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -332,20 +286,6 @@ impl CacheEntryStatus {
             Self::Corrupt => "corrupt",
         }
     }
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[allow(dead_code)]
-pub struct CommunityTapRow {
-    pub tap_id: String,
-    pub tap_url: String,
-    pub tap_branch: String,
-    pub local_path: String,
-    pub last_head_commit: Option<String>,
-    pub profile_count: i64,
-    pub last_indexed_at: Option<String>,
-    pub created_at: String,
-    pub updated_at: String,
 }
 
 #[derive(Debug, Clone, Serialize)]

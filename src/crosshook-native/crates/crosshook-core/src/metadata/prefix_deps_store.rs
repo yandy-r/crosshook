@@ -148,21 +148,6 @@ pub fn load_dependency_state(
     })
 }
 
-pub fn clear_dependency_states(
-    conn: &Connection,
-    profile_id: &str,
-) -> Result<(), MetadataStoreError> {
-    conn.execute(
-        "DELETE FROM prefix_dependency_state WHERE profile_id = ?1",
-        params![profile_id],
-    )
-    .map_err(|source| MetadataStoreError::Database {
-        action: "clear prefix dep states",
-        source,
-    })?;
-    Ok(())
-}
-
 pub fn clear_stale_states(conn: &Connection, ttl_hours: i64) -> Result<u64, MetadataStoreError> {
     let cutoff = (Utc::now() - chrono::Duration::hours(ttl_hours)).to_rfc3339();
     let count = conn

@@ -77,8 +77,6 @@ pub struct LaunchRequest {
     pub post_exit_hooks: Vec<LaunchHook>,
 }
 
-pub type SteamLaunchRequest = LaunchRequest;
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct SteamLaunchConfig {
     #[serde(default)]
@@ -100,7 +98,7 @@ pub struct RuntimeLaunchConfig {
     #[serde(default)]
     pub working_directory: String,
     /// Steam App ID used as `GAMEID` when launching via `umu-run`.
-    /// Falls back to `"umu-0"` when empty (Phase 3).
+    /// Falls back to `"umu-0"` when empty .
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub steam_app_id: String,
     /// Optional protonfix override. When set, takes precedence over `steam_app_id` for umu GAMEID.
@@ -274,10 +272,6 @@ impl LaunchRequest {
         } else {
             trimmed.to_string()
         }
-    }
-
-    pub fn should_copy_trainer_to_prefix(&self) -> bool {
-        self.trainer_loading_mode == TrainerLoadingMode::CopyToPrefix
     }
 }
 

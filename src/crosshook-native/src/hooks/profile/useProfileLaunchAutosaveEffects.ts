@@ -7,7 +7,7 @@ import { type ResolvedLaunchMethod, resolveLaunchMethod } from '../../utils/laun
 import { launchOptimizationsAutosaveDelayMs } from './constants';
 import { formatInvokeError } from './formatInvokeError';
 import { areLaunchOptimizationIdsEqual } from './launchOptimizationIds';
-import { buildLaunchOptimizationsStatus, type LaunchOptimizationsStatus } from './launchOptimizationStatus';
+import { buildLaunchOptimizationsStatus } from './launchOptimizationStatus';
 import { normalizeCommandArgumentsForSave } from './profileNormalize';
 
 export function buildCommandArgumentsStatus(
@@ -39,7 +39,7 @@ interface LaunchOptimizationAutosaveEffectOptions {
   profile: GameProfile;
   profileName: string;
   setDirty: Dispatch<SetStateAction<boolean>>;
-  setLaunchOptimizationsStatus: Dispatch<SetStateAction<LaunchOptimizationsStatus>>;
+  setLaunchOptimizationsStatus: Dispatch<SetStateAction<LaunchAutoSaveStatus>>;
   launchOptimizationsAutosaveTimerRef: MutableRefObject<ReturnType<typeof setTimeout> | null>;
   lastSavedLaunchOptimizationIdsRef: MutableRefObject<string[]>;
 }

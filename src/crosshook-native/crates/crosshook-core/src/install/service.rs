@@ -55,10 +55,6 @@ pub fn validate_install_request(
     Ok(())
 }
 
-pub fn install_default_prefix_path(profile_name: &str) -> Result<PathBuf, InstallGameError> {
-    resolve_default_prefix_path(profile_name)
-}
-
 /// Validates the request, provisions the prefix and builds the installer
 /// command (`<proton> run <installer>`) without attaching stdio.
 pub fn prepare_install(request: &InstallGameRequest) -> Result<PreparedInstall, InstallGameError> {

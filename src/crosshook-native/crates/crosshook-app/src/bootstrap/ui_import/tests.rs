@@ -245,7 +245,6 @@ async fn bootstrap_explicit_roots_keeps_view_mode_none_and_step_list_unchanged()
 
     let (app, _report) = App::bootstrap(pre, opts).unwrap();
 
-    assert_eq!(app.services().ui_settings.get().library_view_mode, None);
     assert_eq!(
         app.stores().settings.load().unwrap().ui.library_view_mode,
         None

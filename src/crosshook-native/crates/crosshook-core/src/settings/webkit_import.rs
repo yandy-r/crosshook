@@ -139,13 +139,6 @@ pub fn read_library_view_mode(path: &Path) -> Option<LibraryViewMode> {
     decode_view_mode(&value)
 }
 
-/// Import the first readable setting from Classic's current or legacy directory.
-pub fn import_library_view_mode() -> Option<LibraryViewMode> {
-    webkit_local_storage_paths()
-        .iter()
-        .find_map(|path| read_library_view_mode(path))
-}
-
 fn wal_path(path: &Path) -> PathBuf {
     let mut path = path.as_os_str().to_os_string();
     path.push("-wal");

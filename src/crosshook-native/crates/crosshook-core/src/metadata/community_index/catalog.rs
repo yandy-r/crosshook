@@ -281,7 +281,6 @@ mod tests {
         .unwrap();
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn insert_test_profile(
         conn: &Connection,
         tap_id: &str,

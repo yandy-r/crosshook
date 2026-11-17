@@ -10,7 +10,7 @@ pub fn list_collections(conn: &Connection) -> Result<Vec<CollectionRow>, Metadat
         .prepare(
             "SELECT c.collection_id, c.name, c.description, c.created_at, c.updated_at, \
              (SELECT COUNT(*) FROM collection_profiles cp WHERE cp.collection_id = c.collection_id) as profile_count \
-             FROM collections c ORDER BY c.sort_order ASC, c.name ASC",
+             FROM collections c ORDER BY c.name ASC",
         )
         .map_err(|source| MetadataStoreError::Database {
             action: "prepare list_collections query",
@@ -291,7 +291,7 @@ pub fn collections_for_profile(
              FROM collections c \
              INNER JOIN collection_profiles cp ON cp.collection_id = c.collection_id \
              WHERE cp.profile_id = ?1 \
-             ORDER BY c.sort_order ASC, c.name ASC",
+             ORDER BY c.name ASC",
         )
         .map_err(|source| MetadataStoreError::Database {
             action: "prepare collections_for_profile query",

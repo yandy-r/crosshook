@@ -1,4 +1,4 @@
-//! Session registration, spawn, stream task and cancel consumer (Task 3.1).
+//! Session registration, spawn, stream task and cancel consumer.
 //!
 //! Both entry points build a command, then hand it here. This module registers
 //! the session before spawn, tees the child into its event stream, and starts
@@ -22,6 +22,7 @@ use super::portal::try_register_gamemode_portal_for_launch;
 use super::prepare::Prepared;
 use super::steam_watch::{steam_game_exe, watch_steam_game, SteamWatch};
 use super::streaming::stream_session;
+use super::trainer::execution_request;
 use super::types::{
     EventPublisher, InjectionLevel, InjectionLogData, InjectionSource, SessionContext,
 };
@@ -62,11 +63,12 @@ impl LaunchService {
         } = prepared;
 
         // Dropped, not unregistered, when a later step returns before the
-        // session task owns it (I-22).
+        // session task owns it.
         let portal_guard =
             try_register_gamemode_portal_for_launch(&request, execution_method).await;
 
-        let hook_context = build_launch_hook_execution_context(&request).map_err(|error| {
+        let hook_request = execution_request(&request, execution_method);
+        let hook_context = build_launch_hook_execution_context(&hook_request).map_err(|error| {
             AppError::new(
                 AppErrorKind::Io,
                 format!("failed to prepare launch hook context: {error}"),
@@ -144,7 +146,7 @@ impl LaunchService {
         .await;
 
         // A Steam game outlives its helper child: the watch owns the cancel
-        // channel and the deregister step (D3).
+        // channel and the deregister step.
         let steam_exe = steam_game_exe(&request, kind, execution_method);
         let (deregister_handoff, handoff_rx) = match steam_exe {
             Some(_) => {
@@ -175,7 +177,7 @@ impl LaunchService {
             pending_cancels: Some(pending_cancels),
         };
 
-        // Stream first, then the cancel consumer (I-29). Neither path kills.
+        // Stream first, then the cancel consumer. Neither path kills.
         // The session task's guard owns deregistration from here on.
         registration.disarm();
         drop(spawn_session_task(ctx, child, publisher));

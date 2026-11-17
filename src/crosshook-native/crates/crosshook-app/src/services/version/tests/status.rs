@@ -1,4 +1,4 @@
-//! `VersionService` tests: status, snapshot, and write ops.
+//! `VersionService` tests: status and write ops.
 
 use crosshook_core::metadata::{hash_trainer_file, MetadataStoreError};
 
@@ -115,18 +115,6 @@ async fn check_status_unregistered_profile_has_empty_id_and_no_snapshot() {
     assert_eq!(result.current_build_id.as_deref(), Some("100"));
 }
 
-#[tokio::test]
-async fn snapshot_unknown_id_returns_none() {
-    let harness = Harness::new();
-    harness.save_profile("game");
-
-    let snapshot = harness.service.snapshot("game".into()).await.unwrap();
-    assert!(snapshot.is_none());
-
-    let missing = harness.service.snapshot("nope".into()).await.unwrap();
-    assert!(missing.is_none());
-}
-
 #[test]
 fn status_from_str_unknown_maps_to_unknown() {
     use super::super::status::status_from_str;
@@ -169,16 +157,7 @@ async fn set_trainer_version_preserves_app_id_and_upserts_untracked() {
         .await
         .unwrap();
 
-    let snapshot = harness
-        .service
-        .snapshot("game".into())
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(snapshot.trainer_version.as_deref(), Some("2.0"));
-    assert_eq!(snapshot.steam_app_id, "12345");
-    assert_eq!(snapshot.status.as_str(), "untracked");
-    // The row behind the snapshot is the one just upserted.
+    // The upserted row carries the new trainer version.
     let row = harness
         .metadata
         .lookup_latest_version_snapshot(&profile_id)
@@ -228,13 +207,12 @@ async fn acknowledge_sets_matched() {
         .await
         .unwrap();
 
-    let snapshot = harness
-        .service
-        .snapshot("game".into())
-        .await
+    let row = harness
+        .metadata
+        .lookup_latest_version_snapshot(&profile_id)
         .unwrap()
-        .unwrap();
-    assert_eq!(snapshot.status.as_str(), "matched");
+        .expect("row");
+    assert_eq!(row.status, "matched");
 }
 
 #[tokio::test]

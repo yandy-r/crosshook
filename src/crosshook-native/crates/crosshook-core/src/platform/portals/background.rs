@@ -234,11 +234,6 @@ impl BackgroundGrant {
     pub fn is_active(&self) -> bool {
         self.connection.is_some()
     }
-
-    /// Explicitly release the grant. Prefer letting Drop do it.
-    pub fn release(mut self) {
-        self.connection = None;
-    }
 }
 
 impl fmt::Debug for BackgroundGrant {

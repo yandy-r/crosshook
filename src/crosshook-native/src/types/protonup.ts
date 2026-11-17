@@ -1,6 +1,6 @@
 // These types mirror the Rust DTOs in crosshook-core/src/protonup/mod.rs
 
-export type ProtonUpProvider = 'ge-proton' | 'proton-cachyos' | 'proton-em' | 'boxtron' | 'luxtorpeda';
+export type ProtonUpProvider = 'ge-proton' | 'proton-cachyos' | 'proton-em';
 
 export interface ProtonUpAvailableVersion {
   provider: string;
@@ -59,7 +59,7 @@ export interface ProtonUpSuggestion {
   recommended_version?: string;
 }
 
-// Types for the native Proton download manager (Issue #274).
+// Types for the native Proton download manager .
 // Mirror the Rust DTOs from the protonup::manager / protonup::resolver modules.
 
 export interface ProtonUpProviderDescriptor {

@@ -1,7 +1,7 @@
-//! Stream tee, lag and ordering tests (Task 2.3).
+//! Stream tee, lag and ordering tests.
 //!
-//! Covers the lossy pipe tee (D7), the `follow`-driven tail replacing the
-//! 500 ms re-read (D3), the bounded-channel lag mapping (D2) and the
+//! Covers the lossy pipe tee, the `follow`-driven tail replacing the
+//! 500 ms re-read, the bounded-channel lag mapping and the
 //! no-kill rule.
 
 use std::process::Stdio;
@@ -60,7 +60,7 @@ async fn lossy_pipe_tee_survives_bad_utf8_and_overlong_line() {
     assert!(status.success(), "exit 0 despite bad bytes and a huge line");
 
     // Every byte is in the log, byte-exact: over-long reads pass through
-    // without inserted separators; decoded lines are lossy and bounded (D7).
+    // without inserted separators; decoded lines are lossy and bounded.
     let log = std::fs::read(&log_path).unwrap();
     assert_eq!(
         log.len(),

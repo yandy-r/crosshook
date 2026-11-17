@@ -1,7 +1,7 @@
 import * as Tabs from '@radix-ui/react-tabs';
 import { useCallback, useId, useMemo, useState } from 'react';
 import { type CapabilityGate, useCapabilityGate } from '../hooks/useCapabilityGate';
-import type { BundledOptimizationPreset, LaunchAutoSaveStatus, LaunchMethod } from '../types';
+import type { BundledOptimizationPreset, LaunchMethod } from '../types';
 import { findLaunchOptimizationConflicts, type LaunchOptimizationId } from '../types/launch-optimizations';
 import { BUNDLED_PRESET_KEY_PREFIX, bundledOptimizationTomlKey } from '../utils/launchOptimizationPresets';
 import { buildConflictMatrix, buildOptionsById, type OptimizationCatalogPayload } from '../utils/optimization-catalog';
@@ -14,9 +14,6 @@ import {
   joinClasses,
 } from './launch-optimizations/utils';
 import { type SelectOptionGroup, ThemedSelect } from './ui/ThemedSelect';
-
-/** @deprecated Use `LaunchAutoSaveStatus` from `../types` instead. */
-export type LaunchOptimizationsPanelStatus = LaunchAutoSaveStatus;
 
 export interface LaunchOptimizationsPanelProps {
   method: LaunchMethod;

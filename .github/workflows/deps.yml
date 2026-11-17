@@ -1,0 +1,45 @@
+name: Dependency policy
+
+# cargo-deny checks advisories, licenses, bans and sources against
+# src/crosshook-native/deny.toml (docs/internal-docs/dependency-policy.md).
+# Bans, licenses and sources only change with the manifests, so PRs run it when
+# they touch them; the weekly run catches advisories published since.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/crosshook-native/Cargo.lock'
+      - 'src/crosshook-native/**/Cargo.toml'
+      - 'src/crosshook-native/deny.toml'
+      - 'rust-toolchain.toml'
+      - '.github/workflows/deps.yml'
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deps-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cargo-deny:
+    name: cargo-deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny@0.20.2
+
+      - name: cargo deny check
+        run: cargo deny --manifest-path src/crosshook-native/Cargo.toml --locked check

@@ -3,8 +3,7 @@
 //!
 //! Lives next to the registry rather than in the Tauri layer because the
 //! mapping from a [`broadcast`] receive outcome to a [`TeardownReason`] is
-//! core business logic — same crate as [`cancel_reason`] in
-//! `launch/watchdog/tasks.rs`. Keeps cancel-channel semantics in one place.
+//! core business logic. Keeps cancel-channel semantics in one place.
 
 use tokio::sync::broadcast;
 

@@ -26,10 +26,6 @@ import { useCommandPalette } from '@/hooks/useCommandPalette';
 import { useFlatpakMigrationToast } from '@/hooks/useFlatpakMigrationToast';
 import { useRunningProfiles } from '@/hooks/useRunningProfiles';
 import {
-  UI_SETTINGS_PERSIST_FAILED_MESSAGE,
-  useUiSettingsPersistFailedToast,
-} from '@/hooks/useUiSettingsPersistFailedToast';
-import {
   type CommandPaletteCommand,
   createProfileCommands,
   isCommandPaletteCommandEnabled,
@@ -38,12 +34,7 @@ import {
 import { claimStartupAction, fetchStartupReport } from '@/lib/startupReport';
 import { isAppRoute } from '@/lib/validAppRoutes';
 import type { LibraryFilterKey } from '@/types/library';
-import type {
-  AppNavigateOptions,
-  GameDetailOrigin,
-  LibraryFilterIntent,
-  OpenGameDetailIntent,
-} from '@/types/navigation';
+import type { AppNavigateOptions, LibraryFilterIntent, OpenGameDetailIntent } from '@/types/navigation';
 import { ContextRail } from './ContextRail';
 import { contextRailLayoutForShell } from './contextRailVariants';
 import { inspectorWidthForBreakpoint } from './inspectorVariants';
@@ -85,8 +76,6 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
   const [libraryFilterIntent, setLibraryFilterIntent] = useState<LibraryFilterIntent | null>(null);
   const [activeLibraryFilter, setActiveLibraryFilter] = useState<LibraryFilterKey>('all');
   const libraryFilterIntentTokenRef = useRef(0);
-  // NOTE(hero-detail-consolidation): delete with Phase 10 route removal.
-  const [gameDetailOrigin, setGameDetailOrigin] = useState<GameDetailOrigin | null>(null);
   const [openGameDetailIntent, setOpenGameDetailIntent] = useState<OpenGameDetailIntent | null>(null);
   const openGameDetailIntentTokenRef = useRef(0);
   const lastProfile = profileName.trim() || selectedProfile;
@@ -128,12 +117,6 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
       });
     } else {
       setLibraryFilterIntent(null);
-    }
-    // NOTE(hero-detail-consolidation): delete with Phase 10 route removal.
-    if (options?.gameDetailOrigin) {
-      setGameDetailOrigin(options.gameDetailOrigin);
-    } else {
-      setGameDetailOrigin(null);
     }
     if (options?.openGameDetail) {
       openGameDetailIntentTokenRef.current += 1;
@@ -230,7 +213,7 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
       // The user clicked Launch on a card inside CollectionViewModal, so `name`
       // is guaranteed to be a member of `activeCollectionId`. Thread the
       // collection context so `profile_load` applies the collection's launch
-      // defaults via `effective_profile_with` (Phase 3 merge layer).
+      // defaults via `effective_profile_with`.
       closeCollectionModal();
       await openGameInHeroDetail({
         profileName: name,
@@ -280,8 +263,6 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
   );
 
   const { importCount: flatpakImportCount, dismiss: dismissFlatpakToast } = useFlatpakMigrationToast();
-  const { detailMessage: uiSettingsPersistDetail, dismiss: dismissUiSettingsPersistToast } =
-    useUiSettingsPersistFailedToast();
 
   const retryCollectionDescription = useCallback(async () => {
     if (collectionDescriptionToast === null) {
@@ -481,7 +462,6 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
                           libraryFilterIntent={libraryFilterIntent}
                           onLibraryFilterChange={handleLibraryFilterChange}
                           onOpenCommandPalette={openPalette}
-                          gameDetailOrigin={gameDetailOrigin}
                           openGameDetailIntent={openGameDetailIntent}
                         />
                       </Panel>
@@ -507,7 +487,6 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
                           libraryFilterIntent={libraryFilterIntent}
                           onLibraryFilterChange={handleLibraryFilterChange}
                           onOpenCommandPalette={openPalette}
-                          gameDetailOrigin={gameDetailOrigin}
                           openGameDetailIntent={openGameDetailIntent}
                         />
                       </div>
@@ -626,23 +605,6 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
             <MetadataStatusBanner />
             <InstanceGuardBanner />
           </div>
-          {uiSettingsPersistDetail !== null ? (
-            <div
-              className="crosshook-status-toast crosshook-toast--ui-settings-persist"
-              role="status"
-              aria-live="polite"
-            >
-              <span title={uiSettingsPersistDetail}>{UI_SETTINGS_PERSIST_FAILED_MESSAGE}</span>
-              <button
-                type="button"
-                className="crosshook-rename-toast-dismiss"
-                aria-label="Dismiss"
-                onClick={dismissUiSettingsPersistToast}
-              >
-                ×
-              </button>
-            </div>
-          ) : null}
           {flatpakImportCount !== null ? (
             <div className="crosshook-status-toast crosshook-toast--flatpak-migration" role="status" aria-live="polite">
               <span>

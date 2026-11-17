@@ -68,12 +68,11 @@ async fn capabilities_uses_cached_snapshot_without_probing() {
     );
     service.capabilities().await.unwrap();
     assert_eq!(probe.generalized_calls.load(Ordering::SeqCst), 0);
-    assert_eq!(probe.system_calls.load(Ordering::SeqCst), 0);
     assert_eq!(probe.details_calls.load(Ordering::SeqCst), 0);
 }
 
 #[tokio::test]
-async fn check_readiness_applies_steam_deck_caveats_dismissal_without_snapshot_write() {
+async fn generalized_readiness_applies_steam_deck_caveats_dismissal() {
     let tmp = tempfile::tempdir().unwrap();
     let metadata = MetadataStore::open_in_memory().unwrap();
     let service = service(
@@ -81,7 +80,7 @@ async fn check_readiness_applies_steam_deck_caveats_dismissal_without_snapshot_w
         metadata.clone(),
     );
     assert!(service
-        .check_readiness()
+        .check_generalized_readiness()
         .await
         .unwrap()
         .steam_deck_caveats
@@ -91,12 +90,11 @@ async fn check_readiness_applies_steam_deck_caveats_dismissal_without_snapshot_w
         .await
         .unwrap();
     assert!(service
-        .check_readiness()
+        .check_generalized_readiness()
         .await
         .unwrap()
         .steam_deck_caveats
         .is_none());
-    assert!(metadata.get_host_readiness_snapshot().unwrap().is_none());
 }
 
 #[tokio::test]
@@ -123,7 +121,7 @@ fn readiness_yields_while_host_probe_is_gated() {
         .enable_all()
         .build()
         .unwrap();
-    let (probe, gate) = FakeHostProbe::gated(readiness_result(), readiness_result(), details());
+    let (probe, gate) = FakeHostProbe::gated(readiness_result(), details());
     let gate = Arc::new(gate);
     let service = OnboardingService::with_probe(
         SettingsStore::with_base_path(tmp.path().to_path_buf()),

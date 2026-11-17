@@ -1,9 +1,11 @@
 //! Trainer entry point, preserving the effective Proton path for Steam trainers.
 
+use std::borrow::Cow;
 use std::process::Stdio;
 
 use crosshook_core::launch::script_runner::{
     build_flatpak_steam_trainer_command, build_proton_trainer_command, build_trainer_command,
+    flatpak_steam_trainer_request,
 };
 use crosshook_core::launch::{
     LaunchRequest, SessionKind, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
@@ -12,6 +14,31 @@ use crosshook_core::runtime_helpers::RuntimeHelper;
 
 use super::{LaunchService, LaunchSession, LaunchStartError};
 use crate::{AppError, AppErrorKind};
+
+/// Whether a `steam_applaunch` request executes through the direct Proton
+/// builder: a Steam trainer inside Flatpak.
+fn steam_runs_as_proton_run(request: &LaunchRequest, execution_method: &str) -> bool {
+    request.resolved_method() == METHOD_STEAM_APPLAUNCH && execution_method == METHOD_PROTON_RUN
+}
+
+/// The request the session's process executes as, which its hooks share.
+///
+/// Called for every session kind; only a trainer can pair a `steam_applaunch`
+/// request with a `proton_run` execution method, so games always borrow.
+///
+/// A Steam trainer inside Flatpak runs as [`flatpak_steam_trainer_request`],
+/// so its pre-launch and post-exit hooks see the same `proton_run`
+/// environment as the trainer. Every other session runs its own request.
+pub(super) fn execution_request<'a>(
+    request: &'a LaunchRequest,
+    execution_method: &str,
+) -> Cow<'a, LaunchRequest> {
+    if steam_runs_as_proton_run(request, execution_method) {
+        Cow::Owned(flatpak_steam_trainer_request(request))
+    } else {
+        Cow::Borrowed(request)
+    }
+}
 
 impl LaunchService {
     /// Starts a trainer and returns its session-scoped event stream.
@@ -28,7 +55,9 @@ impl LaunchService {
     ) -> Result<LaunchSession, LaunchStartError> {
         let prepared = self.prepare(request, SessionKind::Trainer).await?;
         let command = match prepared.request.resolved_method() {
-            METHOD_STEAM_APPLAUNCH if prepared.execution_method == METHOD_PROTON_RUN => {
+            METHOD_STEAM_APPLAUNCH
+                if steam_runs_as_proton_run(&prepared.request, prepared.execution_method) =>
+            {
                 let mut command =
                     build_flatpak_steam_trainer_command(&prepared.request, &prepared.log_path)
                         .map_err(|error| {

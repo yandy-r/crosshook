@@ -9,10 +9,6 @@ use crate::error_map::ipc;
 use crate::event_bridge::relay_update;
 
 // Only pass the label of the injected invoking webview, never a JS argument.
-fn update_owner(label: &str) -> JobOwner {
-    JobOwner::new(label)
-}
-
 #[tauri::command]
 pub async fn validate_update_request(
     request: UpdateGameRequest,
@@ -32,7 +28,7 @@ pub async fn update_game(
     let (response, run) = ipc(app
         .services()
         .update
-        .start(update_owner(webview.label()), request)
+        .start(JobOwner::new(webview.label()), request)
         .await)?;
     relay_update(handle, run);
     Ok(response)
@@ -41,24 +37,8 @@ pub async fn update_game(
 /// Cancels this webview's active update; a no-op when it has none.
 #[tauri::command]
 pub async fn cancel_update(webview: tauri::Webview, app: AppState<'_>) -> IpcResult<()> {
-    app.services().update.cancel(&update_owner(webview.label()));
+    app.services()
+        .update
+        .cancel(&JobOwner::new(webview.label()));
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn update_owner_is_derived_from_the_webview_label() {
-        assert_eq!(update_owner("main"), JobOwner::new("main"));
-        assert_ne!(update_owner("main"), update_owner("other"));
-    }
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        let _ = validate_update_request;
-        let _ = update_game;
-        let _ = cancel_update;
-    }
 }

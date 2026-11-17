@@ -4,7 +4,7 @@ use std::path::Path;
 use tokio::process::Command;
 
 use super::common::{
-    gamescope_pid_capture_path, merge_mangohud_config_env_into_map, prepare_gamescope_launch,
+    gamescope_pid_capture_for, merge_mangohud_config_env_into_map, prepare_gamescope_launch,
     should_skip_gamescope, validation_error_to_io_error,
 };
 use super::proton_resolution::resolve_launch_proton_path;
@@ -14,10 +14,9 @@ use super::umu::{
 };
 use crate::launch::runtime_helpers::{
     build_direct_proton_command_with_wrappers_in_directory,
-    build_proton_command_with_gamescope_in_directory,
-    build_proton_command_with_gamescope_pid_capture_in_directory, collect_pressure_vessel_paths,
-    host_environment_map, merge_optimization_and_custom_into_map, merge_runtime_proton_into_map,
-    resolve_effective_working_directory,
+    build_proton_command_with_gamescope_pid_capture_in_directory_inner,
+    collect_pressure_vessel_paths, host_environment_map, merge_optimization_and_custom_into_map,
+    merge_runtime_proton_into_map, resolve_effective_working_directory,
 };
 use crate::launch::{
     resolve_command_arguments, resolve_launch_directives, CommandArgumentResolveError,
@@ -118,29 +117,19 @@ pub fn build_proton_game_command(
     let mut command = if gamescope_active {
         let (gamescope_args, filtered_wrappers) =
             prepare_gamescope_launch(&request.gamescope, &directives.wrappers);
-        if platform::is_flatpak() {
-            let pid_capture_path = gamescope_pid_capture_path(log_path);
-            build_proton_command_with_gamescope_pid_capture_in_directory(
-                program_path.as_str(),
-                &filtered_wrappers,
-                &gamescope_args,
-                &env,
-                effective_working_directory.as_deref(),
-                &request.custom_env_vars,
-                Some(&pid_capture_path),
-                use_umu,
-            )
-        } else {
-            build_proton_command_with_gamescope_in_directory(
-                program_path.as_str(),
-                &filtered_wrappers,
-                &gamescope_args,
-                &env,
-                effective_working_directory.as_deref(),
-                &request.custom_env_vars,
-                use_umu,
-            )
-        }
+        let flatpak = platform::is_flatpak();
+        let pid_capture_path = gamescope_pid_capture_for(log_path, flatpak);
+        build_proton_command_with_gamescope_pid_capture_in_directory_inner(
+            program_path.as_str(),
+            &filtered_wrappers,
+            &gamescope_args,
+            &env,
+            effective_working_directory.as_deref(),
+            &request.custom_env_vars,
+            pid_capture_path.as_deref(),
+            flatpak,
+            use_umu,
+        )
     } else {
         build_direct_proton_command_with_wrappers_in_directory(
             program_path.as_str(),

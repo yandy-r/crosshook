@@ -1,0 +1,15 @@
+# Browser-dev mock layer: the React parity oracle for the native UI migration.
+# One owner reviews every PR that touches the IPC surface (commands, events and
+# their payloads) or its mocks until the React frontend is removed (M7).
+# See src/crosshook-native/src/lib/mocks/README.md.
+/src/crosshook-native/src/lib/mocks/ @yandy-r
+/src/crosshook-native/src/types/backend-events.ts @yandy-r
+/src/crosshook-native/src-tauri/src/lib.rs @yandy-r
+/src/crosshook-native/src-tauri/src/commands/ @yandy-r
+/src/crosshook-native/src-tauri/src/event_bridge.rs @yandy-r
+/src/crosshook-native/src-tauri/src/event_bridge/ @yandy-r
+/src/crosshook-native/crates/crosshook-app/src/ipc/ @yandy-r
+/scripts/check-mock-coverage.sh @yandy-r
+/scripts/tests/check-mock-coverage/ @yandy-r
+/.github/CODEOWNERS @yandy-r
+/.github/pull_request_template.md @yandy-r

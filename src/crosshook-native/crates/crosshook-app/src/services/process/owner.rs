@@ -1,4 +1,4 @@
-//! Owner slots for the no-argument cancel/stop commands (D6).
+//! Owner slots for the no-argument cancel/stop commands.
 //!
 //! A service claims, per invoking owner (derived from the webview label), one
 //! slot before it prepares a run; the job binds its id to the slot when its

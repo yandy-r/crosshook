@@ -121,7 +121,7 @@ pub fn find_best_replacement(
         }
 
         let is_newer = tool_version > old_version;
-        // SAFETY: both vectors are non-empty at this point.
+        // Both vectors are non-empty at this point.
         let crosses_major = tool_version[0] != old_version[0];
 
         let confidence = match (is_newer, crosses_major) {

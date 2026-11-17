@@ -1,9 +1,7 @@
-import type { TrainerGuidanceContent } from '../../../types/onboarding';
 import { getStore } from '../store';
 import {
   applyReadinessOverlays,
   buildBaseReadinessPayload,
-  buildMockReadinessResult,
   deriveMockCapabilities,
   getHostToolDetails,
   isDismissReadinessNagArgs,
@@ -17,14 +15,9 @@ import {
   onboardingDismissed,
   resetOnboardingState,
 } from './onboarding-state';
-import { buildTrainerGuidanceContent } from './onboarding-trainer';
 import type { Handler } from './types';
 
 export function registerOnboarding(map: Map<string, Handler>): void {
-  map.set('check_readiness', async () => {
-    return buildMockReadinessResult();
-  });
-
   map.set('check_generalized_readiness', async () => {
     const raw = buildBaseReadinessPayload();
     persistReadinessSnapshot(raw);
@@ -74,10 +67,6 @@ export function registerOnboarding(map: Map<string, Handler>): void {
     }
     getStore().dismissedReadinessToolIds.add(args.toolId);
     return null;
-  });
-
-  map.set('get_trainer_guidance', async (): Promise<TrainerGuidanceContent> => {
-    return buildTrainerGuidanceContent();
   });
 }
 

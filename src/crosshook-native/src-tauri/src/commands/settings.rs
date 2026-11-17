@@ -8,7 +8,7 @@ use crate::error_map::ipc;
 #[tauri::command]
 pub async fn settings_load(app: AppState<'_>) -> IpcResult<AppSettingsIpcData> {
     let services = app.services();
-    ipc(settings::load(&services.settings, &services.ui_settings).await)
+    ipc(settings::load(&services.settings).await)
 }
 
 /// Saves the settings form. The SteamGridDB key is never touched; use
@@ -29,14 +29,18 @@ pub async fn settings_save_steamgriddb_key(
     ipc(app.services().settings.save_steamgriddb_key(key).await)
 }
 
-/// Persists the Library view mode through the throttled `[ui]` writer.
+/// Persists the Library view mode into the `[ui]` settings table.
 #[tauri::command]
 pub async fn settings_set_library_view_mode(
     mode: LibraryViewMode,
     app: AppState<'_>,
 ) -> IpcResult<()> {
-    app.services().ui_settings.set_library_view_mode(mode);
-    Ok(())
+    ipc(app
+        .services()
+        .settings
+        .update(move |settings| settings.ui.library_view_mode = Some(mode))
+        .await
+        .map(drop))
 }
 
 #[tauri::command]
@@ -47,19 +51,4 @@ pub async fn recent_files_load(app: AppState<'_>) -> IpcResult<RecentFilesData> 
 #[tauri::command]
 pub async fn recent_files_save(data: RecentFilesData, app: AppState<'_>) -> IpcResult<()> {
     ipc(app.services().recent_files.save(data).await)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        let _ = settings_load;
-        let _ = settings_save;
-        let _ = settings_save_steamgriddb_key;
-        let _ = settings_set_library_view_mode;
-        let _ = recent_files_load;
-        let _ = recent_files_save;
-    }
 }

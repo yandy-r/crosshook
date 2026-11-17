@@ -2,7 +2,7 @@ use std::path::Path;
 
 use tokio::process::Command;
 
-use super::common::{prepare_gamescope_launch, should_skip_gamescope};
+use super::common::{gamescope_pid_capture_for, prepare_gamescope_launch, should_skip_gamescope};
 use super::proton_resolution::resolve_launch_proton_path;
 use super::trainer_staging::stage_trainer_into_prefix;
 use super::umu::{
@@ -11,42 +11,69 @@ use super::umu::{
 };
 use crate::launch::runtime_helpers::{
     build_direct_proton_command_with_wrappers_in_directory,
-    build_proton_command_with_gamescope_in_directory, collect_pressure_vessel_paths,
-    host_environment_map, is_unshare_net_available, merge_runtime_proton_into_map,
-    resolve_effective_working_directory,
+    build_proton_command_with_gamescope_pid_capture_in_directory_inner,
+    collect_pressure_vessel_paths, host_environment_map, is_unshare_net_available,
+    merge_runtime_proton_into_map, resolve_effective_working_directory,
 };
 use crate::launch::{LaunchRequest, METHOD_PROTON_RUN};
-use crate::platform::normalize_flatpak_host_path;
+use crate::platform::{self, normalize_flatpak_host_path};
 use crate::profile::TrainerLoadingMode;
 
-pub fn build_flatpak_steam_trainer_command(
-    request: &LaunchRequest,
-    log_path: &Path,
-) -> std::io::Result<Command> {
+/// The `proton_run` request a Steam trainer runs as inside Flatpak: the Steam
+/// compatdata becomes the prefix and the Steam Proton the runtime Proton.
+///
+/// The launch service builds the trainer's hook environment from the same
+/// request, so hooks see what the trainer process sees.
+pub fn flatpak_steam_trainer_request(request: &LaunchRequest) -> LaunchRequest {
     let mut direct_request = request.clone();
     direct_request.method = METHOD_PROTON_RUN.to_string();
     direct_request.runtime.prefix_path =
         normalize_flatpak_host_path(&request.steam.compatdata_path);
     direct_request.runtime.proton_path = request.steam.proton_path.clone();
+    direct_request
+}
 
-    build_proton_trainer_command_with_umu_override(
-        &direct_request,
+/// Builds a Steam trainer launch through the direct Proton builder, as
+/// [`flatpak_steam_trainer_request`]. UMU is always off for this path.
+///
+/// Inside Flatpak, a gamescope-wrapped trainer writes its host gamescope PID
+/// to `<log_path>.gamescope.pid`, the file the session watchdog waits for.
+pub fn build_flatpak_steam_trainer_command(
+    request: &LaunchRequest,
+    log_path: &Path,
+) -> std::io::Result<Command> {
+    build_proton_trainer_command_inner(
+        &flatpak_steam_trainer_request(request),
         log_path,
         /*force_no_umu=*/ true,
+        platform::is_flatpak(),
     )
 }
 
+/// Builds a `proton_run` trainer launch.
+///
+/// Inside Flatpak, a gamescope-wrapped trainer writes its host gamescope PID
+/// to `<log_path>.gamescope.pid`, the file the session watchdog waits for.
 pub fn build_proton_trainer_command(
     request: &LaunchRequest,
     log_path: &Path,
 ) -> std::io::Result<Command> {
-    build_proton_trainer_command_with_umu_override(request, log_path, /*force_no_umu=*/ false)
+    build_proton_trainer_command_inner(
+        request,
+        log_path,
+        /*force_no_umu=*/ false,
+        platform::is_flatpak(),
+    )
 }
 
-pub(super) fn build_proton_trainer_command_with_umu_override(
+/// Shared trainer builder. `flatpak` decides whether a gamescope-wrapped
+/// trainer runs through the PID-capture shell, so tests can cover both shapes
+/// without a sandbox; the non-gamescope branch still detects the real sandbox.
+pub(super) fn build_proton_trainer_command_inner(
     request: &LaunchRequest,
-    _log_path: &Path,
+    log_path: &Path,
     force_no_umu: bool,
+    flatpak: bool,
 ) -> std::io::Result<Command> {
     let normalized_prefix_path = normalize_flatpak_host_path(&request.runtime.prefix_path);
     let normalized_trainer_host_path = normalize_flatpak_host_path(&request.trainer_host_path);
@@ -139,13 +166,16 @@ pub(super) fn build_proton_trainer_command_with_umu_override(
     let mut command = if gamescope_active {
         let (gamescope_args, filtered_wrappers) =
             prepare_gamescope_launch(&trainer_gamescope, &effective_wrappers);
-        build_proton_command_with_gamescope_in_directory(
+        let pid_capture_path = gamescope_pid_capture_for(log_path, flatpak);
+        build_proton_command_with_gamescope_pid_capture_in_directory_inner(
             program_path.as_str(),
             &filtered_wrappers,
             &gamescope_args,
             &env,
             effective_working_directory.as_deref(),
             &request.custom_env_vars,
+            pid_capture_path.as_deref(),
+            flatpak,
             use_umu,
         )
     } else {

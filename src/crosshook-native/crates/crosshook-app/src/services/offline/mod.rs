@@ -1,12 +1,10 @@
-//! Offline readiness, trainer hash verification, network status and trainer
-//! type catalog.
+//! Offline readiness, trainer hash verification and trainer type catalog.
 
 use std::path::PathBuf;
 
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::offline::{
-    global_trainer_type_catalog, is_network_available, HashVerifyResult, OfflineReadinessReport,
-    TrainerTypeEntry,
+    global_trainer_type_catalog, HashVerifyResult, OfflineReadinessReport, TrainerTypeEntry,
 };
 use crosshook_core::profile::ProfileStore;
 
@@ -122,11 +120,6 @@ impl OfflineService {
                 })
         })
         .await
-    }
-
-    /// Probes whether the network is reachable.
-    pub async fn network_status(&self) -> Result<bool, AppError> {
-        run_blocking(|| Ok(is_network_available())).await
     }
 
     /// Returns the global trainer type catalog entries.

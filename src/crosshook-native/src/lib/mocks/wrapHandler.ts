@@ -27,7 +27,7 @@ const pendingDelayTimers = new Set<number>();
  * per BR-11. These commands are exempt from `?errors=true` rejection so the
  * `<AppShell />` always mounts.
  */
-export const SHELL_CRITICAL_READS: ReadonlySet<string> = new Set([
+const SHELL_CRITICAL_READS: ReadonlySet<string> = new Set([
   'settings_load',
   'recent_files_load',
   'default_steam_client_install_path',
@@ -53,15 +53,12 @@ const EXPLICIT_READ_COMMANDS: ReadonlySet<string> = new Set<string>([
   'check_game_running',
   'list_running_sessions',
   'check_gamescope_session',
-  'launch_platform_status',
-  'check_readiness',
   // `check_generalized_readiness` is omitted: the real command persists a host readiness
   // snapshot via `upsert_host_readiness_snapshot` (see onboarding.rs), so it is not a
   // pure read. It still matches `READ_VERB_RE` (`check_` prefix) for test rendering.
   'preview_launch',
   'validate_launch',
   'build_steam_launch_options_command',
-  'get_trainer_guidance',
   'verify_trainer_hash',
   // `collection_*` prefix doesn't match the `get_`-prefix regex, so list reads
   // explicitly. Phase 1 collection reads (`collection_list`, `collection_list_profiles`,
@@ -72,6 +69,9 @@ const EXPLICIT_READ_COMMANDS: ReadonlySet<string> = new Set<string>([
   'collection_import_from_toml',
   // Startup-benchmark signal: no-op in browser mode, must not reject under ?errors=true.
   'bench_ready',
+  'bench_begin',
+  'bench_mark',
+  'bench_clock',
 ]);
 
 /**
@@ -90,11 +90,6 @@ export function isReadCommand(name: string): boolean {
   if (READ_VERB_RE.test(name)) return true;
   if (READ_NOUN_RE.test(name)) return true;
   return false;
-}
-
-/** Returns true for the BR-11 shell-critical read set. */
-export function isShellCritical(name: string): boolean {
-  return SHELL_CRITICAL_READS.has(name);
 }
 
 /**

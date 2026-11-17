@@ -70,13 +70,6 @@ impl MetadataStore {
         })
     }
 
-    /// Delete all cached rows for `provider_id` (evict stale entries before a refresh).
-    pub fn clear_proton_catalog(&self, provider_id: &str) -> Result<(), MetadataStoreError> {
-        self.with_conn_mut("clear proton catalog", |conn| {
-            proton_catalog_store::clear_proton_catalog_impl(conn, provider_id)
-        })
-    }
-
     /// Atomically replace all cached rows for a provider.
     pub fn replace_proton_catalog(
         &self,

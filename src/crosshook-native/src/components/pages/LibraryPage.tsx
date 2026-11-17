@@ -172,7 +172,7 @@ export function LibraryPage({
   // recently-opened CollectionViewModal) AND the launched profile is actually
   // a member of that collection, thread the collection context so Rust's
   // `profile_load` applies the collection's launch defaults via
-  // `effective_profile_with` (Phase 3 merge layer).
+  // `effective_profile_with`.
   //
   // If members haven't finished loading yet, or the profile isn't a member,
   // fall back to the raw load — matching the fail-open philosophy of the Rust

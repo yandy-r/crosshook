@@ -17,18 +17,6 @@ use super::validation::{
     validate_archive_filename, validate_install_destination, validate_release_url,
 };
 
-/// Backward-compatible install entry point. Delegates to
-/// [`install_version_with_progress`] with no emitter or cancel token.
-pub async fn install_version(
-    request: &ProtonUpInstallRequest,
-    version_info: &ProtonUpAvailableVersion,
-) -> ProtonUpInstallResult {
-    match install_version_with_progress(request, version_info, None, None).await {
-        Ok(result) => result,
-        Err(error) => error.to_result(),
-    }
-}
-
 /// Full-featured install orchestrator with progress events and cancellation.
 ///
 /// Steps:

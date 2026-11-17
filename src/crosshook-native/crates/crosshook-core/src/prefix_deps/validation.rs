@@ -1,6 +1,4 @@
 use super::PrefixDepsError;
-use std::collections::HashSet;
-use std::sync::LazyLock;
 
 /// Maximum verbs per single install batch (DoS prevention).
 const MAX_VERBS_PER_BATCH: usize = 50;
@@ -21,38 +19,12 @@ fn is_valid_verb_structure(verb: &str) -> bool {
         .all(|&b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'-')
 }
 
-/// Known winetricks verbs commonly used for game trainers.
-/// This is advisory only -- unknown verbs that pass structural validation are allowed.
-static KNOWN_VERBS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
-    [
-        "vcrun2019",
-        "vcrun2022",
-        "dotnet48",
-        "dotnet40",
-        "dotnet35",
-        "d3dx9",
-        "d3dcompiler_47",
-        "dxvk",
-        "xact",
-        "xinput",
-        "corefonts",
-        "allfonts",
-    ]
-    .into_iter()
-    .collect()
-});
-
-/// Returns true if the verb is in the known-good list (advisory, not blocking).
-pub fn is_known_verb(verb: &str) -> bool {
-    KNOWN_VERBS.contains(verb)
-}
-
 /// Validate a batch of protontricks/winetricks verb names.
 ///
 /// Security gates (hard reject):
 /// - Empty verb list
 /// - More than 50 verbs (DoS prevention)
-/// - Any verb starting with `-` (flag injection -- S-06)
+/// - Any verb starting with `-` (flag injection)
 /// - Any verb failing structural regex `^[a-z0-9][a-z0-9_\-]{0,63}$`
 pub fn validate_protontricks_verbs(verbs: &[String]) -> Result<(), PrefixDepsError> {
     if verbs.is_empty() {
@@ -197,14 +169,5 @@ mod tests {
     fn unknown_verb_passes_structural_validation() {
         let verbs = vec!["somecustomverb123".to_string()];
         assert!(validate_protontricks_verbs(&verbs).is_ok());
-        assert!(!is_known_verb("somecustomverb123"));
-    }
-
-    #[test]
-    fn known_verbs_are_recognized() {
-        assert!(is_known_verb("vcrun2019"));
-        assert!(is_known_verb("dotnet48"));
-        assert!(is_known_verb("d3dcompiler_47"));
-        assert!(!is_known_verb("unknown_verb"));
     }
 }

@@ -1,5 +1,5 @@
 //! Cross-tap trainer catalog DTOs and the pure filter/facet/rank/page pass
-//! (Forgejo #27). Serves both the SQLite path and the degraded filesystem
+//! Serves both the SQLite path and the degraded filesystem
 //! path so filter/facet/ordering semantics are byte-identical.
 
 use std::collections::{HashMap, HashSet};

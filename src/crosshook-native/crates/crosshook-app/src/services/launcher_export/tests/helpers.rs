@@ -8,10 +8,10 @@ use std::path::{Path, PathBuf};
 use crosshook_core::export::SteamExternalLauncherExportRequest;
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::{GameProfile, GamescopeConfig, ProfileStore, TrainerLoadingMode};
-use crosshook_core::settings::{AppSettingsData, SettingsStore, UmuPreference};
+use crosshook_core::settings::{SettingsStore, UmuPreference};
 use tempfile::TempDir;
 
-use super::super::{LauncherExportService, LauncherRenameRequest};
+use super::super::LauncherExportService;
 
 /// Metadata store flavor for a [`Harness`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -87,32 +87,6 @@ impl Harness {
         }
     }
 
-    /// A rename request that mirrors [`Harness::request`] for `launcher_name`.
-    pub(super) fn rename_request(
-        &self,
-        old_slug: &str,
-        new_display_name: &str,
-    ) -> LauncherRenameRequest {
-        let base = self.request(new_display_name);
-        LauncherRenameRequest {
-            old_launcher_slug: old_slug.to_string(),
-            new_display_name: new_display_name.to_string(),
-            new_launcher_icon_path: String::new(),
-            target_home_path: self.home_str(),
-            steam_client_install_path: "/fake/steam".to_string(),
-            method: base.method,
-            trainer_path: base.trainer_path,
-            trainer_loading_mode: "source_directory".to_string(),
-            prefix_path: base.prefix_path,
-            proton_path: base.proton_path,
-            steam_app_id: base.steam_app_id,
-            launcher_name: new_display_name.to_string(),
-            network_isolation: false,
-            gamescope: GamescopeConfig::default(),
-            custom_env_vars: Default::default(),
-        }
-    }
-
     pub(super) fn launchers_dir(&self) -> PathBuf {
         self.home.join(".local/share/crosshook/launchers")
     }
@@ -145,35 +119,10 @@ impl Harness {
         profile
     }
 
-    /// Exports the launcher a saved profile would produce.
-    pub(super) fn request_for_profile(
-        &self,
-        profile: &GameProfile,
-        profile_name: &str,
-    ) -> SteamExternalLauncherExportRequest {
-        let mut request = self.request(&profile.steam.launcher.display_name);
-        request.trainer_path = profile.trainer.path.clone();
-        request.profile_name = Some(profile_name.to_string());
-        request
-    }
-
-    /// Exports the launcher owned by `slug` through the service re-export path
-    /// so the on-disk script matches what a profile regenerates.
-    pub(super) async fn reexport(&self, slug: &str) {
-        self.service
-            .reexport_by_slug(slug.to_string(), self.home_str(), String::new())
-            .await
-            .unwrap();
-    }
-
     /// Makes the settings file unreadable as TOML.
     pub(super) fn corrupt_settings(&self) {
         fs::create_dir_all(&self.settings.base_path).unwrap();
         fs::write(self.settings.settings_path(), "not = [valid toml").unwrap();
-    }
-
-    pub(super) fn write_settings(&self, settings: &AppSettingsData) {
-        self.settings.save(settings).unwrap();
     }
 
     /// Counts `launchers` rows with `slug` and `drift_state`.

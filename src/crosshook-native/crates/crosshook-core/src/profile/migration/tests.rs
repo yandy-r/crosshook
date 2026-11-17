@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use tempfile::tempdir;
 
+use super::proton::{extract_proton_family, extract_version_segments, find_best_replacement};
 use super::*;
 use crate::profile::models::GameProfile;
 use crate::profile::toml_store::ProfileStore;
@@ -55,7 +56,7 @@ fn family_tkg_returns_fixed_key() {
 #[test]
 fn family_legacy_ge() {
     // "Proton-9.23-GE-2" normalizes to "proton923ge2", trailing digit stripped → "proton923ge".
-    // In Phase 1 this is a separate family from modern GE ("geproton") — by design.
+    // This is a separate family from modern GE ("geproton") — by design.
     assert_eq!(
         extract_proton_family("Proton-9.23-GE-2"),
         Some("proton923ge".to_string())

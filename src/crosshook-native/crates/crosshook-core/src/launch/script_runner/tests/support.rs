@@ -54,3 +54,8 @@ pub(super) fn command_env_value(command: &Command, key: &str) -> Option<String> 
         })
         .flatten()
 }
+
+/// Log path for trainer builders that only derive a capture path from it.
+pub(super) fn test_trainer_log_path() -> &'static Path {
+    Path::new("/tmp/crosshook-test-trainer.log")
+}

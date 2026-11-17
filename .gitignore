@@ -64,3 +64,8 @@ src/crosshook-native/coverage/
 
 # graphify knowledge-graph output (large, machine-local, regenerated via `graphify update .`)
 graphify-out/
+
+# Benchmark runner output and on-demand shim builds (docs/internal/bench)
+/results/
+scripts/bench/**/*.so
+scripts/bench/**/__pycache__/

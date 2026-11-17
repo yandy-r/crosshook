@@ -9,7 +9,7 @@ import type { OptimizationEntry } from '../../utils/optimization-catalog';
 import { useCommandArgumentCatalog } from '../useCommandArgumentCatalog';
 import { formatInvokeError } from './formatInvokeError';
 import { areLaunchOptimizationIdsEqual, normalizeLaunchOptimizationIds } from './launchOptimizationIds';
-import { buildLaunchOptimizationsStatus, type LaunchOptimizationsStatus } from './launchOptimizationStatus';
+import { buildLaunchOptimizationsStatus } from './launchOptimizationStatus';
 import { applyLaunchOptimizationToggle } from './launchOptimizationToggle';
 import { normalizeCommandArgumentsForSave, normalizeProfileForEdit } from './profileNormalize';
 import {
@@ -77,7 +77,7 @@ export function useProfileLaunchAutosave({
   setDirty,
   setError,
 }: UseProfileLaunchAutosaveOptions) {
-  const [launchOptimizationsStatus, setLaunchOptimizationsStatus] = useState<LaunchOptimizationsStatus>(
+  const [launchOptimizationsStatus, setLaunchOptimizationsStatus] = useState<LaunchAutoSaveStatus>(
     buildLaunchOptimizationsStatus('proton_run', false)
   );
   const [bundledOptimizationPresets, setBundledOptimizationPresets] = useState<BundledOptimizationPreset[]>([]);

@@ -44,6 +44,7 @@ use crosshook_core::settings::SettingsStore;
 
 use super::BackgroundGrantHolder;
 use crate::events::EventBus;
+use crate::jobs::LogDir;
 use crate::{AppError, AppErrorKind};
 use sessions::session_observer;
 use steam_watch::{default_probe, ProcessProbe};
@@ -86,10 +87,10 @@ pub struct LaunchService {
     spawner: Arc<dyn ProcessSpawner>,
     helpers: HelperSource,
     env: Option<LaunchEnv>,
-    /// Where [`crate::jobs::create_log_path_in`] creates the session log.
-    /// Production defaults to [`crate::jobs::LOG_DIR`]; tests point it at
-    /// their tempdir so no test writes to the shared `/tmp` directory.
-    log_dir: PathBuf,
+    /// Where [`crate::jobs::create_log_path_in`] creates the session log: the
+    /// private directory resolved at bootstrap. Tests pass a tempdir-backed
+    /// one so no test touches the real runtime or state directory.
+    log_dir: LogDir,
 }
 
 impl LaunchService {
@@ -97,14 +98,16 @@ impl LaunchService {
     /// that receives [`AppEvent::SessionStarted`](crate::AppEvent::SessionStarted)
     /// / [`AppEvent::SessionExited`](crate::AppEvent::SessionExited) for every
     /// registry change. `background` is the Background-portal grant holder the
-    /// gamescope watchdog waits on, if any. Production defaults:
-    /// [`TokioSpawner`], detected helper roots and a detected [`LaunchEnv`].
+    /// gamescope watchdog waits on, if any. `log_dir` is the private directory
+    /// session logs are created in. Production defaults: [`TokioSpawner`],
+    /// detected helper roots and a detected [`LaunchEnv`].
     pub fn new(
         profiles: ProfileStore,
         settings: SettingsStore,
         metadata: MetadataStore,
         events: EventBus,
         background: Option<Arc<BackgroundGrantHolder>>,
+        log_dir: LogDir,
     ) -> Self {
         Self {
             profiles,
@@ -118,7 +121,7 @@ impl LaunchService {
             spawner: Arc::new(TokioSpawner),
             helpers: HelperSource::Detect,
             env: None,
-            log_dir: PathBuf::from(crate::jobs::LOG_DIR),
+            log_dir,
         }
     }
 
@@ -127,14 +130,6 @@ impl LaunchService {
     #[must_use]
     pub(super) fn with_probe(mut self, probe: ProcessProbe) -> Self {
         self.probe = probe;
-        self
-    }
-
-    /// Replaces where session logs are created (test seam). Production stays
-    /// at [`crate::jobs::LOG_DIR`].
-    #[must_use]
-    pub fn with_log_dir(mut self, log_dir: PathBuf) -> Self {
-        self.log_dir = log_dir;
         self
     }
 

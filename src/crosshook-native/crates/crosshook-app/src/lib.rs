@@ -34,5 +34,5 @@ pub use services::{
     CollectionsService, CommunityService, DiscoveryService, InstallService, LaunchService,
     LauncherExportService, LutrisService, ModsService, PrefixDepsService, ProfileWriter,
     ProtonDbService, ProtonMigrationService, ProtonUpService, RunExecutableService, SteamService,
-    StorageService, UiSettingsService, UmuService, UpdateService, VersionService,
+    StorageService, UmuService, UpdateService, VersionService,
 };

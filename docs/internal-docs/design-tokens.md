@@ -3,7 +3,7 @@
 Source of truth: [`src/crosshook-native/src/styles/variables.css`](../../src/crosshook-native/src/styles/variables.css).
 Enforced by: [`scripts/check-legacy-palette.sh`](../../scripts/check-legacy-palette.sh), run via [`scripts/lint.sh`](../../scripts/lint.sh) in CI.
 
-This doc defines the palette-token contract established in Phase 2 of the Unified Desktop Redesign ([PRD](../prps/prds/unified-desktop-redesign.prd.md)) and the guardrails that keep it from drifting back to the legacy Microsoft-blue palette.
+This doc defines the palette-token contract established in Phase 2 of the Unified Desktop Redesign and the guardrails that keep it from drifting back to the legacy Microsoft-blue palette.
 
 ## Rule: no literal accent / background colors
 
@@ -113,8 +113,7 @@ If you find yourself adding a suppression, consider refactoring the literal into
 
 ## Path note
 
-The PRD (`unified-desktop-redesign.prd.md:143`) references `docs/internal/design-tokens.md`
-but the canonical path is **`docs/internal-docs/design-tokens.md`** (this file).
+The canonical path is **`docs/internal-docs/design-tokens.md`** (this file).
 The CI sentinel (`scripts/check-legacy-palette.sh:136`) and all cross-references use this path.
 
 ---

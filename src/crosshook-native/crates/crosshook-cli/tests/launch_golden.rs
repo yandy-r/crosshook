@@ -1,4 +1,4 @@
-//! CLI output compatibility for YAN-798 (D10), captured from baseline a652cd0.
+//! CLI output compatibility.
 //!
 //! The 13 cases drive the unmodified CLI through its real binary with isolated
 //! child environments and stub executables. Fixtures are frozen: a mismatch is
@@ -40,6 +40,8 @@ fn prepare(root: &Path, case: &str) {
     ] {
         fs::create_dir_all(root.join(dir)).expect("create isolated directory");
     }
+    fs::set_permissions(root.join("run"), fs::Permissions::from_mode(0o700))
+        .expect("chmod fake runtime dir");
     executable(
         &root.join("proton"),
         "#!/bin/sh\nprintf 'proton output\\n'\nexit 0\n",
@@ -188,6 +190,17 @@ fn launch_output_matches_frozen_baseline() {
             }
         }
         if case.starts_with(['s', 'n', 'p']) {
+            let logs = root.path().join("run/crosshook/logs");
+            let created: Vec<String> = fs::read_dir(&logs)
+                .unwrap_or_else(|e| panic!("{case}: read log dir: {e}"))
+                .map(|entry| entry.expect("log entry").file_name().into_string().unwrap())
+                .collect();
+            assert!(
+                created
+                    .iter()
+                    .any(|name| name.starts_with(&format!("cli-{case}-")) && name.ends_with(".log")),
+                "{case}: expected a cli-{case}-*.log under run/crosshook/logs, found {created:?}"
+            );
             let path = root.path().join("home/.local/share/crosshook/metadata.db");
             assert!(
                 path.is_file(),

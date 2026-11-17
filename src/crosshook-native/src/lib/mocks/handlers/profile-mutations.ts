@@ -329,35 +329,6 @@ export function registerProfileMutations(map: Map<string, Handler>): void {
   });
 
   map.set(
-    'profile_import_legacy',
-    withProfileFixtureGate('profile_import_legacy', async (args) => {
-      const { path } = args as { path: string };
-      // Derive a name from the file stem
-      const segments = path.replace(/\\/g, '/').split('/');
-      const filename = segments[segments.length - 1] ?? 'imported';
-      const stem = filename.replace(/\.[^.]+$/, '').trim() || 'imported';
-      const store = getStore();
-      // Mirrors the backend: legacy import never overwrites (Conflict).
-      if (store.profiles.has(stem)) {
-        throw new Error(`[dev-mock] profile_import_legacy: a profile named '${stem}' already exists`);
-      }
-      const base = createDefaultProfile();
-      const imported: GameProfile = {
-        ...base,
-        game: {
-          ...base.game,
-          name: stem,
-          executable_path: `/mock/games/${stem}.exe`,
-        },
-      };
-      store.profiles.set(stem, imported);
-      appendRevision(stem, 'import');
-      emitProfilesChanged({ reason: { kind: 'imported' }, names: [stem] });
-      return structuredClone(imported);
-    })
-  );
-
-  map.set(
     'profile_export_toml',
     withProfileFixtureGate('profile_export_toml', async (args) => {
       const { name, data, includeHooks } = args as {

@@ -1,4 +1,4 @@
-//! Running-session events (YAN-824): every registry change reaches the app
+//! Running-session events: every registry change reaches the app
 //! bus once, in `seq` order, and a subscribe-then-snapshot client applying
 //! the events with `seq > snapshot.seq` always ends at the registry state.
 

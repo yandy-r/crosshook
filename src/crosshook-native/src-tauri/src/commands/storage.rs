@@ -25,15 +25,3 @@ pub async fn get_prefix_storage_history(
 ) -> IpcResult<PrefixStorageHistoryResponse> {
     ipc(app.services().storage.history().await)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        let _ = scan_prefix_storage;
-        let _ = cleanup_prefix_storage;
-        let _ = get_prefix_storage_history;
-    }
-}

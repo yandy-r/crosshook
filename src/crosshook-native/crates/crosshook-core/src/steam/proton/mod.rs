@@ -8,8 +8,7 @@ mod util;
 #[cfg(test)]
 mod tests;
 
-// Re-export everything previously public from the monolithic file so all
-// existing `use crate::steam::proton::X` paths continue to resolve.
+// Re-exports keep the existing `use crate::steam::proton::X` paths resolving.
 
 pub use discovery::{collect_compat_tool_mappings, discover_compat_tools};
 pub use flatpak::prefer_user_local_compat_tool_path;

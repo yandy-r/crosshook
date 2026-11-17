@@ -217,9 +217,6 @@ impl std::error::Error for LinkError {}
 /// Shared slot the gamescope watchdog writes to when it tears down a tree.
 /// The stream finalizer reads this after the child exits so it can mark the
 /// launch's `diagnostic_json` with the teardown reason.
-///
-/// Replaces the previous `Arc<AtomicBool>` "watchdog_killed" flag — this
-/// carries the same "did the watchdog fire" boolean plus the semantic reason.
 #[derive(Clone, Default)]
 pub struct WatchdogOutcome {
     inner: Arc<Mutex<WatchdogOutcomeInner>>,

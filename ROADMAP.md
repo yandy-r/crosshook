@@ -19,8 +19,6 @@ items were closed as superseded by the native Rust UI migration. Remaining
   [`.github/pull_request_template.md`](.github/pull_request_template.md).
 - When a phase ships, check off or close the matching issue and update this file
   in the same PR or a follow-up docs commit.
-- Canonical implementation detail lives in PRDs under `docs/prps/prds/`; this
-  file is the executive view.
 
 ---
 
@@ -299,11 +297,8 @@ packaging (GitHub #69) shipped in v0.5.0; config history enhancements (Forgejo
 
 ## Key documents
 
-| Document                                                                                                                             | Purpose                                                                        |
-| ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| [`docs/prps/prds/unified-desktop-redesign.prd.md`](docs/prps/prds/unified-desktop-redesign.prd.md)                                   | Shipped shell redesign — phase table + decisions                               |
-| [`docs/prps/prds/unified-desktop-hero-detail-consolidation.prd.md`](docs/prps/prds/unified-desktop-hero-detail-consolidation.prd.md) | Shipped consolidation PRD — phases and route-removal rationale                 |
-| [`docs/internal-docs/design-tokens.md`](docs/internal-docs/design-tokens.md)                                                         | Token rules post Unified Desktop / Hero Detail polish                          |
-| [`docs/research/additional-features/deep-research-report.md`](docs/research/additional-features/deep-research-report.md)             | Source for [#3](https://git.home.rfamily.dev/yandy/crosshook/issues/3) backlog |
-| [`CHANGELOG.md`](CHANGELOG.md)                                                                                                       | Release history (git-cliff)                                                    |
-| [`AGENTS.md`](AGENTS.md)                                                                                                             | Agent/repo policy                                                              |
+| Document                                                                     | Purpose                                               |
+| ---------------------------------------------------------------------------- | ----------------------------------------------------- |
+| [`docs/internal-docs/design-tokens.md`](docs/internal-docs/design-tokens.md) | Token rules post Unified Desktop / Hero Detail polish |
+| [`CHANGELOG.md`](CHANGELOG.md)                                               | Release history (git-cliff)                           |
+| [`AGENTS.md`](AGENTS.md)                                                     | Agent/repo policy                                     |

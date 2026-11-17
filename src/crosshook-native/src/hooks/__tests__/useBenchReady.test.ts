@@ -2,11 +2,27 @@ import { act, renderHook } from '@testing-library/react';
 import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const callCommandMock = vi.fn<(name: string) => Promise<void>>();
+const callCommandMock = vi.fn<(name: string) => Promise<unknown>>();
+const startBenchProbeMock = vi.fn<(name: string) => Promise<void>>();
+const healthModuleLoaded = vi.fn();
 
 vi.mock('@/lib/ipc', () => ({
   callCommand: (name: string) => callCommandMock(name),
 }));
+
+vi.mock('@/lib/bench/benchProbe', () => ({
+  startBenchProbe: (name: string) => startBenchProbeMock(name),
+}));
+
+// Probe modules whose factory runs only when something imports them; each still returns the real module.
+vi.mock('@/lib/bench/healthTable', async (importOriginal) => {
+  healthModuleLoaded('healthTable');
+  return importOriginal();
+});
+vi.mock('@/lib/bench/healthScrollProbe', async (importOriginal) => {
+  healthModuleLoaded('healthScrollProbe');
+  return importOriginal();
+});
 
 // The hook uses module-level one-shot flags; import it fresh for every test.
 async function importHook() {
@@ -19,10 +35,14 @@ describe('useBenchReady', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.useFakeTimers();
-    callCommandMock.mockReset().mockResolvedValue(undefined);
+    callCommandMock.mockReset().mockResolvedValue(null);
+    startBenchProbeMock.mockReset().mockResolvedValue(undefined);
+    healthModuleLoaded.mockReset();
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     vi.useRealTimers();
   });
 
@@ -97,5 +117,86 @@ describe('useBenchReady', () => {
     expect(benchReadyCalls()).toHaveLength(1);
     await act(async () => {}); // flush rejection microtask
     expect(warnSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('makes no other call and registers nothing when bench_ready returns null', async () => {
+    const addDocument = vi.spyOn(document, 'addEventListener');
+    const addWindow = vi.spyOn(window, 'addEventListener');
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame');
+    const observerSpy = vi.fn();
+    const RealObserver = MutationObserver;
+    vi.stubGlobal(
+      'MutationObserver',
+      class extends RealObserver {
+        constructor(callback: MutationCallback) {
+          super(callback);
+          observerSpy();
+        }
+      }
+    );
+
+    const useBenchReady = await importHook();
+    renderHook(() => useBenchReady(true));
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
+    await act(async () => {}); // flush the bench_ready promise chain
+
+    expect(callCommandMock.mock.calls).toEqual([['bench_ready']]);
+    expect(startBenchProbeMock).not.toHaveBeenCalled();
+    expect(healthModuleLoaded).not.toHaveBeenCalled(); // the health probes stay unloaded in production
+    expect(addDocument).not.toHaveBeenCalled();
+    expect(addWindow).not.toHaveBeenCalled();
+    expect(observerSpy).not.toHaveBeenCalled();
+    // Only the two ready-paint frames that existed before the probe.
+    expect(rafSpy).toHaveBeenCalledTimes(2);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('treats an undefined bench_ready result as null', async () => {
+    callCommandMock.mockResolvedValue(undefined);
+    const useBenchReady = await importHook();
+    renderHook(() => useBenchReady(true));
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
+    await act(async () => {});
+    expect(startBenchProbeMock).not.toHaveBeenCalled();
+  });
+
+  it('starts the probe once with the scenario name when bench_ready returns one', async () => {
+    callCommandMock.mockResolvedValue({ name: 'search' });
+    const useBenchReady = await importHook();
+    const first = renderHook(() => useBenchReady(true), { wrapper: StrictMode });
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
+    await act(async () => {});
+    first.unmount();
+    renderHook(() => useBenchReady(true), { wrapper: StrictMode });
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
+    await act(async () => {});
+
+    expect(benchReadyCalls()).toHaveLength(1);
+    expect(startBenchProbeMock).toHaveBeenCalledTimes(1);
+    expect(startBenchProbeMock).toHaveBeenCalledWith('search');
+  });
+
+  it('loads the health modules through the real bench probe for a health_table result (positive control)', async () => {
+    vi.doUnmock('@/lib/bench/benchProbe');
+    callCommandMock.mockImplementation(async (name: string) =>
+      name === 'bench_ready' ? { name: 'health_table' } : null
+    );
+    const useBenchReady = await importHook();
+    renderHook(() => useBenchReady(true));
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
+    await vi.waitFor(() => expect(healthModuleLoaded).toHaveBeenCalledWith('healthTable'));
+
+    expect(startBenchProbeMock).not.toHaveBeenCalled(); // the mocked probe is out of the way
+    expect(healthModuleLoaded).toHaveBeenCalledWith('healthScrollProbe');
   });
 });

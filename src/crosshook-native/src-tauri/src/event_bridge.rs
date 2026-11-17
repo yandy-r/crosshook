@@ -3,8 +3,7 @@
 //! [`WireEvent`] to the webview, and owns the relay tasks.
 //!
 //! - startup bridge: app bus -> `startup-job-finished`, the legacy scan
-//!   events, `profiles-changed`, `ui-settings-persist-failed` and
-//!   `launch-session-changed`
+//!   events, `profiles-changed` and `launch-session-changed`
 //! - launch relay: one task per session -> `launch-log`, `launch-diagnostic`,
 //!   `launch-complete`, `injection-log`
 //! - process relays: run-executable, update, prefix-dep and protonup progress
@@ -20,8 +19,8 @@ use tauri::{AppHandle, Emitter as _};
 
 pub(crate) use self::launch::{relay_launch, replay_launch_start_error};
 pub(crate) use self::process::{
-    relay_bench_replay, relay_prefix_deps, relay_protonup_progress, relay_run_executable,
-    relay_update,
+    relay_bench_replay, relay_bench_replay_after_go, relay_prefix_deps, relay_protonup_progress,
+    relay_run_executable, relay_update,
 };
 
 /// Delivers one wire event to every webview; a failure is logged, never fatal.

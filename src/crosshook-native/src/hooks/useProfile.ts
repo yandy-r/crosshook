@@ -23,7 +23,6 @@ import {
 const EMPTY_OPTIONS_BY_ID: Record<string, OptimizationEntry> = {};
 const EMPTY_CONFLICT_MATRIX: Record<string, readonly string[]> = {};
 
-import type { LaunchOptimizationsStatus as LaunchOptimizationsStatusType } from './profile/launchOptimizationStatus';
 import {
   type PendingDelete as PendingDeleteType,
   type PersistProfileDraftResult as PersistProfileDraftResultType,
@@ -53,7 +52,7 @@ export interface UseProfileResult {
   error: string | null;
   profileExists: boolean;
   pendingDelete: PendingDelete | null;
-  launchOptimizationsStatus: LaunchOptimizationsStatus;
+  launchOptimizationsStatus: LaunchAutoSaveStatus;
   gamescopeAutoSaveStatus: LaunchAutoSaveStatus;
   trainerGamescopeAutoSaveStatus: LaunchAutoSaveStatus;
   mangoHudAutoSaveStatus: LaunchAutoSaveStatus;
@@ -133,12 +132,6 @@ export interface UseProfileResult {
 export interface UseProfileOptions {
   autoSelectFirstProfile?: boolean;
 }
-
-/** @deprecated Use `LaunchAutoSaveStatus` from `../types` instead. */
-export type LaunchOptimizationsStatusTone = LaunchAutoSaveStatus['tone'];
-
-/** @deprecated Use `LaunchAutoSaveStatus` from `../types` instead. */
-export type LaunchOptimizationsStatus = LaunchOptimizationsStatusType;
 
 export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   const { catalog, loading: catalogLoading } = useLaunchOptimizationCatalog();

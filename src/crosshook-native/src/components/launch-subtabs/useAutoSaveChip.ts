@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import type { LaunchAutoSaveStatus } from '../../types';
-import type { LaunchOptimizationsPanelStatus } from '../LaunchOptimizationsPanel';
 
 const TONE_PRIORITY: Record<string, number> = { idle: 0, success: 1, warning: 2, saving: 3, error: 4 };
 
 interface UseAutoSaveChipOptions {
-  launchOptimizationsStatus?: LaunchOptimizationsPanelStatus;
+  launchOptimizationsStatus?: LaunchAutoSaveStatus;
   gamescopeAutoSaveStatus?: LaunchAutoSaveStatus;
   mangoHudAutoSaveStatus?: LaunchAutoSaveStatus;
   commandArgumentsAutoSaveStatus?: LaunchAutoSaveStatus;

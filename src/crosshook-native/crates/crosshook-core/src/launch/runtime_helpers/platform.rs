@@ -152,22 +152,6 @@ pub(crate) fn is_executable_file(path: &Path) -> bool {
 ///
 /// The result is cached for the lifetime of the process via `OnceLock` since
 /// kernel policy does not change within a single application session.
-/// Runtime facts for Flatpak UI badges and launch validation (not persisted).
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LaunchPlatformCapabilities {
-    pub is_flatpak: bool,
-    pub unshare_net_available: bool,
-}
-
-/// Returns whether CrossHook is sandboxed as Flatpak and whether host `unshare --net` works.
-pub fn launch_platform_capabilities() -> LaunchPlatformCapabilities {
-    LaunchPlatformCapabilities {
-        is_flatpak: platform::is_flatpak(),
-        unshare_net_available: is_unshare_net_available(),
-    }
-}
-
 pub fn is_unshare_net_available() -> bool {
     static AVAILABLE: OnceLock<bool> = OnceLock::new();
     *AVAILABLE.get_or_init(|| {

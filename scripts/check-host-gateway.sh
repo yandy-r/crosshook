@@ -12,6 +12,7 @@ SCAN_DIRS=(
   "$REPO_ROOT/src/crosshook-native/crates/crosshook-core/src"
   "$REPO_ROOT/src/crosshook-native/src-tauri/src"
   "$REPO_ROOT/src/crosshook-native/crates/crosshook-app/src"
+  "$REPO_ROOT/src/crosshook-native/crates/crosshook-cli/src"
   "$REPO_ROOT/src/crosshook-native/crates/crosshook-ui/src"
   "$REPO_ROOT/src/crosshook-native/crates/crosshook-widgets/src"
   "$REPO_ROOT/src/crosshook-native/crates/crosshook-view-model/src"

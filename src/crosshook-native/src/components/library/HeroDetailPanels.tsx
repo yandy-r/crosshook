@@ -32,11 +32,11 @@ export interface HeroDetailPanelsProps {
   previewLoading: boolean;
   preview: LaunchPreview | null;
   previewError: string | null;
-  /** Phase 1 channel: intentionally async-draft shape, differs from `useProfile.ts#updateProfile` (sync updater). Consumed by Phase 4/5. */
+  /** Async-draft shape, differs from `useProfile.ts#updateProfile` (sync updater). */
   updateProfile?: (draft: GameProfile) => Promise<void>;
-  /** Phase 1 channel: left-list cards source for Phase 4 Profiles tab. */
+  /** Left-list cards source for the Profiles tab. */
   profileList?: ProfileSummary[];
-  /** Phase 1 channel: panel-body → shell request, distinct from `HeroDetailTabs#onActiveTabChange`. Consumed by Phase 7 Overview deep-links. */
+  /** Panel-body → shell request, distinct from `HeroDetailTabs#onActiveTabChange`. */
   onSetActiveTab?: (tab: HeroDetailTabId, options?: HeroDetailTabRequestOptions) => void;
   profilesScrollTarget?: HeroDetailProfilesScrollTarget | null;
   onProfilesScrollTargetConsumed?: () => void;

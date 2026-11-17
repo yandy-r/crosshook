@@ -21,13 +21,12 @@ mod xdg;
 pub use detect::{is_flatpak, normalize_flatpak_host_path};
 pub use dirs::base_dirs;
 pub use gateway::{
-    host_command, host_command_exists, host_command_lifecycle, host_command_with_env,
-    host_command_with_env_and_directory, host_command_with_env_and_directory_lifecycle,
-    host_std_command, host_std_command_with_env, host_std_command_with_env_and_directory,
+    host_command_exists, host_command_with_env, host_command_with_env_and_directory,
+    host_command_with_env_and_directory_lifecycle, host_std_command,
+    host_std_command_with_env_and_directory,
 };
 pub use host_fs::{
-    host_path_is_dir, host_path_is_executable_file, host_path_is_file, host_read_dir_names,
-    host_read_file_bytes_if_system_path, is_allowed_host_system_compat_listing_path,
+    host_path_is_dir, host_path_is_file, host_read_dir_names, host_read_file_bytes_if_system_path,
     normalized_path_exists_on_host, normalized_path_is_dir, normalized_path_is_dir_on_host,
     normalized_path_is_executable_file, normalized_path_is_executable_file_on_host,
     normalized_path_is_file, normalized_path_is_file_on_host,

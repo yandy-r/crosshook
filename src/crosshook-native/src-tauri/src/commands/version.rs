@@ -1,6 +1,6 @@
 //! Thin IPC adapters for Steam build/trainer version correlation.
 
-use crosshook_app::services::{VersionCheckResult, VersionSnapshotInfo};
+use crosshook_app::services::VersionCheckResult;
 
 use super::{AppState, IpcResult};
 use crate::error_map::ipc;
@@ -16,14 +16,6 @@ pub async fn check_version_status(
     app: AppState<'_>,
 ) -> IpcResult<VersionCheckResult> {
     ipc(app.services().version.check_status(name).await)
-}
-
-#[tauri::command]
-pub async fn get_version_snapshot(
-    name: String,
-    app: AppState<'_>,
-) -> IpcResult<Option<VersionSnapshotInfo>> {
-    ipc(app.services().version.snapshot(name).await)
 }
 
 /// Record a manual trainer version hint for a named profile.
@@ -51,17 +43,4 @@ pub async fn set_trainer_version(
 #[tauri::command]
 pub async fn acknowledge_version_change(name: String, app: AppState<'_>) -> IpcResult<()> {
     ipc(app.services().version.acknowledge_change(name).await)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_names_match_expected_ipc_contract() {
-        let _ = check_version_status;
-        let _ = get_version_snapshot;
-        let _ = set_trainer_version;
-        let _ = acknowledge_version_change;
-    }
 }

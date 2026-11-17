@@ -4,10 +4,6 @@ This directory implements the browser-mode IPC mock layer used by the `dev:brows
 Vite dev mode (`--mode webdev`). It intercepts every `callCommand()` call that would
 otherwise hit a real Tauri backend, and returns synthetic in-memory responses.
 
-See the feature spec for the full business rules:
-[feature-spec.md](../../../../../../docs/plans/dev-web-frontend/feature-spec.md)
-(BR-1 through BR-12).
-
 ---
 
 ## Architecture
@@ -16,7 +12,8 @@ See the feature spec for the full business rules:
 lib/mocks/
 ├── index.ts          — orchestrator: builds and exports the handler Map
 ├── store.ts          — singleton in-memory state (settings, profiles, …)
-├── eventBus.ts       — re-exports emitMockEvent from lib/events.ts
+├── eventBus.ts       — typed emitMockEvent for handlers (backend event names only)
+├── unmocked-events.txt — backend events the mocks never emit, each with a reason
 ├── handlers/
 │   ├── settings.ts   — settings_* and recent_files_* commands
 │   ├── startup.ts    — get_startup_report (auto-load, onboarding, job states)
@@ -26,7 +23,7 @@ lib/mocks/
 │   │                      launch_reset_sessions, launch-session-changed events
 │   │                      (game sessions outlive helper completion and end on
 │   │                      reset; trainer sessions end at completion)
-│   ├── install.ts    — install_game and install-* event sequence
+│   ├── install.ts    — install_game (result only; the backend emits no install events)
 │   ├── update.ts     — update_game, cancel_update, update-log + update-complete events
 │   ├── health.ts     — batch_validate_profiles, version status, snapshot cache
 │   ├── onboarding.ts — readiness check, trainer guidance
@@ -50,13 +47,52 @@ lib/mocks/
 └── README.md
 ```
 
-**Total commands registered**: 163 IPC commands (169 `map.set` entries under
+**Total commands registered**: 150 IPC commands (156 `map.set` entries under
 `handlers/`, minus 6 dev-only `_mock_*` helpers) through 22 `register*` calls
 in `index.ts`. `./scripts/check-mock-coverage.sh` reports no missing or
-orphaned handlers against the Rust `#[tauri::command]` surface.
+orphaned handlers against the Rust `#[tauri::command]` surface, and no
+uncovered or orphaned events (see [Keeping mocks in sync with IPC](#keeping-mocks-in-sync-with-ipc)).
 `ipc.ts` dynamically imports `./mocks` and calls `registerMocks()` when running in
 `webdev` mode. The returned `Map<string, Handler>` is used to dispatch every
 `callCommand()` invocation.
+
+---
+
+## Keeping mocks in sync with IPC
+
+Playwright smoke runs against these mocks and is the parity oracle for the
+native UI migration, so a stale mock silently invalidates it. Any PR that adds,
+changes or removes an IPC command or event updates the mocks in the same PR:
+
+1. **Command** (`#[tauri::command]` in `src-tauri` or `crosshook-core`): add or
+   remove the matching `map.set('<command>', …)` handler.
+2. **Event**: name it with a `pub const <NAME>_EVENT: &str` in
+   `crates/crosshook-app/src/ipc/` (never a string literal in `WireEvent::new`
+   or `emit`), add its payload type to `BackendEventPayloads` in
+   `src/types/backend-events.ts`, then either emit it from a handler with
+   `emitMockEvent` from `../eventBus` or add a line to `unmocked-events.txt`:
+   `<event-name> <reason>`.
+3. **Payload change**: update the type in `src/types/` that
+   `BackendEventPayloads` points at. The typed `emitMockEvent` makes every mock
+   emitter with the old shape fail `npm run typecheck`.
+4. Run `./scripts/check-mock-coverage.sh` (also `npm run dev:browser:check`),
+   `npm run typecheck` and `npm run test:smoke`.
+
+The gate fails on: commands without a mock, mocks without a command, backend
+events that are neither emitted by a mock nor allow-listed, mock events the
+backend never emits, stale, redundant or reasonless `unmocked-events.txt`
+entries, backend events missing from `BackendEventPayloads` (and the reverse),
+inline event-name literals in Rust, unresolvable emitter constants, and
+handlers importing the untyped `emitMockEvent` from `lib/events`.
+`./scripts/check-mock-coverage.sh --self-test` exercises each rule. An
+`emitMockEvent` call in a comment or in unreachable code still counts as an
+emitter, so delete emitters rather than commenting them out. Tests may
+keep using the untyped `emitMockEvent` from `@/lib/events` to send malformed
+payloads.
+
+`.github/CODEOWNERS` assigns the mock layer, the gate and the
+`generate_handler!` list to one reviewer until the React frontend is removed
+(M7), which also removes this gate.
 
 ---
 
@@ -142,7 +178,7 @@ are gone. `parseProfilesChanged()` treats them as a conservative resync.
 | `profile_set_favorite`                                                               | `favorite_toggled` | `[profile]`         |
 | `profile_config_rollback`                                                            | `rolled_back`      | `[profile]`         |
 | bundled and manual optimization presets                                              | `preset_applied`   | `[profile]`         |
-| `profile_import_legacy`, `lutris_import_profiles`                                    | `imported`         | imported names only |
+| `lutris_import_profiles`                                                             | `imported`         | imported names only |
 | `community_import_profile`                                                           | `imported`         | `[profile_name]`    |
 | `apply_proton_migration`, `apply_batch_migration`                                    | `migrated`         | applied names only  |
 
@@ -205,7 +241,7 @@ fixture switcher above. Like `?fixture=`, they are parsed once at module init
 | `?autoload=<profile>`     | The mock startup report auto-loads `<profile>` when it exists (URL-encode spaces).                                    |
 | `?metadata=newer`         | `metadata_store_status` and the startup report return `newer_schema` for the degraded-DB banner.                      |
 | `?metadata=disabled`      | `metadata_store_status` and the startup report return `disabled` (with a mock reason).                                |
-| `?steamDeckCaveats=show`  | `check_readiness` populates `steam_deck_caveats` (when not yet dismissed).                                            |
+| `?steamDeckCaveats=show`  | `check_generalized_readiness` populates `steam_deck_caveats` (when not yet dismissed).                                            |
 
 `?delay` and `?errors` are implemented as a `wrapHandler()` middleware in
 `lib/mocks/wrapHandler.ts` that wraps every registered handler exactly once
@@ -215,8 +251,10 @@ payload of the `get_startup_report` mock handler (`handlers/startup.ts`), and
 the shell pulls the report on mount, so no event
 synthesis is involved. The mock report models a backend whose startup is
 already finished: every job is `complete` at t=0 and the mock never emits
-`startup-job-finished` (or the legacy job events), so consumers always take
-their "already complete" path in browser dev mode. Failed/skipped/late-job
+`startup-job-finished` or `offline-readiness-scan-complete`, so consumers always
+take their "already complete" path in browser dev mode (`profile-health-batch-complete`
+and `version-scan-complete` are emitted only by the health and version-check
+command mocks). Failed/skipped/late-job
 paths are covered by Vitest, not by the mocks.
 
 **`?fixture=empty` opens onboarding by itself.** The mock startup report mirrors
@@ -277,6 +315,6 @@ sentinel tied to production bundle contents, not to a specific package artifact.
 ## Cross-References
 
 - `lib/ipc.ts` — dynamic import point; dispatches commands to this registry
-- `lib/events.ts` — `emitMockEvent` source (re-exported by `eventBus.ts`)
+- `lib/events.ts` — untyped `emitMockEvent` bus (wrapped by the typed `eventBus.ts`)
+- `types/backend-events.ts` — backend event names and payload types
 - `lib/runtime.ts` — `isTauri()` guard used in `events.ts`
-- `docs/plans/dev-web-frontend/feature-spec.md` — full spec including BR-1–BR-12

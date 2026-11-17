@@ -68,20 +68,3 @@ pub(super) fn sanitize_palette_recent(list: &mut Vec<String>) -> (usize, usize) 
     *list = sanitized;
     (dropped_invalid, truncated)
 }
-
-/// Move a valid identifier to the front, retaining at most 20 entries.
-pub(super) fn push_recent(list: &mut Vec<String>, id: &str) -> bool {
-    if !is_valid_palette_id(id) {
-        return false;
-    }
-
-    let recent = list
-        .iter()
-        .position(|existing| existing == id)
-        .map(|index| list.remove(index))
-        .unwrap_or_else(|| id.to_owned());
-    list.retain(|existing| existing != id);
-    list.insert(0, recent);
-    list.truncate(PALETTE_RECENT_MAX);
-    true
-}

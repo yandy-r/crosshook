@@ -1,8 +1,6 @@
 //! ProtonUp install orchestration with progress, cancellation, and checksum dispatch.
 //!
-//! The public surface is:
-//!   - [`install_version`] — backward-compatible entry point (no progress/cancel).
-//!   - [`install_version_with_progress`] — full-featured orchestrator.
+//! The public surface is [`install_version_with_progress`].
 //!
 //! All host-tool execution is in-process (tar/flate2/xz2); no `Command::new` calls
 //! for blocked tools appear here (ADR-0001 compliance).
@@ -24,7 +22,7 @@ mod validation;
 mod tests;
 
 pub use errors::InstallError;
-pub use orchestrator::{install_version, install_version_with_progress};
+pub use orchestrator::install_version_with_progress;
 
 #[cfg(test)]
 use archive::{

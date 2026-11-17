@@ -1,8 +1,6 @@
 use std::collections::BTreeMap;
 use std::env;
 
-use tokio::process::Command;
-
 use crate::platform::{self, normalize_flatpak_host_path};
 
 use super::{
@@ -12,10 +10,6 @@ use super::{
 
 pub(crate) fn env_value(key: &str, default: &str) -> String {
     env::var(key).unwrap_or_else(|_| default.to_string())
-}
-
-fn set_env(command: &mut Command, key: &str, value: impl AsRef<str>) {
-    command.env(key, value.as_ref());
 }
 
 pub(crate) fn resolve_flatpak_host_dbus_session_bus_address_with<F>(
@@ -61,37 +55,6 @@ pub(super) fn resolve_host_dbus_session_bus_address() -> String {
         xdg_runtime_dir.as_str(),
         platform::normalized_path_exists_on_host,
     )
-}
-
-pub fn apply_launch_optimization_environment(
-    command: &mut Command,
-    env_pairs: &[(String, String)],
-) {
-    apply_env_pairs(command, env_pairs);
-}
-
-/// Applies `KEY=value` pairs to the command environment (last write wins per key).
-pub fn apply_env_pairs(command: &mut Command, env_pairs: &[(String, String)]) {
-    for (key, value) in env_pairs {
-        set_env(command, key, value);
-    }
-}
-
-/// Applies profile `custom_env_vars` after optimizations so custom values win on duplicate keys.
-pub fn apply_custom_env_vars(command: &mut Command, custom: &BTreeMap<String, String>) {
-    for (key, value) in custom {
-        set_env(command, key, value);
-    }
-}
-
-/// Applies launch optimization env, then custom env (custom overrides on key conflict).
-pub fn apply_optimization_and_custom_environment(
-    command: &mut Command,
-    optimization_env: &[(String, String)],
-    custom_env_vars: &BTreeMap<String, String>,
-) {
-    apply_launch_optimization_environment(command, optimization_env);
-    apply_custom_env_vars(command, custom_env_vars);
 }
 
 /// Host-style environment keys shared by Proton helpers and trainer/game launches.
@@ -159,23 +122,5 @@ pub fn merge_optimization_and_custom_into_map(
     }
     for (key, value) in custom_env_vars {
         map.insert(key.clone(), value.clone());
-    }
-}
-
-pub fn apply_host_environment(command: &mut Command) {
-    for (key, value) in host_environment_map() {
-        set_env(command, &key, &value);
-    }
-}
-
-pub fn apply_runtime_proton_environment(
-    command: &mut Command,
-    prefix_path: &str,
-    steam_client_install_path: &str,
-) {
-    let mut m = BTreeMap::new();
-    merge_runtime_proton_into_map(&mut m, prefix_path, steam_client_install_path);
-    for (k, v) in m {
-        set_env(command, &k, &v);
     }
 }

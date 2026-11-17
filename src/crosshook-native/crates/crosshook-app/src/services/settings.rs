@@ -16,22 +16,11 @@ use super::run_blocking;
 
 use crate::{AppError, AppErrorKind};
 
-mod ui;
-mod ui_writer;
-
-pub use ui::UiSettingsService;
-
 /// Log filter used when the configured filter is empty or whitespace.
 const DEFAULT_LOG_FILTER: &str = "info";
 
 #[cfg(test)]
 mod tests;
-
-#[cfg(test)]
-mod ui_tests;
-
-#[cfg(test)]
-mod ui_writer_tests;
 
 /// Settings read together with the profiles-directory restart state.
 #[derive(Debug, Clone)]

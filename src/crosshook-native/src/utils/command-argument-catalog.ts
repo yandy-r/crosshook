@@ -11,11 +11,6 @@ export async function fetchCommandArgumentCatalog(): Promise<CommandArgumentCata
   return _cached;
 }
 
-/** Returns the cached catalog, or null if not yet fetched. */
-export function getCachedCommandArgumentCatalog(): CommandArgumentCatalogPayload | null {
-  return _cached;
-}
-
 /** Build a lookup map from entry id to entry. */
 export function buildArgumentsById(entries: readonly CommandArgumentEntry[]): Record<string, CommandArgumentEntry> {
   const map: Record<string, CommandArgumentEntry> = {};

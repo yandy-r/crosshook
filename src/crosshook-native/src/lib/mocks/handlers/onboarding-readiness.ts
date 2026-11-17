@@ -162,11 +162,6 @@ export function persistReadinessSnapshot(raw: ReadinessCheckResult): void {
   setCachedHostReadinessSnapshot(snapshot);
 }
 
-export function buildMockReadinessResult(): ReadinessCheckResult {
-  const raw = buildBaseReadinessPayload();
-  return applyReadinessOverlays(raw);
-}
-
 function buildCapabilityRationale(
   label: string,
   state: Capability['state'],

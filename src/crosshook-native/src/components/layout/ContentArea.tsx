@@ -1,12 +1,7 @@
 import * as Tabs from '@radix-ui/react-tabs';
 import { useLayoutEffect, useRef } from 'react';
 import type { LibraryFilterKey } from '@/types/library';
-import type {
-  AppNavigateOptions,
-  GameDetailOrigin,
-  LibraryFilterIntent,
-  OpenGameDetailIntent,
-} from '@/types/navigation';
+import type { AppNavigateOptions, LibraryFilterIntent, OpenGameDetailIntent } from '@/types/navigation';
 import CommunityPage from '../pages/CommunityPage';
 import CompatibilityPage from '../pages/CompatibilityPage';
 import DiscoverPage from '../pages/DiscoverPage';
@@ -25,8 +20,6 @@ export interface ContentAreaProps {
   libraryFilterIntent?: LibraryFilterIntent | null;
   onLibraryFilterChange?: (key: LibraryFilterKey) => void;
   onOpenCommandPalette?: (restoreFocusTo?: HTMLElement | null) => void;
-  // NOTE(hero-detail-consolidation): delete with Phase 10 route removal.
-  gameDetailOrigin?: GameDetailOrigin | null;
   openGameDetailIntent?: OpenGameDetailIntent | null;
 }
 
