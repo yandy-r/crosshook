@@ -143,7 +143,9 @@ width). You can also use your editor’s format-on-save; the scripts above match
 Pull requests from this repository get an optional **Lint autofix** workflow
 ([`lint-autofix.yml`](.github/workflows/lint-autofix.yml)) that applies `./scripts/format.sh` and
 pushes formatting-only commits. Fork PRs cannot receive automatic pushes; run the scripts locally
-instead.
+instead. The push uses a GitHub App token (`AUTOFIX_APP_CLIENT_ID` variable, `AUTOFIX_APP_PRIVATE_KEY`
+secret) so the checks on the fix commit run without approval; without them the workflow reports the
+fixes instead of pushing.
 
 ## Commit Conventions
 
