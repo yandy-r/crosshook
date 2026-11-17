@@ -34,8 +34,8 @@ pub use history_types::{
     ConfigSemanticChange,
 };
 pub use types::{
-    BundledOptimizationPresetDto, CommandArgumentsPayload, CommitWarning,
-    LaunchOptimizationsPayload, ProfileCommit, ProfileSummary,
+    BundledOptimizationPresetDto, CommandArgumentsPayload, LaunchOptimizationsPayload,
+    ProfileCommit, ProfileSummary,
 };
 
 /// Async application service owning every profile write path.

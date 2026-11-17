@@ -39,7 +39,9 @@ use std::sync::Arc;
 use crosshook_core::launch::LaunchSessionRegistry;
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::ProfileStore;
-use crosshook_core::runtime_helpers::{self, HelperRoots, RuntimeHelper};
+#[cfg(test)]
+use crosshook_core::runtime_helpers::HelperRoots;
+use crosshook_core::runtime_helpers::{self, RuntimeHelper};
 use crosshook_core::settings::SettingsStore;
 
 use super::BackgroundGrantHolder;
@@ -50,13 +52,14 @@ use sessions::session_observer;
 use steam_watch::{default_probe, ProcessProbe};
 
 pub use diagnostics::read_log_tail;
-pub use gamescope::{execution_method, gamescope_required, pid_capture_required};
+pub use gamescope::{gamescope_required, pid_capture_required};
 pub use sessions::{RunningSession, RunningSessions};
-pub use spawner::{ProcessSpawner, TokioSpawner};
+pub(crate) use spawner::{ProcessSpawner, TokioSpawner};
 pub use streaming::stream_child_log;
+pub(crate) use types::{InjectionLevel, InjectionSource, LaunchEnv};
 pub use types::{
-    InjectionLevel, InjectionLogData, InjectionSource, LaunchEnv, LaunchEvent, LaunchEvents,
-    LaunchSession, LaunchStartError, LAUNCH_EVENT_CAPACITY,
+    InjectionLogData, LaunchEvent, LaunchEvents, LaunchSession, LaunchStartError,
+    LAUNCH_EVENT_CAPACITY,
 };
 
 pub(super) use crate::services::run_blocking;
@@ -67,6 +70,7 @@ pub enum HelperSource {
     /// Roots detected for the current process (production).
     Detect,
     /// Fixed roots, so tests never depend on the install layout.
+    #[cfg(test)]
     Roots(HelperRoots),
 }
 
@@ -134,6 +138,7 @@ impl LaunchService {
     }
 
     /// Replaces the process spawner (test seam).
+    #[cfg(test)]
     #[must_use]
     pub fn with_spawner(mut self, spawner: Arc<dyn ProcessSpawner>) -> Self {
         self.spawner = spawner;
@@ -141,6 +146,7 @@ impl LaunchService {
     }
 
     /// Fixes the host facts instead of detecting them (test seam).
+    #[cfg(test)]
     #[must_use]
     pub fn with_env(mut self, env: LaunchEnv) -> Self {
         self.env = Some(env);
@@ -148,6 +154,7 @@ impl LaunchService {
     }
 
     /// Replaces where runtime helpers are resolved from (test seam).
+    #[cfg(test)]
     #[must_use]
     pub fn with_helper_source(mut self, helpers: HelperSource) -> Self {
         self.helpers = helpers;
@@ -167,6 +174,7 @@ impl LaunchService {
     pub(super) fn resolve_helper(&self, helper: RuntimeHelper) -> Result<PathBuf, AppError> {
         let resolved = match &self.helpers {
             HelperSource::Detect => runtime_helpers::resolve(helper),
+            #[cfg(test)]
             HelperSource::Roots(roots) => runtime_helpers::resolve_with(roots, helper),
         };
         resolved.map_err(|error| AppError::new(AppErrorKind::Unavailable, error.to_string()))

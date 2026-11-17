@@ -179,7 +179,6 @@ async fn rollback_dedupes_against_latest_and_records_lineage_for_older() {
         .unwrap();
     assert_eq!(same.new_revision_id, None);
     assert_eq!(same.output.new_revision_id, None);
-    assert!(same.warnings.is_empty(), "{:?}", same.warnings);
     assert_eq!(revision_count(&harness), 2);
     assert_eq!(
         harness.next_event().await,

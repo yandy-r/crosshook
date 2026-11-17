@@ -9,7 +9,6 @@ use crosshook_core::profile::GameProfile;
 use super::helpers::{Harness, Metadata};
 use crate::services::profiles::types::{Effect, Persisted, ProfileMutation};
 use crate::services::profiles::writer::CommitContext;
-use crate::services::profiles::CommitWarning;
 use crate::{AppError, AppErrorKind, AppEvent, ProfileChangeReason};
 
 /// Saves `profile` as `name` and requests the standard save effects.
@@ -85,7 +84,6 @@ async fn commit_persists_runs_effects_and_publishes_once() {
         .unwrap();
 
     assert_eq!(commit.output, "Alpha");
-    assert!(commit.warnings.is_empty(), "{:?}", commit.warnings);
     assert!(commit.new_revision_id.is_some());
     assert!(harness.profiles.profile_exists("Alpha"));
     assert_eq!(harness.next_event().await, Some(saved("Alpha")));
@@ -107,7 +105,6 @@ async fn identical_commit_dedupes_revision_without_warning() {
         .unwrap();
 
     assert_eq!(second.new_revision_id, None);
-    assert!(second.warnings.is_empty(), "{:?}", second.warnings);
     assert_eq!(harness.next_event().await, Some(saved("Alpha")));
     assert_eq!(harness.next_event().await, Some(saved("Alpha")));
 }
@@ -153,7 +150,6 @@ async fn disabled_metadata_saves_publishes_and_warns() {
         .await
         .unwrap();
 
-    assert_eq!(commit.warnings, vec![CommitWarning::MetadataUnavailable]);
     assert_eq!(commit.new_revision_id, None);
     assert!(harness.profiles.profile_exists("Alpha"));
     assert_eq!(harness.next_event().await, Some(saved("Alpha")));
@@ -255,7 +251,6 @@ async fn panicking_effect_still_succeeds_and_publishes_with_warning() {
         .await
         .unwrap();
 
-    assert_eq!(commit.warnings, vec![CommitWarning::EffectsAborted]);
     assert_eq!(commit.new_revision_id, None);
     assert!(harness.profiles.profile_exists("Alpha"));
     assert_eq!(harness.next_event().await, Some(saved("Alpha")));

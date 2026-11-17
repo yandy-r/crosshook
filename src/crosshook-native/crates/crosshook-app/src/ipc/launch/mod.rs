@@ -32,7 +32,7 @@ pub const INJECTION_LOG_EVENT: &str = "injection-log";
 /// One wire emission derived from a [`LaunchEvent`]. Owned, so the borrowed
 /// payload DTOs are built from it at serialization time.
 #[derive(Debug, Clone)]
-pub enum RelayEmit {
+pub(crate) enum RelayEmit {
     /// `launch-log` with `{line, session_id}`.
     Log {
         /// The console line.
@@ -103,7 +103,7 @@ pub fn wire_events(state: &mut LaunchLogRelayState, event: LaunchEvent) -> Vec<W
 /// `Diagnostic` or `Injection` that follows any log line (D5 order); if
 /// neither arrives, `Exited` emits it (if any) **then**
 /// [`RelayEmit::Complete`]. It is emitted at most once per session.
-pub fn map_event(state: &mut LaunchLogRelayState, event: LaunchEvent) -> Vec<RelayEmit> {
+pub(crate) fn map_event(state: &mut LaunchLogRelayState, event: LaunchEvent) -> Vec<RelayEmit> {
     match event {
         LaunchEvent::Log { session_id, batch } => {
             let session_id = session_id.to_string();

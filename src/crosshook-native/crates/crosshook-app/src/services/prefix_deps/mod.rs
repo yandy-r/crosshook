@@ -27,10 +27,8 @@ pub use messages::{
     MSG_OFFLINE, MSG_REPAIR_REQUIRED,
 };
 pub use tools::{profile_steam_app_id, resolve_tool, ResolvedTool, ToolSelectionError};
-pub use types::{
-    completion_payload, DepCompletePayload, DepInstallCompletion, DepLogPayload, LastRecovery,
-    PrefixVersionRepairStatus, RecoveryOutcome,
-};
+pub(crate) use types::{completion_payload, DepLogPayload, LastRecovery, RecoveryOutcome};
+pub use types::{DepCompletePayload, DepInstallCompletion, PrefixVersionRepairStatus};
 
 use journal::{PrefixVersionJournal, RecoveryResult};
 use seams::{CoreRestorer, CoreToolProbe, MetadataJournalStore, ProcPrefixInUse, ToolProbe};

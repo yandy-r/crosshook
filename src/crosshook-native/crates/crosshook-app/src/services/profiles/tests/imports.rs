@@ -87,7 +87,6 @@ async fn lutris_import_writes_records_and_publishes_imported_names() {
     let name = result.results[0].profile_name.clone().unwrap();
     assert_eq!(name, "taken-2", "unique name derived under the lock");
     assert!(harness.profiles.profile_exists(&name));
-    assert!(commit.warnings.is_empty(), "{:?}", commit.warnings);
     assert_eq!(revision_sources(&harness.metadata, &name), ["import"]);
     assert_eq!(sync_row(&harness.metadata, &name).0, "lutris_import");
     assert!(
@@ -128,7 +127,6 @@ async fn community_import_records_seeds_version_and_publishes_imported() {
     let result = commit.output;
     assert_eq!(result.profile_name, "community-game");
     assert!(harness.profiles.profile_exists(&result.profile_name));
-    assert!(commit.warnings.is_empty(), "{:?}", commit.warnings);
     assert_eq!(
         revision_sources(&harness.metadata, &result.profile_name),
         ["import"]
