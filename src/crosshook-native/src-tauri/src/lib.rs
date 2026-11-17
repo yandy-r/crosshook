@@ -6,8 +6,6 @@ mod event_bridge;
 mod fatal;
 mod signals;
 
-pub use crosshook_app::services::{BackgroundGrantHolder, BackgroundProtectionState};
-
 use crosshook_app::bootstrap::{
     pre_runtime, BootstrapError, BootstrapOptions, PreRuntimeOptions, PrefixJournalRecovery,
     UmuRefresh,

@@ -40,7 +40,6 @@ async fn favorite_publishes_only_favorite_toggled_and_touches_no_profile_state()
         .await
         .unwrap();
 
-    assert!(commit.warnings.is_empty(), "{:?}", commit.warnings);
     assert_eq!(commit.new_revision_id, None);
     assert_eq!(
         harness.next_event().await,

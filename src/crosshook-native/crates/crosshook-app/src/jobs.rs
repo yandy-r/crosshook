@@ -14,16 +14,16 @@ mod registry;
 mod types;
 
 pub(crate) use process::require;
-pub use process::{
-    create_log_file_in, create_log_path_in, kill_processes_using_prefix, processes_using_prefix,
-    slugify_target, supervise_child, supervise_child_with_kill, sweep_prefix_until_clear,
-    ChildExit, LogDir, PrefixSweep, DEFAULT_KILL_GRACE,
+pub(crate) use process::{
+    create_log_file_in, kill_processes_using_prefix, processes_using_prefix,
+    supervise_child_with_kill, sweep_prefix_until_clear, ChildExit, LogDir, PrefixSweep,
 };
+pub use process::{create_log_path_in, slugify_target, supervise_child, DEFAULT_KILL_GRACE};
 #[cfg(test)]
 pub(crate) use process::{test_log_dir, unusable_log_dir};
-pub use registry::{
-    JobContext, JobEvents, JobHandle, JobRegistry, JobRegistryConfig, DEFAULT_JOB_RETENTION,
-};
+#[cfg(test)]
+pub(crate) use registry::JobRegistryConfig;
+pub use registry::{JobContext, JobEvents, JobHandle, JobRegistry};
 pub use types::{JobEvent, JobEventKind, JobId, JobKey, JobProgress, JobSpec, Outcome};
 
 #[cfg(test)]

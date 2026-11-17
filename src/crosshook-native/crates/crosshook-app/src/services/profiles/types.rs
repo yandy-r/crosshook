@@ -76,27 +76,6 @@ pub struct BundledOptimizationPresetDto {
     pub catalog_version: i64,
 }
 
-/// Advisory step a commit skipped or failed after the primary write succeeded.
-/// Every warning is also logged with `tracing::warn!`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CommitWarning {
-    /// Metadata store unavailable: metadata sync, config revision and health
-    /// invalidation were all skipped.
-    MetadataUnavailable,
-    /// Metadata sync (write, rename or delete observation) failed.
-    ObserveFailed,
-    /// Config revision capture failed. Hash dedupe is not a warning.
-    RevisionSkipped,
-    /// Cached health snapshot invalidation failed.
-    HealthInvalidationFailed,
-    /// Launch preset origin row upsert failed.
-    PresetOriginFailed,
-    /// Seeding the initial version snapshot of an imported profile failed.
-    VersionSnapshotFailed,
-    /// An advisory effect panicked; the remaining effects were skipped.
-    EffectsAborted,
-}
-
 /// Result of a committed profile mutation.
 #[derive(Debug, Clone)]
 pub struct ProfileCommit<T> {
@@ -104,8 +83,6 @@ pub struct ProfileCommit<T> {
     pub output: T,
     /// Id of the last config revision inserted; `None` when deduped or skipped.
     pub new_revision_id: Option<i64>,
-    /// Advisory steps that were skipped or failed.
-    pub warnings: Vec<CommitWarning>,
 }
 
 impl<T> ProfileCommit<T> {

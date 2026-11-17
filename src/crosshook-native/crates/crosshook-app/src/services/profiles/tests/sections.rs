@@ -7,9 +7,7 @@ use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::{GameProfile, MangoHudConfig};
 
 use super::helpers::{steam_profile, Harness, Metadata};
-use crate::services::profiles::{
-    CommandArgumentsPayload, CommitWarning, LaunchOptimizationsPayload,
-};
+use crate::services::profiles::{CommandArgumentsPayload, LaunchOptimizationsPayload};
 use crate::{AppErrorKind, AppEvent, ProfileChangeReason};
 
 const NAME: &str = "Alpha";
@@ -76,13 +74,12 @@ async fn launch_optimizations_update_only_the_launch_section() {
     let profile = seed(&harness);
     let payload = optimizations(&["disable_steam_input", "use_gamemode"]);
 
-    let commit = harness
+    harness
         .writer
         .save_launch_optimizations(format!("  {NAME}  "), payload.clone())
         .await
         .unwrap();
 
-    assert!(commit.warnings.is_empty(), "{:?}", commit.warnings);
     let loaded = harness.profiles.load(NAME).unwrap();
     assert_eq!(loaded.game, profile.game);
     assert_eq!(loaded.trainer, profile.trainer);
@@ -167,7 +164,6 @@ async fn section_save_without_metadata_saves_and_warns() {
         .await
         .unwrap();
 
-    assert_eq!(commit.warnings, [CommitWarning::MetadataUnavailable]);
     assert_eq!(commit.new_revision_id, None);
     let loaded = harness.profiles.load(NAME).unwrap();
     assert_eq!(loaded.launch.trainer_gamescope, config);
@@ -243,7 +239,6 @@ async fn bundled_preset_on_unindexed_profile_records_origin() {
         .await
         .unwrap();
 
-    assert!(commit.warnings.is_empty(), "{:?}", commit.warnings);
     let output = commit.into_output();
     assert!(output.extra.is_empty());
     assert_eq!(output.launch.active_preset, "bundled/nvidia_performance");
@@ -337,13 +332,12 @@ async fn manual_preset_saves_without_metadata() {
     let mut harness = Harness::new(Metadata::Disabled);
     seed(&harness);
 
-    let commit = harness
+    harness
         .writer
         .save_manual_optimization_preset(NAME.into(), "Fast".into(), vec!["use_gamemode".into()])
         .await
         .unwrap();
 
-    assert_eq!(commit.warnings, [CommitWarning::MetadataUnavailable]);
     assert_eq!(
         harness.profiles.load(NAME).unwrap().launch.active_preset,
         "Fast"

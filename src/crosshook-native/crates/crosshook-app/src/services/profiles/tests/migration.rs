@@ -52,7 +52,6 @@ async fn applied_single_migration_observes_and_publishes_migrated() {
         .unwrap();
 
     assert_eq!(commit.output.outcome, MigrationOutcome::Applied);
-    assert!(commit.warnings.is_empty(), "{:?}", commit.warnings);
     assert_eq!(
         harness.profiles.load("Alpha").unwrap().steam.proton_path,
         new_path

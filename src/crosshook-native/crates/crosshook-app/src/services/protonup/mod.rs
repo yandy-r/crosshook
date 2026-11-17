@@ -22,12 +22,11 @@ mod seams;
 mod types;
 mod uninstall;
 
-pub use identity::{verify_install_identity, IdentityError};
 pub use progress::next_progress;
-pub use seams::{ProtonCatalogSource, ProtonInstaller, ProtonRootSource};
+pub(crate) use seams::{ProtonCatalogSource, ProtonInstaller, ProtonRootSource};
+pub(crate) use types::ProtonInstallStart;
 pub use types::{
-    InstallOwner, ProtonInstallHandle, ProtonInstallStart, ProtonUninstallPlanResponse,
-    ProtonUninstallResponse,
+    InstallOwner, ProtonInstallHandle, ProtonUninstallPlanResponse, ProtonUninstallResponse,
 };
 
 use owners::OwnerLedger;

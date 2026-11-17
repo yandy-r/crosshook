@@ -5,8 +5,8 @@
 //! (observe → revision → health invalidation, fail-soft, D5/D6) → publish
 //!. The event is published inside the closure, so a dropped caller
 //! future cannot lose the notification for a write that persisted; a panic
-//! inside the advisory effects is caught and reported as a warning so it
-//! cannot suppress the event either.
+//! inside the advisory effects is caught and logged so it cannot suppress
+//! the event either.
 
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::PoisonError;
@@ -19,7 +19,7 @@ use super::revisions::{
     capture_config_revision, resolve_config_history_max_revisions, RevisionOutcome,
 };
 use super::run_blocking;
-use super::types::{CommitWarning, Effect, Persisted, ProfileCommit, ProfileMutation};
+use super::types::{Effect, Persisted, ProfileCommit, ProfileMutation};
 use super::ProfileWriter;
 use crate::{AppError, AppErrorKind, AppEvent, ProfileChangeReason};
 
@@ -41,7 +41,7 @@ impl ProfileWriter {
     /// # Errors
     /// `Internal` when `mutation` does not accept `reason` (nothing runs);
     /// otherwise the error returned by [`ProfileMutation::persist`] (no
-    /// effects, no event). Advisory effect failures are warnings, not errors.
+    /// effects, no event). Advisory effect failures are logged, not errors.
     pub(crate) async fn commit<M: ProfileMutation>(
         &self,
         mutation: M,
@@ -71,7 +71,7 @@ impl ProfileWriter {
                 effects,
                 names,
             } = mutation.persist(&ctx)?;
-            let (new_revision_id, warnings) = run_effects_guarded(&ctx, effects);
+            let new_revision_id = run_effects_guarded(&ctx, effects);
             if let Some(names) = names {
                 writer
                     .events
@@ -80,37 +80,29 @@ impl ProfileWriter {
             Ok(ProfileCommit {
                 output,
                 new_revision_id,
-                warnings,
             })
         })
         .await
     }
 }
 
-/// Runs [`run_effects`], converting a panic into
-/// [`CommitWarning::EffectsAborted`] so the primary write is still reported
-/// as a success and its event is still published.
-fn run_effects_guarded(
-    ctx: &CommitContext<'_>,
-    effects: Vec<Effect>,
-) -> (Option<i64>, Vec<CommitWarning>) {
+/// Runs [`run_effects`]; a panic is logged and the remaining effects are
+/// skipped, so the primary write is still reported as a success and its event
+/// is still published.
+fn run_effects_guarded(ctx: &CommitContext<'_>, effects: Vec<Effect>) -> Option<i64> {
     // Unwind safety: effects only touch the stores through their own locks
     // (recovered or reported on poison); nothing observed here is left
     // half-updated by an unwind.
     catch_unwind(AssertUnwindSafe(|| run_effects(ctx, effects))).unwrap_or_else(|_| {
         tracing::warn!("advisory profile effect panicked; remaining effects skipped");
-        (None, vec![CommitWarning::EffectsAborted])
+        None
     })
 }
 
-/// Runs advisory effects in order. Returns the last inserted revision id and
-/// the warnings for skipped or failed steps; never fails the commit.
-fn run_effects(
-    ctx: &CommitContext<'_>,
-    mut effects: Vec<Effect>,
-) -> (Option<i64>, Vec<CommitWarning>) {
+/// Runs advisory effects in order and returns the last inserted revision id.
+/// Failed steps are logged and skipped; this never fails the commit.
+fn run_effects(ctx: &CommitContext<'_>, mut effects: Vec<Effect>) -> Option<i64> {
     let mut new_revision_id = None;
-    let mut warnings = Vec::new();
     if !ctx.metadata.is_available() {
         let before = effects.len();
         effects.retain(|effect| !effect.needs_metadata());
@@ -120,7 +112,6 @@ fn run_effects(
                 skipped_effects,
                 "metadata store unavailable; profile saved without metadata sync, config revision or health invalidation"
             );
-            warnings.push(CommitWarning::MetadataUnavailable);
         }
     }
 
@@ -142,7 +133,6 @@ fn run_effects(
                     source_profile_id.as_deref(),
                 ) {
                     tracing::warn!(%error, profile_name = %name, "metadata sync after profile write failed");
-                    push_once(&mut warnings, CommitWarning::ObserveFailed);
                 }
             }
             Effect::ObserveRename { old_name, new_name } => {
@@ -153,13 +143,11 @@ fn run_effects(
                     .observe_profile_rename(&old_name, &new_name, &old_path, &new_path)
                 {
                     tracing::warn!(%error, %old_name, %new_name, "metadata sync after profile rename failed");
-                    push_once(&mut warnings, CommitWarning::ObserveFailed);
                 }
             }
             Effect::ObserveDelete { name } => {
                 if let Err(error) = ctx.metadata.observe_profile_delete(&name) {
                     tracing::warn!(%error, profile_name = %name, "metadata sync after profile delete failed");
-                    push_once(&mut warnings, CommitWarning::ObserveFailed);
                 }
             }
             Effect::Revision {
@@ -179,16 +167,11 @@ fn run_effects(
                     max,
                 ) {
                     RevisionOutcome::Inserted(id) => new_revision_id = Some(id),
-                    RevisionOutcome::Deduped => {}
-                    RevisionOutcome::Skipped => {
-                        push_once(&mut warnings, CommitWarning::RevisionSkipped);
-                    }
+                    RevisionOutcome::Deduped | RevisionOutcome::Skipped => {}
                 }
             }
             Effect::InvalidateHealth { name } => {
-                if !invalidate_health(ctx.metadata, &name) {
-                    push_once(&mut warnings, CommitWarning::HealthInvalidationFailed);
-                }
+                invalidate_health(ctx.metadata, &name);
             }
             Effect::UpsertPresetOrigin {
                 name,
@@ -196,15 +179,13 @@ fn run_effects(
                 origin,
                 source_bundled_preset_id,
             } => {
-                if !upsert_preset_origin(
+                upsert_preset_origin(
                     ctx.metadata,
                     &name,
                     &preset_name,
                     origin,
                     source_bundled_preset_id.as_deref(),
-                ) {
-                    push_once(&mut warnings, CommitWarning::PresetOriginFailed);
-                }
+                );
             }
             Effect::SeedVersionSnapshot {
                 name,
@@ -212,15 +193,13 @@ fn run_effects(
                 trainer_version,
                 human_game_ver,
             } => {
-                if !seed_version_snapshot(
+                seed_version_snapshot(
                     ctx.metadata,
                     &name,
                     &steam_app_id,
                     trainer_version.as_deref(),
                     human_game_ver.as_deref(),
-                ) {
-                    push_once(&mut warnings, CommitWarning::VersionSnapshotFailed);
-                }
+                );
             }
             Effect::MoveLastUsedProfile { old_name, new_name } => {
                 move_last_used_profile(ctx.settings, &old_name, &new_name);
@@ -229,7 +208,7 @@ fn run_effects(
             Effect::Panic => panic!("test effect panic"),
         }
     }
-    (new_revision_id, warnings)
+    new_revision_id
 }
 
 /// Moves `last_used_profile` to `new_name` when it pointed at `old_name`;
@@ -251,88 +230,79 @@ fn move_last_used_profile(settings: &SettingsStore, old_name: &str, new_name: &s
 }
 
 /// Deletes the cached health row of the profile currently named `name`.
-/// Returns `false` (already logged) when lookup or delete failed; a profile
-/// without metadata has nothing cached and succeeds.
-fn invalidate_health(metadata: &MetadataStore, name: &str) -> bool {
+/// Lookup and delete failures are logged; a profile without metadata has
+/// nothing cached.
+fn invalidate_health(metadata: &MetadataStore, name: &str) {
     let profile_id = match metadata.lookup_profile_id(name) {
         Ok(Some(id)) => id,
-        Ok(None) => return true,
+        Ok(None) => return,
         Err(error) => {
             tracing::warn!(%error, profile_name = %name, "profile id lookup for health invalidation failed");
-            return false;
+            return;
         }
     };
-    match metadata.invalidate_health_snapshot(&profile_id) {
-        Ok(()) => true,
-        Err(error) => {
-            tracing::warn!(%error, profile_name = %name, "health snapshot invalidation failed");
-            false
-        }
+    if let Err(error) = metadata.invalidate_health_snapshot(&profile_id) {
+        tracing::warn!(%error, profile_name = %name, "health snapshot invalidation failed");
     }
 }
 
 /// Upserts the launch preset origin row of the profile currently named
-/// `name`. Returns `false` (already logged) when lookup or upsert failed; a
-/// profile that is still not indexed is skipped without a warning.
+/// `name`. Lookup and upsert failures are logged; a profile that is still not
+/// indexed is skipped without a warning.
 fn upsert_preset_origin(
     metadata: &MetadataStore,
     name: &str,
     preset_name: &str,
     origin: ProfileLaunchPresetOrigin,
     source_bundled_preset_id: Option<&str>,
-) -> bool {
+) {
     let profile_id = match metadata.lookup_profile_id(name) {
         Ok(Some(id)) => id,
         Ok(None) => {
             tracing::debug!(profile_name = %name, "profile_id not yet indexed — skipping preset metadata upsert");
-            return true;
+            return;
         }
         Err(error) => {
             tracing::warn!(%error, profile_name = %name, "lookup_profile_id failed during preset metadata upsert");
-            return false;
+            return;
         }
     };
-    match metadata.upsert_profile_launch_preset_metadata(
+    if let Err(error) = metadata.upsert_profile_launch_preset_metadata(
         &profile_id,
         preset_name,
         origin,
         source_bundled_preset_id,
     ) {
-        Ok(()) => true,
-        Err(error) => {
-            tracing::warn!(
-                %error,
-                profile_name = %name,
-                origin = origin.as_str(),
-                "failed to upsert preset metadata row"
-            );
-            false
-        }
+        tracing::warn!(
+            %error,
+            profile_name = %name,
+            origin = origin.as_str(),
+            "failed to upsert preset metadata row"
+        );
     }
 }
 
 /// Upserts the display-only (`untracked`) version snapshot of the profile
-/// currently named `name` (BR-8/W3). Returns `false` (already logged) when
-/// the profile is not indexed, the lookup fails or the upsert fails.
+/// currently named `name` (BR-8/W3). Lookup and upsert failures are logged.
 fn seed_version_snapshot(
     metadata: &MetadataStore,
     name: &str,
     steam_app_id: &str,
     trainer_version: Option<&str>,
     human_game_ver: Option<&str>,
-) -> bool {
+) {
     let profile_id = match metadata.lookup_profile_id(name) {
         Ok(Some(id)) => id,
         Ok(None) => {
             tracing::warn!(profile_name = %name, "version snapshot seed skipped: profile not found in metadata");
-            return false;
+            return;
         }
         Err(error) => {
             tracing::warn!(%error, profile_name = %name, "version snapshot seed skipped: profile id lookup failed");
-            return false;
+            return;
         }
     };
-    match metadata.upsert_version_snapshot(
+    if let Err(error) = metadata.upsert_version_snapshot(
         &profile_id,
         steam_app_id,
         None,
@@ -341,16 +311,6 @@ fn seed_version_snapshot(
         human_game_ver,
         "untracked",
     ) {
-        Ok(()) => true,
-        Err(error) => {
-            tracing::warn!(%error, profile_name = %name, "version snapshot seed after community import failed");
-            false
-        }
-    }
-}
-
-fn push_once(warnings: &mut Vec<CommitWarning>, warning: CommitWarning) {
-    if !warnings.contains(&warning) {
-        warnings.push(warning);
+        tracing::warn!(%error, profile_name = %name, "version snapshot seed after community import failed");
     }
 }

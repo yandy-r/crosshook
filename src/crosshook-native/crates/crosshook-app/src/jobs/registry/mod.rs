@@ -13,7 +13,9 @@ use tokio_util::sync::{CancellationToken, WaitForCancellationFuture};
 pub use self::events::{JobEvents, JobHandle};
 use super::types::{JobEvent, JobEventKind, JobId, JobKey, JobProgress, JobSpec, Outcome};
 use crate::error::{AppError, AppErrorKind};
-use crate::events::{DEFAULT_EVENT_CAPACITY, MAX_EVENT_CAPACITY};
+use crate::events::DEFAULT_EVENT_CAPACITY;
+#[cfg(test)]
+use crate::events::MAX_EVENT_CAPACITY;
 use crate::log_tail::LogBatch;
 
 /// Default number of finished, unreaped outcomes the registry retains.
@@ -23,7 +25,7 @@ pub const DEFAULT_JOB_RETENTION: usize = 64;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct JobRegistryConfig {
     /// Per-job broadcast capacity (events buffered per receiver before it
-    /// lags). Must be between 1 and [`MAX_EVENT_CAPACITY`].
+    /// lags). Must be between 1 and `crate::events::MAX_EVENT_CAPACITY`.
     pub event_capacity: usize,
     /// Finished outcomes kept for late subscribers until reaped; the oldest is
     /// evicted beyond this cap. `0` retains nothing.
@@ -99,6 +101,7 @@ impl JobRegistry {
     /// # Errors
     /// `Validation { field: "event_capacity" }` when the capacity is zero or
     /// above [`MAX_EVENT_CAPACITY`].
+    #[cfg(test)]
     pub fn new(config: JobRegistryConfig) -> Result<Self, AppError> {
         validate(config)?;
         Ok(Self::build(config, None, CancellationToken::new()))
@@ -300,6 +303,7 @@ impl JobRegistry {
     }
 }
 
+#[cfg(test)]
 fn validate(config: JobRegistryConfig) -> Result<(), AppError> {
     if config.event_capacity == 0 || config.event_capacity > MAX_EVENT_CAPACITY {
         return Err(AppError::validation(

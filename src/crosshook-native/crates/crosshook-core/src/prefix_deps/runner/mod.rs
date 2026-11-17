@@ -15,7 +15,9 @@ mod tests;
 
 pub use check::check_installed;
 pub use command::normalize_prefix_path;
-pub use install::{prepare_install_packages, PreparedPrefixDependencyInstall};
+pub use install::prepare_install_packages;
+#[cfg(test)]
+pub(crate) use install::PreparedPrefixDependencyInstall;
 pub use restore::restore_prefix_windows_version;
 pub use sanitize::sanitize_output_for_ui;
 pub use snapshot::is_windows_version_verb;

@@ -137,7 +137,6 @@ impl ProfileWriter {
         let ProfileCommit {
             output: profile,
             new_revision_id,
-            warnings,
         } = self
             .commit(
                 RollbackRestore { name, revision_id },
@@ -151,7 +150,6 @@ impl ProfileWriter {
                 profile,
             },
             new_revision_id,
-            warnings,
         })
     }
 

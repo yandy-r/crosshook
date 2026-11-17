@@ -2,7 +2,7 @@
 
 mod coverage;
 mod refresh;
-pub mod seams;
+mod seams;
 
 use std::sync::Arc;
 

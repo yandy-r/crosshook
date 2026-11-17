@@ -12,7 +12,6 @@ use crosshook_core::settings::AppSettingsData;
 
 use super::helpers::{steam_profile, Harness, Metadata};
 use crate::services::profiles::launcher_cleanup::cleanup_launchers_for_profile_delete;
-use crate::services::profiles::CommitWarning;
 use crate::{AppEvent, ProfileChangeReason};
 
 fn changed(reason: ProfileChangeReason, name: &str) -> AppEvent {
@@ -208,13 +207,12 @@ async fn rename_with_poisoned_settings_mutex_still_commits_and_publishes() {
     .join();
     assert!(poisoned.is_err(), "settings mutex poisoned");
 
-    let commit = harness
+    harness
         .writer
         .rename("Alpha".to_string(), "Beta".to_string())
         .await
         .unwrap();
 
-    assert_eq!(commit.warnings, vec![CommitWarning::EffectsAborted]);
     assert!(harness.profiles.profile_exists("Beta"));
     assert_eq!(
         harness.metadata.lookup_profile_id("Beta").unwrap(),
@@ -247,13 +245,12 @@ async fn rename_with_disabled_metadata_still_moves_last_used() {
         })
         .unwrap();
 
-    let commit = harness
+    harness
         .writer
         .rename("Alpha".to_string(), "Beta".to_string())
         .await
         .unwrap();
 
-    assert_eq!(commit.warnings, vec![CommitWarning::MetadataUnavailable]);
     assert_eq!(harness.settings.load().unwrap().last_used_profile, "Beta");
 }
 
@@ -280,13 +277,12 @@ async fn rename_to_same_name_is_a_silent_no_op() {
 async fn save_with_disabled_metadata_succeeds_with_warning() {
     let mut harness = Harness::new(Metadata::Disabled);
 
-    let commit = harness
+    harness
         .writer
         .save("Alpha".to_string(), steam_profile(&home(&harness)))
         .await
         .unwrap();
 
-    assert_eq!(commit.warnings, vec![CommitWarning::MetadataUnavailable]);
     assert!(harness.profiles.profile_exists("Alpha"));
     assert_eq!(
         harness.next_event().await,
