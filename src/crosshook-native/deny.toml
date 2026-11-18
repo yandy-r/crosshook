@@ -19,6 +19,8 @@ ignore = [
     { id = "RUSTSEC-2026-0370", reason = "zvariant was merged into zbus 6 as zbus::wire; crosshook-core still uses zbus 5. Remove when the workspace moves to zbus 6." },
     { id = "RUSTSEC-2026-0194", reason = "quick-xml 0.38 is only reached through plist <- tauri-utils, which reads bundled plist files, not untrusted XML. Removed with src-tauri (M7)." },
     { id = "RUSTSEC-2026-0195", reason = "quick-xml 0.38 is only reached through plist <- tauri-utils, which reads bundled plist files, not untrusted XML. Removed with src-tauri (M7)." },
+    # Added 2026-11-18 (YAN-2434, GitHub #629). Unmaintained notice only, no known vulnerability.
+    { id = "RUSTSEC-2026-0543", reason = "chrono 0.4 is unmaintained with no safe upgrade; crosshook-core and crosshook-app use it directly (~80 files). Remove when neither crate depends on chrono directly (migrated to jiff or time); ts-rs chrono-impl alone is transitive and passes unmaintained = \"workspace\"." },
 ]
 
 [licenses]
