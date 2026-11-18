@@ -45,14 +45,6 @@ impl CommunityTapStore {
         })
     }
 
-    /// Returns true when the tap's resolved workspace directory already exists on disk.
-    pub fn is_tap_available_offline(&self, subscription: &CommunityTapSubscription) -> bool {
-        match self.resolve_workspace(subscription) {
-            Ok(workspace) => workspace.local_path.exists(),
-            Err(_) => false,
-        }
-    }
-
     pub fn index_workspaces(
         &self,
         workspaces: &[CommunityTapWorkspace],

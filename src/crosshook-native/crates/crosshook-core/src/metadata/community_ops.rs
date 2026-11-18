@@ -54,19 +54,13 @@ impl MetadataStore {
             return Ok(());
         };
         let now = Utc::now().to_rfc3339();
-        let size = crate::community::taps::directory_size_bytes(&result.workspace.local_path);
         let last_sync_at = if result.from_cache {
             self.lookup_community_tap_offline_state_row(&tap_id)?
                 .and_then(|r| r.last_sync_at)
         } else {
             Some(now)
         };
-        self.upsert_community_tap_offline_state_row(
-            &tap_id,
-            1,
-            last_sync_at.as_deref(),
-            Some(size as i64),
-        )
+        self.upsert_community_tap_offline_state_row(&tap_id, last_sync_at.as_deref())
     }
 
     pub fn list_community_tap_profiles(

@@ -209,8 +209,7 @@ async fn request_background_inner(
     );
 
     Ok(BackgroundGrant {
-        connection: Some(connection),
-        request_path,
+        _connection: connection,
     })
 }
 
@@ -218,42 +217,9 @@ async fn request_background_inner(
 /// value closes the underlying `zbus::Connection`; the portal retains the
 /// session-scoped grant until the sandbox process exits or the user
 /// revokes it via their desktop environment.
+#[derive(Debug)]
 pub struct BackgroundGrant {
-    connection: Option<zbus::Connection>,
-    request_path: OwnedObjectPath,
-}
-
-impl BackgroundGrant {
-    /// The D-Bus object path of the portal request. Used for logging and
-    /// (future) signal subscription if the portal sends `Running = false`.
-    pub fn request_path(&self) -> &str {
-        self.request_path.as_str()
-    }
-
-    /// Returns `true` while the underlying D-Bus connection is open.
-    pub fn is_active(&self) -> bool {
-        self.connection.is_some()
-    }
-}
-
-impl fmt::Debug for BackgroundGrant {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("BackgroundGrant")
-            .field("request_path", &self.request_path.as_str())
-            .field("is_active", &self.is_active())
-            .finish()
-    }
-}
-
-impl Drop for BackgroundGrant {
-    fn drop(&mut self) {
-        if self.connection.is_some() {
-            tracing::debug!(
-                request_path = %self.request_path.as_str(),
-                "background portal: BackgroundGrant dropped; session bus will release on exit"
-            );
-        }
-    }
+    _connection: zbus::Connection,
 }
 
 /// Errors from Background portal interactions.

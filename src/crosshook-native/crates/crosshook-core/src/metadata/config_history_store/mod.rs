@@ -294,24 +294,5 @@ pub fn set_known_good_revision(
     Ok(())
 }
 
-/// Clear the known-good marker from all revisions for the given profile.
-pub fn clear_known_good_revision(
-    conn: &Connection,
-    profile_id: &str,
-) -> Result<(), MetadataStoreError> {
-    conn.execute(
-        "UPDATE config_revisions
-         SET is_last_known_working = 0
-         WHERE profile_id = ?1",
-        params![profile_id],
-    )
-    .map_err(|source| MetadataStoreError::Database {
-        action: "clear known-good markers for profile",
-        source,
-    })?;
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests;

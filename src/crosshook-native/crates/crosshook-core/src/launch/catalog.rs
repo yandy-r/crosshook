@@ -167,10 +167,7 @@ pub fn merge_catalogs(
 ///  3. User override file at `config_dir/optimization_catalog.toml` (optional, highest priority)
 ///
 /// Merge order: default → taps → user override (user always wins).
-pub fn load_catalog(
-    user_config_dir: Option<&Path>,
-    tap_catalog_texts: &[(&str, &str)],
-) -> OptimizationCatalog {
+pub fn load_catalog(user_config_dir: Option<&Path>) -> OptimizationCatalog {
     let (default_entries, default_warnings) =
         parse_catalog_toml(DEFAULT_CATALOG_TOML, "embedded default");
     for w in &default_warnings {
@@ -178,19 +175,6 @@ pub fn load_catalog(
     }
 
     let mut merged = default_entries;
-
-    // Merge community tap catalogs
-    for (tap_label, tap_text) in tap_catalog_texts {
-        let (mut tap_entries, tap_warnings) = parse_catalog_toml(tap_text, tap_label);
-        for w in &tap_warnings {
-            tracing::warn!(warning = %w, tap = %tap_label, "tap optimization catalog warning");
-        }
-        // Force community flag on tap entries
-        for entry in &mut tap_entries {
-            entry.community = true;
-        }
-        merged = merge_catalogs(merged, tap_entries);
-    }
 
     // Merge user overrides (highest priority)
     let user_entries = user_config_dir
@@ -381,7 +365,7 @@ mod tests {
     #[test]
     fn load_catalog_uses_embedded_default_when_no_user_file() {
         let temp_dir = tempfile::tempdir().expect("temp dir");
-        let catalog = load_catalog(Some(temp_dir.path()), &[]);
+        let catalog = load_catalog(Some(temp_dir.path()));
         assert_eq!(
             catalog.entries.len(),
             25,
@@ -405,7 +389,7 @@ mod tests {
         f.write_all(override_toml.as_bytes())
             .expect("write override");
 
-        let catalog = load_catalog(Some(temp_dir.path()), &[]);
+        let catalog = load_catalog(Some(temp_dir.path()));
 
         // Should still have 25 entries (override replaces, doesn't add)
         assert_eq!(catalog.entries.len(), 25);
@@ -421,7 +405,7 @@ mod tests {
         let override_path = temp_dir.path().join("optimization_catalog.toml");
         std::fs::write(&override_path, b"this is not valid toml !!!").expect("write bad toml");
 
-        let catalog = load_catalog(Some(temp_dir.path()), &[]);
+        let catalog = load_catalog(Some(temp_dir.path()));
 
         assert_eq!(
             catalog.entries.len(),

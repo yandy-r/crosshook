@@ -85,10 +85,6 @@ fn disabled_store_returns_ok_with_defaults() {
         store.set_known_good_revision("profile-1", 1).is_ok(),
         "disabled store set_known_good must return Ok"
     );
-    assert!(
-        store.clear_known_good_revision("profile-1").is_ok(),
-        "disabled store clear_known_good must return Ok"
-    );
 }
 
 #[test]

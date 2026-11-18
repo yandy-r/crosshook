@@ -1,7 +1,5 @@
 use super::common::{ensure_profile, insert_revision, open_test_db};
-use crate::metadata::config_history_store::{
-    clear_known_good_revision, get_config_revision, set_known_good_revision,
-};
+use crate::metadata::config_history_store::{get_config_revision, set_known_good_revision};
 
 #[test]
 fn known_good_supersede_clears_previous_marker() {
@@ -54,23 +52,5 @@ fn known_good_is_isolated_per_profile() {
     assert!(
         !r_p2.is_last_known_working,
         "profile-2 must be unaffected by profile-1 known-good change"
-    );
-}
-
-#[test]
-fn clear_known_good_removes_all_markers_for_profile() {
-    let conn = open_test_db();
-    ensure_profile(&conn, "profile-1");
-    let id = insert_revision(&conn, "profile-1", "hash1");
-    set_known_good_revision(&conn, "profile-1", id).unwrap();
-
-    clear_known_good_revision(&conn, "profile-1").unwrap();
-
-    let r = get_config_revision(&conn, "profile-1", id)
-        .unwrap()
-        .unwrap();
-    assert!(
-        !r.is_last_known_working,
-        "known-good marker must be cleared"
     );
 }

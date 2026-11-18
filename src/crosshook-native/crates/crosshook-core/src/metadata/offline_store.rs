@@ -34,9 +34,7 @@ pub struct OfflineReadinessRow {
 #[derive(Debug, Clone)]
 pub struct CommunityTapOfflineRow {
     pub tap_id: String,
-    pub has_local_clone: i64,
     pub last_sync_at: Option<String>,
-    pub clone_size_bytes: Option<i64>,
 }
 
 pub fn upsert_trainer_hash_cache(
@@ -212,18 +210,13 @@ pub fn load_offline_readiness_snapshots(
 pub fn upsert_community_tap_offline_state(
     conn: &Connection,
     tap_id: &str,
-    has_local_clone: i64,
     last_sync_at: Option<&str>,
-    clone_size_bytes: Option<i64>,
 ) -> Result<(), MetadataStoreError> {
     conn.execute(
-        "INSERT INTO community_tap_offline_state (tap_id, has_local_clone, last_sync_at, clone_size_bytes)
-         VALUES (?1, ?2, ?3, ?4)
-         ON CONFLICT(tap_id) DO UPDATE SET
-            has_local_clone = excluded.has_local_clone,
-            last_sync_at = excluded.last_sync_at,
-            clone_size_bytes = excluded.clone_size_bytes",
-        params![tap_id, has_local_clone, last_sync_at, clone_size_bytes],
+        "INSERT INTO community_tap_offline_state (tap_id, last_sync_at)
+         VALUES (?1, ?2)
+         ON CONFLICT(tap_id) DO UPDATE SET last_sync_at = excluded.last_sync_at",
+        params![tap_id, last_sync_at],
     )
     .map_err(|source| MetadataStoreError::Database {
         action: "upsert community_tap_offline_state",
@@ -238,7 +231,7 @@ pub fn lookup_community_tap_offline_state(
 ) -> Result<Option<CommunityTapOfflineRow>, MetadataStoreError> {
     let mut stmt = conn
         .prepare(
-            "SELECT tap_id, has_local_clone, last_sync_at, clone_size_bytes
+            "SELECT tap_id, last_sync_at
              FROM community_tap_offline_state
              WHERE tap_id = ?1",
         )
@@ -250,9 +243,7 @@ pub fn lookup_community_tap_offline_state(
     stmt.query_row(params![tap_id], |row| {
         Ok(CommunityTapOfflineRow {
             tap_id: row.get(0)?,
-            has_local_clone: row.get(1)?,
-            last_sync_at: row.get(2)?,
-            clone_size_bytes: row.get(3)?,
+            last_sync_at: row.get(1)?,
         })
     })
     .optional()

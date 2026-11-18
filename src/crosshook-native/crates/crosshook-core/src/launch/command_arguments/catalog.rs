@@ -166,12 +166,8 @@ pub fn merge_catalogs(
 
 /// Load the command-argument catalog from:
 ///  1. Embedded default TOML (compile-time fallback, always present)
-///  2. Community tap catalog texts (optional, merged in order)
-///  3. User override file at `config_dir/command_argument_catalog.toml` (optional, highest priority)
-pub fn load_catalog(
-    user_config_dir: Option<&Path>,
-    tap_catalog_texts: &[(&str, &str)],
-) -> CommandArgumentCatalog {
+///  2. User override file at `config_dir/command_argument_catalog.toml` (optional, highest priority)
+pub fn load_catalog(user_config_dir: Option<&Path>) -> CommandArgumentCatalog {
     let (default_entries, default_warnings) =
         parse_catalog_toml(DEFAULT_CATALOG_TOML, "embedded default");
     for w in &default_warnings {
@@ -179,17 +175,6 @@ pub fn load_catalog(
     }
 
     let mut merged = default_entries;
-
-    for (tap_label, tap_text) in tap_catalog_texts {
-        let (mut tap_entries, tap_warnings) = parse_catalog_toml(tap_text, tap_label);
-        for w in &tap_warnings {
-            tracing::warn!(warning = %w, tap = %tap_label, "tap command argument catalog warning");
-        }
-        for entry in &mut tap_entries {
-            entry.community = true;
-        }
-        merged = merge_catalogs(merged, tap_entries);
-    }
 
     let user_entries = user_config_dir
         .map(|dir| dir.join("command_argument_catalog.toml"))

@@ -102,11 +102,4 @@ impl MetadataStore {
             config_history_store::set_known_good_revision(conn, profile_id, revision_id)
         })
     }
-
-    /// Clear the known-good marker from all revisions for the given profile.
-    pub fn clear_known_good_revision(&self, profile_id: &str) -> Result<(), MetadataStoreError> {
-        self.with_conn("clear known-good config revision markers", |conn| {
-            config_history_store::clear_known_good_revision(conn, profile_id)
-        })
-    }
 }

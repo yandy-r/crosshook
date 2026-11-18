@@ -36,8 +36,7 @@ pub use platform::{is_unshare_net_available, resolve_umu_run_path};
 
 pub use proton_command::{
     build_direct_proton_command_with_wrappers_in_directory, build_gamescope_args,
-    build_proton_command_with_gamescope_in_directory,
-    build_proton_command_with_gamescope_pid_capture_in_directory, collect_pressure_vessel_paths,
+    collect_pressure_vessel_paths,
 };
 // Crate-only: the script runner passes the sandbox flag explicitly.
 pub(crate) use proton_command::build_proton_command_with_gamescope_pid_capture_in_directory_inner;

@@ -88,28 +88,6 @@ pub enum UmuPreference {
     Proton,
 }
 
-impl UmuPreference {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Auto => "auto",
-            Self::Umu => "umu",
-            Self::Proton => "proton",
-        }
-    }
-}
-
-impl FromStr for UmuPreference {
-    type Err = String;
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        match value.trim() {
-            "auto" => Ok(Self::Auto),
-            "umu" => Ok(Self::Umu),
-            "proton" => Ok(Self::Proton),
-            other => Err(format!("unsupported umu preference: {other}")),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum UmuDatabaseLookupPreference {
@@ -119,28 +97,8 @@ pub enum UmuDatabaseLookupPreference {
 }
 
 impl UmuDatabaseLookupPreference {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Disabled => "disabled",
-            Self::Enabled => "enabled",
-        }
-    }
-
     pub fn is_enabled(self) -> bool {
         self == Self::Enabled
-    }
-}
-
-impl FromStr for UmuDatabaseLookupPreference {
-    type Err = String;
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        match value.trim() {
-            "disabled" => Ok(Self::Disabled),
-            "enabled" => Ok(Self::Enabled),
-            other => Err(format!(
-                "unsupported umu database lookup preference: {other}"
-            )),
-        }
     }
 }
 
@@ -156,16 +114,6 @@ pub enum HighContrastPreference {
     Auto,
     On,
     Off,
-}
-
-impl HighContrastPreference {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Auto => "auto",
-            Self::On => "on",
-            Self::Off => "off",
-        }
-    }
 }
 
 impl FromStr for HighContrastPreference {
@@ -207,28 +155,6 @@ pub enum ReducedMotionPreference {
     Auto,
     Reduced,
     Full,
-}
-
-impl ReducedMotionPreference {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Auto => "auto",
-            Self::Reduced => "reduced",
-            Self::Full => "full",
-        }
-    }
-}
-
-impl FromStr for ReducedMotionPreference {
-    type Err = String;
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        match value.trim() {
-            "auto" => Ok(Self::Auto),
-            "reduced" => Ok(Self::Reduced),
-            "full" => Ok(Self::Full),
-            other => Err(format!("unsupported reduced motion preference: {other}")),
-        }
-    }
 }
 
 #[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]

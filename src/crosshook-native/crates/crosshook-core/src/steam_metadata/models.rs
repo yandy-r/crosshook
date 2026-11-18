@@ -19,7 +19,6 @@ pub fn cache_key_for_app_id(app_id: &str) -> Option<String> {
 pub enum SteamMetadataLookupState {
     #[default]
     Idle,
-    Loading,
     Ready,
     Stale,
     Unavailable,

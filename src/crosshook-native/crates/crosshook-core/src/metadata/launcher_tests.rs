@@ -311,52 +311,6 @@ fn test_record_launch_finished_unknown_op_id_noop() {
 }
 
 #[test]
-fn test_observe_launcher_renamed_atomic() {
-    let store = MetadataStore::open_in_memory().unwrap();
-
-    store
-        .observe_launcher_exported(
-            None,
-            "old-slug",
-            "Old Name",
-            "/path/old-script.sh",
-            "/path/old.desktop",
-        )
-        .unwrap();
-
-    store
-        .observe_launcher_renamed(
-            "old-slug",
-            "new-slug",
-            "New Name",
-            "/path/new-script.sh",
-            "/path/new.desktop",
-        )
-        .unwrap();
-
-    let conn = connection(&store);
-
-    let old_drift_state: String = conn
-        .query_row(
-            "SELECT drift_state FROM launchers WHERE launcher_slug = ?1",
-            params!["old-slug"],
-            |row| row.get(0),
-        )
-        .unwrap();
-
-    let new_drift_state: String = conn
-        .query_row(
-            "SELECT drift_state FROM launchers WHERE launcher_slug = ?1",
-            params!["new-slug"],
-            |row| row.get(0),
-        )
-        .unwrap();
-
-    assert_eq!(old_drift_state, "missing");
-    assert_eq!(new_drift_state, "aligned");
-}
-
-#[test]
 fn test_phase2_disabled_store_noop() {
     let store = MetadataStore::disabled();
     let report = clean_exit_report();
@@ -365,15 +319,6 @@ fn test_phase2_disabled_store_noop() {
         .observe_launcher_exported(None, "slug", "Name", "/path/script.sh", "/path/app.desktop")
         .is_ok());
     assert!(store.observe_launcher_deleted("slug").is_ok());
-    assert!(store
-        .observe_launcher_renamed(
-            "old",
-            "new",
-            "New Name",
-            "/path/new.sh",
-            "/path/new.desktop"
-        )
-        .is_ok());
 
     let operation_id = store.record_launch_started(None, "native", None).unwrap();
     assert!(operation_id.is_empty());

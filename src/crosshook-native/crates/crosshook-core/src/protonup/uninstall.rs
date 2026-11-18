@@ -104,11 +104,7 @@ pub fn plan_uninstall(
     // Derive steam root candidates for both install-root validation and
     // compat-tool mapping lookups.
     let home = std::env::var_os("HOME").map(PathBuf::from);
-    let install_candidates = resolve_candidates_with(
-        steam_client_install_path,
-        home.as_deref(),
-        crate::platform::is_flatpak(),
-    );
+    let install_candidates = resolve_candidates_with(steam_client_install_path, home.as_deref());
 
     // Steam root candidates for `collect_compat_tool_mappings`.
     // Use the same home-relative steam roots that `discover_steam_root_candidates`

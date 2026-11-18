@@ -5,7 +5,7 @@ use tokio::process::Command;
 
 use crate::launch::request::LaunchRequest;
 use crate::platform::{
-    self, host_command_with_env_and_directory, host_command_with_env_and_directory_inner,
+    host_command_with_env_and_directory, host_command_with_env_and_directory_inner,
     host_command_with_env_and_directory_lifecycle_inner, normalize_flatpak_host_path,
 };
 use crate::profile::{GamescopeConfig, GamescopeFilter, TrainerLoadingMode};
@@ -193,50 +193,6 @@ pub fn build_gamescope_args(config: &GamescopeConfig) -> Vec<String> {
     }
 
     args
-}
-
-pub fn build_proton_command_with_gamescope_in_directory(
-    proton_path: &str,
-    wrappers: &[String],
-    gamescope_args: &[String],
-    env: &BTreeMap<String, String>,
-    working_directory: Option<&str>,
-    custom_env_vars: &BTreeMap<String, String>,
-    use_umu: bool,
-) -> Command {
-    build_proton_command_with_gamescope_pid_capture_in_directory(
-        proton_path,
-        wrappers,
-        gamescope_args,
-        env,
-        working_directory,
-        custom_env_vars,
-        None,
-        use_umu,
-    )
-}
-
-pub fn build_proton_command_with_gamescope_pid_capture_in_directory(
-    proton_path: &str,
-    wrappers: &[String],
-    gamescope_args: &[String],
-    env: &BTreeMap<String, String>,
-    working_directory: Option<&str>,
-    custom_env_vars: &BTreeMap<String, String>,
-    pid_capture_path: Option<&Path>,
-    use_umu: bool,
-) -> Command {
-    build_proton_command_with_gamescope_pid_capture_in_directory_inner(
-        proton_path,
-        wrappers,
-        gamescope_args,
-        env,
-        working_directory,
-        custom_env_vars,
-        pid_capture_path,
-        platform::is_flatpak(),
-        use_umu,
-    )
 }
 
 pub(crate) fn build_proton_command_with_gamescope_pid_capture_in_directory_inner(

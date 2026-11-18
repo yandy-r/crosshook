@@ -9,43 +9,6 @@ use super::util::in_clause_placeholders;
 use super::{FailureTrendRow, MetadataStore, MetadataStoreError};
 use crate::metadata::models::{DriftState, LaunchHistoryEntry};
 
-pub(super) fn query_most_launched(
-    conn: &Connection,
-    limit: usize,
-) -> Result<Vec<(String, i64)>, MetadataStoreError> {
-    let mut stmt = conn
-        .prepare(
-            "SELECT profile_name, COUNT(*) as launch_count \
-             FROM launch_operations \
-             WHERE status IN ('succeeded', 'failed') AND profile_name IS NOT NULL \
-             GROUP BY profile_name \
-             ORDER BY launch_count DESC \
-             LIMIT ?1",
-        )
-        .map_err(|source| MetadataStoreError::Database {
-            action: "prepare query_most_launched statement",
-            source,
-        })?;
-
-    let rows = stmt
-        .query_map(rusqlite::params![limit as i64], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
-        })
-        .map_err(|source| MetadataStoreError::Database {
-            action: "execute query_most_launched",
-            source,
-        })?;
-
-    let mut result = Vec::new();
-    for row in rows {
-        result.push(row.map_err(|source| MetadataStoreError::Database {
-            action: "read a query_most_launched row",
-            source,
-        })?);
-    }
-    Ok(result)
-}
-
 pub(super) fn query_total_launches_for_profiles(
     conn: &Connection,
     profile_names: &[String],
@@ -449,15 +412,6 @@ pub(super) fn query_launch_history_for_profile(
 }
 
 impl MetadataStore {
-    pub fn query_most_launched(
-        &self,
-        limit: usize,
-    ) -> Result<Vec<(String, i64)>, MetadataStoreError> {
-        self.with_conn("query most launched profiles", |conn| {
-            query_most_launched(conn, limit)
-        })
-    }
-
     pub fn query_total_launches_for_profiles(
         &self,
         profile_names: &[String],

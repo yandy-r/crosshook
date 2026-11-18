@@ -28,26 +28,6 @@ impl MetadataStore {
         })
     }
 
-    pub fn observe_launcher_renamed(
-        &self,
-        old_slug: &str,
-        new_slug: &str,
-        new_display_name: &str,
-        new_script_path: &str,
-        new_desktop_entry_path: &str,
-    ) -> Result<(), MetadataStoreError> {
-        self.with_conn_mut("observe a launcher rename", |conn| {
-            launcher_sync::observe_launcher_renamed(
-                conn,
-                old_slug,
-                new_slug,
-                new_display_name,
-                new_script_path,
-                new_desktop_entry_path,
-            )
-        })
-    }
-
     pub fn record_launch_started(
         &self,
         profile_name: Option<&str>,

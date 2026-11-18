@@ -579,35 +579,6 @@ fn settings_roundtrip_host_tool_dashboard_fields() {
 }
 
 #[test]
-fn umu_preference_from_str_rejects_unknown() {
-    use std::str::FromStr;
-    assert!(UmuPreference::from_str("ghoti").is_err());
-    assert_eq!(UmuPreference::from_str("umu").unwrap(), UmuPreference::Umu);
-    assert_eq!(
-        UmuPreference::from_str("auto").unwrap(),
-        UmuPreference::Auto
-    );
-    assert_eq!(
-        UmuPreference::from_str("proton").unwrap(),
-        UmuPreference::Proton
-    );
-}
-
-#[test]
-fn umu_database_lookup_from_str_rejects_unknown() {
-    use std::str::FromStr;
-    assert!(UmuDatabaseLookupPreference::from_str("auto").is_err());
-    assert_eq!(
-        UmuDatabaseLookupPreference::from_str("disabled").unwrap(),
-        UmuDatabaseLookupPreference::Disabled
-    );
-    assert_eq!(
-        UmuDatabaseLookupPreference::from_str("enabled").unwrap(),
-        UmuDatabaseLookupPreference::Enabled
-    );
-}
-
-#[test]
 fn config_history_settings_default_and_clamp() {
     use super::{
         clamp_config_history_max_revisions, AppSettingsData, CONFIG_HISTORY_MAX_REVISIONS_MAX,
