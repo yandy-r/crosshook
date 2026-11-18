@@ -50,7 +50,6 @@ const EXPLICIT_READ_COMMANDS: ReadonlySet<string> = new Set<string>([
   'profile_config_history',
   'profile_config_diff',
   'profile_export_toml',
-  'check_game_running',
   'list_running_sessions',
   'check_gamescope_session',
   // `check_generalized_readiness` is omitted: the real command persists a host readiness

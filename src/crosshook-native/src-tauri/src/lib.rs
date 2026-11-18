@@ -100,7 +100,6 @@ pub fn run() {
             commands::launch::preview_launch,
             commands::launch::build_steam_launch_options_command,
             commands::launch::check_gamescope_session,
-            commands::launch::check_game_running,
             commands::launch::list_running_sessions,
             commands::launch::list_launch_history_for_profile,
             commands::mods::list_profile_mods,

@@ -29,14 +29,6 @@ pub(super) struct ShutdownTarget {
     pub(super) host_namespace: bool,
 }
 
-/// Checks whether a process whose name matches `exe_name` is currently running.
-///
-/// Same as [`probe_process_running`], but an unknown result (a failed host
-/// `ps` query under Flatpak) reads as "not running".
-pub fn is_process_running(exe_name: &str) -> bool {
-    probe_process_running(exe_name).unwrap_or(false)
-}
-
 /// Whether a process whose name matches `exe_name` is currently running, or
 /// `None` when that is unknown.
 ///

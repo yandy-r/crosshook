@@ -22,7 +22,6 @@ import type { Handler } from './types';
 
 let lastLaunchHelperLogPath = '/mock/logs/game-launch-9999001.log';
 let lastTrainerHelperLogPath = '/mock/logs/trainer-launch-9999001.log';
-const runningGames: Set<string> = new Set();
 const pendingLaunchTimers = new Set<number>();
 
 // ---------------------------------------------------------------------------
@@ -718,20 +717,6 @@ export function registerLaunch(map: Map<string, Handler>): void {
     return preview;
   });
 
-  // -------------------------------------------------------------------------
-  // check_game_running — on-demand /proc probe; dev tests seed it via
-  // `_mock_set_game_running` (browser dev mode has no real /proc)
-  // -------------------------------------------------------------------------
-  map.set('check_game_running', async (args): Promise<boolean> => {
-    const fixture = getActiveFixture();
-    if (fixture === 'empty') return false;
-    if (fixture === 'loading') return neverResolving<boolean>();
-    // `error` is allowed to resolve here — this is a status read with no
-    // meaningful error UX.
-    const { exeName } = args as { exeName: string };
-    return runningGames.has(exeName.trim());
-  });
-
   // list_running_sessions, launch_reset_sessions and _mock_set_profile_running
   // live in handlers/launchSessions.ts with the mock session registry.
 
@@ -779,16 +764,6 @@ export function registerLaunch(map: Map<string, Handler>): void {
   // Expose module-scope state accessors for test introspection
   // (these are not real Tauri commands — they are dev-only helpers)
   // -------------------------------------------------------------------------
-  map.set('_mock_set_game_running', async (args): Promise<null> => {
-    const { exeName, running } = args as { exeName: string; running: boolean };
-    if (running) {
-      runningGames.add(exeName.trim());
-    } else {
-      runningGames.delete(exeName.trim());
-    }
-    return null;
-  });
-
   map.set('_mock_get_last_launch_log_path', async (): Promise<string> => {
     return lastLaunchHelperLogPath;
   });
@@ -801,7 +776,6 @@ export function registerLaunch(map: Map<string, Handler>): void {
 export function resetLaunchMockState(): void {
   lastLaunchHelperLogPath = '/mock/logs/game-launch-9999001.log';
   lastTrainerHelperLogPath = '/mock/logs/trainer-launch-9999001.log';
-  runningGames.clear();
   for (const timerId of pendingLaunchTimers) {
     window.clearTimeout(timerId);
   }

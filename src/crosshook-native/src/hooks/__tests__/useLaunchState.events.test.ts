@@ -210,7 +210,6 @@ describe('useLaunchState session_id events', () => {
       });
     });
     await waitFor(() => expect(result.current.isGameRunning).toBe(false));
-    expect(callCommandMock).not.toHaveBeenCalledWith('check_game_running', expect.anything());
   });
 
   it("keeps the profile's running game after switching profiles away and back", async () => {
