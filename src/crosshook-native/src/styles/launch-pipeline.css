@@ -377,11 +377,6 @@
 
 /* --- Launch optimizations tab: command arguments panel (Task 5.2) --- */
 
-.crosshook-optimizations-tab-stack {
-  display: grid;
-  gap: 18px;
-}
-
 .crosshook-command-arguments {
   display: flex;
   flex-direction: column;

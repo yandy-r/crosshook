@@ -53,23 +53,6 @@
   gap: 8px;
 }
 
-/* ─── Section-header typography — dashboard eyebrow/title alignment ──────── */
-
-/*
- * CollapsibleSection titles inside the settings panel share font-size and
- * weight with dashboard sub-section headings. The CollapsibleSection already
- * renders a <button> with .crosshook-collapsible-section__trigger; scope the
- * heading typography to align without touching the section component itself.
- */
-.crosshook-page-scroll-shell--settings
-  .crosshook-settings-panel
-  .crosshook-panel.crosshook-settings-section
-  .crosshook-collapsible-section__trigger {
-  font-size: 0.92rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-}
-
 /* ─── Status chips in the panel heading-after slot ───────────────────────── */
 
 /*

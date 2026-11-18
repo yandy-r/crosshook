@@ -456,7 +456,6 @@
   min-width: 0;
 }
 
-.crosshook-hero-detail__trainer-section,
 .crosshook-hero-detail__trainer-log {
   display: flex;
   flex-direction: column;

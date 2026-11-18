@@ -39,12 +39,6 @@
     var(--crosshook-color-bg-elevated);
 }
 
-.crosshook-host-tool-dashboard-panel__body {
-  display: grid;
-  gap: 18px;
-  min-height: 0;
-}
-
 .crosshook-host-tool-dashboard-panel__body--hero {
   gap: 20px;
 }
@@ -474,22 +468,10 @@
   background: currentcolor;
 }
 
-.crosshook-host-tool-dashboard__status-chip--available {
-  border-color: var(--crosshook-color-capability-available-border);
-  background: var(--crosshook-color-capability-available-bg);
-  color: var(--crosshook-color-capability-available);
-}
-
 .crosshook-host-tool-dashboard__status-chip--degraded {
   border-color: var(--crosshook-color-capability-degraded-border);
   background: var(--crosshook-color-capability-degraded-bg);
   color: var(--crosshook-color-capability-degraded);
-}
-
-.crosshook-host-tool-dashboard__status-chip--unavailable {
-  border-color: var(--crosshook-color-capability-unavailable-border);
-  background: var(--crosshook-color-capability-unavailable-bg);
-  color: var(--crosshook-color-capability-unavailable);
 }
 
 @media (max-width: 720px) {

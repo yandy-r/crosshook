@@ -80,13 +80,6 @@ textarea {
     linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 18%), var(--crosshook-color-bg);
 }
 
-.crosshook-shell {
-  width: 100%;
-  margin: 0 auto;
-  display: grid;
-  gap: var(--crosshook-grid-gap);
-}
-
 .crosshook-subtab-row {
   display: inline-flex;
   flex-wrap: wrap;
@@ -145,17 +138,6 @@ textarea {
   flex-direction: column;
   gap: var(--crosshook-grid-gap);
   min-width: 0;
-}
-
-.crosshook-profile-actions__toolbar {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-top: var(--crosshook-profile-actions-toolbar-margin-top);
-}
-
-.crosshook-profile-actions--footer .crosshook-profile-actions__toolbar {
-  margin-top: 0;
 }
 
 /* Footer chrome: .crosshook-route-footer (layout.css) */
@@ -4810,16 +4792,6 @@ textarea {
   font-size: 0.875rem;
 }
 
-/* ── Cover Art ── */
-
-.crosshook-profile-cover-art {
-  aspect-ratio: var(--crosshook-profile-cover-art-aspect);
-  border-radius: var(--crosshook-radius-md);
-  overflow: hidden;
-  object-fit: cover;
-  width: 100%;
-}
-
 /* ── Skeleton Loading (shimmer) ── */
 
 @keyframes crosshook-skeleton-shimmer {
@@ -4963,11 +4935,6 @@ textarea {
 }
 
 /* ── Controller mode overrides ── */
-
-[data-crosshook-controller-mode='true'] .crosshook-profile-cover-art {
-  aspect-ratio: 460 / 215;
-  min-height: 180px;
-}
 
 [data-crosshook-controller-mode='true'] .crosshook-profile-hero {
   min-height: 160px;

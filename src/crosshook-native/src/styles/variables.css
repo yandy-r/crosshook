@@ -5,13 +5,7 @@
   --crosshook-color-bg-elevated: #1f2233;
   --crosshook-color-surface: #141620;
   --crosshook-color-surface-strong: #0c1120;
-  /* Steel-blue shell surfaces (Unified Desktop Redesign Phase 2) */
-  --crosshook-color-sidebar: #10121c;
-  --crosshook-color-titlebar: #0c0e16;
   --crosshook-color-surface-1: #1a1d28;
-  --crosshook-color-surface-2: #22263a;
-  --crosshook-color-surface-3: #2a2f48;
-  --crosshook-color-scrim: rgba(8, 10, 18, 0.78);
   --crosshook-color-border: rgba(224, 224, 224, 0.12);
   --crosshook-color-border-strong: rgba(224, 224, 224, 0.22);
   /* Library card floating controls (details / favorite): frosted border + deep overlay */
@@ -35,10 +29,6 @@
   --crosshook-color-success: #28c76f;
   --crosshook-color-warning: #f5c542;
   --crosshook-color-danger: #ff758f;
-  /* Desaturated status siblings for the calm-desktop palette; call sites migrate phase-by-phase */
-  --crosshook-color-success-muted: #5fb880;
-  --crosshook-color-warning-muted: #d4a94a;
-  --crosshook-color-danger-muted: #d77a8a;
   --crosshook-color-capability-available: #4ade80;
   --crosshook-color-capability-available-bg: rgba(74, 222, 128, 0.12);
   --crosshook-color-capability-available-border: rgba(74, 222, 128, 0.28);
@@ -136,11 +126,9 @@
   --crosshook-launch-panel-action-min-height: 52px;
   --crosshook-launch-panel-action-padding-inline: 22px;
   --crosshook-launch-panel-action-secondary-padding-inline: 20px;
-  --crosshook-console-drawer-height: 280px;
   --crosshook-console-drawer-handle-height: 44px;
   /* Breathing room between route scroll content and the horizontal resize / collapsed console strip */
   --crosshook-content-console-gap: 12px;
-  --crosshook-resize-handle-thickness: 14px;
   --crosshook-grid-gap: 20px;
   --crosshook-library-card-width: 190px;
   --crosshook-library-card-aspect: 3 / 4;
@@ -165,7 +153,6 @@
   --crosshook-protondb-accent-bg-08: rgba(74, 125, 181, 0.08);
   --crosshook-protondb-accent-bg-14: rgba(74, 125, 181, 0.14);
   --crosshook-protondb-panel-gap: 16px;
-  --crosshook-profile-actions-toolbar-margin-top: 18px;
   --crosshook-protondb-panel-margin-top: 18px;
 
   --crosshook-autosave-saving-bg: rgba(245, 197, 66, 0.14);
@@ -177,7 +164,6 @@
   --crosshook-autosave-error-bg: rgba(255, 117, 143, 0.14);
   --crosshook-autosave-error-border: rgba(255, 117, 143, 0.3);
 
-  --crosshook-profile-cover-art-aspect: 460 / 215;
   --crosshook-media-slot-preview-radius: 6px;
   --crosshook-skeleton-duration: 1.8s;
   --crosshook-skeleton-color-from: var(--crosshook-color-surface);

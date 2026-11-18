@@ -535,12 +535,6 @@
   background: var(--crosshook-color-danger);
 }
 
-.crosshook-install-progress__message {
-  font-size: 0.75rem;
-  color: var(--crosshook-color-text-subtle);
-  font-family: var(--crosshook-font-mono);
-}
-
 @media (max-width: 900px) {
   .crosshook-proton-manager-page__hero-kv {
     width: 100%;
