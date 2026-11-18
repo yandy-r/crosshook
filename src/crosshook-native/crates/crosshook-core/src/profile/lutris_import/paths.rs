@@ -9,7 +9,6 @@ const MAX_LUTRIS_LIBRARY_ENTRIES: usize = 10_000;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PgaGame {
     pub name: String,
-    pub slug: String,
     pub runner: String,
     pub directory: Option<String>,
     pub configpath: Option<String>,
@@ -155,7 +154,7 @@ pub fn read_pga_games(root: &Path) -> Result<Vec<PgaGame>, LutrisImportError> {
     )?;
 
     let mut stmt = conn
-        .prepare("SELECT name, slug, runner, directory, configpath FROM games LIMIT ?1")
+        .prepare("SELECT name, runner, directory, configpath FROM games LIMIT ?1")
         .map_err(|error| LutrisImportError::Pga {
             message: error.to_string(),
         })?;
@@ -166,10 +165,9 @@ pub fn read_pga_games(root: &Path) -> Result<Vec<PgaGame>, LutrisImportError> {
         .query_map([limit + 1], |row| {
             Ok(PgaGame {
                 name: row.get(0)?,
-                slug: row.get(1)?,
-                runner: row.get(2)?,
-                directory: row.get::<_, Option<String>>(3)?,
-                configpath: row.get::<_, Option<String>>(4)?,
+                runner: row.get(1)?,
+                directory: row.get::<_, Option<String>>(2)?,
+                configpath: row.get::<_, Option<String>>(3)?,
             })
         })
         .map_err(|error| LutrisImportError::Pga {

@@ -146,7 +146,6 @@ fn read_pga_games_returns_rows_from_fixture_db() {
         games,
         vec![PgaGame {
             name: "Test Game".to_string(),
-            slug: "test-game".to_string(),
             runner: "wine".to_string(),
             directory: Some("/home/user/Games/test".to_string()),
             configpath: Some("test-game".to_string()),
@@ -235,7 +234,6 @@ mod relative_root {
             games,
             vec![PgaGame {
                 name: "Rel Game".to_string(),
-                slug: "rel-game".to_string(),
                 runner: "wine".to_string(),
                 directory: Some("/games/rel".to_string()),
                 configpath: Some("rel-game".to_string()),

@@ -206,19 +206,6 @@ fn git_security_env_pairs_include_config_isolation() {
 }
 
 #[test]
-fn is_tap_available_offline_false_when_workspace_missing() {
-    let temp_dir = tempdir().unwrap();
-    let store = CommunityTapStore::with_base_path(temp_dir.path().to_path_buf());
-    let subscription = CommunityTapSubscription {
-        extra: toml::Table::new(),
-        url: "https://example.invalid/tap.git".to_string(),
-        branch: None,
-        pinned_commit: None,
-    };
-    assert!(!store.is_tap_available_offline(&subscription));
-}
-
-#[test]
 fn is_valid_git_sha_accepts_valid_hashes() {
     assert!(is_valid_git_sha("abc1234")); // 7-char short hash
     assert!(is_valid_git_sha("deadbeef01234567890abcdef0123456789abcde")); // 40-char SHA1

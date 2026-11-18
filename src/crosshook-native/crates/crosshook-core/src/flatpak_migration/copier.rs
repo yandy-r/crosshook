@@ -33,7 +33,7 @@ use tracing::{debug, warn};
 
 use crate::flatpak_migration::types::{
     FlatpakMigrationError, DATA_INCLUDE_DB_COMPANION_FILE, DATA_INCLUDE_FILES,
-    DATA_INCLUDE_SUBTREES, DATA_SKIP_SUBTREES,
+    DATA_INCLUDE_SUBTREES,
 };
 use crate::fs_util::{copy_dir_recursive, dir_is_empty};
 
@@ -182,22 +182,15 @@ fn staging_path(dst: &Path) -> PathBuf {
 /// `DATA_INCLUDE_*` / `DATA_SKIP_*` constants are relative paths like
 /// `crosshook/community`.
 ///
-/// Returns `(imported, skipped_existed, errors)` where:
+/// Returns `(imported, errors)` where:
 ///
 /// - `imported` — entries successfully copied (or already present in sandbox).
-/// - `skipped_existed` — entries in [`DATA_SKIP_SUBTREES`] that existed on the
-///   host but were intentionally not copied.
 /// - `errors` — per-entry errors collected with continue-on-error semantics.
 pub(crate) fn copy_data_subtrees(
     host_data_root: &Path,
     sandbox_data_root: &Path,
-) -> (
-    Vec<&'static str>,
-    Vec<&'static str>,
-    Vec<FlatpakMigrationError>,
-) {
+) -> (Vec<&'static str>, Vec<FlatpakMigrationError>) {
     let mut imported: Vec<&'static str> = Vec::new();
-    let mut skipped_existed: Vec<&'static str> = Vec::new();
     let mut errors: Vec<FlatpakMigrationError> = Vec::new();
 
     // --- Subtrees (directories) ---
@@ -352,14 +345,7 @@ pub(crate) fn copy_data_subtrees(
         }
     }
 
-    // --- Record skipped subtrees that DID exist on host (for reporting) ---
-    for entry in DATA_SKIP_SUBTREES {
-        let src = host_data_root.join(entry);
-        if src.exists() {
-            skipped_existed.push(entry);
-        }
-    }
-    (imported, skipped_existed, errors)
+    (imported, errors)
 }
 
 /// Sibling name for a leftover key: `<key>.orphaned-<unix_ts>[-n]`.
@@ -458,7 +444,7 @@ mod tests {
         // Populate skip subtrees
         write(&host.join("crosshook/prefixes/example/drive_c/x"), b"x");
         write(&host.join("crosshook/artifacts/log.txt"), b"l");
-        let (imported, skipped_existed, errors) = copy_data_subtrees(host, sandbox);
+        let (imported, errors) = copy_data_subtrees(host, sandbox);
         assert!(errors.is_empty(), "unexpected errors: {errors:?}");
         assert!(imported.contains(&"crosshook/community"));
         assert!(imported.contains(&"crosshook/media"));
@@ -471,8 +457,6 @@ mod tests {
         assert!(sandbox.join("crosshook/metadata.db-wal").exists());
         assert!(!sandbox.join("crosshook/prefixes").exists());
         assert!(!sandbox.join("crosshook/artifacts").exists());
-        assert!(skipped_existed.contains(&"crosshook/prefixes"));
-        assert!(skipped_existed.contains(&"crosshook/artifacts"));
     }
 
     #[test]
@@ -480,10 +464,10 @@ mod tests {
         let host_root = tempdir().unwrap();
         let sandbox_root = tempdir().unwrap();
         write(&host_root.path().join("crosshook/community/a.txt"), b"a");
-        let (imp1, _, errs1) = copy_data_subtrees(host_root.path(), sandbox_root.path());
+        let (imp1, errs1) = copy_data_subtrees(host_root.path(), sandbox_root.path());
         assert!(errs1.is_empty());
         assert!(imp1.contains(&"crosshook/community"));
-        let (imp2, _, errs2) = copy_data_subtrees(host_root.path(), sandbox_root.path());
+        let (imp2, errs2) = copy_data_subtrees(host_root.path(), sandbox_root.path());
         assert!(errs2.is_empty());
         assert!(
             !imp2.contains(&"crosshook/community"),
@@ -498,7 +482,7 @@ mod tests {
         write(&host_root.path().join("crosshook/metadata.db"), b"db");
         write(&host_root.path().join("crosshook/metadata.db-wal"), b"wal");
         write(&host_root.path().join("crosshook/metadata.db-shm"), b"shm");
-        let (imported, _, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
+        let (imported, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
         assert!(errors.is_empty());
         // Trio reports as one logical entry (the representative `.db`), but all
         // three files physically land in the sandbox.
@@ -531,7 +515,7 @@ mod tests {
         // A lax host mode must not survive into the sandbox.
         fs::set_permissions(&host_key, fs::Permissions::from_mode(0o644)).unwrap();
 
-        let (imported, _, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
+        let (imported, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
         assert!(errors.is_empty(), "unexpected errors: {errors:?}");
         assert!(imported.contains(&"crosshook/metadata.db"));
         assert!(!imported.contains(&"crosshook/config_history_hmac.key"));
@@ -572,7 +556,7 @@ mod tests {
             .join("crosshook/config_history_hmac.key");
         write(&sandbox_key, b"sandbox-key");
 
-        let (imported, _, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
+        let (imported, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
         assert!(errors.is_empty(), "unexpected errors: {errors:?}");
         assert!(imported.contains(&"crosshook/metadata.db"));
         assert_eq!(
@@ -595,7 +579,7 @@ mod tests {
             .join("crosshook/config_history_hmac.key");
         write(&sandbox_key, b"sandbox-key");
 
-        let (_, _, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
+        let (_, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
         assert!(errors.is_empty(), "unexpected errors: {errors:?}");
         // Next open creates a fresh key with the correct epoch.
         assert!(!sandbox_key.exists());
@@ -614,7 +598,7 @@ mod tests {
             .join("crosshook/config_history_hmac.key");
         write(&sandbox_key, b"sandbox-key");
 
-        let (imported, _, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
+        let (imported, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
         assert_eq!(errors.len(), 1, "expected key copy failure, got {errors:?}");
         assert!(!imported.contains(&"crosshook/metadata.db"));
         assert!(!sandbox_root.path().join("crosshook/metadata.db").exists());
@@ -636,7 +620,7 @@ mod tests {
             b"old-db",
         );
 
-        let (_, _, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
+        let (_, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
         assert!(errors.is_empty());
         assert!(!sandbox_root
             .path()
@@ -656,7 +640,7 @@ mod tests {
             .join("crosshook/config_history_hmac.key");
         write(&sandbox_key, b"sandbox-key");
 
-        let (imported, _, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
+        let (imported, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
         assert_eq!(errors.len(), 1, "expected trio failure, got {errors:?}");
         assert!(!imported.contains(&"crosshook/metadata.db"));
         assert!(!sandbox_root.path().join("crosshook/metadata.db").exists());
@@ -684,7 +668,7 @@ mod tests {
             &sandbox_root.path().join("crosshook/metadata.db"),
             b"old-db",
         );
-        let (imported, _, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
+        let (imported, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
         assert!(errors.is_empty(), "unexpected errors: {errors:?}");
         assert!(
             !imported.contains(&"crosshook/metadata.db"),
@@ -714,7 +698,7 @@ mod tests {
             &host_root.path().join("crosshook/metadata.db-wal"),
             b"orphan",
         );
-        let (imported, _, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
+        let (imported, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
         assert!(errors.is_empty());
         assert!(!imported.iter().any(|e| e.starts_with("crosshook/metadata")));
         assert!(!sandbox_root

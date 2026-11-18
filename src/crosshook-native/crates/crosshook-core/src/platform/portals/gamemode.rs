@@ -164,9 +164,6 @@ impl fmt::Debug for GameModeRegistration {
 /// `HostGamemodeRun` semantics for host games.
 #[derive(Debug)]
 pub enum GameModeError {
-    /// The process is not running under a Flatpak sandbox; the portal
-    /// does not apply.
-    NotSandboxed,
     /// The portal returned a non-zero status for the registration call.
     RegistrationRejected(String),
     /// Transport-level D-Bus error.
@@ -176,7 +173,6 @@ pub enum GameModeError {
 impl fmt::Display for GameModeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::NotSandboxed => f.write_str("not running under Flatpak; GameMode portal skipped"),
             Self::RegistrationRejected(detail) => {
                 write!(f, "GameMode portal rejected the registration: {detail}")
             }
@@ -212,9 +208,6 @@ mod tests {
 
     #[test]
     fn gamemode_error_display_is_stable() {
-        assert!(GameModeError::NotSandboxed
-            .to_string()
-            .contains("not running under Flatpak"));
         assert!(GameModeError::RegistrationRejected("oops".into())
             .to_string()
             .contains("oops"));

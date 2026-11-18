@@ -23,16 +23,13 @@ pub struct LutrisGameSection {
     pub args: Option<String>,
     pub working_dir: Option<String>,
     pub prefix: Option<String>,
-    pub arch: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct LutrisSystemSection {
     pub env: Option<BTreeMap<String, String>>,
-    pub terminal: Option<bool>,
     pub gamemode: Option<bool>,
     pub mangohud: Option<bool>,
-    pub prefer_system_libs: Option<bool>,
     pub gamescope: Option<bool>,
     pub gamescope_hdr: Option<bool>,
     pub gamescope_force_grab_cursor: Option<bool>,
@@ -47,7 +44,6 @@ pub struct LutrisSystemSection {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct LutrisWineSection {
     pub version: Option<String>,
-    pub dxvk: Option<bool>,
     pub vkd3d: Option<bool>,
     pub dxvk_nvapi: Option<bool>,
     pub esync: Option<bool>,

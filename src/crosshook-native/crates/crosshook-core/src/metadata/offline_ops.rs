@@ -38,18 +38,10 @@ impl MetadataStore {
     pub fn upsert_community_tap_offline_state_row(
         &self,
         tap_id: &str,
-        has_local_clone: i64,
         last_sync_at: Option<&str>,
-        clone_size_bytes: Option<i64>,
     ) -> Result<(), MetadataStoreError> {
         self.with_conn("upsert community tap offline state", |conn| {
-            offline_store::upsert_community_tap_offline_state(
-                conn,
-                tap_id,
-                has_local_clone,
-                last_sync_at,
-                clone_size_bytes,
-            )
+            offline_store::upsert_community_tap_offline_state(conn, tap_id, last_sync_at)
         })
     }
 

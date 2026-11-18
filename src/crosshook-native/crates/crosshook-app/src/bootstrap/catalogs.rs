@@ -24,12 +24,12 @@ use crosshook_core::settings::SettingsStore;
 /// relative to the settings store's config directory.
 pub(crate) fn initialize(settings: &SettingsStore) {
     // Optimization catalog: embedded default → user override.
-    let catalog = load_catalog(Some(&settings.base_path), &[]);
+    let catalog = load_catalog(Some(&settings.base_path));
     initialize_catalog(catalog);
 
     // Command-argument catalog: embedded default → optional user override
     // only (no SQLite).
-    let command_argument_catalog = load_command_argument_catalog(Some(&settings.base_path), &[]);
+    let command_argument_catalog = load_command_argument_catalog(Some(&settings.base_path));
     initialize_command_argument_catalog(command_argument_catalog);
 
     let trainer_type_catalog = load_trainer_type_catalog(Some(&settings.base_path));

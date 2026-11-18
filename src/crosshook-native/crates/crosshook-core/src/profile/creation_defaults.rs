@@ -18,17 +18,13 @@ pub fn apply_profile_creation_defaults_from_settings(
         profile.launch.method = method.to_string();
     }
 
-    let mode = parse_trainer_loading_mode(&settings.default_trainer_loading_mode);
+    let mode: TrainerLoadingMode = settings
+        .default_trainer_loading_mode
+        .parse()
+        .unwrap_or_default();
     if profile.trainer.loading_mode == TrainerLoadingMode::default()
         && mode != TrainerLoadingMode::default()
     {
         profile.trainer.loading_mode = mode;
-    }
-}
-
-fn parse_trainer_loading_mode(raw: &str) -> TrainerLoadingMode {
-    match raw.trim() {
-        "copy_to_prefix" => TrainerLoadingMode::CopyToPrefix,
-        _ => TrainerLoadingMode::SourceDirectory,
     }
 }

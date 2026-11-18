@@ -36,9 +36,6 @@ pub struct TrainerTypeEntry {
 
 #[derive(Debug, Deserialize)]
 struct RawTrainerTypeCatalogFile {
-    #[serde(default)]
-    #[allow(dead_code)]
-    catalog_version: u32,
     #[serde(rename = "trainer_type", default)]
     entries: Vec<TrainerTypeEntry>,
 }

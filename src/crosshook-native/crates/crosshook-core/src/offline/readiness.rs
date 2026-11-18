@@ -249,7 +249,7 @@ pub fn check_offline_preflight(
     let game_path = normalized_game_path.trim();
     let game_present = normalized_path_is_file(game_path);
 
-    let (_proton_path, proton_available) = match resolved_method {
+    let proton_available = match resolved_method {
         METHOD_PROTON_RUN => {
             let p = {
                 let runtime_proton = effective.runtime.proton_path.trim();
@@ -260,17 +260,17 @@ pub fn check_offline_preflight(
                     effective.steam.proton_path.trim()
                 }
             };
-            (p, normalized_path_is_file(p))
+            normalized_path_is_file(p)
         }
         METHOD_STEAM_APPLAUNCH => {
             let p = effective.steam.proton_path.trim();
-            (p, normalized_path_is_file(p))
+            normalized_path_is_file(p)
         }
         // Non-compat methods don't use Proton; mark as satisfied.
-        _ => ("", true),
+        _ => true,
     };
 
-    let (_prefix_path, prefix_exists) = match resolved_method {
+    let prefix_exists = match resolved_method {
         METHOD_PROTON_RUN => {
             let p = {
                 let runtime_prefix = effective.runtime.prefix_path.trim();
@@ -281,14 +281,14 @@ pub fn check_offline_preflight(
                     effective.steam.compatdata_path.trim()
                 }
             };
-            (p, normalized_path_is_dir(p))
+            normalized_path_is_dir(p)
         }
         METHOD_STEAM_APPLAUNCH => {
             let p = effective.steam.compatdata_path.trim();
-            (p, normalized_path_is_dir(p))
+            normalized_path_is_dir(p)
         }
         // Non-compat methods don't use Wine prefix; mark as satisfied.
-        _ => ("", true),
+        _ => true,
     };
 
     let mut report = compute_offline_readiness(

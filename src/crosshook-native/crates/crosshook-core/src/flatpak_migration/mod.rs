@@ -121,13 +121,9 @@ fn run_impl(
     }
 
     // Step 2: selective data subtrees. Continue-on-error: all failures are collected.
-    // We intentionally report the configured skip-policy (`DATA_SKIP_SUBTREES`)
-    // on `outcome.skipped_subtrees` rather than `_skipped_existed` (the subset
-    // that actually existed on the host). Upstream consumers care about what
-    // the policy *is* so they can explain the isolation contract to users;
-    // the per-run actuals would add variability without actionable signal.
-    let (imported, _skipped_existed, errors) =
-        copier::copy_data_subtrees(&host_data_parent, sandbox_data_root);
+    // `outcome.skipped_subtrees` reports the configured skip-policy
+    // (`DATA_SKIP_SUBTREES`), not what happened to exist on the host.
+    let (imported, errors) = copier::copy_data_subtrees(&host_data_parent, sandbox_data_root);
     outcome.imported_subtrees = imported;
     outcome.skipped_subtrees = DATA_SKIP_SUBTREES.to_vec();
 

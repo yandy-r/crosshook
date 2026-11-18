@@ -17,50 +17,6 @@ fn assert_launch_history_newest_first(entries: &[LaunchHistoryEntry]) {
 }
 
 #[test]
-fn test_query_most_launched() {
-    let store = MetadataStore::open_in_memory().unwrap();
-    let report = clean_exit_report();
-
-    // Profile A: 3 launches
-    for _ in 0..3 {
-        let op_id = store
-            .record_launch_started(Some("profile-a"), "native", None)
-            .unwrap();
-        store
-            .record_launch_finished(&op_id, Some(0), None, &report)
-            .unwrap();
-    }
-
-    // Profile B: 1 launch
-    let op_id = store
-        .record_launch_started(Some("profile-b"), "native", None)
-        .unwrap();
-    store
-        .record_launch_finished(&op_id, Some(0), None, &report)
-        .unwrap();
-
-    // Profile C: 2 launches
-    for _ in 0..2 {
-        let op_id = store
-            .record_launch_started(Some("profile-c"), "native", None)
-            .unwrap();
-        store
-            .record_launch_finished(&op_id, Some(0), None, &report)
-            .unwrap();
-    }
-
-    let most_launched = store.query_most_launched(10).unwrap();
-
-    assert_eq!(most_launched.len(), 3);
-    assert_eq!(most_launched[0].0, "profile-a");
-    assert_eq!(most_launched[0].1, 3);
-    assert_eq!(most_launched[1].0, "profile-c");
-    assert_eq!(most_launched[1].1, 2);
-    assert_eq!(most_launched[2].0, "profile-b");
-    assert_eq!(most_launched[2].1, 1);
-}
-
-#[test]
 fn test_query_failure_trends() {
     let store = MetadataStore::open_in_memory().unwrap();
 

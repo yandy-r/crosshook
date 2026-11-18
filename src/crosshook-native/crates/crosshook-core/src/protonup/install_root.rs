@@ -45,11 +45,7 @@ pub fn resolve_install_root_candidates(
     configured_steam_client_path: Option<&Path>,
 ) -> Vec<InstallRootCandidate> {
     let home = std::env::var_os("HOME").map(PathBuf::from);
-    resolve_candidates_with(
-        configured_steam_client_path,
-        home.as_deref(),
-        platform::is_flatpak(),
-    )
+    resolve_candidates_with(configured_steam_client_path, home.as_deref())
 }
 
 /// Picks the default candidate the UI should pre-select.
@@ -68,17 +64,12 @@ pub fn pick_default_install_root(
 
 /// Testable core of [`resolve_install_root_candidates`].
 ///
-/// `home_override` replaces the `HOME` env lookup. `is_flatpak` is threaded
-/// as a boolean so tests can exercise Flatpak logic without mutating
-/// `FLATPAK_ID`.
+/// `home_override` replaces the `HOME` env lookup. The Flatpak context does
+/// not change the enumeration list; only `pick_default_with` uses it.
 pub(crate) fn resolve_candidates_with(
     configured_steam_client_path: Option<&Path>,
     home_override: Option<&Path>,
-    is_flatpak: bool,
 ) -> Vec<InstallRootCandidate> {
-    let _ = is_flatpak; // Flatpak context does not change the enumeration list,
-                        // only `pick_default_with` uses it for ranking.
-
     let Some(home) = home_override else {
         tracing::warn!("install root resolver: HOME is unset, returning empty candidate list");
         return Vec::new();
@@ -394,7 +385,7 @@ mod tests {
         // Do not set FLATPAK_ID — simulate non-Flatpak.
         let _guard = ScopedEnv::unset("FLATPAK_ID");
 
-        let candidates = resolve_candidates_with(None, Some(home.path()), false);
+        let candidates = resolve_candidates_with(None, Some(home.path()));
 
         // There must be at least 2 candidates: some NativeSteam and one FlatpakSteam.
         assert!(
@@ -439,7 +430,7 @@ mod tests {
         fs::create_dir_all(&native_path).unwrap();
 
         // Simulate Flatpak environment (is_flatpak = true).
-        let candidates = resolve_candidates_with(None, Some(home.path()), true);
+        let candidates = resolve_candidates_with(None, Some(home.path()));
 
         let default = pick_default_with(&candidates, true);
         assert!(default.is_some(), "expected a writable default candidate");
@@ -481,7 +472,7 @@ mod tests {
         perms.set_mode(0o555);
         fs::set_permissions(&flatpak_compat, perms).unwrap();
 
-        let candidates = resolve_candidates_with(None, Some(home.path()), false);
+        let candidates = resolve_candidates_with(None, Some(home.path()));
 
         let flatpak_candidate = candidates
             .iter()
@@ -515,7 +506,7 @@ mod tests {
 
         // Pass a configured_steam_client_path that contains "..".
         let traversal_path = Path::new("/home/user/../../../etc");
-        let candidates = resolve_candidates_with(Some(traversal_path), Some(home.path()), false);
+        let candidates = resolve_candidates_with(Some(traversal_path), Some(home.path()));
 
         // The derived path would be `/home/user/../../../etc/compatibilitytools.d`.
         // Find a candidate with `..` in its path.
@@ -583,7 +574,7 @@ mod tests {
         let configured = home
             .path()
             .join(".var/app/com.valvesoftware.Steam/data/Steam");
-        let candidates = resolve_candidates_with(Some(&configured), Some(home.path()), false);
+        let candidates = resolve_candidates_with(Some(&configured), Some(home.path()));
 
         let configured_candidate = candidates
             .iter()
@@ -600,7 +591,7 @@ mod tests {
         let fake_compat_file = steam_root.join("compatibilitytools.d");
         fs::write(&fake_compat_file, "not a directory").unwrap();
 
-        let candidates = resolve_candidates_with(Some(&steam_root), Some(dir.path()), false);
+        let candidates = resolve_candidates_with(Some(&steam_root), Some(dir.path()));
         let configured_candidate = candidates
             .iter()
             .find(|c| c.path == fake_compat_file)

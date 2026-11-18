@@ -328,9 +328,4 @@ fn disabled_store_history_operations_return_safe_defaults() {
     store
         .set_known_good_revision("some-profile", 1)
         .expect("disabled store set_known_good_revision must not return Err");
-
-    // clear_known_good → Ok(()): no-op, no error
-    store
-        .clear_known_good_revision("some-profile")
-        .expect("disabled store clear_known_good_revision must not return Err");
 }

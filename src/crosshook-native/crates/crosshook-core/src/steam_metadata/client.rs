@@ -94,8 +94,7 @@ pub async fn lookup_steam_metadata(
     }
 
     match fetch_live_lookup(&app_id).await {
-        Ok(mut result) => {
-            attach_cache_metadata(&mut result, false, false);
+        Ok(result) => {
             persist_lookup_result(store, &cache_key, &result);
             result
         }
@@ -187,11 +186,6 @@ async fn fetch_live_lookup(app_id: &str) -> Result<SteamMetadataLookupResult, St
         from_cache: false,
         is_stale: false,
     })
-}
-
-fn attach_cache_metadata(result: &mut SteamMetadataLookupResult, from_cache: bool, is_stale: bool) {
-    result.from_cache = from_cache;
-    result.is_stale = is_stale;
 }
 
 fn persist_lookup_result(
