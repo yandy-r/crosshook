@@ -21,17 +21,6 @@
   border: 1px solid var(--crosshook-color-border);
 }
 
-.crosshook-library-page__filter-placeholder {
-  margin: 0;
-  padding: 24px 16px;
-  text-align: center;
-  font-size: 0.9rem;
-  line-height: 1.5;
-  color: var(--crosshook-color-text-muted);
-  border: 1px dashed var(--crosshook-color-border);
-  border-radius: var(--crosshook-radius-md);
-}
-
 /* ── Toolbar ───────────────────────────────────────────────────────────── */
 
 .crosshook-library-toolbar {

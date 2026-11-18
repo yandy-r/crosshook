@@ -29,18 +29,13 @@ All tokens live in the default `:root { … }` block of `variables.css`. The `:r
 
 ### Shell surfaces
 
-| Token                              | Value                   | Purpose                                       |
-| ---------------------------------- | ----------------------- | --------------------------------------------- |
-| `--crosshook-color-bg`             | `#181a24`               | App body background                           |
-| `--crosshook-color-bg-elevated`    | `#1f2233`               | Elevated panel background                     |
-| `--crosshook-color-surface`        | `#141620`               | Surface under panels (modal scrim base, etc.) |
-| `--crosshook-color-surface-strong` | `#0c1120`               | Deeper sunken surface                         |
-| `--crosshook-color-sidebar`        | `#10121c`               | Primary sidebar background                    |
-| `--crosshook-color-titlebar`       | `#0c0e16`               | Titlebar / app frame                          |
-| `--crosshook-color-surface-1`      | `#1a1d28`               | Row surfaces                                  |
-| `--crosshook-color-surface-2`      | `#22263a`               | Raised cards / panels                         |
-| `--crosshook-color-surface-3`      | `#2a2f48`               | Hover / pressed card state                    |
-| `--crosshook-color-scrim`          | `rgba(8, 10, 18, 0.78)` | Modal / overlay scrim                         |
+| Token                              | Value     | Purpose                                       |
+| ---------------------------------- | --------- | --------------------------------------------- |
+| `--crosshook-color-bg`             | `#181a24` | App body background                           |
+| `--crosshook-color-bg-elevated`    | `#1f2233` | Elevated panel background                     |
+| `--crosshook-color-surface`        | `#141620` | Surface under panels (modal scrim base, etc.) |
+| `--crosshook-color-surface-strong` | `#0c1120` | Deeper sunken surface                         |
+| `--crosshook-color-surface-1`      | `#1a1d28` | Row surfaces                                  |
 
 ### Accent
 
@@ -50,16 +45,6 @@ All tokens live in the default `:root { … }` block of `variables.css`. The `:r
 | `--crosshook-color-accent-strong` | `#6ba3d9`                   | Brighter accent (hover, focus rings)        |
 | `--crosshook-color-accent-soft`   | `rgba(74, 125, 181, 0.16)`  | Soft accent fills (selected row, chip bg)   |
 | `--crosshook-color-accent-glow`   | `rgba(107, 163, 217, 0.22)` | Ambient accent glow (hero gradients, focus) |
-
-### Status (existing + desaturated siblings)
-
-The existing `--crosshook-color-success | warning | danger` tokens remain in place for components that have not yet migrated. The `*-muted` siblings introduced in Phase 2 are the **calm-desktop** values; components opt in during their rework phases.
-
-| Token                             | Value     | Purpose                    |
-| --------------------------------- | --------- | -------------------------- |
-| `--crosshook-color-success-muted` | `#5fb880` | Calm success (Phase 2+ UI) |
-| `--crosshook-color-warning-muted` | `#d4a94a` | Calm warning (Phase 2+ UI) |
-| `--crosshook-color-danger-muted`  | `#d77a8a` | Calm danger (Phase 2+ UI)  |
 
 ## Adding a new token
 
