@@ -155,7 +155,7 @@ describe('useLaunchState resetLaunchSession', () => {
     expect(result.current.phase).toBe(LaunchPhase.Idle);
   });
 
-  it('neither probes check_game_running nor schedules timers on mount', async () => {
+  it('schedules no timers on mount', async () => {
     vi.useFakeTimers();
     renderLaunchState();
     await act(async () => {
@@ -163,6 +163,5 @@ describe('useLaunchState resetLaunchSession', () => {
     });
 
     expect(vi.getTimerCount()).toBe(0);
-    expect(callCommandMock).not.toHaveBeenCalledWith('check_game_running', expect.anything());
   });
 });

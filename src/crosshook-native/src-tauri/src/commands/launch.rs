@@ -111,11 +111,6 @@ pub async fn check_gamescope_session(app: AppState<'_>) -> IpcResult<bool> {
     Ok(app.services().host_tools.gamescope_session())
 }
 
-#[tauri::command]
-pub async fn check_game_running(exe_name: String, app: AppState<'_>) -> IpcResult<bool> {
-    Ok(app.services().launch.is_game_running(exe_name).await)
-}
-
 /// Every registered launch session plus the registry `seq` it reflects. The
 /// UI subscribes to `launch-session-changed` first, then applies only events
 /// with a greater `seq`.
