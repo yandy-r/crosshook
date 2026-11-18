@@ -1,7 +1,7 @@
 import { formatRelativeTime } from '../../utils/format';
 import { type HostToolAvailabilityFilter, type HostToolCategoryFilter, HostToolFilterBar } from './HostToolFilterBar';
 
-export interface HostToolStatusToolbarProps {
+interface HostToolStatusToolbarProps {
   lastCheckedAt: string | null;
   isStale: boolean;
   isRefreshing: boolean;

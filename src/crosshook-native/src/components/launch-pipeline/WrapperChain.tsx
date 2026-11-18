@@ -1,6 +1,6 @@
 import type { WrapperChainItem } from '../../utils/derivePipelineDetail';
 
-export interface WrapperChainProps {
+interface WrapperChainProps {
   items: WrapperChainItem[];
   emptyMessage: string;
 }

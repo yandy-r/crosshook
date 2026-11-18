@@ -16,9 +16,7 @@ export type CommandPaletteIconId =
   | 'proton_manager'
   | 'settings';
 
-export type CommandPaletteAction = 'route' | 'launch_profile' | 'edit_profile';
-
-export interface CommandPaletteCommandBase {
+interface CommandPaletteCommandBase {
   readonly id: CommandPaletteCommandId;
   readonly title: string;
   readonly subtitle?: string;

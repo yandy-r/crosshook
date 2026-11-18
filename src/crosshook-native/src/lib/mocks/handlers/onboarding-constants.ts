@@ -28,7 +28,7 @@ export interface MockCapabilityDefinition {
   optionalToolIds: string[];
 }
 
-export interface MockHostToolDefinition {
+interface MockHostToolDefinition {
   check: HostToolCheckResult;
   details: HostToolDetails;
 }

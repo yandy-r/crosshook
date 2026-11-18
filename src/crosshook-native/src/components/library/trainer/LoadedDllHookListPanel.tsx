@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { LoadedDllHook } from '@/types/profile';
 import { SettingsIcon } from '../../icons/SidebarIcons';
 
-export interface LoadedDllHookListPanelProps {
+interface LoadedDllHookListPanelProps {
   hooks: LoadedDllHook[];
   onUpdate: (hooks: LoadedDllHook[]) => void;
 }

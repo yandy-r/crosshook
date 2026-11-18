@@ -6,7 +6,7 @@ import type { GamescopeConfig, LaunchHook, LaunchMethod, MangoHudConfig, Trainer
 import type { UmuPreference } from './settings';
 
 /** Tone for the auto-save status indicator shared across Launch page tabs. */
-export type LaunchAutoSaveStatusTone = 'idle' | 'saving' | 'success' | 'warning' | 'error';
+type LaunchAutoSaveStatusTone = 'idle' | 'saving' | 'success' | 'warning' | 'error';
 
 /** Status of an auto-save operation (optimizations, gamescope, or mangohud). */
 export interface LaunchAutoSaveStatus {
@@ -205,7 +205,7 @@ export interface UmuGameIdLookupKey {
   codename: string;
 }
 
-export interface UmuGameIdResolutionPreview {
+interface UmuGameIdResolutionPreview {
   game_id: string;
   store: string | null;
   source: UmuGameIdResolutionSource;
@@ -287,7 +287,7 @@ export type PipelineNodeStatus = 'configured' | 'not-configured' | 'error' | 'ac
  * Live-launch presentation hint layered on top of `PipelineNodeStatus` (e.g. trainer handoff).
  * Does not widen `PipelineNodeStatus` so labels and CSS stay centralized.
  */
-export type PipelineNodeTone = 'waiting';
+type PipelineNodeTone = 'waiting';
 
 /** A node in the launch pipeline visualization. */
 export interface PipelineNode {

@@ -1,7 +1,7 @@
 import { useGameMetadata } from '../../hooks/useGameMetadata';
 import type { SteamGenre } from '../../types/game-metadata';
 
-export interface GameMetadataBarProps {
+interface GameMetadataBarProps {
   steamAppId: string | undefined;
 }
 

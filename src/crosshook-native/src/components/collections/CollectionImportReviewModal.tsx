@@ -8,7 +8,7 @@ import './CollectionImportReviewModal.css';
 
 const SKIP_VALUE = '__skip__';
 
-export interface CollectionImportReviewModalProps {
+interface CollectionImportReviewModalProps {
   open: boolean;
   preview: CollectionImportPreview | null;
   applying: boolean;

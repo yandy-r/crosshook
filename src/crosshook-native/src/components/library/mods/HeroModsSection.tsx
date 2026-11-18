@@ -6,7 +6,7 @@ import { ModDetectionReviewModal } from './ModDetectionReviewModal';
 import { ModForm } from './ModForm';
 import { ModList } from './ModList';
 
-export interface HeroModsSectionProps {
+interface HeroModsSectionProps {
   profileName: string | undefined;
   hasTrainerConfigured: boolean;
   gameExecutablePath: string;

@@ -1,6 +1,6 @@
 import type { LaunchPreview, PreviewEnvVar } from '@/types/launch';
 
-export interface HighlightedCommandBlockProps {
+interface HighlightedCommandBlockProps {
   preview: LaunchPreview;
   profileName?: string;
   className?: string;

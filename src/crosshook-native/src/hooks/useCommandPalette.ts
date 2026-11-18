@@ -6,7 +6,7 @@ import {
   isCommandPaletteCommandEnabled,
 } from '@/lib/commands';
 
-export interface UseCommandPaletteOptions {
+interface UseCommandPaletteOptions {
   commands: readonly CommandPaletteCommand[];
   /** Used by {@link UseCommandPaletteReturn.executeActive} only. Omit if execution is handled via {@link CommandPalette} `onExecuteCommand`. */
   onExecuteCommand?: (command: CommandPaletteCommand) => void | Promise<void>;
@@ -14,7 +14,7 @@ export interface UseCommandPaletteOptions {
   initialQuery?: string;
 }
 
-export interface UseCommandPaletteReturn {
+interface UseCommandPaletteReturn {
   open: boolean;
   query: string;
   filteredCommands: CommandPaletteCommand[];

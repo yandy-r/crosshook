@@ -4,7 +4,7 @@ import { useProfileContext } from '@/context/ProfileContext';
 import { useProfileHealthContext } from '@/context/ProfileHealthContext';
 import { useLaunchHistoryForProfile } from '@/hooks/useLaunchHistoryForProfile';
 
-export type GameInspectorProps = InspectorBodyProps;
+type GameInspectorProps = InspectorBodyProps;
 
 const LAUNCH_HISTORY_DEFAULT_LIMIT = 20;
 

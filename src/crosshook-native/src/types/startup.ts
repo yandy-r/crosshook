@@ -69,15 +69,10 @@ export interface StartupReport {
 }
 
 /** Job identifiers carried by the generic `startup-job-finished` event (`StartupJobKind`, snake_case). */
-export type StartupJobName =
-  | 'health_batch'
-  | 'offline_readiness'
-  | 'version_scan'
-  | 'umu_refresh'
-  | 'background_portal';
+type StartupJobName = 'health_batch' | 'offline_readiness' | 'version_scan' | 'umu_refresh' | 'background_portal';
 
 /** Terminal outcome of a startup job; `JobState['state']` minus the non-terminal `pending`/`running`. */
-export type StartupJobTerminalState = 'complete' | 'failed' | 'skipped';
+type StartupJobTerminalState = 'complete' | 'failed' | 'skipped';
 
 /**
  * Payload of the `startup-job-finished` event, emitted for every terminal job outcome (including

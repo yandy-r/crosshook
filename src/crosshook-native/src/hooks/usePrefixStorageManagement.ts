@@ -19,7 +19,7 @@ function formatError(error: unknown): string {
 
 export type ScanSource = 'live' | 'cached' | null;
 
-export interface PrefixStorageManagementState {
+interface PrefixStorageManagementState {
   scanResult: PrefixStorageScanResult | null;
   scanLoading: boolean;
   cleanupLoading: boolean;

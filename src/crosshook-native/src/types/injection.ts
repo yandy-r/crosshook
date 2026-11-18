@@ -1,10 +1,10 @@
-export const INJECTION_LOG_LEVELS = ['info', 'warning', 'error'] as const;
+const INJECTION_LOG_LEVELS = ['info', 'warning', 'error'] as const;
 export type InjectionLogLevel = (typeof INJECTION_LOG_LEVELS)[number];
 
-export const INJECTION_LOG_SOURCES = ['trainer', 'injection', 'runtime'] as const;
+const INJECTION_LOG_SOURCES = ['trainer', 'injection', 'runtime'] as const;
 export type InjectionLogSource = (typeof INJECTION_LOG_SOURCES)[number];
 
-export const INJECTION_LOG_SESSION_KINDS = ['game', 'trainer'] as const;
+const INJECTION_LOG_SESSION_KINDS = ['game', 'trainer'] as const;
 export type InjectionLogSessionKind = (typeof INJECTION_LOG_SESSION_KINDS)[number];
 
 export interface InjectionLogEvent {

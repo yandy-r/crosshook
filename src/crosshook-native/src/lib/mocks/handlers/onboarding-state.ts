@@ -1,13 +1,13 @@
 import type { CachedHostReadinessSnapshot } from './onboarding-constants';
 
 export let onboardingDismissed = false;
-export let cachedHostReadinessSnapshot: CachedHostReadinessSnapshot | null = null;
+let cachedHostReadinessSnapshot: CachedHostReadinessSnapshot | null = null;
 
 export function markOnboardingDismissed(): void {
   onboardingDismissed = true;
 }
 
-export function resetOnboardingDismissed(): void {
+function resetOnboardingDismissed(): void {
   onboardingDismissed = false;
 }
 

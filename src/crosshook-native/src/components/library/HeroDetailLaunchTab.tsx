@@ -16,8 +16,6 @@ export interface HeroDetailLaunchTabProps {
   preview: LaunchPreview | null;
   previewError: string | null;
   onPreviewLaunch?: (request: LaunchRequest) => void | Promise<void>;
-  onLaunch?: (name: string) => void | Promise<void>;
-  launchingName?: string;
   displayProfileName?: string;
 }
 
@@ -28,7 +26,6 @@ export function HeroDetailLaunchTab({
   preview,
   previewError,
   onPreviewLaunch,
-  launchingName,
   displayProfileName,
 }: HeroDetailLaunchTabProps) {
   const { profile, profileName, selectedProfile, profiles, updateProfile, persistProfileDraft } = useProfileContext();
@@ -41,8 +38,6 @@ export function HeroDetailLaunchTab({
   // bridge hook. Mirrors the same guard used by LaunchPage.
   const hasSavedSelectedProfile =
     selectedTrimmed.length > 0 && profiles.includes(selectedTrimmed) && profileNameTrimmed === selectedTrimmed;
-
-  const isLaunching = launchingName === resolvedProfileName;
 
   // The LaunchSubTabs panels write through ProfileContext's selected profile.
   // If the displayed profile (displayProfileName) differs from the context's
@@ -106,7 +101,6 @@ export function HeroDetailLaunchTab({
         hasSavedSelectedProfile={hasSavedSelectedProfile}
         profileMismatch={profileMismatch}
         displayProfileName={displayProfileName ?? resolvedProfileName}
-        isLaunching={isLaunching}
       />
 
       <DashboardPanelSection title="Pre/post hooks" titleAs="h3" className="crosshook-hero-detail__section">

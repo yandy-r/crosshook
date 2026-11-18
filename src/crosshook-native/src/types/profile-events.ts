@@ -14,8 +14,6 @@ export type ProfileChangeReason =
   | { kind: 'imported' }
   | { kind: 'migrated' };
 
-export type ProfileChangeKind = ProfileChangeReason['kind'];
-
 /**
  * Rename: `names` = [new], `reason.from` = old. Delete: [removed].
  * Duplicate: [copy]. `names: []` is reserved for conservative resyncs.

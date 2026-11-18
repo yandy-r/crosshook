@@ -22,7 +22,7 @@ function hasActiveFilters(query: CatalogQuery, searchText: string): boolean {
   );
 }
 
-export interface DiscoveryCatalogSectionProps {
+interface DiscoveryCatalogSectionProps {
   catalog: UseCommunityCatalogReturn;
   /** `${tapUrl}::${relativePath}` of the entry currently importing, or null. */
   importingKey: string | null;

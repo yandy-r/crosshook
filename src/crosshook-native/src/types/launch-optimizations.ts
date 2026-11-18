@@ -22,19 +22,6 @@ export interface LaunchOptimizations {
   enabled_option_ids: string[];
 }
 
-export interface LaunchOptimizationOption {
-  id: string;
-  label: string;
-  description: string;
-  helpText: string;
-  category: LaunchOptimizationCategory;
-  targetGpuVendor?: LaunchOptimizationGpuVendor;
-  advanced: boolean;
-  community: boolean;
-  applicableMethods: readonly LaunchOptimizationLaunchMethod[];
-  conflictsWith?: readonly string[];
-}
-
 export interface LaunchOptimizationConflict {
   optionId: string;
   conflictsWith: string;

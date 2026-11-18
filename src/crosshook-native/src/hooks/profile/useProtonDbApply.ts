@@ -8,14 +8,14 @@ import {
   type PendingProtonDbOverwrite,
 } from '../../utils/protondb';
 
-export interface UseProtonDbApplyInput {
+interface UseProtonDbApplyInput {
   profile: GameProfile;
   catalog: OptimizationCatalogPayload | null | undefined;
   onUpdateProfile: (updater: (current: GameProfile) => GameProfile) => void;
   onAcceptSuggestion?: (acceptance: SuggestionAcceptance) => Promise<void>;
 }
 
-export interface UseProtonDbApplyReturn {
+interface UseProtonDbApplyReturn {
   pendingOverwrite: PendingProtonDbOverwrite | null;
   applyingGroupId: string | null;
   statusMessage: string | null;

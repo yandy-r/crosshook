@@ -19,7 +19,7 @@ const COMMAND_ARGUMENT_CATEGORY_LABELS: Record<(typeof COMMAND_ARGUMENT_CATEGORI
   compatibility: 'Compatibility',
 };
 
-export interface CommandArgumentsPanelProps {
+interface CommandArgumentsPanelProps {
   method: LaunchMethod;
   commandArguments: LaunchCommandArguments;
   catalog: CommandArgumentCatalogPayload | null;

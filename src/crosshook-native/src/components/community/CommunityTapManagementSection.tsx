@@ -3,7 +3,7 @@ import { DashboardPanelSection } from '../layout/DashboardPanelSection';
 import { TapChip } from './TapChip';
 import { tapSubscriptionStableKey } from './tapSubscriptionKey';
 
-export interface CommunityTapManagementSectionProps {
+interface CommunityTapManagementSectionProps {
   taps: CommunityTapSubscription[];
   tapUrl: string;
   tapBranch: string;

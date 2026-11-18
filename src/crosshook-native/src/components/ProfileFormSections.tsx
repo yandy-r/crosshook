@@ -44,7 +44,7 @@ type ProfileFormSectionsBaseProps = {
   catalog?: OptimizationCatalogPayload | null;
 };
 
-export type ProfileFormSectionsProps =
+type ProfileFormSectionsProps =
   | (ProfileFormSectionsBaseProps & { profileSelector: ProfileFormSectionsProfileSelector })
   | (ProfileFormSectionsBaseProps & { profileSelector?: undefined });
 

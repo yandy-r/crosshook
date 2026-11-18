@@ -1,7 +1,7 @@
 import { useId } from 'react';
 import { useProtonDbLookup } from '../../hooks/useProtonDbLookup';
 
-export interface GameDetailsCompatibilitySectionProps {
+interface GameDetailsCompatibilitySectionProps {
   steamAppId: string;
 }
 

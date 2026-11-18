@@ -60,12 +60,6 @@ export interface CatalogPage {
 
 // Phase B: External trainer search types
 
-export interface ExternalTrainerSearchQuery {
-  gameName: string;
-  steamAppId?: string;
-  forceRefresh?: boolean;
-}
-
 export interface ExternalTrainerResult {
   gameName: string;
   sourceName: string;

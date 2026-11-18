@@ -24,7 +24,7 @@ export interface RenameProfileResult {
   hadLauncher: boolean;
 }
 
-export interface ProfileLoadOptions {
+interface ProfileLoadOptions {
   collectionId?: string;
   loadErrorContext?: string;
   throwOnFailure?: boolean;

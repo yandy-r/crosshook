@@ -4,7 +4,7 @@ import { chooseFile } from '../../utils/dialog';
 import { DashboardPanelSection } from '../layout/DashboardPanelSection';
 import { FieldRow, updateGameExecutablePath } from '../ProfileFormSections';
 
-export interface GameSectionProps {
+interface GameSectionProps {
   profile: GameProfile;
   onUpdateProfile: (updater: (current: GameProfile) => GameProfile) => void;
   reviewMode?: boolean;

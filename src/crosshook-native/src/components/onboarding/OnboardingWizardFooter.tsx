@@ -1,6 +1,6 @@
 import { ControllerPrompts } from '../layout/ControllerPrompts';
 
-export interface OnboardingWizardFooterProps {
+interface OnboardingWizardFooterProps {
   confirmLabel: string;
   isIdentityGame: boolean;
   isRuntime: boolean;

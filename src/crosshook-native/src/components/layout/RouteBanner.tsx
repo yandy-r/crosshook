@@ -3,7 +3,7 @@ import { Breadcrumb } from './Breadcrumb';
 import { ROUTE_METADATA } from './routeMetadata';
 import type { AppRoute } from './Sidebar';
 
-export interface RouteBannerProps {
+interface RouteBannerProps {
   route: AppRoute;
   trail?: BreadcrumbSegment[];
 }

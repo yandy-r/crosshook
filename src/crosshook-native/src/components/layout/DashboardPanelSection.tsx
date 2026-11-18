@@ -6,7 +6,7 @@ function joinClasses(...values: Array<string | false | null | undefined>): strin
 
 type DashboardPanelSectionHeadingTag = 'h2' | 'h3' | 'h4';
 
-export interface DashboardPanelSectionProps
+interface DashboardPanelSectionProps
   extends Omit<ComponentPropsWithoutRef<'section'>, 'aria-label' | 'aria-labelledby' | 'children' | 'title'> {
   eyebrow?: ReactNode;
   title: ReactNode;

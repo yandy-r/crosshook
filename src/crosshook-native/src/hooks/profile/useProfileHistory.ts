@@ -3,7 +3,7 @@ import { callCommand } from '@/lib/ipc';
 import type { ConfigDiffResult, ConfigRevisionSummary, ConfigRollbackResult } from '../../types';
 import { formatInvokeError } from './formatInvokeError';
 
-export interface UseProfileHistoryOptions {
+interface UseProfileHistoryOptions {
   loadProfile: (
     name: string,
     loadOptions?: {

@@ -2,7 +2,7 @@ import { useId } from 'react';
 import type { OfflineReadinessReport } from '../../types';
 import type { EnrichedProfileHealthReport } from '../../types/health';
 
-export interface GameDetailsHealthSectionProps {
+interface GameDetailsHealthSectionProps {
   profileName: string;
   healthReport: EnrichedProfileHealthReport | undefined;
   healthLoading: boolean;

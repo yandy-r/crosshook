@@ -15,7 +15,7 @@ import {
 } from './launch-optimizations/utils';
 import { type SelectOptionGroup, ThemedSelect } from './ui/ThemedSelect';
 
-export interface LaunchOptimizationsPanelProps {
+interface LaunchOptimizationsPanelProps {
   method: LaunchMethod;
   enabledOptionIds: readonly LaunchOptimizationId[];
   onToggleOption: (optionId: LaunchOptimizationId, nextEnabled: boolean) => void;

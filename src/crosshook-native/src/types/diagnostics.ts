@@ -44,7 +44,7 @@ export interface ActionableSuggestion {
   severity: LaunchValidationSeverity;
 }
 
-export const TEARDOWN_REASONS = [
+const TEARDOWN_REASONS = [
   'natural_exit',
   'watchdog_natural_exit',
   'linked_session_exit',

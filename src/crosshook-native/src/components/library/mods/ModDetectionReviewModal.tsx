@@ -3,7 +3,7 @@ import { useFocusTrap } from '@/hooks/useFocusTrap';
 import type { DetectedModCandidate, DetectionScanReport, ProfileModInput } from '@/types/mods';
 import { candidateToInput, MOD_CATEGORY_LABELS } from './mods-model';
 
-export interface ModDetectionReviewModalProps {
+interface ModDetectionReviewModalProps {
   report: DetectionScanReport;
   /** Registers the selected candidates; returns per-candidate failures. */
   onRegister: (inputs: ProfileModInput[]) => Promise<{ name: string; error: string }[]>;

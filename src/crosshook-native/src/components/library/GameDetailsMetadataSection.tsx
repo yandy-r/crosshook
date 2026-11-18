@@ -3,7 +3,7 @@ import type { UseGameMetadataResult } from '../../hooks/useGameMetadata';
 import type { GameDetailsSectionState } from '../../types/game-details-modal';
 import type { SteamGenre } from '../../types/game-metadata';
 
-export interface GameDetailsMetadataSectionProps {
+interface GameDetailsMetadataSectionProps {
   steamAppId: string;
   meta: UseGameMetadataResult;
 }

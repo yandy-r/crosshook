@@ -16,7 +16,7 @@ import type {
 import { copyToClipboard } from '../utils/clipboard';
 import { formatRelativeTime } from '../utils/format';
 
-export interface ProtonDbLookupCardProps {
+interface ProtonDbLookupCardProps {
   appId: string;
   className?: string;
   trainerVersion?: string | null;

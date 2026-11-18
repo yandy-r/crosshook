@@ -14,7 +14,7 @@ export interface CachedHostReadinessSnapshot {
   warnings: number;
 }
 
-export interface UseHostReadinessResult {
+interface UseHostReadinessResult {
   snapshot: CachedHostReadinessSnapshot | null;
   capabilities: Capability[];
   isStale: boolean;

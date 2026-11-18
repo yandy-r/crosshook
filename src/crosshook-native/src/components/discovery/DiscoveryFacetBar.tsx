@@ -10,7 +10,7 @@ const ALL_VALUE = 'all';
 const GAME_TITLE_MENU_CAP = 20;
 const LOADING_MODE_ORDER = ['source_directory', 'copy_to_prefix', 'unknown'] as const;
 
-export interface DiscoveryFacetBarProps {
+interface DiscoveryFacetBarProps {
   facets: CatalogFacets;
   query: CatalogQuery;
   onSetFacet: (key: FacetKey, value: string | undefined) => void;

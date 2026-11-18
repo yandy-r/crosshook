@@ -1,4 +1,4 @@
-export interface DiscoveryShowMoreButtonProps {
+interface DiscoveryShowMoreButtonProps {
   shownCount: number;
   totalCount: number;
   onLoadMore: () => void;

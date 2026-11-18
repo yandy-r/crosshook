@@ -6,9 +6,9 @@ import { HEALTH_SCROLL_SCENARIO, startHealthScrollProbe } from './healthScrollPr
 import { REPLAY_SCENARIO, startReplayProbe } from './replayProbe';
 
 /** Upper bound on trials per probe run; the runner stops the app long before this. */
-export const TRIAL_CAP = 10_000;
+const TRIAL_CAP = 10_000;
 
-export interface BenchProbeOptions {
+interface BenchProbeOptions {
   /** Stops the probe and removes its listeners (tests; production never passes one). */
   signal?: AbortSignal;
   /** Overrides `TRIAL_CAP` (tests). */

@@ -23,7 +23,7 @@ const HOST_TOOL_AVAILABILITY_FILTER_VALUES: readonly HostToolAvailabilityFilter[
   'required_missing',
 ];
 
-export const HOST_TOOL_CATEGORY_FILTER_OPTIONS = [
+const HOST_TOOL_CATEGORY_FILTER_OPTIONS = [
   { value: 'all', label: 'All categories' },
   { value: 'runtime', label: 'Runtime' },
   { value: 'performance', label: 'Performance' },
@@ -32,14 +32,14 @@ export const HOST_TOOL_CATEGORY_FILTER_OPTIONS = [
   { value: 'prefix_tools', label: 'Prefix tools' },
 ] as const satisfies ReadonlyArray<SelectOption>;
 
-export const HOST_TOOL_AVAILABILITY_FILTER_OPTIONS = [
+const HOST_TOOL_AVAILABILITY_FILTER_OPTIONS = [
   { value: 'all', label: 'All availability' },
   { value: 'available', label: 'Available' },
   { value: 'missing', label: 'Missing' },
   { value: 'required_missing', label: 'Required missing' },
 ] as const satisfies ReadonlyArray<SelectOption>;
 
-export interface HostToolFilterBarProps {
+interface HostToolFilterBarProps {
   categoryFilter: HostToolCategoryFilter;
   availabilityFilter: HostToolAvailabilityFilter;
   searchQuery: string;

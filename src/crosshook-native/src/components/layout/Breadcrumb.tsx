@@ -4,7 +4,7 @@ export interface BreadcrumbSegment {
   onNavigate?: () => void;
 }
 
-export interface BreadcrumbProps {
+interface BreadcrumbProps {
   segments: BreadcrumbSegment[];
   /** Extra class on the <nav> root for slot-specific sizing (e.g. hero detail). */
   className?: string;

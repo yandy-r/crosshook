@@ -129,7 +129,7 @@ export interface UseProfileResult {
   catalogLoading: boolean;
 }
 
-export interface UseProfileOptions {
+interface UseProfileOptions {
   autoSelectFirstProfile?: boolean;
 }
 

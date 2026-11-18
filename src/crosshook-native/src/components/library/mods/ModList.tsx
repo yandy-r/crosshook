@@ -4,7 +4,7 @@ import type { ProfileModRecord } from '@/types/mods';
 import { ModListItem } from './ModListItem';
 import { sortMods } from './mods-model';
 
-export interface ModListProps {
+interface ModListProps {
   mods: ProfileModRecord[];
   editingId: string | null;
   onToggle: (mod: ProfileModRecord) => void;

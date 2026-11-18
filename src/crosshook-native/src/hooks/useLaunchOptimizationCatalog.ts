@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { OptimizationCatalogPayload } from '../utils/optimization-catalog';
 import { fetchOptimizationCatalog } from '../utils/optimization-catalog';
 
-export interface UseLaunchOptimizationCatalogResult {
+interface UseLaunchOptimizationCatalogResult {
   catalog: OptimizationCatalogPayload | null;
   loading: boolean;
   error: string | null;

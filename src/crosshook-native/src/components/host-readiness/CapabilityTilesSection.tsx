@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import type { Capability, CapabilityState } from '../../types/onboarding';
 import CapabilityTile from './CapabilityTile';
 
-export interface CapabilityTilesSectionProps {
+interface CapabilityTilesSectionProps {
   capabilities: Capability[];
   loading: boolean;
 }

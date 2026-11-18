@@ -6,7 +6,7 @@ function normalizeAppId(appId: string): string {
   return appId.trim();
 }
 
-export interface UseGameCoverArtResult {
+interface UseGameCoverArtResult {
   coverArtUrl: string | null;
   loading: boolean;
 }

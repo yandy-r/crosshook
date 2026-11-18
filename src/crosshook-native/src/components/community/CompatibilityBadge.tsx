@@ -10,7 +10,7 @@ export const ratingLabel: Record<CommunityCompatibilityRating, string> = {
   platinum: 'Platinum',
 };
 
-export interface CompatibilityBadgeProps {
+interface CompatibilityBadgeProps {
   rating: CommunityCompatibilityRating;
 }
 

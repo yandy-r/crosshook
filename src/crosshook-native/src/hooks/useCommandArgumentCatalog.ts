@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { CommandArgumentCatalogPayload } from '@/types/launch-command-arguments';
 import { fetchCommandArgumentCatalog } from '@/utils/command-argument-catalog';
 
-export interface UseCommandArgumentCatalogResult {
+interface UseCommandArgumentCatalogResult {
   catalog: CommandArgumentCatalogPayload | null;
   loading: boolean;
   error: string | null;

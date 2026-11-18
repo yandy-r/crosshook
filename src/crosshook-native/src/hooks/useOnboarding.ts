@@ -11,7 +11,7 @@ import type { VersionCheckResult } from '../types/version';
 
 const STAGE_SEQUENCE: OnboardingWizardStage[] = ['identity_game', 'runtime', 'trainer', 'media', 'review', 'completed'];
 
-export interface UseOnboardingResult {
+interface UseOnboardingResult {
   stage: OnboardingWizardStage;
   readinessResult: ReadinessCheckResult | null;
   checkError: string | null;

@@ -1,4 +1,4 @@
-export interface HostToolDashboardHandoffProps {
+interface HostToolDashboardHandoffProps {
   onOpen: () => void;
   description: string;
 }

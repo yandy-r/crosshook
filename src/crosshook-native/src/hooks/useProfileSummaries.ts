@@ -6,7 +6,7 @@ import { parseProfilesChanged } from '@/lib/profileEvents';
 import type { ProfileSummary } from '../types/library';
 import type { ProfilesChangedPayload } from '../types/profile-events';
 
-export interface UseProfileSummariesResult {
+interface UseProfileSummariesResult {
   summaries: ProfileSummary[];
   loading: boolean;
   error: string | null;

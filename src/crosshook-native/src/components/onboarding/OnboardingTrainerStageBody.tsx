@@ -1,7 +1,7 @@
 import type { GameProfile, ResolvedLaunchMethod } from '../../types';
 import { TrainerSection } from '../profile-sections/TrainerSection';
 
-export interface OnboardingTrainerStageBodyProps {
+interface OnboardingTrainerStageBodyProps {
   profile: GameProfile;
   profileName: string;
   launchMethod: ResolvedLaunchMethod;

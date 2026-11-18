@@ -3,14 +3,14 @@ import { launchOptimizationsAutosaveDelayMs } from '@/hooks/profile/constants';
 import type { PersistProfileDraft } from '@/hooks/profile/useProfileCrud';
 import type { GameProfile } from '@/types/profile';
 
-export interface UseHeroLaunchHooksAutosaveOptions {
+interface UseHeroLaunchHooksAutosaveOptions {
   hasSavedSelectedProfile: boolean;
   profile: GameProfile;
   profileName: string;
   persistProfileDraft: PersistProfileDraft;
 }
 
-export interface HeroLaunchHooksAutosave {
+interface HeroLaunchHooksAutosave {
   scheduleHookAutosave: (nextProfile: GameProfile) => void;
 }
 

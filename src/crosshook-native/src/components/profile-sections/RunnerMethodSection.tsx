@@ -2,7 +2,7 @@ import type { GameProfile } from '../../types';
 import { DashboardPanelSection } from '../layout/DashboardPanelSection';
 import { ThemedSelectField } from '../ui/ThemedSelectField';
 
-export interface RunnerMethodSectionProps {
+interface RunnerMethodSectionProps {
   profile: GameProfile;
   onUpdateProfile: (updater: (current: GameProfile) => GameProfile) => void;
   reviewMode?: boolean;

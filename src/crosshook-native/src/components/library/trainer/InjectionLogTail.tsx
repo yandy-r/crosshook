@@ -10,7 +10,7 @@ interface InjectionLogRow {
   event: InjectionLogEvent;
 }
 
-export interface InjectionLogTailProps {
+interface InjectionLogTailProps {
   profileName?: string;
   sessionId?: string;
   sessionKind?: InjectionLogEvent['session_kind'];

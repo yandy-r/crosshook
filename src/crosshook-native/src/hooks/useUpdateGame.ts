@@ -8,12 +8,12 @@ import { normalizeSerializedGameProfile } from '../types/profile';
 import type { UpdateGameValidationError } from '../types/update';
 
 /** Steam / custom art used to show cover hero after a profile is loaded for update. */
-export interface UpdateGameProfileCoverSource {
+interface UpdateGameProfileCoverSource {
   steamAppId: string | undefined;
   customCoverArtPath: string;
 }
 
-export interface UseUpdateGameResult {
+interface UseUpdateGameResult {
   request: UpdateGameRequest;
   validation: UpdateGameValidationState;
   stage: UpdateGameStage;

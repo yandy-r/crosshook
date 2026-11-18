@@ -1,6 +1,6 @@
 import type { Capability, HostToolCheckResult } from '../../types/onboarding';
 
-export interface HostToolMetricsHeroProps {
+interface HostToolMetricsHeroProps {
   toolChecks: HostToolCheckResult[];
   capabilities: Capability[];
   loading: boolean;

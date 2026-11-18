@@ -1,4 +1,4 @@
-export interface DiscoveryEmptyStateProps {
+interface DiscoveryEmptyStateProps {
   variant: 'no-taps' | 'no-matches';
   onNavigateToBrowse?: () => void;
 }

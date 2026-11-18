@@ -3,11 +3,11 @@ import { callCommand } from '@/lib/ipc';
 
 import type { ProtonInstallOption } from '../types/proton';
 
-export interface UseProtonInstallsOptions {
+interface UseProtonInstallsOptions {
   steamClientInstallPath?: string;
 }
 
-export interface UseProtonInstallsResult {
+interface UseProtonInstallsResult {
   installs: ProtonInstallOption[];
   error: string | null;
   reload: () => void;

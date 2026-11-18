@@ -1,6 +1,6 @@
 import type { OfflineReadinessReport } from '../types/offline';
 
-export type OfflineStatusBadgeProps = {
+type OfflineStatusBadgeProps = {
   report?: OfflineReadinessReport | null;
   loading?: boolean;
   /** When no full report, pass score/readiness for dashboard cached rows. */

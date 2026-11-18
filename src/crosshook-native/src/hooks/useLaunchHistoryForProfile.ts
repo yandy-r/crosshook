@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 import type { LaunchHistoryEntry } from '@/types/library';
 
-export interface UseLaunchHistoryForProfileResult {
+interface UseLaunchHistoryForProfileResult {
   rows: LaunchHistoryEntry[] | null;
   error: string | null;
 }

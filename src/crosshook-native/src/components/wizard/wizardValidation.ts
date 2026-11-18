@@ -19,7 +19,7 @@ export interface WizardValidationResult {
   firstMissingId: string | null;
 }
 
-export interface EvaluateWizardRequiredFieldsArgs {
+interface EvaluateWizardRequiredFieldsArgs {
   profileName: string;
   profile: GameProfile;
   launchMethod: ResolvedLaunchMethod;

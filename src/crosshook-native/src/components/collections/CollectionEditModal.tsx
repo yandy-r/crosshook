@@ -3,9 +3,9 @@ import { createPortal } from 'react-dom';
 
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 
-export type CollectionEditMode = 'create' | 'edit';
+type CollectionEditMode = 'create' | 'edit';
 
-export interface CollectionEditModalProps {
+interface CollectionEditModalProps {
   open: boolean;
   mode: CollectionEditMode;
   initialName?: string;

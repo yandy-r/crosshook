@@ -7,7 +7,7 @@ import { nextGameDetailsRequestId, useGameDetailsRequestCounter } from './useGam
 
 export type GameDetailsProfileLoadState = 'idle' | 'loading' | 'ready' | 'error';
 
-export interface UseGameDetailsProfileResult {
+interface UseGameDetailsProfileResult {
   loadState: GameDetailsProfileLoadState;
   profile: GameProfile | null;
   errorMessage: string | null;

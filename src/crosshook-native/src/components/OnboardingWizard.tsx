@@ -16,7 +16,7 @@ import { applyCreateSeed, type ProfileCreateSeed } from './wizard/profileCreateS
 import { getTotalVisibleSteps, getVisibleStepNumber, STAGE_TITLES } from './wizard/wizardSteps';
 import { evaluateWizardRequiredFields } from './wizard/wizardValidation';
 
-export interface OnboardingWizardProps {
+interface OnboardingWizardProps {
   open: boolean;
   mode?: 'create' | 'edit';
   createSeed?: ProfileCreateSeed;

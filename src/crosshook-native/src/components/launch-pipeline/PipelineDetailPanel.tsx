@@ -6,7 +6,7 @@ import { EnvBreakdown } from './EnvBreakdown';
 import { WrapperChain } from './WrapperChain';
 import '../../styles/launch-pipeline-detail.css';
 
-export interface PipelineDetailPanelProps {
+interface PipelineDetailPanelProps {
   preview: LaunchPreview | null;
 }
 

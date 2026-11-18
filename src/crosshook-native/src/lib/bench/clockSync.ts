@@ -3,7 +3,7 @@ import { callCommand } from '@/lib/ipc';
 /** Minimum number of `bench_clock` samples the runner correlates against its own monotonic clock. */
 export const CLOCK_SYNC_SAMPLES = 20;
 /** A gap between consecutive samples at or below this is a fast round trip. */
-export const CLOCK_SYNC_FAST_GAP_MS = 2;
+const CLOCK_SYNC_FAST_GAP_MS = 2;
 /** Fast round trips wanted before sampling stops. */
 export const CLOCK_SYNC_FAST_PAIRS = 20;
 /** Hard caps: sampling stops after this many samples or this long, fast or not. */

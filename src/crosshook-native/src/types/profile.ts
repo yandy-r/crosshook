@@ -6,21 +6,6 @@ import type { UmuPreference } from './settings';
 
 export type { HookStage, LaunchHook } from './generated/launch_hooks';
 
-export interface ProfileData {
-  GamePath: string;
-  TrainerPath: string;
-  Dll1Path: string;
-  Dll2Path: string;
-  LaunchInject1: boolean;
-  LaunchInject2: boolean;
-  LaunchMethod: string;
-  UseSteamMode: boolean;
-  SteamAppId: string;
-  SteamCompatDataPath: string;
-  SteamProtonPath: string;
-  SteamLauncherIconPath: string;
-}
-
 export type LaunchMethod = '' | 'steam_applaunch' | 'proton_run' | 'native';
 
 export type GamescopeFilter = 'fsr' | 'nis' | 'linear' | 'nearest' | 'pixel';
@@ -214,14 +199,14 @@ export interface GameProfile {
   post_exit_hooks?: LaunchHook[];
 }
 
-export interface SerializedLocalOverrideSection {
+interface SerializedLocalOverrideSection {
   game?: Partial<NonNullable<GameProfile['local_override']>['game']>;
   trainer?: Partial<NonNullable<GameProfile['local_override']>['trainer']>;
   steam?: Partial<NonNullable<GameProfile['local_override']>['steam']>;
   runtime?: Partial<NonNullable<GameProfile['local_override']>['runtime']>;
 }
 
-export interface SerializedInjectionSection extends Partial<Omit<InjectionSection, 'loaded_hooks'>> {
+interface SerializedInjectionSection extends Partial<Omit<InjectionSection, 'loaded_hooks'>> {
   loaded_hooks?: Array<Partial<LoadedDllHook>>;
 }
 

@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 
-export interface UseSetTrainerVersionResult {
+interface UseSetTrainerVersionResult {
   setting: boolean;
   error: string | null;
   success: boolean;

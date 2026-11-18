@@ -2,13 +2,13 @@ import type { LaunchValidationIssue, PipelineNodeId } from '../types/launch';
 
 export type { PipelineNodeId } from '../types/launch';
 
-export const SEVERITY_RANK: Record<LaunchValidationIssue['severity'], number> = {
+const SEVERITY_RANK: Record<LaunchValidationIssue['severity'], number> = {
   fatal: 0,
   warning: 1,
   info: 2,
 };
 
-export function sortIssuesBySeverity(issues: LaunchValidationIssue[]): LaunchValidationIssue[] {
+function sortIssuesBySeverity(issues: LaunchValidationIssue[]): LaunchValidationIssue[] {
   return [...issues].sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]);
 }
 

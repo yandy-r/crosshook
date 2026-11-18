@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { HookStage, LaunchHook } from '@/types/profile';
 import { SettingsIcon } from '../icons/SidebarIcons';
 
-export interface HookListPanelProps {
+interface HookListPanelProps {
   hooks: LaunchHook[];
   stage: HookStage;
   onUpdate: (hooks: LaunchHook[]) => void;

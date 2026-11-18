@@ -4,7 +4,7 @@ import type { BreakpointSize } from '@/hooks/useBreakpoint';
 
 export type { LibraryShellMode };
 
-export interface ContextRailLayout {
+interface ContextRailLayout {
   visible: boolean;
   width: number;
 }
@@ -12,7 +12,7 @@ export interface ContextRailLayout {
 /**
  * Rail width when visible (fourth pane beside inspector).
  */
-export const CONTEXT_RAIL_WIDTH_PX = 300;
+const CONTEXT_RAIL_WIDTH_PX = 300;
 
 /**
  * Ultrawide viewport gate for the context rail (product acceptance: 3440×1440 shows,

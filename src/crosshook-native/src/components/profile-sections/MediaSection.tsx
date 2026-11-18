@@ -6,7 +6,7 @@ import { resolveArtAppId } from '../../utils/art';
 import { chooseFile } from '../../utils/dialog';
 import { FieldRow } from '../ProfileFormSections';
 
-export interface MediaSectionProps {
+interface MediaSectionProps {
   profile: GameProfile;
   onUpdateProfile: (updater: (current: GameProfile) => GameProfile) => void;
   launchMethod: LaunchMethod;

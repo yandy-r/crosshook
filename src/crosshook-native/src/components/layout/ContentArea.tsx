@@ -14,7 +14,7 @@ import SettingsPage from '../pages/SettingsPage';
 import type { AppRoute } from './Sidebar';
 import { MAIN_CONTENT_ID } from './SkipToContentLink';
 
-export interface ContentAreaProps {
+interface ContentAreaProps {
   route: AppRoute;
   onNavigate?: (route: AppRoute, options?: AppNavigateOptions) => void;
   libraryFilterIntent?: LibraryFilterIntent | null;

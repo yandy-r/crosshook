@@ -10,7 +10,7 @@ import { areLaunchOptimizationIdsEqual } from './launchOptimizationIds';
 import { buildLaunchOptimizationsStatus } from './launchOptimizationStatus';
 import { normalizeCommandArgumentsForSave } from './profileNormalize';
 
-export function buildCommandArgumentsStatus(
+function buildCommandArgumentsStatus(
   method: ResolvedLaunchMethod,
   hasExistingSavedProfile: boolean
 ): LaunchAutoSaveStatus {

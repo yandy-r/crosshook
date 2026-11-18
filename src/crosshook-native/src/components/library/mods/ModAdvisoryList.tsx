@@ -1,6 +1,6 @@
 import type { LaunchValidationIssue } from '@/types/launch';
 
-export interface ModAdvisoryListProps {
+interface ModAdvisoryListProps {
   advisories: LaunchValidationIssue[] | null;
   hasEnabledMods: boolean;
 }

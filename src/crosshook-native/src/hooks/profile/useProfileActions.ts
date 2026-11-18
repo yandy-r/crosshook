@@ -31,7 +31,7 @@ import { useProfileNotifications } from './useProfileNotifications';
 // Types
 // ---------------------------------------------------------------------------
 
-export interface UseProfileActionsOptions {
+interface UseProfileActionsOptions {
   /**
    * Setter for the launcher re-export pending flag.  Owned by the caller (page
    * or parent hook) because it may also be set by external rename events.

@@ -16,11 +16,11 @@ import type {
 import { useProtonInstalls } from './useProtonInstalls';
 import { useProtonUp } from './useProtonUp';
 
-export interface UseProtonManagerOptions {
+interface UseProtonManagerOptions {
   steamClientInstallPath?: string;
 }
 
-export interface UseProtonManagerResult {
+interface UseProtonManagerResult {
   providers: ProtonUpProviderDescriptor[];
   roots: InstallRootDescriptor[];
   defaultRoot: InstallRootDescriptor | null;

@@ -73,7 +73,6 @@ vi.mock('@/components/library/launch/HeroLaunchCommandSection', () => ({
     previewLoading: boolean;
     previewError: string | null;
     resolvedProfileName: string;
-    isLaunching: boolean;
   }) => {
     capturedOnBeforeLaunch = props.onBeforeLaunch;
     _capturedOnLaunchGame = props.onLaunchGame;
@@ -226,7 +225,6 @@ function renderGate(
       hasSavedSelectedProfile={true}
       profileMismatch={false}
       displayProfileName="Synthetic Quest"
-      isLaunching={false}
       {...props}
     />
   );
@@ -292,7 +290,6 @@ describe('HeroLaunchGate', () => {
         hasSavedSelectedProfile={true}
         profileMismatch={false}
         displayProfileName="Synthetic Quest"
-        isLaunching={false}
       />
     );
     expect(screen.getByTestId('launch-feedback')).toBeInTheDocument();
@@ -337,7 +334,6 @@ describe('HeroLaunchGate', () => {
         hasSavedSelectedProfile={true}
         profileMismatch={false}
         displayProfileName="Synthetic Quest"
-        isLaunching={false}
       />
     );
 
@@ -381,7 +377,6 @@ describe('HeroLaunchGate', () => {
         hasSavedSelectedProfile={true}
         profileMismatch={false}
         displayProfileName="Synthetic Quest"
-        isLaunching={false}
       />
     );
 
@@ -416,7 +411,6 @@ describe('HeroLaunchGate', () => {
         hasSavedSelectedProfile={true}
         profileMismatch={false}
         displayProfileName="Synthetic Quest"
-        isLaunching={false}
       />
     );
 
@@ -480,7 +474,6 @@ describe('HeroLaunchGate', () => {
         hasSavedSelectedProfile={true}
         profileMismatch={false}
         displayProfileName="Synthetic Quest"
-        isLaunching={false}
       />
     );
 
@@ -520,7 +513,6 @@ describe('HeroLaunchGate', () => {
         hasSavedSelectedProfile={false}
         profileMismatch={false}
         displayProfileName="Synthetic Quest"
-        isLaunching={false}
       />
     );
 
@@ -559,7 +551,6 @@ describe('HeroLaunchGate', () => {
         hasSavedSelectedProfile={true}
         profileMismatch={false}
         displayProfileName="Synthetic Quest"
-        isLaunching={false}
       />
     );
 
@@ -593,7 +584,6 @@ describe('HeroLaunchGate', () => {
         hasSavedSelectedProfile={false}
         profileMismatch={false}
         displayProfileName="Synthetic Quest"
-        isLaunching={false}
       />
     );
 
@@ -631,7 +621,6 @@ describe('HeroLaunchGate', () => {
         hasSavedSelectedProfile={true}
         profileMismatch={false}
         displayProfileName="Synthetic Quest"
-        isLaunching={false}
       />
     );
 

@@ -6,7 +6,7 @@ import type { MangoHudConfig, MangoHudPosition } from '../types/profile';
 import { CollapsibleSection } from './ui/CollapsibleSection';
 import { ThemedSelect } from './ui/ThemedSelect';
 
-export interface MangoHudConfigPanelProps {
+interface MangoHudConfigPanelProps {
   config: MangoHudConfig;
   onChange: (config: MangoHudConfig) => void;
   disabled?: boolean;

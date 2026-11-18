@@ -9,7 +9,7 @@ import '../styles/preview.css';
 
 /* ───────── MigrationReviewModal ───────── */
 
-export interface MigrationReviewModalProps {
+interface MigrationReviewModalProps {
   scanResult: MigrationScanResult;
   onClose: () => void;
   onApply: (requests: ApplyMigrationRequest[]) => void;

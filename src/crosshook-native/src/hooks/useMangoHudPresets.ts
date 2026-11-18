@@ -15,7 +15,7 @@ export interface MangoHudPreset {
   position?: string;
 }
 
-export interface UseMangoHudPresetsResult {
+interface UseMangoHudPresetsResult {
   presets: MangoHudPreset[];
   loading: boolean;
   error: string | null;

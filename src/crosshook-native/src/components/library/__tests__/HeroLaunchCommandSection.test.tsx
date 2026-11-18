@@ -99,7 +99,6 @@ function renderCommandSection(props: Partial<React.ComponentProps<typeof HeroLau
       preview={makeLaunchPreview()}
       previewError={null}
       resolvedProfileName="Synthetic Quest"
-      isLaunching={false}
       {...props}
     />
   );
@@ -294,33 +293,6 @@ describe('HeroLaunchCommandSection', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent('Failed to copy command.');
     });
-    expect(consoleErrorSpy).not.toHaveBeenCalled();
-  });
-
-  // ── Legacy launch button ─────────────────────────────────────────────────────
-
-  it('renders a single "Launch" button in legacy mode (onLaunch prop)', () => {
-    renderCommandSection({ onLaunch: vi.fn() });
-    expect(screen.getByRole('button', { name: 'Launch' })).toBeInTheDocument();
-    // In-place buttons should not be present.
-    expect(screen.queryByRole('button', { name: /Launch Game/i })).not.toBeInTheDocument();
-    expect(consoleErrorSpy).not.toHaveBeenCalled();
-  });
-
-  it('legacy Launch button calls onLaunch with resolvedProfileName when clicked', async () => {
-    const user = userEvent.setup();
-    const onLaunch = vi.fn();
-    renderCommandSection({ onLaunch, resolvedProfileName: 'My Profile' });
-
-    await user.click(screen.getByRole('button', { name: 'Launch' }));
-    expect(onLaunch).toHaveBeenCalledWith('My Profile');
-    expect(consoleErrorSpy).not.toHaveBeenCalled();
-  });
-
-  it('legacy Launch button shows "Launching..." and is disabled when isLaunching=true', () => {
-    renderCommandSection({ onLaunch: vi.fn(), isLaunching: true });
-    const btn = screen.getByRole('button', { name: 'Launching...' });
-    expect(btn).toBeDisabled();
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 

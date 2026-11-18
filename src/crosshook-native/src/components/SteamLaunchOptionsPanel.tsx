@@ -7,7 +7,7 @@ import type { LaunchOptimizationId } from '../types/launch-optimizations';
 import type { GamescopeConfig } from '../types/profile';
 import { copyToClipboard } from '../utils/clipboard';
 
-export interface SteamLaunchOptionsPanelProps {
+interface SteamLaunchOptionsPanelProps {
   enabledOptionIds: readonly LaunchOptimizationId[];
   /** Profile `launch.custom_env_vars` — merged into the Steam launch options prefix after optimizations. */
   customEnvVars?: Readonly<Record<string, string>>;

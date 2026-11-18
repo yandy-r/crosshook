@@ -23,12 +23,12 @@ import {
   isCommandPaletteCommandEnabled,
 } from '@/lib/commands';
 
-export type CommandPaletteItem = CommandPaletteCommand & {
+type CommandPaletteItem = CommandPaletteCommand & {
   hint?: string;
   icon?: CommandPaletteIconId;
 };
 
-export interface CommandPaletteProps {
+interface CommandPaletteProps {
   open: boolean;
   query: string;
   commands: readonly CommandPaletteItem[];

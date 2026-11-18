@@ -13,7 +13,7 @@ export function isSafe(s: MigrationSuggestion): boolean {
   return !s.crosses_major_version && s.confidence >= 0.75;
 }
 
-export interface ConfidenceInfo {
+interface ConfidenceInfo {
   text: string;
   color: string;
 }

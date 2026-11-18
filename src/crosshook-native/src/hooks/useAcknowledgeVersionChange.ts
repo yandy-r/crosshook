@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 
-export type AcknowledgeVersionChangeOutcome =
+type AcknowledgeVersionChangeOutcome =
   | { ok: true }
   | { ok: false; reason: 'busy' }
   | { ok: false; stage: 'acknowledge'; error: unknown }

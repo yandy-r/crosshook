@@ -4,7 +4,7 @@ import type { CapabilityState } from '../types/onboarding';
 import type { PrefixDependencyStatus, PrefixVersionRepairStatus } from '../types/prefix-deps';
 import { useCapabilityGate } from './useCapabilityGate';
 
-export interface UseLaunchPrefixDependencyGateResult {
+interface UseLaunchPrefixDependencyGateResult {
   getDependencyStatus: (profileName: string, prefixPath: string) => Promise<PrefixDependencyStatus[]>;
   getPrefixVersionRepairStatus: (profileName: string, prefixPath: string) => Promise<PrefixVersionRepairStatus>;
   installPrefixDependency: (profileName: string, prefixPath: string, packages: string[]) => Promise<void>;

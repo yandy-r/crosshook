@@ -10,7 +10,7 @@ import type { ProfileCreateSeed } from '../../wizard/profileCreateSeed';
 
 const NUMERIC_APP_ID_RE = /^\d{1,12}$/;
 
-export interface HeroProfileCardListProps {
+interface HeroProfileCardListProps {
   cards: ProfileSummary[];
   summary: LibraryCardData;
   selectedTrimmed: string;

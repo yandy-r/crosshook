@@ -23,7 +23,7 @@ const RESERVED_CUSTOM_ENV_KEYS = new Set([
 const BLOCKED_ENV_KEY_PREFIXES = ['STEAM_COMPAT_', 'LD_'];
 
 /** Check whether an env key is reserved (exact match or prefix match). */
-export function isReservedEnvKey(key: string): boolean {
+function isReservedEnvKey(key: string): boolean {
   const normalized = key.trim().toUpperCase();
   return RESERVED_CUSTOM_ENV_KEYS.has(normalized) || BLOCKED_ENV_KEY_PREFIXES.some((p) => normalized.startsWith(p));
 }
@@ -107,7 +107,7 @@ function customEnvRowsHaveErrors(rows: CustomEnvVarRow[]): boolean {
   return rows.some((row) => customEnvRowError(row, duplicateIds) !== null);
 }
 
-export interface CustomEnvironmentVariablesSectionProps {
+interface CustomEnvironmentVariablesSectionProps {
   profileName: string;
   customEnvVars: Record<string, string>;
   onUpdateProfile: (updater: (current: GameProfile) => GameProfile) => void;

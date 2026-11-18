@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ProfileModRecord } from '@/types/mods';
 import { isHttpUrl, MOD_CATEGORY_LABELS, summarizeModPaths } from './mods-model';
 
-export interface ModListItemProps {
+interface ModListItemProps {
   mod: ProfileModRecord;
   editing: boolean;
   onToggle: (mod: ProfileModRecord) => void;

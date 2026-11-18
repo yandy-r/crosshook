@@ -8,7 +8,7 @@ import { InfoTooltip } from '../ui/InfoTooltip';
 
 type CopyTarget = 'command' | 'path' | null;
 
-export interface HostToolCardProps {
+interface HostToolCardProps {
   tool: HostToolCheckResult;
   className?: string;
   isProbingDetails?: boolean;

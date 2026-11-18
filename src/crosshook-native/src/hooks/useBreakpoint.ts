@@ -1,7 +1,7 @@
 import { type RefObject, useCallback, useLayoutEffect, useRef, useState } from 'react';
 
 /** Pixel thresholds: uw ≥ 2200 · desk ≥ 1440 · narrow ≥ 1100 · deck &lt; 1100 */
-export const BREAKPOINTS = { narrow: 1100, desk: 1440, uw: 2200 } as const;
+const BREAKPOINTS = { narrow: 1100, desk: 1440, uw: 2200 } as const;
 
 export type BreakpointSize = 'uw' | 'desk' | 'narrow' | 'deck';
 

@@ -24,7 +24,7 @@ import { CollapsibleSection } from '../../ui/CollapsibleSection';
 
 // ── Health section ────────────────────────────────────────────────────────────
 
-export interface HeroProfileEditorHealthSectionProps {
+interface HeroProfileEditorHealthSectionProps {
   /** Populated when the selected profile has a live health report. */
   selectedReport?: EnrichedProfileHealthReport;
   /** Populated when only a cached snapshot is available (no live report). */
@@ -205,7 +205,7 @@ export function HeroProfileEditorHealthSection({
 
 // ── Runtime suggestion banner ─────────────────────────────────────────────────
 
-export interface HeroProfileEditorSuggestionBannerProps {
+interface HeroProfileEditorSuggestionBannerProps {
   /** Community Proton version suggestion (from useProfilesPageProton). */
   suggestion: ProtonUpSuggestion | null;
   suggestionDismissed: boolean;

@@ -4,7 +4,7 @@ import type { BundledOptimizationPreset } from '../../types';
 import { BUNDLED_PRESET_KEY_PREFIX, bundledOptimizationTomlKey } from '../../utils/launchOptimizationPresets';
 import { type SelectOptionGroup, ThemedSelect } from '../ui/ThemedSelect';
 
-export interface WizardPresetPickerProps {
+interface WizardPresetPickerProps {
   bundledPresets: readonly BundledOptimizationPreset[];
   savedPresetNames: readonly string[];
   activePresetKey: string;

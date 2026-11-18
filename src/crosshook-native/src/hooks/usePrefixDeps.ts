@@ -14,7 +14,7 @@ const NO_REPAIR_REQUIRED: PrefixVersionRepairStatus = {
 /** Re-poll interval of the repair status while another job holds the prefix. */
 export const PREFIX_BUSY_POLL_MS = 2000;
 
-export interface UsePrefixDepsResult {
+interface UsePrefixDepsResult {
   deps: PrefixDependencyStatus[];
   repairStatus: PrefixVersionRepairStatus;
   repairStatusKnown: boolean;

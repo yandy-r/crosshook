@@ -23,7 +23,7 @@ function checkIcon(severity: HealthIssue['severity']): string {
   }
 }
 
-export type OfflineReadinessPanelProps = {
+type OfflineReadinessPanelProps = {
   report: OfflineReadinessReport | null;
   error?: string | null;
   loading?: boolean;
