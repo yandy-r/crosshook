@@ -6,7 +6,7 @@ import { CollapsibleSection } from './ui/CollapsibleSection';
 import { InfoTooltip } from './ui/InfoTooltip';
 import { ThemedSelect } from './ui/ThemedSelect';
 
-export interface GamescopeConfigPanelProps {
+interface GamescopeConfigPanelProps {
   config: GamescopeConfig;
   onChange: (config: GamescopeConfig) => void;
   isInsideGamescopeSession: boolean;

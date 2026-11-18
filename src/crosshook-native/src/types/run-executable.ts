@@ -70,7 +70,7 @@ export function isRunExecutableCompletePayload(value: unknown): value is RunExec
  * `variant` field of a `RunCommandError` payload returned by a Tauri
  * command, so changes here must move in lock-step with the Rust enum.
  */
-export type RunExecutableValidationVariant =
+type RunExecutableValidationVariant =
   | 'executable_path_required'
   | 'executable_path_not_absolute'
   | 'executable_path_missing'

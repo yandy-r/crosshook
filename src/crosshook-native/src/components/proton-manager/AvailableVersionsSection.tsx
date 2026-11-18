@@ -1,7 +1,7 @@
 import type { ProtonUpAvailableVersion, ProtonUpProviderDescriptor } from '../../types/protonup';
 import { VersionRow } from './VersionRow';
 
-export interface AvailableVersionsSectionProps {
+interface AvailableVersionsSectionProps {
   versions: ProtonUpAvailableVersion[];
   providersById: ReadonlyMap<string, ProtonUpProviderDescriptor>;
   installingKeys: ReadonlySet<string>;

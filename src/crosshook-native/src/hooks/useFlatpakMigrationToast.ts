@@ -4,7 +4,7 @@ import { claimStartupAction, fetchStartupReport } from '@/lib/startupReport';
 // sessionStorage: resets on window restart so the toast re-surfaces until the user explicitly dismisses it.
 export const FLATPAK_MIGRATION_TOAST_SESSION_KEY = 'crosshook.flatpak.migration.toastShown';
 
-export interface UseFlatpakMigrationToastResult {
+interface UseFlatpakMigrationToastResult {
   /** Number of items imported; null means no toast should be shown. */
   importCount: number | null;
   dismiss: () => void;

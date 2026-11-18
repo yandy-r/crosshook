@@ -6,7 +6,7 @@ import { WizardPresetPicker } from '../wizard/WizardPresetPicker';
 import { WizardReviewSummary } from '../wizard/WizardReviewSummary';
 import type { WizardValidationResult } from '../wizard/wizardValidation';
 
-export interface OnboardingReviewStageBodyProps {
+interface OnboardingReviewStageBodyProps {
   profile: GameProfile;
   profileName: string;
   mode: 'create' | 'edit';

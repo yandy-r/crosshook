@@ -5,7 +5,7 @@ import { HostToolsReadinessSection } from '../ReadinessChecklist';
 import { resolveCheckColor, resolveCheckIcon } from './checkBadges';
 import type { WizardValidationResult } from './wizardValidation';
 
-export interface WizardReviewSummaryProps {
+interface WizardReviewSummaryProps {
   validation: WizardValidationResult;
   readinessResult: ReadinessCheckResult | null;
   checkError: string | null;

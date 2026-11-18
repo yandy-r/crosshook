@@ -2,7 +2,7 @@ import type { GameProfile, ProtonInstallOption, ResolvedLaunchMethod } from '../
 import { HostToolDashboardHandoff } from '../host-readiness/HostToolDashboardHandoff';
 import { RuntimeSection } from '../profile-sections/RuntimeSection';
 
-export interface OnboardingRuntimeStageBodyProps {
+interface OnboardingRuntimeStageBodyProps {
   profile: GameProfile;
   launchMethod: ResolvedLaunchMethod;
   protonInstalls: ProtonInstallOption[];

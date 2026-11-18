@@ -9,7 +9,7 @@ import { InstallField } from './ui/InstallField';
 import { ProtonPathField } from './ui/ProtonPathField';
 import { ThemedSelect } from './ui/ThemedSelect';
 
-export interface UpdateGamePanelProps {
+interface UpdateGamePanelProps {
   protonInstalls: ProtonInstallOption[];
   protonInstallsError: string | null;
 }

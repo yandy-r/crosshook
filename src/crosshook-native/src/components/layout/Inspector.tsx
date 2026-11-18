@@ -3,7 +3,7 @@ import React from 'react';
 import { type InspectorBodyProps, ROUTE_METADATA } from './routeMetadata';
 import type { AppRoute } from './Sidebar';
 
-export type InspectorProps = InspectorBodyProps & {
+type InspectorProps = InspectorBodyProps & {
   route: AppRoute;
   width: number;
 };

@@ -2,7 +2,7 @@ import type { EnvVarSource, LaunchPreview, PreviewWrapperSource, UmuDecisionPrev
 import { lastPathSegment } from './derivePipelineNodes';
 import { envSourceLabel, umuGameIdResolutionSourceLabel } from './launchPreviewPresentation';
 
-export interface EnvGroupVar {
+interface EnvGroupVar {
   key: string;
   /** null for the cleared group. */
   value: string | null;
@@ -15,7 +15,7 @@ export interface EnvGroup {
   cleared: boolean;
 }
 
-export type WrapperChainItemKind = 'isolation' | 'optimization' | 'gamescope' | 'runtime';
+type WrapperChainItemKind = 'isolation' | 'optimization' | 'gamescope' | 'runtime';
 
 export interface WrapperChainItem {
   /** Stable key: `${kind}-${index}` for detail rows, 'runtime-umu' / 'runtime-proton'. */

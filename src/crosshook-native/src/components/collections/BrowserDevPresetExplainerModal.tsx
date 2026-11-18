@@ -5,9 +5,9 @@ import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 import './BrowserDevPresetExplainerModal.css';
 
-export type BrowserDevPresetExplainerMode = 'import' | 'export';
+type BrowserDevPresetExplainerMode = 'import' | 'export';
 
-export interface BrowserDevPresetExplainerModalProps {
+interface BrowserDevPresetExplainerModalProps {
   mode: BrowserDevPresetExplainerMode;
   open: boolean;
   onClose: () => void;

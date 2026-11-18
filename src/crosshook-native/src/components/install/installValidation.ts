@@ -2,7 +2,7 @@ import type { GameProfile } from '../../types';
 import type { ResolvedLaunchMethod } from '../../utils/launch';
 import { evaluateWizardRequiredFields, type WizardValidationResult } from '../wizard/wizardValidation';
 
-export interface EvaluateInstallRequiredFieldsArgs {
+interface EvaluateInstallRequiredFieldsArgs {
   profileName: string;
   profile: GameProfile;
   launchMethod: ResolvedLaunchMethod;

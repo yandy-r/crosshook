@@ -3,7 +3,7 @@ import { ThemedSelectField } from '@/components/ui/ThemedSelectField';
 import type { ModCategory, ProfileModInput, ProfileModRecord } from '@/types/mods';
 import { isHttpUrl, MOD_CATEGORY_OPTIONS } from './mods-model';
 
-export interface ModFormProps {
+interface ModFormProps {
   initial?: ProfileModRecord;
   gameExecutablePath: string;
   onSubmit: (input: ProfileModInput) => Promise<void>;

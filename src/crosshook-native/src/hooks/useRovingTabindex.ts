@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { isRovingCandidate } from '@/lib/focus-utils';
 
-export interface RovingTabindexOptions {
+interface RovingTabindexOptions {
   /** e.g. '[data-roving-item]' */
   itemSelector: string;
 }

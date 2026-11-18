@@ -16,7 +16,7 @@ import { BrowserDevPresetExplainerModal } from './BrowserDevPresetExplainerModal
 import { CollectionLaunchDefaultsEditor } from './CollectionLaunchDefaultsEditor';
 import './CollectionViewModal.css';
 
-export interface CollectionViewModalProps {
+interface CollectionViewModalProps {
   open: boolean;
   collectionId: string | null;
   onClose: () => void;

@@ -7,7 +7,7 @@ import type { CardTrend, SortDirection, SortField, StatusFilter } from './consta
 import { STATUS_RANK, VERSION_STATUS_RANK } from './constants';
 import { categorizeIssue, offlineSortScore } from './utils';
 
-export interface HealthDashboardStateReturn {
+interface HealthDashboardStateReturn {
   sortField: SortField;
   sortDirection: SortDirection;
   statusFilter: StatusFilter;

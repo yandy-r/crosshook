@@ -44,7 +44,7 @@ import { HeroProfileEditorHealthSection, HeroProfileEditorSuggestionBanner } fro
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
-export interface HeroProfileEditorSectionsProps {
+interface HeroProfileEditorSectionsProps {
   // Core props required by the always-active sections
   profile: GameProfile;
   profileName: string;

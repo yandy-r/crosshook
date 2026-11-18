@@ -1,7 +1,7 @@
 import type { GameProfile, ResolvedLaunchMethod } from '../../types';
 import { MediaSection } from '../profile-sections/MediaSection';
 
-export interface OnboardingMediaStageBodyProps {
+interface OnboardingMediaStageBodyProps {
   profile: GameProfile;
   launchMethod: ResolvedLaunchMethod;
   onUpdateProfile: (updater: (current: GameProfile) => GameProfile) => void;

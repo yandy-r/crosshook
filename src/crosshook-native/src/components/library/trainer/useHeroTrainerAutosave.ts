@@ -9,14 +9,14 @@ const idleStatus: LaunchAutoSaveStatus = {
   label: 'Trainer settings saved',
 };
 
-export interface UseHeroTrainerAutosaveOptions {
+interface UseHeroTrainerAutosaveOptions {
   hasSavedSelectedProfile: boolean;
   profile: GameProfile;
   profileName: string;
   persistProfileDraft: PersistProfileDraft;
 }
 
-export interface HeroTrainerAutosave {
+interface HeroTrainerAutosave {
   trainerAutoSaveStatus: LaunchAutoSaveStatus;
   scheduleTrainerAutosave: (nextProfile: GameProfile) => void;
 }

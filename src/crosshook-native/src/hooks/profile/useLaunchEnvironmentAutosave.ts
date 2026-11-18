@@ -10,7 +10,7 @@ interface UseLaunchEnvironmentAutosaveOptions {
   persistProfileDraft: PersistProfileDraft;
 }
 
-export interface LaunchEnvironmentAutosave {
+interface LaunchEnvironmentAutosave {
   handleEnvironmentBlurAutoSave: (
     trigger: 'key' | 'value',
     row: Readonly<{ key: string; value: string }>,

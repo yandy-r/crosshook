@@ -4,7 +4,7 @@ import type { UmuPreference } from '../types/settings';
 
 export type ResolvedLaunchMethod = Exclude<GameProfile['launch']['method'], ''>;
 
-export function looksLikeWindowsExecutable(path: string): boolean {
+function looksLikeWindowsExecutable(path: string): boolean {
   return path.trim().toLowerCase().endsWith('.exe');
 }
 

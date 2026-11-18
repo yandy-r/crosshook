@@ -8,7 +8,7 @@ import { catalogEntryKey, DiscoveryCatalogSection } from './discovery/DiscoveryC
 import { ExternalResultsSection } from './ExternalResultsSection';
 import { DashboardPanelSection } from './layout/DashboardPanelSection';
 
-export interface TrainerDiscoveryPanelProps {
+interface TrainerDiscoveryPanelProps {
   initialQuery?: string;
 }
 

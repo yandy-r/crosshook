@@ -36,7 +36,7 @@ export interface SteamExternalLauncherExportResult {
   desktop_entry_path: string;
 }
 
-export interface UseLauncherExportOptions {
+interface UseLauncherExportOptions {
   request: SteamExternalLauncherExportRequest;
   profile: GameProfile;
   steamClientInstallPath: string;

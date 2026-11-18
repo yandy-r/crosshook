@@ -7,7 +7,7 @@ import { getFocusableElements } from '@/lib/focus-utils';
 // ---------------------------------------------------------------------------
 
 /** Options accepted by {@link useFocusTrap}. */
-export interface UseFocusTrapOptions {
+interface UseFocusTrapOptions {
   /** Whether the trap is active (e.g. a modal is open). */
   open: boolean;
 
@@ -29,7 +29,7 @@ export interface UseFocusTrapOptions {
 }
 
 /** Value returned by {@link useFocusTrap}. */
-export interface UseFocusTrapReturn {
+interface UseFocusTrapReturn {
   /**
    * Keyboard handler that traps Tab focus cycling and handles Escape.
    * Attach as `onKeyDown` on the trap container element.

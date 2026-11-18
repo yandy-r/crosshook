@@ -9,7 +9,7 @@ export function healthTableHtml(label: string, rows: number, detailRows = 0): st
   return `<table aria-label="${label}"><thead><tr><th>Name</th></tr></thead><tbody>${[...body, ...detail].join('')}</tbody></table>`;
 }
 
-export const LIVE_LABEL = 'Profile health status';
+const LIVE_LABEL = 'Profile health status';
 export const CACHED_LABEL = 'Profile health status (cached)';
 
 /** Appends a live table with `rows` profile rows (and optional detail rows) to `host`. */

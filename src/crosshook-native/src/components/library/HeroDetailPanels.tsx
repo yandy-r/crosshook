@@ -41,8 +41,6 @@ export interface HeroDetailPanelsProps {
   profilesScrollTarget?: HeroDetailProfilesScrollTarget | null;
   onProfilesScrollTargetConsumed?: () => void;
   onPreviewLaunch?: (request: LaunchRequest) => void | Promise<void>;
-  onLaunch?: (name: string) => void | Promise<void>;
-  launchingName?: string;
   displayProfileName?: string;
 }
 
@@ -165,8 +163,6 @@ export function HeroDetailPanels({
   profilesScrollTarget,
   onProfilesScrollTargetConsumed,
   onPreviewLaunch,
-  onLaunch,
-  launchingName,
   displayProfileName,
 }: HeroDetailPanelsProps) {
   switch (mode) {
@@ -280,8 +276,6 @@ export function HeroDetailPanels({
           preview={preview}
           previewError={previewError}
           onPreviewLaunch={onPreviewLaunch}
-          onLaunch={onLaunch}
-          launchingName={launchingName}
           displayProfileName={displayProfileName}
         />
       );

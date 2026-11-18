@@ -11,11 +11,11 @@ import {
 
 import type { InspectorBodyProps, SelectedGame } from '@/components/layout/routeMetadata';
 
-export type LibraryInspectorHandlers = Pick<InspectorBodyProps, 'onLaunch' | 'onEditProfile' | 'onToggleFavorite'>;
+type LibraryInspectorHandlers = Pick<InspectorBodyProps, 'onLaunch' | 'onEditProfile' | 'onToggleFavorite'>;
 
 export type LibraryShellMode = 'library' | 'detail';
 
-export type InspectorSelectionContextValue = {
+type InspectorSelectionContextValue = {
   inspectorSelection: SelectedGame | undefined;
   setInspectorSelection: Dispatch<SetStateAction<SelectedGame | undefined>>;
   libraryInspectorHandlers: LibraryInspectorHandlers | undefined;

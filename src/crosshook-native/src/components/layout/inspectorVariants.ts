@@ -1,6 +1,6 @@
 import type { BreakpointSize } from '@/hooks/useBreakpoint';
 
-export const INSPECTOR_WIDTHS: Record<BreakpointSize, number> = {
+const INSPECTOR_WIDTHS: Record<BreakpointSize, number> = {
   uw: 360,
   desk: 320,
   narrow: 280,

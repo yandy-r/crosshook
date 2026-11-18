@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { callCommand } from '@/lib/ipc';
 
-export interface UseCollectionMembersResult {
+interface UseCollectionMembersResult {
   memberNames: string[];
   /** Collection id these members were fetched for; null when none or before a fetch completes. */
   membersForCollectionId: string | null;

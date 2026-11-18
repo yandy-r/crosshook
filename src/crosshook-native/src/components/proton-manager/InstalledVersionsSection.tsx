@@ -1,14 +1,14 @@
 import type { ProtonInstallOption } from '../../types/proton';
 import { VersionRow } from './VersionRow';
 
-export interface InstalledVersionEntry {
+interface InstalledVersionEntry {
   install: ProtonInstallOption;
   rowProvider: string;
   publishedAt: string | null;
   assetSize: number | null;
 }
 
-export interface InstalledVersionsSectionProps {
+interface InstalledVersionsSectionProps {
   installs: InstalledVersionEntry[];
   onUninstall: (toolPath: string, versionLabel: string) => void;
 }

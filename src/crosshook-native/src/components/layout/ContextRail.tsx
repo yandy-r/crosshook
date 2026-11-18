@@ -35,7 +35,7 @@ function launchStatusLabel(status: string): string {
 }
 
 /** Buckets [oldest … newest] for the last 7 local calendar days (today = index 6). */
-export function bucketLaunchesLast7Days(rows: LaunchHistoryEntry[] | null, nowMs: number = Date.now()): number[] {
+function bucketLaunchesLast7Days(rows: LaunchHistoryEntry[] | null, nowMs: number = Date.now()): number[] {
   const out = [0, 0, 0, 0, 0, 0, 0];
   if (!rows?.length) {
     return out;

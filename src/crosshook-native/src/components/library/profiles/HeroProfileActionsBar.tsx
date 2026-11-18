@@ -39,7 +39,7 @@ type HistoryHandlers = Pick<
   'fetchConfigHistory' | 'fetchConfigDiff' | 'rollbackConfig' | 'markKnownGood'
 >;
 
-export interface HeroProfileActionsBarProps {
+interface HeroProfileActionsBarProps {
   /** All action state / handlers from useProfileActions. */
   actions: UseProfileActionsResult;
   /** Current version-correlation status, used to decide Mark as Verified visibility. */

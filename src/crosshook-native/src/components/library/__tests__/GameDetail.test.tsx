@@ -81,8 +81,7 @@ describe('GameDetail', () => {
 
   it('forwards panel-contract channels through panelProps', () => {
     const summary = makeLibraryCardData();
-    const onLaunch = vi.fn();
-    renderGameDetail({ summary, onLaunch, launchingName: summary.name });
+    renderGameDetail({ summary });
     const latestCall = heroDetailTabsSpy.mock.calls[heroDetailTabsSpy.mock.calls.length - 1];
 
     expect(heroDetailTabsSpy).toHaveBeenCalled();
@@ -94,8 +93,6 @@ describe('GameDetail', () => {
           updateProfile: expect.any(Function),
           profileList: expect.any(Array),
           onPreviewLaunch: expect.any(Function),
-          onLaunch,
-          launchingName: summary.name,
           displayProfileName: summary.name,
           onSetActiveTab: expect.any(Function),
         }),

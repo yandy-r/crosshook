@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 
-export interface DebouncedScheduler {
+interface DebouncedScheduler {
   /** Replace any pending callback and run `callback` after the delay. */
   schedule: (callback: () => void) => void;
   /** Drop the pending callback, if any. */

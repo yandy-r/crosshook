@@ -27,7 +27,7 @@ import { HeroLaunchSubTabsHost } from './HeroLaunchSubTabsHost';
 import { LaunchDepGateModal } from './LaunchDepGateModal';
 import { useLaunchDepGate } from './useLaunchDepGate';
 
-export interface HeroLaunchGateProps
+interface HeroLaunchGateProps
   extends Pick<
       HeroLaunchCommandSectionProps,
       'launchRequest' | 'previewLoading' | 'preview' | 'previewError' | 'onPreviewLaunch'
@@ -43,10 +43,6 @@ export interface HeroLaunchGateProps
    * Used to select the profile into ProfileContext before launching.
    */
   displayProfileName: string;
-  /**
-   * Whether the launch gate is in a "launching" state (from the parent).
-   */
-  isLaunching: boolean;
 }
 
 /**
@@ -70,7 +66,6 @@ export function HeroLaunchGate({
   hasSavedSelectedProfile,
   profileMismatch,
   displayProfileName,
-  isLaunching,
 }: HeroLaunchGateProps) {
   const { profile, selectedProfile, profiles, selectProfile, activeCollectionId } = useProfileContext();
   const { settings } = usePreferencesContext();
@@ -199,7 +194,6 @@ export function HeroLaunchGate({
         preview={preview}
         previewError={previewError}
         resolvedProfileName={resolvedProfileName}
-        isLaunching={isLaunching}
         onPreviewLaunch={onPreviewLaunch}
         canLaunchGame={effectiveCanLaunchGame}
         canLaunchTrainer={effectiveCanLaunchTrainer}

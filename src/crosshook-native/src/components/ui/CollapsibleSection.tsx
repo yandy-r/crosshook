@@ -1,6 +1,6 @@
 import { type ReactNode, useCallback, useEffect, useRef } from 'react';
 
-export interface CollapsibleSectionProps {
+interface CollapsibleSectionProps {
   title: string;
   defaultOpen?: boolean;
   open?: boolean;

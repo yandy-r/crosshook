@@ -3,7 +3,7 @@ import { type ReactNode, useId } from 'react';
 import type { SelectOption, SelectOptionGroup } from './ThemedSelect';
 import { ThemedSelect } from './ThemedSelect';
 
-export interface ThemedSelectFieldProps {
+interface ThemedSelectFieldProps {
   /** Label content rendered inside a `<label>` element. */
   label: ReactNode;
   value: string;

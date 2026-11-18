@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 import type { CollectionDefaults } from '@/types/profile';
 
-export interface UseCollectionDefaultsResult {
+interface UseCollectionDefaultsResult {
   /** Latest fetched defaults; `null` when the collection has none or before a fetch completes. */
   defaults: CollectionDefaults | null;
   /** Collection id these defaults were fetched for; null when none or before a fetch completes. */

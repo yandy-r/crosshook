@@ -265,8 +265,4 @@ export function triggerResize(target: Element, width: number, height: number): v
   }
 }
 
-export function resetMockResizeObserver(): void {
-  MockResizeObserver.reset();
-}
-
 export { MockResizeObserver };

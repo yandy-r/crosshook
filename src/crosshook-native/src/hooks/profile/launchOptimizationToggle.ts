@@ -3,9 +3,7 @@ import { getConflictingLaunchOptimizationIds, type LaunchOptimizationId } from '
 import type { OptimizationEntry } from '../../utils/optimization-catalog';
 import { normalizeLaunchOptimizationIds } from './launchOptimizationIds';
 
-export type ApplyLaunchOptimizationToggleResult =
-  | { ok: true; profile: GameProfile }
-  | { ok: false; conflictLabels: string[] };
+type ApplyLaunchOptimizationToggleResult = { ok: true; profile: GameProfile } | { ok: false; conflictLabels: string[] };
 
 export function applyLaunchOptimizationToggle(
   current: GameProfile,

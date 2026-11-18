@@ -23,10 +23,10 @@ export interface PrefixDependencyStatus {
 export type PrefixVersionRestoreState = 'pending' | 'failed';
 
 /** Outcome of an automatic (startup or pre-install) prefix recovery. */
-export type PrefixRecoveryOutcome = 'restored' | 'failed';
+type PrefixRecoveryOutcome = 'restored' | 'failed';
 
 /** Last automatic recovery of a prefix in this session. */
-export interface PrefixLastRecovery {
+interface PrefixLastRecovery {
   outcome: PrefixRecoveryOutcome;
   /** Sanitized failure detail; null when restored. */
   message: string | null;
@@ -60,7 +60,7 @@ export function isPrefixBusy(status: PrefixVersionRepairStatus): boolean {
  * `pending` means the restore never completed (the installer failed to spawn or
  * the job ended without a result), so the prefix still needs a repair.
  */
-export type PrefixVersionRestoreOutcomeState = 'not_required' | 'succeeded' | 'failed' | 'pending';
+type PrefixVersionRestoreOutcomeState = 'not_required' | 'succeeded' | 'failed' | 'pending';
 
 /** Payload of one `prefix-dep-log` line. */
 export interface PrefixDepLogPayload {

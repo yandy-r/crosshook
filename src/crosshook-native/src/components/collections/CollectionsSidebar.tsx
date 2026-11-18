@@ -9,7 +9,7 @@ import { BrowserDevPresetExplainerModal } from './BrowserDevPresetExplainerModal
 import { CollectionEditModal } from './CollectionEditModal';
 import { CollectionImportReviewModal } from './CollectionImportReviewModal';
 
-export interface CollectionsSidebarProps {
+interface CollectionsSidebarProps {
   onOpenCollection: (id: string) => void;
 }
 

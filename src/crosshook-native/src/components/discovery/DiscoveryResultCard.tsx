@@ -11,7 +11,7 @@ export function catalogEntryBand(entry: CatalogEntry): CommunityCompatibilityRat
   return rating && (ratingOrder as string[]).includes(rating) ? (rating as CommunityCompatibilityRating) : 'unknown';
 }
 
-export function catalogEntryLoadingModeLabel(entry: CatalogEntry): string {
+function catalogEntryLoadingModeLabel(entry: CatalogEntry): string {
   return LOADING_MODE_LABELS[entry.trainerLoadingMode ?? 'unknown'] ?? LOADING_MODE_LABELS.unknown;
 }
 
@@ -111,7 +111,7 @@ function SourceRow({ source, gameLabel }: SourceRowProps) {
   );
 }
 
-export interface DiscoveryResultCardProps {
+interface DiscoveryResultCardProps {
   entry: CatalogEntry;
   onImport: (entry: CatalogEntry) => void;
   importing: boolean;

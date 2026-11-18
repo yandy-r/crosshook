@@ -10,7 +10,7 @@ import type { AppSettingsData, RecentFilesData } from '../types';
 import type { LibraryViewMode } from '../types/library';
 import { DEFAULT_APP_SETTINGS, toSettingsSaveRequest } from '../types/settings';
 
-export interface PreferencesContextValue {
+interface PreferencesContextValue {
   settings: AppSettingsData;
   recentFiles: RecentFilesData;
   settingsError: string | null;
@@ -27,7 +27,7 @@ export interface PreferencesContextValue {
   setLibraryViewMode: (mode: LibraryViewMode) => void;
 }
 
-export interface PreferencesProviderProps {
+interface PreferencesProviderProps {
   children: ReactNode;
   activeProfileName?: string;
 }

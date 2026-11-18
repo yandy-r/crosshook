@@ -4,7 +4,7 @@ import { WizardReviewSummary } from '../wizard/WizardReviewSummary';
 import type { WizardValidationResult } from '../wizard/wizardValidation';
 import { prefixStateLabel } from './installLabels';
 
-export interface InstallationStatus {
+interface InstallationStatus {
   stage: InstallGameStage;
   statusText: string;
   hintText: string;
@@ -21,7 +21,7 @@ export interface InstallationStatus {
   candidateCount: number;
 }
 
-export interface InstallReviewSummaryProps {
+interface InstallReviewSummaryProps {
   installation: InstallationStatus;
   validation: WizardValidationResult;
 }

@@ -21,7 +21,7 @@ function resolveUmuAppId(profile: GameProfile): string {
   return profile.runtime.steam_app_id?.trim() ?? '';
 }
 
-export interface RuntimeSectionProps {
+interface RuntimeSectionProps {
   profile: GameProfile;
   onUpdateProfile: (updater: (current: GameProfile) => GameProfile) => void;
   reviewMode?: boolean;

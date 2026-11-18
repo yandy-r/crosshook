@@ -3,7 +3,7 @@ import HostToolCard from './HostToolCard';
 
 type SectionTone = 'muted' | 'available' | 'degraded' | 'unavailable';
 
-export interface HostToolInventoryProps {
+interface HostToolInventoryProps {
   requiredTools: HostToolCheckResult[];
   optionalTools: HostToolCheckResult[];
   probingToolId: string | null;

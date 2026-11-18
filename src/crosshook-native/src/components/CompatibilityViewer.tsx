@@ -3,7 +3,7 @@ import { CollapsibleSection } from './ui/CollapsibleSection';
 
 export type CompatibilityRating = 'unknown' | 'broken' | 'partial' | 'working' | 'platinum';
 
-export interface CompatibilityProfile {
+interface CompatibilityProfile {
   game_name: string;
   trainer_name: string;
   compatibility_rating: CompatibilityRating;
@@ -24,7 +24,7 @@ export interface CompatibilityDatabaseEntry {
   metadata: CompatibilityProfile;
 }
 
-export interface CompatibilityViewerProps {
+interface CompatibilityViewerProps {
   entries: CompatibilityDatabaseEntry[];
   title?: string;
   description?: string;

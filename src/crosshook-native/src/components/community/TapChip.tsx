@@ -1,6 +1,6 @@
 import type { CommunityTapSubscription } from '../../hooks/useCommunityProfiles';
 
-export interface TapChipProps {
+interface TapChipProps {
   tap: CommunityTapSubscription;
   onRemove: (tap: CommunityTapSubscription) => void;
   onPin: (tap: CommunityTapSubscription) => void;

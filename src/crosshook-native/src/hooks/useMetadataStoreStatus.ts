@@ -45,7 +45,7 @@ function parseStatus(payload: unknown): MetadataStoreStatus | null {
   return null;
 }
 
-export interface UseMetadataStoreStatusResult {
+interface UseMetadataStoreStatusResult {
   /** Degraded status to show; null means render nothing (ok, failed, loading, or dismissed). */
   status: Exclude<MetadataStoreStatus, { state: 'ok' }> | null;
   dismiss: () => void;

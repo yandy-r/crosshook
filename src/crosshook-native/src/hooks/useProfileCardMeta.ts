@@ -6,12 +6,12 @@ import { normalizeSerializedGameProfile, type SerializedGameProfile } from '@/ty
 import { formatRelativeTime } from '../utils/format';
 import { nextGameDetailsRequestId, useGameDetailsRequestCounter } from './useGameDetailsRequestGuards';
 
-export interface ProfileCardMeta {
+interface ProfileCardMeta {
   protonLabel: string | null;
   lastUsedLabel: string | null;
 }
 
-export interface UseProfileCardMetaResult {
+interface UseProfileCardMetaResult {
   metaByProfileName: Record<string, ProfileCardMeta>;
   loading: boolean;
 }

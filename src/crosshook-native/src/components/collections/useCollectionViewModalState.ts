@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 
-export interface UseCollectionViewModalStateResult {
+interface UseCollectionViewModalStateResult {
   open: boolean;
   collectionId: string | null;
   openForCollection: (id: string) => void;

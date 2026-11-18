@@ -5,13 +5,13 @@ import { callCommand } from '@/lib/ipc';
 import type { LaunchValidationIssue } from '@/types/launch';
 import type { DetectionScanReport, ProfileModInput, ProfileModRecord, ProfileModsResponse } from '@/types/mods';
 
-export const METADATA_UNAVAILABLE_PREFIX = 'metadata_unavailable:';
-export const NO_GAME_PATH_PREFIX = 'no_game_path:';
+const METADATA_UNAVAILABLE_PREFIX = 'metadata_unavailable:';
+const NO_GAME_PATH_PREFIX = 'no_game_path:';
 
 const UNAVAILABLE_MESSAGE = 'Mod registry is unavailable — the metadata database could not be opened.';
 const ADVISORY_DEBOUNCE_MS = 300;
 
-export interface UseProfileModsResult {
+interface UseProfileModsResult {
   /** null = loading */
   mods: ProfileModRecord[] | null;
   error: string | null;

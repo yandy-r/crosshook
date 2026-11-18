@@ -3,7 +3,7 @@ import { type ChangeEvent, useId } from 'react';
 import type { GameProfile } from '../../types';
 import { DashboardPanelSection } from '../layout/DashboardPanelSection';
 
-export interface ProfileIdentitySectionProps {
+interface ProfileIdentitySectionProps {
   profileName: string;
   profile: GameProfile;
   onProfileNameChange: (value: string) => void;

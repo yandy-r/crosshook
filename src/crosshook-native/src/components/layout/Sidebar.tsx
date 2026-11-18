@@ -31,7 +31,7 @@ export type AppRoute =
   | 'host-tools'
   | 'proton-manager';
 
-export interface SidebarProps {
+interface SidebarProps {
   activeRoute: AppRoute;
   onNavigate: (route: AppRoute, options?: AppNavigateOptions) => void;
   controllerMode: boolean;

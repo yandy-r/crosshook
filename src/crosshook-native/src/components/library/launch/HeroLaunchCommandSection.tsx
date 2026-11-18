@@ -107,10 +107,7 @@ export interface HeroLaunchCommandSectionProps {
   preview: LaunchPreview | null;
   previewError: string | null;
   resolvedProfileName: string;
-  isLaunching: boolean;
   onPreviewLaunch?: (request: LaunchRequest) => void | Promise<void>;
-  /** Legacy navigation-based launch (used by the outer shell / tests). */
-  onLaunch?: (name: string) => void | Promise<void>;
   // ── In-place launch props (wired by HeroLaunchGate) ───────────────────────
   /** Whether the Launch Game button should be enabled. */
   canLaunchGame?: boolean;
@@ -144,9 +141,7 @@ export function HeroLaunchCommandSection({
   preview,
   previewError,
   resolvedProfileName,
-  isLaunching,
   onPreviewLaunch,
-  onLaunch,
   canLaunchGame,
   canLaunchTrainer,
   isBusy = false,
@@ -204,11 +199,6 @@ export function HeroLaunchCommandSection({
 
   const canPreview = Boolean(launchRequest && onPreviewLaunch && !previewLoading);
   const canCopy = Boolean(preview?.effective_command);
-
-  // In-place mode: canLaunchGame / canLaunchTrainer are provided by HeroLaunchGate.
-  // Legacy mode: canLaunch derived from onLaunch prop.
-  const isInPlaceMode = onLaunchGame !== undefined || onLaunchTrainer !== undefined;
-  const legacyCanLaunch = Boolean(onLaunch && launchRequest && !isLaunching);
 
   const handleCopy = async () => {
     setCopyStatus('idle');
@@ -293,55 +283,40 @@ export function HeroLaunchCommandSection({
           role="group"
           aria-label="Launch profile"
         >
-          {isInPlaceMode ? (
-            <>
-              <button
-                type="button"
-                className={primaryActionClass}
-                disabled={!canLaunchGame}
-                aria-label={isGameRunning ? 'Game Running' : isBusy && !isIdle ? 'Launching…' : 'Launch Game'}
-                onClick={() => handleInPlaceLaunch('game')}
-              >
-                {isGameRunning ? 'Game Running' : isBusy && !isIdle ? 'Launching…' : 'Launch Game'}
-              </button>
-              <button
-                type="button"
-                className={secondaryActionClass}
-                disabled={!canLaunchTrainer}
-                onClick={() => handleInPlaceLaunch('trainer')}
-              >
-                {isBusy && !isIdle ? 'Launching…' : 'Launch Trainer'}
-              </button>
-              {/* Recovery affordance for stuck launch states — deliberately
+          <button
+            type="button"
+            className={primaryActionClass}
+            disabled={!canLaunchGame}
+            aria-label={isGameRunning ? 'Game Running' : isBusy && !isIdle ? 'Launching…' : 'Launch Game'}
+            onClick={() => handleInPlaceLaunch('game')}
+          >
+            {isGameRunning ? 'Game Running' : isBusy && !isIdle ? 'Launching…' : 'Launch Game'}
+          </button>
+          <button
+            type="button"
+            className={secondaryActionClass}
+            disabled={!canLaunchTrainer}
+            onClick={() => handleInPlaceLaunch('trainer')}
+          >
+            {isBusy && !isIdle ? 'Launching…' : 'Launch Trainer'}
+          </button>
+          {/* Recovery affordance for stuck launch states — deliberately
                   stays clickable while busy so users can escape a wedged
                   GameLaunching / WaitingForTrainer / SessionActive phase.
                   Clears CrossHook's own tracking state and cancels session
                   watchdogs/gamescope teardown; it never kills the game or
                   trainer process itself. */}
-              {onReset && phase !== undefined && phase !== LaunchPhase.Idle ? (
-                <button
-                  type="button"
-                  className={secondaryActionClass}
-                  title="Reset launch tracking for game and trainer — does not close a running game"
-                  aria-label="Reset launch tracking for game and trainer"
-                  onClick={() => void onReset()}
-                >
-                  Reset
-                </button>
-              ) : null}
-            </>
-          ) : (
+          {onReset && phase !== undefined && phase !== LaunchPhase.Idle ? (
             <button
               type="button"
-              className={primaryActionClass}
-              disabled={!legacyCanLaunch}
-              onClick={() => {
-                void onLaunch?.(resolvedProfileName);
-              }}
+              className={secondaryActionClass}
+              title="Reset launch tracking for game and trainer — does not close a running game"
+              aria-label="Reset launch tracking for game and trainer"
+              onClick={() => void onReset()}
             >
-              {isLaunching ? 'Launching...' : 'Launch'}
+              Reset
             </button>
-          )}
+          ) : null}
         </div>
       </div>
 

@@ -3,7 +3,7 @@ import { GameSection } from '../profile-sections/GameSection';
 import { ProfileIdentitySection } from '../profile-sections/ProfileIdentitySection';
 import { RunnerMethodSection } from '../profile-sections/RunnerMethodSection';
 
-export interface OnboardingIdentityStageBodyProps {
+interface OnboardingIdentityStageBodyProps {
   profile: GameProfile;
   profileName: string;
   launchMethod: ResolvedLaunchMethod;

@@ -13,7 +13,7 @@ import { getFocusableElements } from '@/lib/focus-utils';
  * See useFocusTrap for the shared modal focus-trap implementation.
  */
 
-export interface CollectionAssignMenuProps {
+interface CollectionAssignMenuProps {
   open: boolean;
   profileName: string | null;
   anchorPosition: { x: number; y: number } | null;

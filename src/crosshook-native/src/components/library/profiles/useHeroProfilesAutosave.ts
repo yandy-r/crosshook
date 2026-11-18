@@ -8,7 +8,7 @@ const idleStatus: LaunchAutoSaveStatus = { tone: 'idle', label: 'Saved' };
 const savingStatus: LaunchAutoSaveStatus = { tone: 'saving', label: 'Saving profile…' };
 const savedStatus: LaunchAutoSaveStatus = { tone: 'success', label: 'Profile saved' };
 
-export interface UseHeroProfilesAutosaveOptions {
+interface UseHeroProfilesAutosaveOptions {
   profile: GameProfile;
   profileName: string;
   selectedProfile: string;
@@ -20,7 +20,7 @@ export interface UseHeroProfilesAutosaveOptions {
   selectProfile: (name: string) => Promise<void>;
 }
 
-export interface UseHeroProfilesAutosaveResult {
+interface UseHeroProfilesAutosaveResult {
   autoSaveStatus: LaunchAutoSaveStatus;
   selectCard: (cardName: string) => Promise<void>;
 }

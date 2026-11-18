@@ -9,7 +9,7 @@ import type { GameProfile } from '../types/profile';
 import type { ResolvedLaunchMethod } from './launch';
 import { groupIssuesByNode, type PipelineNodeId } from './mapValidationToNode';
 
-export interface DerivePipelineNodesOptions {
+interface DerivePipelineNodesOptions {
   /** Node ids to drop from the derivation (also excluded from launch-node aggregation). */
   omitNodes?: readonly PipelineNodeId[];
 }

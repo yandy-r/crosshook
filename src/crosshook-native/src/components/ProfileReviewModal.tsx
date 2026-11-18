@@ -11,7 +11,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 
-export type ProfileReviewModalStatusTone = 'neutral' | 'success' | 'warning' | 'danger';
+type ProfileReviewModalStatusTone = 'neutral' | 'success' | 'warning' | 'danger';
 
 export interface ProfileReviewModalConfirmation {
   title: string;
@@ -23,7 +23,7 @@ export interface ProfileReviewModalConfirmation {
   onCancel: () => void;
 }
 
-export interface ProfileReviewModalProps {
+interface ProfileReviewModalProps {
   open: boolean;
   title: string;
   statusLabel: string;

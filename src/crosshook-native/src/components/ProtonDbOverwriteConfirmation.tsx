@@ -1,6 +1,6 @@
 import type { PendingProtonDbOverwrite } from '../utils/protondb';
 
-export interface ProtonDbOverwriteConfirmationProps {
+interface ProtonDbOverwriteConfirmationProps {
   pendingProtonDbOverwrite: PendingProtonDbOverwrite;
   onUpdateProtonDbResolution: (key: string, choice: 'keep_current' | 'use_suggestion') => void;
   onCancelProtonDbOverwrite: () => void;

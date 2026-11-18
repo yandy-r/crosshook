@@ -26,7 +26,7 @@ function formatMappedSummary(entry: LutrisImportEntry): string {
   return parts.length > 0 ? parts.join(' · ') : 'No mapped fields';
 }
 
-export interface LutrisImportModalProps {
+interface LutrisImportModalProps {
   preview: LutrisImportPreview;
   onClose: () => void;
   onImport: (entries: LutrisImportEntry[]) => void;

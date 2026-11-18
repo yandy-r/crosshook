@@ -3,7 +3,7 @@ import { copyToClipboard } from '../../utils/clipboard';
 import { type EnvGroup, formatEnvGroupClipboard } from '../../utils/derivePipelineDetail';
 import { CollapsibleSection } from '../ui/CollapsibleSection';
 
-export interface EnvBreakdownProps {
+interface EnvBreakdownProps {
   groups: EnvGroup[];
 }
 

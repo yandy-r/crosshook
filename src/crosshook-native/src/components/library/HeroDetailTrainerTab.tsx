@@ -9,7 +9,7 @@ import { InjectionLogTail } from './trainer/InjectionLogTail';
 import { LoadedDllHookListPanel } from './trainer/LoadedDllHookListPanel';
 import { useHeroTrainerAutosave } from './trainer/useHeroTrainerAutosave';
 
-export interface HeroDetailTrainerTabProps {
+interface HeroDetailTrainerTabProps {
   summary: LibraryCardData;
   displayProfileName?: string;
 }

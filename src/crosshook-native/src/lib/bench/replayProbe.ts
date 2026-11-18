@@ -6,14 +6,14 @@ export const REPLAY_SCENARIO = 'replay_scroll';
 /** How long the probe waits for the console drawer to be expanded with its log body. */
 export const CONSOLE_WAIT_TIMEOUT_MS = 30_000;
 /** Same follow threshold as `ConsoleView.updateFollowState`. */
-export const FOLLOW_THRESHOLD_PX = 24;
+const FOLLOW_THRESHOLD_PX = 24;
 
 const DRAWER = '[data-testid="console-drawer"]';
 const DRAWER_COLLAPSED_CLASS = 'crosshook-console-drawer--collapsed';
 const DRAWER_TOGGLE = 'button[aria-expanded]';
 const CONSOLE_BODY = '.crosshook-console__body';
 
-export interface ReplayProbeOptions {
+interface ReplayProbeOptions {
   /** Stops the wait (tests; production never passes one). */
   signal?: AbortSignal;
   /** Overrides `CONSOLE_WAIT_TIMEOUT_MS` (tests). */

@@ -26,7 +26,7 @@ export type InspectorBodyProps = {
   onToggleFavorite?: (name: string, current: boolean) => void;
 };
 
-export interface RouteMetadataEntry {
+interface RouteMetadataEntry {
   /** Label shown in the sidebar and status row — must stay in sync with navigation. */
   navLabel: string;
   /** Uppercase-style section label for the route banner eyebrow. */

@@ -23,7 +23,7 @@ type ReviewConfirmationState = ProfileReviewModalConfirmation & {
   restoreIsOpen: boolean;
 };
 
-export interface InstallPageProps {
+interface InstallPageProps {
   onNavigate?: (route: AppRoute, options?: AppNavigateOptions) => void;
 }
 

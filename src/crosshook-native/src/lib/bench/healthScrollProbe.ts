@@ -5,7 +5,7 @@ import { HEALTH_WAIT_MS, LIVE_TABLE, reportHealthTable } from './healthTable';
 /** Scenario name the runner passes for the G4 health-table scroll. */
 export const HEALTH_SCROLL_SCENARIO = 'health_scroll';
 
-export interface HealthScrollProbeOptions {
+interface HealthScrollProbeOptions {
   /** Stops the wait (tests; production never passes one). */
   signal?: AbortSignal;
   /** Overrides `HEALTH_WAIT_MS` (tests). */

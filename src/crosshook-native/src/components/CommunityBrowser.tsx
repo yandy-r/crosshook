@@ -15,7 +15,7 @@ import { CommunityTapManagementSection } from './community/CommunityTapManagemen
 import { tapSubscriptionStableKey } from './community/tapSubscriptionKey';
 import LutrisImportModal from './LutrisImportModal';
 
-export interface CommunityBrowserProps {
+interface CommunityBrowserProps {
   profilesDirectoryPath?: string;
   state?: UseCommunityProfilesResult;
 }

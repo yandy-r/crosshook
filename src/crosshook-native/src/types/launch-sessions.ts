@@ -27,7 +27,7 @@ export interface LaunchSessionExitedPayload extends RunningSession {
 }
 
 /** Bus lag or bridge restart: drop local state and re-fetch the snapshot. */
-export interface LaunchSessionResyncPayload {
+interface LaunchSessionResyncPayload {
   kind: 'resync';
 }
 

@@ -11,7 +11,7 @@ import { countProfileStatuses } from '../utils/health';
 
 export type TrendDirection = 'got_worse' | 'got_better' | 'unchanged' | null;
 
-export function computeTrend(currentStatus: HealthStatus, cachedStatus: string | undefined): TrendDirection {
+function computeTrend(currentStatus: HealthStatus, cachedStatus: string | undefined): TrendDirection {
   if (!cachedStatus) return null;
 
   const statusRank: Record<string, number> = { healthy: 0, stale: 1, broken: 2 };

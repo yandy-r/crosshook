@@ -66,7 +66,7 @@ function InstallFlowTabContent({
   );
 }
 
-export interface InstallGamePanelProps {
+interface InstallGamePanelProps {
   onOpenProfileReview: (payload: InstallProfileReviewPayload) => undefined | Promise<boolean>;
   onRequestInstallAction?: (action: 'retry' | 'reset') => boolean | Promise<boolean>;
 }

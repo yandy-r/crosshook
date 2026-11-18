@@ -16,7 +16,7 @@ const RUN_LOG_TITLE_ID = 'run-executable-log-title';
 
 const RUN_EXE_OMIT_NODES: readonly PipelineNodeId[] = ['trainer', 'optimizations'];
 
-export interface RunExecutablePanelProps {
+interface RunExecutablePanelProps {
   protonInstalls: ProtonInstallOption[];
   protonInstallsError: string | null;
 }

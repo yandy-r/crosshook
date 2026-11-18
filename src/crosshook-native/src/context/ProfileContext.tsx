@@ -15,7 +15,7 @@ import { type UseProfileResult, useProfile } from '../hooks/useProfile';
 import { type ResolvedLaunchMethod, resolveLaunchMethod } from '../utils/launch';
 import { deriveSteamClientInstallPath, deriveTargetHomePath } from '../utils/steam';
 
-export interface ProfileContextValue extends UseProfileResult {
+interface ProfileContextValue extends UseProfileResult {
   launchMethod: ResolvedLaunchMethod;
   steamClientInstallPath: string;
   targetHomePath: string;

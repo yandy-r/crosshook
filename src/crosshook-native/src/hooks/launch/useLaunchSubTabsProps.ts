@@ -10,7 +10,7 @@ import { useProtonDbApply } from '../profile/useProtonDbApply';
 import { useCommandArgumentCatalog } from '../useCommandArgumentCatalog';
 import { useProtonDbSuggestions } from '../useProtonDbSuggestions';
 
-export interface UseLaunchSubTabsPropsInput {
+interface UseLaunchSubTabsPropsInput {
   /**
    * Whether the current gamescope session is already running.
    * Derived by the call site from `useLaunchDepGate` (LaunchPage) or its

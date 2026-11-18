@@ -18,7 +18,7 @@ import { HeroProfileEditorSections } from './profiles/HeroProfileEditorSections'
 import { useHeroProfilesAutosave } from './profiles/useHeroProfilesAutosave';
 import { useProfilesPageProton } from './profiles/useProfilesPageProton';
 
-export interface HeroDetailProfilesTabProps {
+interface HeroDetailProfilesTabProps {
   summary: LibraryCardData;
   profileList: ProfileSummary[] | undefined;
   loadState: GameDetailsProfileLoadState;

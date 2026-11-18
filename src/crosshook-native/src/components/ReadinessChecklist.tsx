@@ -135,7 +135,7 @@ function hasExpandableGuidance(tool: HostToolCheckResult): boolean {
   return false;
 }
 
-export interface HostToolsReadinessSectionProps {
+interface HostToolsReadinessSectionProps {
   toolChecks: HostToolCheckResult[];
   detectedDistroFamily: string;
   /** Clears install nag for this tool in SQLite (TTL). */

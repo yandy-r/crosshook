@@ -16,11 +16,11 @@ import { buildInstallGameRequest } from './install/installRequestBuild';
 import { deriveHintText, deriveResultStage, deriveStatusText } from './install/installStatusText';
 import { mapValidationErrorToField } from './install/installValidationMapping';
 
-export interface InstallerInputs {
+interface InstallerInputs {
   installer_path: string;
 }
 
-export interface UseInstallGameResult {
+interface UseInstallGameResult {
   profileName: string;
   setProfileName: (value: string) => void;
   draftProfile: GameProfile;

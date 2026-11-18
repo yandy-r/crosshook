@@ -1,5 +1,4 @@
 import type { CommunityImportResult } from '@/hooks/useCommunityProfiles';
-import type { ProfileHealthReport } from '@/types/health';
 import type {
   GamescopeDecisionPreview,
   LaunchPreview,
@@ -87,28 +86,10 @@ export function makeLibraryCardData(overrides: Partial<LibraryCardData> = {}): L
   };
 }
 
-/** Fixed timestamp for stable snapshots and deterministic health fixtures. */
-export const FIXTURE_CHECKED_AT = '2020-01-01T00:00:00.000Z';
-
-/**
- * Factory for `ProfileHealthReport` used in inspector / health UI tests.
- * Commonly overridden fields: `status`, `issues`.
- */
-export function makeProfileHealthReport(overrides: Partial<ProfileHealthReport> = {}): ProfileHealthReport {
-  return {
-    name: 'Synthetic Quest',
-    status: 'healthy',
-    launch_method: 'steam',
-    issues: [],
-    checked_at: FIXTURE_CHECKED_AT,
-    ...overrides,
-  };
-}
-
 /**
  * Factory for a single command-argument catalog entry (aligned with default_command_argument_catalog.toml).
  */
-export function makeCommandArgumentEntry(overrides: Partial<CommandArgumentEntry> = {}): CommandArgumentEntry {
+function makeCommandArgumentEntry(overrides: Partial<CommandArgumentEntry> = {}): CommandArgumentEntry {
   return {
     id: 'force_vulkan',
     tokens: ['-force-vulkan'],
@@ -296,9 +277,7 @@ export function makePreviewWrapperDetail(overrides: Partial<PreviewWrapperDetail
 }
 
 /** Factory for `GamescopeDecisionPreview` used in pipeline detail tests. */
-export function makeGamescopeDecisionPreview(
-  overrides: Partial<GamescopeDecisionPreview> = {}
-): GamescopeDecisionPreview {
+function makeGamescopeDecisionPreview(overrides: Partial<GamescopeDecisionPreview> = {}): GamescopeDecisionPreview {
   return {
     enabled: true,
     allow_nested: false,

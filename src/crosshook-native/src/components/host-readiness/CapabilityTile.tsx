@@ -4,7 +4,7 @@ import type { Capability, CapabilityState } from '../../types/onboarding';
 import { getFirstCapabilityDocsUrl } from '../../utils/capabilityDocs';
 import { copyToClipboard } from '../../utils/clipboard';
 
-export interface CapabilityTileProps {
+interface CapabilityTileProps {
   capability: Capability;
 }
 

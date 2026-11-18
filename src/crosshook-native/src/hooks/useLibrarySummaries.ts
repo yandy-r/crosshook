@@ -6,7 +6,7 @@ import { parseProfilesChanged } from '@/lib/profileEvents';
 import type { LibraryCardData, ProfileSummary } from '../types/library';
 import type { ProfilesChangedPayload } from '../types/profile-events';
 
-export interface UseLibrarySummariesResult {
+interface UseLibrarySummariesResult {
   summaries: LibraryCardData[];
   setSummaries: React.Dispatch<React.SetStateAction<LibraryCardData[]>>;
   loading: boolean;

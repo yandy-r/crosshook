@@ -1,7 +1,7 @@
 import type { InjectionFallback, InjectionMethod, InjectionSection, InjectionStage } from '@/types/profile';
 import { ThemedSelect } from '../../ui/ThemedSelect';
 
-export interface InjectionConfigPanelProps {
+interface InjectionConfigPanelProps {
   injection: InjectionSection;
   onUpdate: (injection: InjectionSection) => void;
 }

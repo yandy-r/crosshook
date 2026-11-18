@@ -2,7 +2,7 @@ import type { GameProfile } from '../types/profile';
 import type { ProtonDbRecommendationGroup } from '../types/protondb';
 import type { OptimizationCatalogPayload } from './optimization-catalog';
 
-export interface ProtonDbEnvVarConflict {
+interface ProtonDbEnvVarConflict {
   key: string;
   currentValue: string;
   suggestedValue: string;
@@ -15,7 +15,7 @@ export type PendingProtonDbOverwrite = {
   resolutions: Record<string, 'keep_current' | 'use_suggestion'>;
 };
 
-export interface ProtonDbEnvVarMergeResult {
+interface ProtonDbEnvVarMergeResult {
   mergedEnvVars: Record<string, string>;
   conflicts: ProtonDbEnvVarConflict[];
   appliedKeys: string[];
@@ -78,7 +78,7 @@ export function mergeProtonDbEnvVarGroup(
   };
 }
 
-export interface ProtonDbApplyResult {
+interface ProtonDbApplyResult {
   nextProfile: GameProfile;
   appliedKeys: string[];
   unchangedKeys: string[];

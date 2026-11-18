@@ -17,7 +17,7 @@ export const HEALTH_WAIT_MS = 60_000;
 /** Exact `aria-label` match: the cached table is labelled "Profile health status (cached)" and is excluded. */
 export const LIVE_TABLE = 'table[aria-label="Profile health status"]';
 /** Profile rows only: the expanded detail rows do not carry this class. */
-export const ROW = 'tr.crosshook-health-dashboard-row';
+const ROW = 'tr.crosshook-health-dashboard-row';
 /** The route content root that `Tabs.Content key={route}` remounts on every switch. */
 export const CONTENT_ROOT = '[data-crosshook-page-scroll="true"]';
 export const LIBRARY_CONTENT = '.crosshook-library-page__content';

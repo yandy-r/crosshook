@@ -11,7 +11,7 @@ import type {
   ProtonUpSuggestion,
 } from '../types/protonup';
 
-export interface UseProtonUpOptions {
+interface UseProtonUpOptions {
   /** Auto-fetch catalog on mount. Defaults to false. */
   autoFetchCatalog?: boolean;
   /** Steam client install path override. */
@@ -20,7 +20,7 @@ export interface UseProtonUpOptions {
   catalogProvider?: ProtonUpProvider;
 }
 
-export interface UseProtonUpResult {
+interface UseProtonUpResult {
   /** Available versions from catalog. */
   versions: ProtonUpAvailableVersion[];
   /** Cache metadata (stale/offline/timestamps). */

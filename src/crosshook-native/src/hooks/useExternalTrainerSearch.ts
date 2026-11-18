@@ -7,7 +7,7 @@ import { useDebounce } from './useDebounce';
 // Longer debounce than local search (600ms) since this hits the network.
 const EXTERNAL_SEARCH_DEBOUNCE_MS = 600;
 
-export interface UseExternalTrainerSearchReturn {
+interface UseExternalTrainerSearchReturn {
   data: ExternalTrainerSearchResponse | null;
   loading: boolean;
   error: string | null;

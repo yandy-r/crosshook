@@ -13,7 +13,7 @@ function isSupportedTrainerInfoModal(value: string | undefined | null): value is
   return value === 'aurora_offline_setup' || value === 'wemod_offline_info';
 }
 
-export interface TrainerSectionProps {
+interface TrainerSectionProps {
   profile: GameProfile;
   onUpdateProfile: (updater: (current: GameProfile) => GameProfile) => void;
   reviewMode?: boolean;

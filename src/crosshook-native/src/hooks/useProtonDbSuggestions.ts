@@ -8,7 +8,7 @@ import type {
   SuggestionAcceptance,
 } from '../types/protondb';
 
-export interface UseProtonDbSuggestionsResult {
+interface UseProtonDbSuggestionsResult {
   suggestionSet: ProtonDbSuggestionSet | null;
   loading: boolean;
   error: string | null;
