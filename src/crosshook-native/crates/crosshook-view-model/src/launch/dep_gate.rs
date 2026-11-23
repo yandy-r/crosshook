@@ -54,7 +54,10 @@ enum Awaiting {
 }
 
 /// The prefix dependency gate of one launch panel.
-#[derive(Debug, Clone, Default)]
+///
+/// Not `Clone`: a copy would share the gate id and accept the original's
+/// replies. `Default` is a fresh gate with an empty scope, like [`DepGate::new`].
+#[derive(Debug)]
 pub struct DepGate {
     scope: GateScope,
     state: GateState,
@@ -79,8 +82,12 @@ impl DepGate {
     fn with_mount(scope: GateScope, mount: u64) -> Self {
         Self {
             scope,
+            state: GateState::Idle,
+            op: None,
+            awaiting: None,
             mount,
-            ..Self::default()
+            last_op: 0,
+            known_repairs: BTreeMap::new(),
         }
     }
 
@@ -512,6 +519,12 @@ fn verification_failure(error: &ServiceError) -> RepairStatus {
         "Unable to verify prefix repair status: {}",
         error.message
     ))
+}
+
+impl Default for DepGate {
+    fn default() -> Self {
+        Self::new(GateScope::default())
+    }
 }
 
 impl ViewModel for DepGate {

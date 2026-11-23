@@ -541,3 +541,23 @@ fn a_busy_repair_result_shows_busy() {
         .assert_state(is_busy_with(LaunchAction::Game))
         .into_inner();
 }
+
+#[test]
+fn default_gates_get_distinct_ids_too() {
+    let scope = scope_for(NAME, PFX, &[], false);
+    let mut old = DepGate::default();
+    let mut new = DepGate::default();
+    old.reduce(GateIntent::ScopeChanged(scope.clone()));
+    new.reduce(GateIntent::ScopeChanged(scope));
+    let old_effects = old.reduce(GateIntent::RequestLaunch(LaunchAction::Game));
+    let new_effects = new.reduce(GateIntent::RequestLaunch(LaunchAction::Game));
+    let [GateEffect::CheckRepairStatus { op: old_op, .. }] = old_effects[..] else {
+        panic!("expected a repair check");
+    };
+    assert_ne!(old_effects, new_effects);
+    let stale = GateIntent::RepairStatusLoaded {
+        op: old_op,
+        result: Ok(clean()),
+    };
+    assert_eq!(new.reduce(stale), []);
+}
