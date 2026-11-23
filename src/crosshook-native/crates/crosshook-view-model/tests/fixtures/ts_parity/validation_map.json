@@ -1,0 +1,102 @@
+[
+  {
+    "code": null,
+    "expected": "launch"
+  },
+  {
+    "code": "",
+    "expected": "launch"
+  },
+  {
+    "code": "   ",
+    "expected": "launch"
+  },
+  {
+    "code": "game_path_missing",
+    "expected": "game"
+  },
+  {
+    "code": "native_windows_executable",
+    "expected": "game"
+  },
+  {
+    "code": "runtime_prefix_path_missing",
+    "expected": "wine-prefix"
+  },
+  {
+    "code": "runtime_proton_path_missing",
+    "expected": "proton"
+  },
+  {
+    "code": "steam_app_id_missing",
+    "expected": "steam"
+  },
+  {
+    "code": "trainer_hash_mismatch",
+    "expected": "trainer"
+  },
+  {
+    "code": "native_trainer_unsupported",
+    "expected": "trainer"
+  },
+  {
+    "code": "unshare_net_unavailable",
+    "expected": "trainer"
+  },
+  {
+    "code": "mod_coexistence_injection_vector",
+    "expected": "trainer"
+  },
+  {
+    "code": "mod_coexistence_overlay_conflict",
+    "expected": "trainer"
+  },
+  {
+    "code": "mod_coexistence_file_replacement_notice",
+    "expected": "trainer"
+  },
+  {
+    "code": "mod_coexistence_script_extender_launch_order",
+    "expected": "trainer"
+  },
+  {
+    "code": "mod_coexistence_registered_path_missing",
+    "expected": "trainer"
+  },
+  {
+    "code": "unknown_launch_optimization",
+    "expected": "optimizations"
+  },
+  {
+    "code": "duplicate_launch_optimization",
+    "expected": "optimizations"
+  },
+  {
+    "code": "incompatible_launch_optimization",
+    "expected": "optimizations"
+  },
+  {
+    "code": "launch_optimization_requires_tool",
+    "expected": "optimizations"
+  },
+  {
+    "code": "gamescope_missing",
+    "expected": "optimizations"
+  },
+  {
+    "code": "custom_env_var_reserved",
+    "expected": "optimizations"
+  },
+  {
+    "code": "  trainer_padded  ",
+    "expected": "trainer"
+  },
+  {
+    "code": "hook_failed",
+    "expected": "launch"
+  },
+  {
+    "code": "GAME_PATH_UPPER",
+    "expected": "launch"
+  }
+]

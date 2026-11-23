@@ -754,6 +754,8 @@ dependencies = [
  "crosshook-app",
  "crosshook-core",
  "proptest",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
