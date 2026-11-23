@@ -25,6 +25,7 @@
 //! skipped, Classic parity).
 
 use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::LaunchAction;
 use crate::{ServiceError, ViewModel};
@@ -41,8 +42,9 @@ pub use types::{
 enum Awaiting {
     /// Repair status before a launch (`evaluateLaunch`).
     LaunchRepairStatus,
-    /// Package status (`evaluatePackageGate`).
-    Dependencies,
+    /// Package status (`evaluatePackageGate`). After an install, missing
+    /// packages show the modal instead of installing again.
+    Dependencies { after_install: bool },
     /// Repair status after a successful restore (install completion).
     InstallVerify { install_succeeded: bool },
     /// The repair call.
@@ -58,6 +60,8 @@ pub struct DepGate {
     state: GateState,
     op: Option<OpId>,
     awaiting: Option<Awaiting>,
+    /// Process-unique id of this gate instance (see [`OpId`]).
+    mount: u64,
     last_op: u64,
     /// Repair requirements seen this session, by prefix path.
     known_repairs: BTreeMap<String, RepairStatus>,
@@ -67,8 +71,15 @@ impl DepGate {
     /// A gate for `scope`, idle.
     #[must_use]
     pub fn new(scope: GateScope) -> Self {
+        /// Next gate instance id; 0 is left for tests.
+        static NEXT_MOUNT: AtomicU64 = AtomicU64::new(1);
+        Self::with_mount(scope, NEXT_MOUNT.fetch_add(1, Ordering::Relaxed))
+    }
+
+    fn with_mount(scope: GateScope, mount: u64) -> Self {
         Self {
             scope,
+            mount,
             ..Self::default()
         }
     }
@@ -128,7 +139,10 @@ impl DepGate {
 
     fn begin(&mut self, awaiting: Awaiting) -> OpId {
         self.last_op = self.last_op.wrapping_add(1);
-        let op = OpId(self.last_op);
+        let op = OpId {
+            mount: self.mount,
+            seq: self.last_op,
+        };
         self.op = Some(op);
         self.awaiting = Some(awaiting);
         op
@@ -210,13 +224,23 @@ impl DepGate {
 
     /// Package step of the active operation (`evaluatePackageGate`).
     fn check_packages(&mut self, action: LaunchAction) -> Vec<GateEffect> {
+        self.check_packages_with(action, false)
+    }
+
+    /// Package step; `after_install` re-checks the profile's current packages
+    /// after an install instead of trusting the install result.
+    fn check_packages_with(
+        &mut self,
+        action: LaunchAction,
+        after_install: bool,
+    ) -> Vec<GateEffect> {
         if self.scope.required_packages.is_empty() {
             return self.allow(action);
         }
         let Some(op) = self.op else {
             return Vec::new();
         };
-        self.awaiting = Some(Awaiting::Dependencies);
+        self.awaiting = Some(Awaiting::Dependencies { after_install });
         self.state = GateState::Checking { action };
         let (profile_name, prefix_path) = self.effect_target();
         vec![GateEffect::CheckDependencies {
@@ -285,7 +309,7 @@ impl DepGate {
                 Ok(_) => {
                     self.known_repairs.remove(&prefix);
                     if install_succeeded {
-                        self.allow(action)
+                        self.check_packages_with(action, true)
                     } else {
                         self.reset();
                         Vec::new()
@@ -302,7 +326,7 @@ impl DepGate {
                 }
                 Err(error) => self.block_for_repair(action, verification_failure(&error)),
             },
-            Awaiting::Dependencies | Awaiting::Repair => Vec::new(),
+            Awaiting::Dependencies { .. } | Awaiting::Repair => Vec::new(),
         }
     }
 
@@ -314,9 +338,11 @@ impl DepGate {
         let Some(action) = self.pending_action() else {
             return Vec::new();
         };
-        if self.accept(op, |a| a == Awaiting::Dependencies).is_none() {
+        let Some(Awaiting::Dependencies { after_install }) =
+            self.accept(op, |a| matches!(a, Awaiting::Dependencies { .. }))
+        else {
             return Vec::new();
-        }
+        };
         // A failed lookup cannot tell what is missing: allow the launch.
         let Ok(statuses) = result else {
             return self.allow(action);
@@ -335,7 +361,7 @@ impl DepGate {
             .collect();
         if missing.is_empty() {
             self.allow(action)
-        } else if self.scope.auto_install {
+        } else if self.scope.auto_install && !after_install {
             self.install(action, missing, true)
         } else {
             self.state = GateState::Missing {
@@ -412,7 +438,9 @@ impl DepGate {
                 }
                 vec![self.check_repair(op)]
             }
-            RestoreState::NotRequired if done.install_succeeded => self.allow(action),
+            RestoreState::NotRequired if done.install_succeeded => {
+                self.check_packages_with(action, true)
+            }
             RestoreState::NotRequired => {
                 self.reset();
                 Vec::new()
@@ -439,6 +467,23 @@ impl DepGate {
         }]
     }
 
+    /// A different profile or prefix resets the gate. A changed package list
+    /// re-checks an open missing-packages prompt so Install never sends a
+    /// stale list.
+    fn on_scope_changed(&mut self, scope: GateScope) -> Vec<GateEffect> {
+        if !self.scope.same_target(&scope) {
+            self.reset();
+            self.scope = scope;
+            return Vec::new();
+        }
+        let packages_changed = self.scope.required_packages != scope.required_packages;
+        self.scope = scope;
+        match self.state {
+            GateState::Missing { action, .. } if packages_changed => self.check_packages(action),
+            _ => Vec::new(),
+        }
+    }
+
     fn on_repair_finished(
         &mut self,
         op: OpId,
@@ -451,6 +496,7 @@ impl DepGate {
             return Vec::new();
         }
         match result {
+            Ok(status) if status.is_busy() => self.show_busy(action, status),
             Ok(status) if status.required => self.block_for_repair(action, status),
             Ok(_) => {
                 self.awaiting = Some(Awaiting::RepairVerify);
@@ -474,13 +520,7 @@ impl ViewModel for DepGate {
 
     fn reduce(&mut self, intent: GateIntent) -> Vec<GateEffect> {
         match intent {
-            GateIntent::ScopeChanged(scope) => {
-                if !self.scope.same_target(&scope) {
-                    self.reset();
-                }
-                self.scope = scope;
-                Vec::new()
-            }
+            GateIntent::ScopeChanged(scope) => self.on_scope_changed(scope),
             // An install or repair in flight owns the gate until it reports
             // back; a second launch press must not drop its result.
             GateIntent::RequestLaunch(_) if self.is_locked() => Vec::new(),

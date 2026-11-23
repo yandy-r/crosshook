@@ -82,15 +82,21 @@ impl RepairStatus {
     }
 }
 
-/// State of one prefix dependency package.
+/// State of one prefix dependency package (core `DependencyState`). The gate
+/// blocks on `Unknown`, `Missing` and `InstallFailed` only.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[allow(missing_docs)] // Mirrors core `DependencyState`.
 pub enum DependencyState {
+    /// Never checked; treated as missing.
     Unknown,
+    /// Installed in the prefix.
     Installed,
+    /// Checked and not installed.
     Missing,
+    /// The last install attempt failed; treated as missing.
     InstallFailed,
+    /// The check itself failed (tool unavailable, error); does not block.
     CheckFailed,
+    /// The user chose to skip the package; does not block.
     UserSkipped,
 }
 
@@ -127,9 +133,15 @@ pub struct InstallCompletion {
     pub restore_error: Option<String>,
 }
 
-/// Id of one gate operation; results carrying an older id are ignored.
+/// Id of one gate operation; results carrying any other id are ignored.
+///
+/// Unique across gate instances in the process (each gate gets its own
+/// `mount`), so a reply meant for an earlier gate never matches a new one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct OpId(pub(super) u64);
+pub struct OpId {
+    pub(super) mount: u64,
+    pub(super) seq: u64,
+}
 
 /// What the gate shows and waits for.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

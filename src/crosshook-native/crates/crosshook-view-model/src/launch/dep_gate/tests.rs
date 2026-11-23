@@ -10,6 +10,11 @@ use crate::ServiceErrorKind;
 const NAME: &str = "Synthetic Quest";
 const PFX: &str = "/mock/pfx";
 
+/// Operation `seq` of a test gate (mount 0).
+fn op(seq: u64) -> OpId {
+    OpId { mount: 0, seq }
+}
+
 fn scope_for(name: &str, prefix: &str, packages: &[&str], auto_install: bool) -> GateScope {
     GateScope {
         profile_name: name.into(),
@@ -20,12 +25,15 @@ fn scope_for(name: &str, prefix: &str, packages: &[&str], auto_install: bool) ->
 }
 
 fn gate(packages: &[&str], auto_install: bool) -> Script<DepGate> {
-    Script::new(DepGate::new(scope_for(NAME, PFX, packages, auto_install)))
+    Script::new(DepGate::with_mount(
+        scope_for(NAME, PFX, packages, auto_install),
+        0,
+    ))
 }
 
 fn check_repair(op: u64) -> GateEffect {
     GateEffect::CheckRepairStatus {
-        op: OpId(op),
+        op: OpId { mount: 0, seq: op },
         profile_name: NAME.into(),
         prefix_path: PFX.into(),
     }
@@ -33,7 +41,7 @@ fn check_repair(op: u64) -> GateEffect {
 
 fn check_deps(op: u64) -> GateEffect {
     GateEffect::CheckDependencies {
-        op: OpId(op),
+        op: OpId { mount: 0, seq: op },
         profile_name: NAME.into(),
         prefix_path: PFX.into(),
     }
@@ -41,7 +49,7 @@ fn check_deps(op: u64) -> GateEffect {
 
 fn install(op: u64, packages: &[&str]) -> GateEffect {
     GateEffect::InstallDependencies {
-        op: OpId(op),
+        op: OpId { mount: 0, seq: op },
         profile_name: NAME.into(),
         prefix_path: PFX.into(),
         packages: packages.iter().map(|p| (*p).to_owned()).collect(),
@@ -50,7 +58,7 @@ fn install(op: u64, packages: &[&str]) -> GateEffect {
 
 fn repair(op: u64) -> GateEffect {
     GateEffect::RepairPrefixVersion {
-        op: OpId(op),
+        op: OpId { mount: 0, seq: op },
         profile_name: NAME.into(),
         prefix_path: PFX.into(),
     }
@@ -75,14 +83,14 @@ fn needs_repair(state: RestoreState, last_error: Option<&str>) -> RepairStatus {
 
 fn status_loaded(op: u64, result: Result<RepairStatus, ServiceError>) -> GateIntent {
     GateIntent::RepairStatusLoaded {
-        op: OpId(op),
+        op: OpId { mount: 0, seq: op },
         result,
     }
 }
 
 fn deps_loaded(op: u64, result: Result<Vec<DependencyStatus>, ServiceError>) -> GateIntent {
     GateIntent::DependenciesLoaded {
-        op: OpId(op),
+        op: OpId { mount: 0, seq: op },
         result,
     }
 }
@@ -121,7 +129,7 @@ fn auto_installing(action: LaunchAction) -> Script<DepGate> {
         .step(deps_loaded(1, Ok(vec![])), [install(1, &["dotnet48"])])
         .step(
             GateIntent::InstallRequestFinished {
-                op: OpId(1),
+                op: op(1),
                 result: Ok(()),
             },
             [],
@@ -189,7 +197,7 @@ fn vitest_resumes_the_remembered_launch_only_after_repair_and_package_recheck_su
         })
         .step(
             GateIntent::RepairFinished {
-                op: OpId(2),
+                op: op(2),
                 result: Ok(clean()),
             },
             [check_repair(2)],
@@ -244,13 +252,14 @@ fn vitest_resumes_the_remembered_action_when_completion_arrives_during_the_insta
             completed(true, RestoreState::Succeeded, None),
             [check_repair(1)],
         )
+        .step(status_loaded(1, Ok(clean())), [check_deps(1)])
         .step(
-            status_loaded(1, Ok(clean())),
+            deps_loaded(1, Ok(vec![dep("dotnet48", DependencyState::Installed)])),
             [GateEffect::Launch(LaunchAction::Trainer)],
         )
         .step(
             GateIntent::InstallRequestFinished {
-                op: OpId(1),
+                op: op(1),
                 result: Ok(()),
             },
             [],
@@ -266,11 +275,11 @@ fn vitest_uses_the_steam_compatdata_prefix_when_the_runtime_prefix_is_blank() {
     assert_eq!(GateScope::effective_prefix_path(" /a ", "/b"), "/a");
     assert_eq!(GateScope::effective_prefix_path(" ", " "), "");
 
-    let mut vm = DepGate::new(scope_for(NAME, &prefix, &[], false));
+    let mut vm = DepGate::with_mount(scope_for(NAME, &prefix, &[], false), 0);
     assert_eq!(
         vm.reduce(GateIntent::RequestLaunch(LaunchAction::Game)),
         [GateEffect::CheckRepairStatus {
-            op: OpId(1),
+            op: op(1),
             profile_name: NAME.into(),
             prefix_path: "/steam/compatdata/123/pfx".into(),
         }]
@@ -336,8 +345,9 @@ fn vitest_keeps_the_dependency_gate_busy_until_post_restore_verification_complet
             ));
             assert_eq!(vm.missing_packages(), Some(&["dotnet48".to_owned()][..]));
         })
+        .step(status_loaded(1, Ok(clean())), [check_deps(1)])
         .step(
-            status_loaded(1, Ok(clean())),
+            deps_loaded(1, Ok(vec![dep("dotnet48", DependencyState::Installed)])),
             [GateEffect::Launch(LaunchAction::Game)],
         )
         .assert_state(is_idle)
@@ -430,7 +440,7 @@ fn vitest_does_not_authorize_launch_when_dependency_status_rejects_after_a_profi
 #[test]
 fn vitest_ignores_an_older_install_rejection_without_clearing_the_newer_profile_gate() {
     let b = |op| GateEffect::CheckRepairStatus {
-        op: OpId(op),
+        op: OpId { mount: 0, seq: op },
         profile_name: "Profile B".into(),
         prefix_path: "/prefix/b".into(),
     };
@@ -443,7 +453,7 @@ fn vitest_ignores_an_older_install_rejection_without_clearing_the_newer_profile_
         .step(
             status_loaded(2, Ok(clean())),
             [GateEffect::CheckDependencies {
-                op: OpId(2),
+                op: op(2),
                 profile_name: "Profile B".into(),
                 prefix_path: "/prefix/b".into(),
             }],
@@ -451,7 +461,7 @@ fn vitest_ignores_an_older_install_rejection_without_clearing_the_newer_profile_
         .step(
             deps_loaded(2, Ok(vec![])),
             [GateEffect::InstallDependencies {
-                op: OpId(2),
+                op: op(2),
                 profile_name: "Profile B".into(),
                 prefix_path: "/prefix/b".into(),
                 packages: vec!["dotnet48".into()],
@@ -459,7 +469,7 @@ fn vitest_ignores_an_older_install_rejection_without_clearing_the_newer_profile_
         )
         .step(
             GateIntent::InstallRequestFinished {
-                op: OpId(1),
+                op: op(1),
                 result: Err(error("old install failed")),
             },
             [],
@@ -484,6 +494,14 @@ fn vitest_ignores_an_older_install_rejection_without_clearing_the_newer_profile_
                 restore_state: RestoreState::NotRequired,
                 restore_error: None,
             }),
+            [GateEffect::CheckDependencies {
+                op: op(2),
+                profile_name: "Profile B".into(),
+                prefix_path: "/prefix/b".into(),
+            }],
+        )
+        .step(
+            deps_loaded(2, Ok(vec![dep("dotnet48", DependencyState::Installed)])),
             [GateEffect::Launch(LaunchAction::Trainer)],
         )
         .assert_state(is_idle)

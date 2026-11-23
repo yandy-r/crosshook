@@ -15,7 +15,7 @@ import { effectiveGameArtPath } from '@/utils/profile-art';
 import { HeroDetailHeader } from './HeroDetailHeader';
 import { HeroDetailTabs } from './HeroDetailTabs';
 import type { HeroDetailProfilesScrollTarget, HeroDetailTabId, HeroDetailTabRequestOptions } from './hero-detail-model';
-import { resolveGameDetailsHero } from './hero-detail-model';
+import { HERO_DETAIL_DEFAULT_TAB, resolveGameDetailsHero } from './hero-detail-model';
 
 export interface GameDetailProps {
   summary: LibraryCardData;
@@ -44,7 +44,7 @@ export function GameDetail({
   launchingName,
   requestedTab,
 }: GameDetailProps) {
-  const [activeTab, setActiveTab] = useState<HeroDetailTabId>('overview');
+  const [activeTab, setActiveTab] = useState<HeroDetailTabId>(HERO_DETAIL_DEFAULT_TAB);
   const [profilesScrollTarget, setProfilesScrollTarget] = useState<HeroDetailProfilesScrollTarget | null>(null);
   const fallbackDetailsProfile = useGameDetailsProfile(summary.name, true);
   const { settings, defaultSteamClientInstallPath } = usePreferencesContext();

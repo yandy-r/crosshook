@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   displayPath,
+  HERO_DETAIL_DEFAULT_TAB,
   HERO_DETAIL_TABS,
   isHeroDetailTabId,
   resolveGameDetailsHero,
@@ -544,7 +545,7 @@ function heroFixtures() {
   ];
   return {
     tabs: HERO_DETAIL_TABS.map((tab) => ({ id: tab.id, label: tab.label })),
-    default_tab: 'overview',
+    default_tab: HERO_DETAIL_DEFAULT_TAB,
     tab_ids: ids.map((id) => ({ id, valid: isHeroDetailTabId(id) })),
     display_path: [null, '', '   ', ' /games/quest ', '/x'].map((value) => ({ value, expected: displayPath(value) })),
     hero_image: HERO_IMAGE_CASES.map((input) => ({ input, expected: resolveGameDetailsHero(input) })),

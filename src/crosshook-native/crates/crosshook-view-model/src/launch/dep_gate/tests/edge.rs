@@ -36,6 +36,10 @@ fn manual_install_success_launches() {
         .step(GateIntent::Cancel, [])
         .step(
             completed(true, RestoreState::NotRequired, None),
+            [check_deps(1)],
+        )
+        .step(
+            deps_loaded(1, Ok(vec![dep("dotnet48", DependencyState::Installed)])),
             [GateEffect::Launch(LaunchAction::Game)],
         )
         .assert_state(is_idle)
@@ -49,7 +53,7 @@ fn manual_install_failure_returns_to_the_modal_and_can_retry() {
         .step(GateIntent::InstallDependencies, [install(1, &["dotnet48"])])
         .step(
             GateIntent::InstallRequestFinished {
-                op: OpId(1),
+                op: op(1),
                 result: Err(error("spawn failed")),
             },
             [],
@@ -66,6 +70,10 @@ fn manual_install_failure_returns_to_the_modal_and_can_retry() {
         .step(GateIntent::InstallDependencies, [install(1, &["dotnet48"])])
         .step(
             completed(true, RestoreState::NotRequired, None),
+            [check_deps(1)],
+        )
+        .step(
+            deps_loaded(1, Ok(vec![dep("dotnet48", DependencyState::Installed)])),
             [GateEffect::Launch(LaunchAction::Game)],
         )
         .into_inner();
@@ -89,7 +97,7 @@ fn auto_install_request_failure_resets_the_gate() {
         .step(deps_loaded(1, Ok(vec![])), [install(1, &["dotnet48"])])
         .step(
             GateIntent::InstallRequestFinished {
-                op: OpId(1),
+                op: op(1),
                 result: Err(error("busy")),
             },
             [],
@@ -100,7 +108,7 @@ fn auto_install_request_failure_resets_the_gate() {
 
 #[test]
 fn no_prefix_launches_without_any_check() {
-    let mut vm = DepGate::new(scope_for(NAME, "", &["dotnet48"], false));
+    let mut vm = DepGate::with_mount(scope_for(NAME, "", &["dotnet48"], false), 0);
     assert_eq!(
         vm.reduce(GateIntent::RequestLaunch(LaunchAction::Trainer)),
         [GateEffect::Launch(LaunchAction::Trainer)]
@@ -174,7 +182,7 @@ fn repair_errors_and_verification_errors_keep_the_repair_modal() {
         .step(GateIntent::Cancel, [])
         .step(
             GateIntent::RepairFinished {
-                op: OpId(2),
+                op: op(2),
                 result: Err(error("winetricks missing")),
             },
             [],
@@ -191,7 +199,7 @@ fn repair_errors_and_verification_errors_keep_the_repair_modal() {
         .step(GateIntent::Repair, [repair(3)])
         .step(
             GateIntent::RepairFinished {
-                op: OpId(3),
+                op: op(3),
                 result: Ok(clean()),
             },
             [check_repair(3)],
@@ -257,7 +265,7 @@ fn a_busy_prefix_after_a_repair_shows_busy_not_the_repair_modal() {
         .step(GateIntent::Repair, [repair(2)])
         .step(
             GateIntent::RepairFinished {
-                op: OpId(2),
+                op: op(2),
                 result: Ok(clean()),
             },
             [check_repair(2)],
@@ -325,7 +333,7 @@ fn a_repair_that_still_needs_repair_keeps_the_modal() {
         .step(GateIntent::Repair, [repair(2)])
         .step(
             GateIntent::RepairFinished {
-                op: OpId(2),
+                op: op(2),
                 result: Ok(still.clone()),
             },
             [],
@@ -334,7 +342,7 @@ fn a_repair_that_still_needs_repair_keeps_the_modal() {
         .step(GateIntent::Repair, [repair(3)])
         .step(
             GateIntent::RepairFinished {
-                op: OpId(3),
+                op: op(3),
                 result: Ok(clean()),
             },
             [check_repair(3)],
@@ -359,7 +367,7 @@ fn a_successful_repair_continues_to_the_package_gate() {
         .step(GateIntent::Repair, [repair(2)])
         .step(
             GateIntent::RepairFinished {
-                op: OpId(2),
+                op: op(2),
                 result: Ok(clean()),
             },
             [check_repair(2)],
@@ -373,7 +381,7 @@ fn a_successful_repair_continues_to_the_package_gate() {
         .step(GateIntent::Repair, [repair(2)])
         .step(
             GateIntent::RepairFinished {
-                op: OpId(2),
+                op: op(2),
                 result: Ok(clean()),
             },
             [check_repair(2)],
@@ -427,6 +435,10 @@ fn launch_requests_are_ignored_while_installing_or_repairing() {
         .step(GateIntent::RequestLaunch(LaunchAction::Trainer), [])
         .step(
             completed(true, RestoreState::NotRequired, None),
+            [check_deps(1)],
+        )
+        .step(
+            deps_loaded(1, Ok(vec![dep("dotnet48", DependencyState::Installed)])),
             [GateEffect::Launch(LaunchAction::Game)],
         )
         .into_inner();
@@ -436,10 +448,96 @@ fn launch_requests_are_ignored_while_installing_or_repairing() {
         .step(GateIntent::RequestLaunch(LaunchAction::Game), [])
         .step(
             GateIntent::RepairFinished {
-                op: OpId(2),
+                op: op(2),
                 result: Ok(clean()),
             },
             [check_repair(2)],
         )
+        .into_inner();
+}
+
+#[test]
+fn a_reply_meant_for_an_earlier_gate_never_matches_a_new_one() {
+    let scope = scope_for(NAME, PFX, &[], false);
+    let mut old = DepGate::new(scope.clone());
+    let mut new = DepGate::new(scope);
+    let [GateEffect::CheckRepairStatus { op: old_op, .. }] =
+        old.reduce(GateIntent::RequestLaunch(LaunchAction::Game))[..]
+    else {
+        panic!("expected a repair check");
+    };
+    let [GateEffect::CheckRepairStatus { op: new_op, .. }] =
+        new.reduce(GateIntent::RequestLaunch(LaunchAction::Game))[..]
+    else {
+        panic!("expected a repair check");
+    };
+    assert_ne!(old_op, new_op);
+    let stale = GateIntent::RepairStatusLoaded {
+        op: old_op,
+        result: Ok(clean()),
+    };
+    assert_eq!(new.reduce(stale), []);
+    assert_eq!(
+        new.state(),
+        &GateState::Checking {
+            action: LaunchAction::Game
+        }
+    );
+}
+
+#[test]
+fn an_install_rechecks_packages_added_meanwhile_and_never_reinstalls_on_its_own() {
+    auto_installing(LaunchAction::Game)
+        .step(
+            GateIntent::ScopeChanged(scope_for(NAME, PFX, &["dotnet48", "vcrun2019"], true)),
+            [],
+        )
+        .step(
+            completed(true, RestoreState::NotRequired, None),
+            [check_deps(1)],
+        )
+        .step(
+            deps_loaded(1, Ok(vec![dep("dotnet48", DependencyState::Installed)])),
+            [],
+        )
+        .assert_state(|vm| {
+            assert!(matches!(vm.state(), GateState::Missing { .. }));
+            assert_eq!(vm.missing_packages(), Some(&["vcrun2019".to_owned()][..]));
+        })
+        .into_inner();
+}
+
+#[test]
+fn a_changed_package_list_rechecks_an_open_missing_prompt() {
+    at_package_check(gate(&["dotnet48"], false), LaunchAction::Game)
+        .step(deps_loaded(1, Ok(vec![])), [])
+        .step(
+            GateIntent::ScopeChanged(scope_for(NAME, PFX, &["dotnet48"], false)),
+            [],
+        )
+        .step(
+            GateIntent::ScopeChanged(scope_for(NAME, PFX, &["vcrun2019"], false)),
+            [check_deps(1)],
+        )
+        .step(GateIntent::InstallDependencies, [])
+        .step(deps_loaded(1, Ok(vec![])), [])
+        .assert_state(|vm| {
+            assert_eq!(vm.missing_packages(), Some(&["vcrun2019".to_owned()][..]));
+        })
+        .into_inner();
+}
+
+#[test]
+fn a_busy_repair_result_shows_busy() {
+    at_repair_modal(&[], false)
+        .step(GateIntent::Repair, [repair(2)])
+        .step(
+            GateIntent::RepairFinished {
+                op: op(2),
+                result: Ok(busy()),
+            },
+            [],
+        )
+        .assert_state(is_busy_with(LaunchAction::Game))
         .into_inner();
 }

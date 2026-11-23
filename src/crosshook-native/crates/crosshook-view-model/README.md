@@ -402,8 +402,7 @@ both must match.
 - **Bridge contract**: subscribe to `prefix-dep-complete` before running
   `GateEffect::InstallDependencies` (the job can finish before the request
   returns), drop a gate's pending tasks with the gate, and keep one gate per
-  launch panel across profile changes (`ScopeChanged`), since `OpId`s are
-  per gate.
+  launch panel across profile changes (`ScopeChanged`).
 
 ### Deviations from Classic and from the YAN-842 wording
 
@@ -421,6 +420,13 @@ both must match.
   matched object prototype keys such as `constructor`.
 - `str::trim` strips U+0085 and keeps U+FEFF, the reverse of JS `trim`; this
   only matters for paths made of those characters.
+- After a successful install the gate re-checks the profile's current
+  packages before launching (Classic launched straight away), and never
+  auto-installs a second time: packages still missing show the modal. A
+  changed package list re-checks an open missing-packages prompt.
+- `OpId`s carry a process-unique gate id (a static counter; the only shared
+  state in the crate), so a reply meant for an earlier gate never matches a
+  new one.
 - The completion event carries no job id, so any completion for the same
   profile and prefix counts, as in Classic.
 
