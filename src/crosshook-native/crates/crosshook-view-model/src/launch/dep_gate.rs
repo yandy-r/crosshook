@@ -79,12 +79,6 @@ impl DepGate {
         &self.state
     }
 
-    /// Current scope.
-    #[must_use]
-    pub fn scope(&self) -> &GateScope {
-        &self.scope
-    }
-
     /// Launch waiting on the gate, if any.
     #[must_use]
     pub fn pending_action(&self) -> Option<LaunchAction> {
@@ -120,8 +114,20 @@ impl DepGate {
         }
     }
 
+    /// An install or a repair is running.
+    fn is_locked(&self) -> bool {
+        matches!(
+            self.state,
+            GateState::Installing { .. }
+                | GateState::RepairRequired {
+                    repairing: true,
+                    ..
+                }
+        )
+    }
+
     fn begin(&mut self, awaiting: Awaiting) -> OpId {
-        self.last_op += 1;
+        self.last_op = self.last_op.wrapping_add(1);
         let op = OpId(self.last_op);
         self.op = Some(op);
         self.awaiting = Some(awaiting);
@@ -163,6 +169,7 @@ impl DepGate {
     }
 
     fn block_for_repair(&mut self, action: LaunchAction, status: RepairStatus) -> Vec<GateEffect> {
+        debug_assert!(!status.is_busy(), "a busy prefix shows Busy, not a repair");
         self.known_repairs
             .insert(self.scope.prefix_path.clone(), status.clone());
         self.op = None;
@@ -172,6 +179,24 @@ impl DepGate {
             repairing: false,
         };
         Vec::new()
+    }
+
+    /// A job holds the prefix: wait and retry. Not remembered as a repair.
+    fn show_busy(&mut self, action: LaunchAction, status: RepairStatus) -> Vec<GateEffect> {
+        self.op = None;
+        self.awaiting = None;
+        self.state = GateState::Busy { action, status };
+        Vec::new()
+    }
+
+    /// "Try Again": re-checks while the busy modal stays up; a second retry
+    /// before the answer is ignored.
+    fn retry(&mut self) -> Vec<GateEffect> {
+        if !matches!(self.state, GateState::Busy { .. }) || self.awaiting.is_some() {
+            return Vec::new();
+        }
+        let op = self.begin(Awaiting::LaunchRepairStatus);
+        vec![self.check_repair(op)]
     }
 
     fn start_check(&mut self, action: LaunchAction) -> Vec<GateEffect> {
@@ -247,11 +272,7 @@ impl DepGate {
         let prefix = self.scope.prefix_path.clone();
         match step {
             Awaiting::LaunchRepairStatus => match result {
-                Ok(status) if status.is_busy() => {
-                    self.op = None;
-                    self.state = GateState::Busy { action, status };
-                    Vec::new()
-                }
+                Ok(status) if status.is_busy() => self.show_busy(action, status),
                 Ok(status) if status.required => self.block_for_repair(action, status),
                 Ok(_) | Err(_) => match self.known_repairs.get(&prefix).cloned() {
                     Some(known) => self.block_for_repair(action, known),
@@ -259,11 +280,7 @@ impl DepGate {
                 },
             },
             Awaiting::InstallVerify { install_succeeded } => match result {
-                Ok(status) if status.is_busy() => {
-                    self.op = None;
-                    self.state = GateState::Busy { action, status };
-                    Vec::new()
-                }
+                Ok(status) if status.is_busy() => self.show_busy(action, status),
                 Ok(status) if status.required => self.block_for_repair(action, status),
                 Ok(_) => {
                     self.known_repairs.remove(&prefix);
@@ -277,6 +294,7 @@ impl DepGate {
                 Err(error) => self.block_for_repair(action, verification_failure(&error)),
             },
             Awaiting::RepairVerify => match result {
+                Ok(status) if status.is_busy() => self.show_busy(action, status),
                 Ok(status) if status.required => self.block_for_repair(action, status),
                 Ok(_) => {
                     self.known_repairs.remove(&prefix);
@@ -463,11 +481,11 @@ impl ViewModel for DepGate {
                 self.scope = scope;
                 Vec::new()
             }
+            // An install or repair in flight owns the gate until it reports
+            // back; a second launch press must not drop its result.
+            GateIntent::RequestLaunch(_) if self.is_locked() => Vec::new(),
             GateIntent::RequestLaunch(action) => self.start_check(action),
-            GateIntent::Retry => match self.state {
-                GateState::Busy { action, .. } => self.start_check(action),
-                _ => Vec::new(),
-            },
+            GateIntent::Retry => self.retry(),
             GateIntent::RepairStatusLoaded { op, result } => self.on_repair_status(op, result),
             GateIntent::DependenciesLoaded { op, result } => self.on_dependencies(op, result),
             GateIntent::InstallDependencies => match &self.state {
@@ -486,15 +504,8 @@ impl ViewModel for DepGate {
                 _ => Vec::new(),
             },
             GateIntent::Cancel => {
-                // Busy controls are disabled while installing or repairing.
-                if !matches!(
-                    self.state,
-                    GateState::Installing { .. }
-                        | GateState::RepairRequired {
-                            repairing: true,
-                            ..
-                        }
-                ) {
+                // The modal buttons are disabled while installing or repairing.
+                if !self.is_locked() {
                     self.reset();
                 }
                 Vec::new()

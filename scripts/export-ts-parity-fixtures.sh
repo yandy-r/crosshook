@@ -17,11 +17,18 @@
 #
 set -euo pipefail
 
-if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-  sed -n '2,16p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
-  exit 0
-fi
+case "${1:-}" in
+  "") ;;
+  --help | -h)
+    sed -n '2,16p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    exit 0
+    ;;
+  *)
+    echo "export-ts-parity-fixtures.sh: unknown argument: $1 (see --help)" >&2
+    exit 2
+    ;;
+esac
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT/src/crosshook-native"
-CROSSHOOK_WRITE_PARITY_FIXTURES=1 npx vitest run src/utils/__tests__/exportParityFixtures.test.ts
+CROSSHOOK_WRITE_PARITY_FIXTURES=1 npx --no-install vitest run src/utils/__tests__/exportParityFixtures.test.ts

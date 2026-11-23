@@ -9,8 +9,9 @@
  * `scripts/export-ts-parity-fixtures.sh` sets `CROSSHOOK_WRITE_PARITY_FIXTURES=1`
  * to rewrite the files instead.
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   displayPath,
@@ -40,15 +41,21 @@ import type { ResolvedLaunchMethod } from '../launch';
 import { envSourceLabel, umuGameIdResolutionSourceLabel } from '../launchPreviewPresentation';
 import { mapValidationToNode } from '../mapValidationToNode';
 
-// Vitest runs from src/crosshook-native (package.json scripts and the export script).
-const FIXTURE_DIR = path.resolve(process.cwd(), 'crates/crosshook-view-model/tests/fixtures/ts_parity');
+const FIXTURE_DIR = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../../crates/crosshook-view-model/tests/fixtures/ts_parity'
+);
 const WRITE = process.env.CROSSHOOK_WRITE_PARITY_FIXTURES === '1';
+if (WRITE && process.env.CI) {
+  throw new Error('CROSSHOOK_WRITE_PARITY_FIXTURES must not be set in CI: it would hide fixture drift.');
+}
 
 /** Writes (export mode) or compares (default) one fixture file. */
 function checkFixture(name: string, data: unknown): void {
   const file = path.join(FIXTURE_DIR, `${name}.json`);
   const text = `${JSON.stringify(data, null, 2)}\n`;
   if (WRITE) {
+    mkdirSync(FIXTURE_DIR, { recursive: true });
     writeFileSync(file, text);
     return;
   }

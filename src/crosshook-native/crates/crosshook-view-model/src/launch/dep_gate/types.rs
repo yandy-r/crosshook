@@ -185,7 +185,7 @@ pub enum GateIntent {
     /// The selected profile, prefix, packages or setting changed. A different
     /// profile or prefix resets the gate and makes pending results stale.
     ScopeChanged(GateScope),
-    /// The user pressed launch.
+    /// The user pressed launch. Ignored while an install or repair runs.
     RequestLaunch(LaunchAction),
     /// Result of [`GateEffect::CheckRepairStatus`].
     RepairStatusLoaded {
@@ -256,6 +256,11 @@ pub enum GateEffect {
     /// Start a dependency install; answer with
     /// [`GateIntent::InstallRequestFinished`], then forward its
     /// `prefix-dep-complete` event as [`GateIntent::InstallCompleted`].
+    ///
+    /// Subscribe to `prefix-dep-complete` **before** starting the install:
+    /// the job can finish before the install request returns. The event
+    /// carries no job id, so any completion for the same profile and prefix
+    /// counts (Classic parity).
     InstallDependencies {
         /// Operation.
         op: OpId,

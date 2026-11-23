@@ -393,9 +393,36 @@ both must match.
   the prefix (remembered per prefix, also across profile changes);
   `CheckFailed` and `UserSkipped` packages do not block; duplicate required
   packages stay duplicated.
-- **Hero tabs**: Classic shows all six tabs for every launch method, with or
-  without a trainer; an unknown requested id (exact, case-sensitive match)
-  opens `Overview`. DOM test ids are not ported.
+- **Hero Detail** (`hero::model`): Classic shows all six tabs for every
+  launch method, with or without a trainer; an unknown requested id opens
+  `Overview`. `display_path` shows `Not set` for blank paths and
+  `resolve_hero_image` picks custom background, SteamGridDB background,
+  SteamGridDB hero, then Steam header image (a loading source shows a
+  skeleton). DOM test ids are not ported.
+- **Bridge contract**: subscribe to `prefix-dep-complete` before running
+  `GateEffect::InstallDependencies` (the job can finish before the request
+  returns), drop a gate's pending tasks with the gate, and keep one gate per
+  launch panel across profile changes (`ScopeChanged`), since `OpId`s are
+  per gate.
+
+### Deviations from Classic and from the YAN-842 wording
+
+- `GateIntent` / `ViewModel::reduce` instead of `GateEvent` / `apply`: the
+  crate's `ViewModel` contract fixes the names.
+- `RequestLaunch` is ignored while an install or a repair runs (Classic
+  started a new check and dropped the running one's result). `Retry` keeps
+  the busy modal up until its answer arrives and ignores a second press.
+- A busy status after a repair or install shows the busy modal; Classic's
+  repair path showed it too, through the modal's `in_progress` check.
+- The gate reads `required_packages` and `auto_install` when a result
+  arrives, so a same-profile settings change applies to a check in flight
+  (Classic captured them when the check started).
+- `HeroTab::from_id` accepts only the six ids; Classic's `in` check also
+  matched object prototype keys such as `constructor`.
+- `str::trim` strips U+0085 and keeps U+FEFF, the reverse of JS `trim`; this
+  only matters for paths made of those characters.
+- The completion event carries no job id, so any completion for the same
+  profile and prefix counts, as in Classic.
 
 ### Parity fixtures
 
@@ -413,7 +440,11 @@ them with `include_str!` and assert equal output, so CI needs no Node.
   TypeScript output no longer matches the committed JSON.
 - The dependency gate's Vitest cases are async React-hook scenarios, not
   input/output pairs, so each one is a named intent/effect script in
-  `src/launch/dep_gate/tests.rs` (`vitest_*`) instead of a JSON fixture.
+  `src/launch/dep_gate/tests.rs` (`vitest_*`) instead of a `dep_gate.json`
+  fixture. Unmount cases become "a remounted gate ignores results it did not
+  request"; subscription races become stale `OpId`s.
+- The hero image fixture types carry the TypeScript camelCase names through
+  `cfg_attr(test, serde(rename = ..))`, which compiles away outside tests.
 - `serde`/`serde_json` are **dev-dependencies** only; the fixture types derive
   `Deserialize` under `cfg(test)`.
 

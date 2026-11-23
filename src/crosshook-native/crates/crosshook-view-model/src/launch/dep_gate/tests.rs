@@ -365,33 +365,38 @@ fn vitest_does_not_launch_or_mutate_gate_state_when_profile_changes_during_compl
         .into_inner();
 }
 
-/// Covers the four unmount and subscription cases (`does not launch after
-/// unmount during completion verification`, `unsubscribes and skips install
-/// when unmounted/profile changes before subscription resolves`, `does not
-/// authorize launch when dependency status rejects after unmount`): the
-/// bridge drops a gate on unmount, and a restarted check makes every older
-/// result stale.
+/// Unmount: the bridge drops the gate together with its pending tasks, so a
+/// result can only reach a remounted gate, which never asked for it.
+fn remounted() -> Script<DepGate> {
+    gate(&["dotnet48"], true)
+}
+
 #[test]
-fn vitest_stale_results_after_restart_never_launch_or_install() {
-    at_package_check(gate(&["dotnet48"], true), LaunchAction::Game)
-        .step(
-            GateIntent::RequestLaunch(LaunchAction::Game),
-            [check_repair(2)],
-        )
+fn vitest_does_not_launch_after_unmount_during_completion_verification() {
+    // The unmounted gate was verifying after a successful restore (op 1).
+    remounted()
+        .step(status_loaded(1, Ok(clean())), [])
+        .step(completed(true, RestoreState::Succeeded, None), [])
+        .assert_state(is_idle)
+        .into_inner();
+}
+
+#[test]
+fn vitest_unsubscribes_and_skips_install_when_unmounted_before_subscription_resolves() {
+    remounted()
         .step(deps_loaded(1, Ok(vec![])), [])
+        .assert_state(is_idle)
+        .into_inner();
+}
+
+#[test]
+fn vitest_does_not_authorize_launch_when_dependency_status_rejects_after_unmount() {
+    remounted()
         .step(
             deps_loaded(1, Err(error("dependency cache unavailable"))),
             [],
         )
-        .step(status_loaded(1, Ok(clean())), [])
-        .assert_state(|vm| {
-            assert_eq!(
-                vm.state(),
-                &GateState::Checking {
-                    action: LaunchAction::Game
-                }
-            );
-        })
+        .assert_state(is_idle)
         .into_inner();
 }
 
@@ -471,6 +476,17 @@ fn vitest_ignores_an_older_install_rejection_without_clearing_the_newer_profile_
             ));
             assert_eq!(vm.missing_packages(), Some(&["dotnet48".to_owned()][..]));
         })
+        .step(
+            GateIntent::InstallCompleted(InstallCompletion {
+                profile_name: "Profile B".into(),
+                prefix_path: "/prefix/b".into(),
+                install_succeeded: true,
+                restore_state: RestoreState::NotRequired,
+                restore_error: None,
+            }),
+            [GateEffect::Launch(LaunchAction::Trainer)],
+        )
+        .assert_state(is_idle)
         .into_inner();
 }
 

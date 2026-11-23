@@ -67,7 +67,8 @@ impl HeroTab {
 
     /// Tab to open for a requested id: that tab when the id is valid and
     /// visible, else the default (Classic `AppShell` falls back to
-    /// `overview`).
+    /// `overview`). Every tab is visible today (see [`visible_tabs`]), so the
+    /// visibility filter only matters once the rules diverge from Classic.
     #[must_use]
     pub fn resolve(requested: Option<&str>, method: LaunchMethod, has_trainer: bool) -> Self {
         requested

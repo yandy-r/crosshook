@@ -5,7 +5,7 @@
 //! `derivePipelineDetail.ts`, `mapValidationToNode.ts` and
 //! `launchPreviewPresentation.ts`. Classic keeps its TypeScript copies; the
 //! committed fixtures under `tests/fixtures/ts_parity/` freeze the behaviour
-//! both must match (see the crate `README.md`, § _Launch_).
+//! both must match (see the crate `README.md`, § _Launch and Hero Detail_).
 //!
 //! All state is runtime-only (nothing persists).
 

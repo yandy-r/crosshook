@@ -218,3 +218,228 @@ fn scope_update_for_the_same_target_keeps_the_pending_check() {
         .assert_state(|vm| assert_eq!(vm.missing_packages(), Some(&["vcrun2019".to_owned()][..])))
         .into_inner();
 }
+
+fn busy() -> RepairStatus {
+    RepairStatus {
+        in_progress: true,
+        ..needs_repair(RestoreState::Pending, None)
+    }
+}
+
+/// Request `Game` and land on the repair modal (op 1 done).
+fn at_repair_modal(packages: &[&str], auto: bool) -> Script<DepGate> {
+    gate(packages, auto)
+        .step(
+            GateIntent::RequestLaunch(LaunchAction::Game),
+            [check_repair(1)],
+        )
+        .step(
+            status_loaded(1, Ok(needs_repair(RestoreState::Failed, None))),
+            [],
+        )
+}
+
+fn is_busy_with(action: LaunchAction) -> impl FnOnce(&DepGate) {
+    move |vm| {
+        assert_eq!(
+            vm.state(),
+            &GateState::Busy {
+                action,
+                status: busy()
+            }
+        );
+    }
+}
+
+#[test]
+fn a_busy_prefix_after_a_repair_shows_busy_not_the_repair_modal() {
+    at_repair_modal(&[], false)
+        .step(GateIntent::Repair, [repair(2)])
+        .step(
+            GateIntent::RepairFinished {
+                op: OpId(2),
+                result: Ok(clean()),
+            },
+            [check_repair(2)],
+        )
+        .step(status_loaded(2, Ok(busy())), [])
+        .assert_state(is_busy_with(LaunchAction::Game))
+        .step(GateIntent::Repair, [])
+        .step(GateIntent::Retry, [check_repair(3)])
+        // The failed restore seen this session is still unverified, so a clean
+        // lookup keeps the repair modal (Classic parity: only a verified repair
+        // clears it).
+        .step(status_loaded(3, Ok(clean())), [])
+        .assert_state(|vm| {
+            assert_eq!(
+                vm.repair_status(),
+                Some(&needs_repair(RestoreState::Failed, None))
+            );
+        })
+        .into_inner();
+}
+
+#[test]
+fn a_busy_prefix_after_an_install_shows_busy() {
+    let mut vm = auto_installing(LaunchAction::Game)
+        .step(
+            completed(true, RestoreState::Succeeded, None),
+            [check_repair(1)],
+        )
+        .step(status_loaded(1, Ok(busy())), [])
+        .assert_state(is_busy_with(LaunchAction::Game))
+        .into_inner();
+    // Busy is not remembered as a repair: a clean re-check launches.
+    assert_eq!(vm.reduce(GateIntent::Retry), [check_repair(2)]);
+    assert_eq!(
+        vm.reduce(deps_loaded(2, Ok(vec![]))),
+        [],
+        "only the awaited step is accepted"
+    );
+    assert_eq!(vm.reduce(status_loaded(2, Ok(clean()))), [check_deps(2)]);
+}
+
+#[test]
+fn a_failed_post_install_verification_blocks_for_repair() {
+    auto_installing(LaunchAction::Trainer)
+        .step(
+            completed(true, RestoreState::Succeeded, None),
+            [check_repair(1)],
+        )
+        .step(status_loaded(1, Err(error("db locked"))), [])
+        .assert_state(|vm| {
+            let expected = "Unable to verify prefix repair status: db locked";
+            assert_eq!(
+                vm.repair_status().and_then(|s| s.last_error.as_deref()),
+                Some(expected)
+            );
+            assert_eq!(vm.pending_action(), Some(LaunchAction::Trainer));
+        })
+        .into_inner();
+}
+
+#[test]
+fn a_repair_that_still_needs_repair_keeps_the_modal() {
+    let still = needs_repair(RestoreState::Failed, Some("still broken"));
+    at_repair_modal(&[], false)
+        .step(GateIntent::Repair, [repair(2)])
+        .step(
+            GateIntent::RepairFinished {
+                op: OpId(2),
+                result: Ok(still.clone()),
+            },
+            [],
+        )
+        .assert_state(|vm| assert_eq!(vm.repair_status(), Some(&still)))
+        .step(GateIntent::Repair, [repair(3)])
+        .step(
+            GateIntent::RepairFinished {
+                op: OpId(3),
+                result: Ok(clean()),
+            },
+            [check_repair(3)],
+        )
+        .step(status_loaded(3, Ok(still.clone())), [])
+        .assert_state(|vm| {
+            assert!(matches!(
+                vm.state(),
+                GateState::RepairRequired {
+                    repairing: false,
+                    ..
+                }
+            ));
+            assert_eq!(vm.repair_status(), Some(&still));
+        })
+        .into_inner();
+}
+
+#[test]
+fn a_successful_repair_continues_to_the_package_gate() {
+    at_repair_modal(&["dotnet48"], false)
+        .step(GateIntent::Repair, [repair(2)])
+        .step(
+            GateIntent::RepairFinished {
+                op: OpId(2),
+                result: Ok(clean()),
+            },
+            [check_repair(2)],
+        )
+        .step(status_loaded(2, Ok(clean())), [check_deps(2)])
+        .step(deps_loaded(2, Ok(vec![])), [])
+        .assert_state(|vm| assert_eq!(vm.missing_packages(), Some(&["dotnet48".to_owned()][..])))
+        .into_inner();
+
+    at_repair_modal(&["dotnet48"], true)
+        .step(GateIntent::Repair, [repair(2)])
+        .step(
+            GateIntent::RepairFinished {
+                op: OpId(2),
+                result: Ok(clean()),
+            },
+            [check_repair(2)],
+        )
+        .step(status_loaded(2, Ok(clean())), [check_deps(2)])
+        .step(deps_loaded(2, Ok(vec![])), [install(2, &["dotnet48"])])
+        .into_inner();
+}
+
+#[test]
+fn retry_keeps_the_busy_modal_ignores_double_retry_and_can_stay_busy() {
+    gate(&[], false)
+        .step(
+            GateIntent::RequestLaunch(LaunchAction::Trainer),
+            [check_repair(1)],
+        )
+        .step(status_loaded(1, Ok(busy())), [])
+        .step(GateIntent::Retry, [check_repair(2)])
+        .assert_state(is_busy_with(LaunchAction::Trainer))
+        .step(GateIntent::Retry, [])
+        .step(status_loaded(2, Ok(busy())), [])
+        .assert_state(is_busy_with(LaunchAction::Trainer))
+        .step(GateIntent::Cancel, [])
+        .assert_state(is_idle)
+        .step(GateIntent::Retry, [])
+        .into_inner();
+}
+
+#[test]
+fn cancel_during_a_check_makes_its_results_stale() {
+    gate(&["dotnet48"], false)
+        .step(
+            GateIntent::RequestLaunch(LaunchAction::Game),
+            [check_repair(1)],
+        )
+        .step(GateIntent::Cancel, [])
+        .step(status_loaded(1, Ok(clean())), [])
+        .assert_state(is_idle)
+        .into_inner();
+
+    at_package_check(gate(&["dotnet48"], false), LaunchAction::Game)
+        .step(GateIntent::Cancel, [])
+        .step(deps_loaded(1, Err(error("late"))), [])
+        .assert_state(is_idle)
+        .into_inner();
+}
+
+#[test]
+fn launch_requests_are_ignored_while_installing_or_repairing() {
+    auto_installing(LaunchAction::Game)
+        .step(GateIntent::RequestLaunch(LaunchAction::Trainer), [])
+        .step(
+            completed(true, RestoreState::NotRequired, None),
+            [GateEffect::Launch(LaunchAction::Game)],
+        )
+        .into_inner();
+
+    at_repair_modal(&[], false)
+        .step(GateIntent::Repair, [repair(2)])
+        .step(GateIntent::RequestLaunch(LaunchAction::Game), [])
+        .step(
+            GateIntent::RepairFinished {
+                op: OpId(2),
+                result: Ok(clean()),
+            },
+            [check_repair(2)],
+        )
+        .into_inner();
+}

@@ -42,20 +42,6 @@ impl PipelineNodeId {
             Self::Launch => "Launch",
         }
     }
-
-    /// Wire id (`wine-prefix`, ...), as Classic uses it.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Game => "game",
-            Self::WinePrefix => "wine-prefix",
-            Self::Proton => "proton",
-            Self::Steam => "steam",
-            Self::Trainer => "trainer",
-            Self::Optimizations => "optimizations",
-            Self::Launch => "launch",
-        }
-    }
 }
 
 /// Status a node renders with.
@@ -187,27 +173,24 @@ fn tier1_configured(id: PipelineNodeId, profile: Option<&PipelineProfile>) -> bo
 /// Tier-2 detail and whether the node is resolved. Never called for
 /// [`PipelineNodeId::Launch`].
 fn tier2_state(id: PipelineNodeId, preview: &LaunchPreview) -> (Option<String>, bool) {
-    let segment = |path: Option<&str>| path.map(|p| last_path_segment(p).to_owned());
     let proton = preview.proton_setup.as_ref();
     match id {
         PipelineNodeId::Game => {
             let name = non_blank(Some(&preview.game_executable_name));
             let exe = non_blank(Some(&preview.game_executable));
-            let detail = name.map(str::to_owned).or_else(|| segment(exe));
+            let detail = name
+                .map(str::to_owned)
+                .or_else(|| exe.map(|e| last_path_segment(e).to_owned()));
             (detail, name.is_some() || exe.is_some())
         }
         PipelineNodeId::WinePrefix => {
             let path = proton.map(|s| s.wine_prefix_path.as_str());
-            let detail = path
-                .filter(|p| !p.is_empty())
-                .map(|p| last_path_segment(p).to_owned());
+            let detail = segment(path);
             (detail, non_blank(path).is_some())
         }
         PipelineNodeId::Proton => {
             let path = proton.map(|s| s.proton_executable.as_str());
-            let detail = path
-                .filter(|p| !p.is_empty())
-                .map(|p| last_path_segment(p).to_owned());
+            let detail = segment(path);
             (detail, non_blank(path).is_some())
         }
         PipelineNodeId::Steam => {
@@ -227,9 +210,7 @@ fn tier2_state(id: PipelineNodeId, preview: &LaunchPreview) -> (Option<String>, 
         }
         PipelineNodeId::Trainer => {
             let path = preview.trainer.as_ref().map(|t| t.path.as_str());
-            let detail = path
-                .filter(|p| !p.is_empty())
-                .map(|p| last_path_segment(p).to_owned());
+            let detail = segment(path);
             (detail, preview.trainer.is_some())
         }
         PipelineNodeId::Optimizations => {
@@ -242,6 +223,13 @@ fn tier2_state(id: PipelineNodeId, preview: &LaunchPreview) -> (Option<String>, 
         }
         PipelineNodeId::Launch => (None, false),
     }
+}
+
+/// Last path segment of a non-empty path. A whitespace-only path gives
+/// `Some("")`, as the TypeScript `p ? lastPathSegment(p) : undefined` does.
+fn segment(path: Option<&str>) -> Option<String> {
+    path.filter(|p| !p.is_empty())
+        .map(|p| last_path_segment(p).to_owned())
 }
 
 fn tier2_node(id: PipelineNodeId, preview: &LaunchPreview) -> PipelineNode {
