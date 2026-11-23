@@ -1,0 +1,573 @@
+//! Prefix dependency gate: decides whether a game or trainer launch may start
+//! now, must wait for a prefix repair or a busy prefix, or needs missing
+//! prefix dependencies installed first (`useLaunchDepGate.ts`).
+//!
+//! The gate is a pure state machine. Every service call (repair status,
+//! dependency status, install, repair) is a [`GateEffect`] carrying an
+//! [`OpId`]; the bridge runs it through `crosshook-app` and returns the result
+//! as a [`GateIntent`] with the same id. Starting a new check, changing the
+//! scope or cancelling makes older ids stale, and stale results are ignored,
+//! so a late reply can never launch or change the gate. [`GateEffect::Launch`]
+//! means "the launch may start now".
+//!
+//! | State            | Shown as                              | Leaves on                               |
+//! | ---------------- | ------------------------------------- | --------------------------------------- |
+//! | `Idle`           | nothing                               | `RequestLaunch`                         |
+//! | `Checking`       | nothing (launch pending)              | status results                          |
+//! | `Missing`        | "Missing prefix dependencies" modal   | `InstallDependencies`, `Skip`, `Cancel` |
+//! | `Installing`     | same modal, busy (then "verifying")   | `InstallCompleted`, install failure     |
+//! | `RepairRequired` | "Prefix repair required" modal        | `Repair`, `Cancel`                      |
+//! | `Busy`           | "Prefix busy" modal                   | `Retry`, `Cancel`                       |
+//!
+//! A repair requirement seen in this session (a failed or pending restore) is
+//! remembered per prefix, so the launch stays blocked when a later status
+//! lookup fails; any other status-lookup failure is fail-soft (the check is
+//! skipped, Classic parity).
+
+use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+use super::LaunchAction;
+use crate::{ServiceError, ViewModel};
+
+mod types;
+
+pub use types::{
+    DependencyState, DependencyStatus, GateEffect, GateIntent, GateScope, GateState,
+    InstallCompletion, OpId, RepairStatus, RestoreState,
+};
+
+/// Result the active operation waits for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Awaiting {
+    /// Repair status before a launch (`evaluateLaunch`).
+    LaunchRepairStatus,
+    /// Package status (`evaluatePackageGate`). After an install, missing
+    /// packages show the modal instead of installing again.
+    Dependencies { after_install: bool },
+    /// Repair status after a successful restore (install completion).
+    InstallVerify { install_succeeded: bool },
+    /// The repair call.
+    Repair,
+    /// Repair status after a repair.
+    RepairVerify,
+}
+
+/// The prefix dependency gate of one launch panel.
+///
+/// Not `Clone`: a copy would share the gate id and accept the original's
+/// replies. `Default` is a fresh gate with an empty scope, like [`DepGate::new`].
+#[derive(Debug)]
+pub struct DepGate {
+    scope: GateScope,
+    state: GateState,
+    op: Option<OpId>,
+    awaiting: Option<Awaiting>,
+    /// Process-unique id of this gate instance (see [`OpId`]).
+    mount: u64,
+    last_op: u64,
+    /// Repair requirements seen this session, by prefix path.
+    known_repairs: BTreeMap<String, RepairStatus>,
+}
+
+impl DepGate {
+    /// A gate for `scope`, idle.
+    #[must_use]
+    pub fn new(scope: GateScope) -> Self {
+        /// Next gate instance id; 0 is left for tests.
+        static NEXT_MOUNT: AtomicU64 = AtomicU64::new(1);
+        Self::with_mount(scope, NEXT_MOUNT.fetch_add(1, Ordering::Relaxed))
+    }
+
+    fn with_mount(scope: GateScope, mount: u64) -> Self {
+        Self {
+            scope,
+            state: GateState::Idle,
+            op: None,
+            awaiting: None,
+            mount,
+            last_op: 0,
+            known_repairs: BTreeMap::new(),
+        }
+    }
+
+    /// Current state.
+    #[must_use]
+    pub fn state(&self) -> &GateState {
+        &self.state
+    }
+
+    /// Launch waiting on the gate, if any.
+    #[must_use]
+    pub fn pending_action(&self) -> Option<LaunchAction> {
+        match &self.state {
+            GateState::Idle => None,
+            GateState::Checking { action }
+            | GateState::Missing { action, .. }
+            | GateState::Installing { action, .. }
+            | GateState::RepairRequired { action, .. }
+            | GateState::Busy { action, .. } => Some(*action),
+        }
+    }
+
+    /// Packages the missing-packages modal lists.
+    #[must_use]
+    pub fn missing_packages(&self) -> Option<&[String]> {
+        match &self.state {
+            GateState::Missing { packages, .. } | GateState::Installing { packages, .. } => {
+                Some(packages)
+            }
+            _ => None,
+        }
+    }
+
+    /// Repair status the repair or busy modal shows.
+    #[must_use]
+    pub fn repair_status(&self) -> Option<&RepairStatus> {
+        match &self.state {
+            GateState::RepairRequired { status, .. } | GateState::Busy { status, .. } => {
+                Some(status)
+            }
+            _ => None,
+        }
+    }
+
+    /// An install or a repair is running.
+    fn is_locked(&self) -> bool {
+        matches!(
+            self.state,
+            GateState::Installing { .. }
+                | GateState::RepairRequired {
+                    repairing: true,
+                    ..
+                }
+        )
+    }
+
+    fn begin(&mut self, awaiting: Awaiting) -> OpId {
+        self.last_op = self.last_op.wrapping_add(1);
+        let op = OpId {
+            mount: self.mount,
+            seq: self.last_op,
+        };
+        self.op = Some(op);
+        self.awaiting = Some(awaiting);
+        op
+    }
+
+    fn reset(&mut self) {
+        self.state = GateState::Idle;
+        self.op = None;
+        self.awaiting = None;
+    }
+
+    /// Takes the result of `step` for `op` if it is the active one.
+    fn accept(&mut self, op: OpId, step: impl Fn(Awaiting) -> bool) -> Option<Awaiting> {
+        let awaiting = self.awaiting.filter(|a| self.op == Some(op) && step(*a))?;
+        self.awaiting = None;
+        Some(awaiting)
+    }
+
+    fn effect_target(&self) -> (String, String) {
+        (
+            self.scope.profile_name.clone(),
+            self.scope.prefix_path.clone(),
+        )
+    }
+
+    fn check_repair(&self, op: OpId) -> GateEffect {
+        let (profile_name, prefix_path) = self.effect_target();
+        GateEffect::CheckRepairStatus {
+            op,
+            profile_name,
+            prefix_path,
+        }
+    }
+
+    fn allow(&mut self, action: LaunchAction) -> Vec<GateEffect> {
+        self.reset();
+        vec![GateEffect::Launch(action)]
+    }
+
+    fn block_for_repair(&mut self, action: LaunchAction, status: RepairStatus) -> Vec<GateEffect> {
+        debug_assert!(!status.is_busy(), "a busy prefix shows Busy, not a repair");
+        self.known_repairs
+            .insert(self.scope.prefix_path.clone(), status.clone());
+        self.op = None;
+        self.state = GateState::RepairRequired {
+            action,
+            status,
+            repairing: false,
+        };
+        Vec::new()
+    }
+
+    /// A job holds the prefix: wait and retry. Not remembered as a repair.
+    fn show_busy(&mut self, action: LaunchAction, status: RepairStatus) -> Vec<GateEffect> {
+        self.op = None;
+        self.awaiting = None;
+        self.state = GateState::Busy { action, status };
+        Vec::new()
+    }
+
+    /// "Try Again": re-checks while the busy modal stays up; a second retry
+    /// before the answer is ignored.
+    fn retry(&mut self) -> Vec<GateEffect> {
+        if !matches!(self.state, GateState::Busy { .. }) || self.awaiting.is_some() {
+            return Vec::new();
+        }
+        let op = self.begin(Awaiting::LaunchRepairStatus);
+        vec![self.check_repair(op)]
+    }
+
+    fn start_check(&mut self, action: LaunchAction) -> Vec<GateEffect> {
+        if self.scope.prefix_path.is_empty() {
+            return self.allow(action);
+        }
+        let op = self.begin(Awaiting::LaunchRepairStatus);
+        self.state = GateState::Checking { action };
+        vec![self.check_repair(op)]
+    }
+
+    /// Package step of the active operation (`evaluatePackageGate`).
+    fn check_packages(&mut self, action: LaunchAction) -> Vec<GateEffect> {
+        self.check_packages_with(action, false)
+    }
+
+    /// Package step; `after_install` re-checks the profile's current packages
+    /// after an install instead of trusting the install result.
+    fn check_packages_with(
+        &mut self,
+        action: LaunchAction,
+        after_install: bool,
+    ) -> Vec<GateEffect> {
+        if self.scope.required_packages.is_empty() {
+            return self.allow(action);
+        }
+        let Some(op) = self.op else {
+            return Vec::new();
+        };
+        self.awaiting = Some(Awaiting::Dependencies { after_install });
+        self.state = GateState::Checking { action };
+        let (profile_name, prefix_path) = self.effect_target();
+        vec![GateEffect::CheckDependencies {
+            op,
+            profile_name,
+            prefix_path,
+        }]
+    }
+
+    fn install(
+        &mut self,
+        action: LaunchAction,
+        packages: Vec<String>,
+        auto: bool,
+    ) -> Vec<GateEffect> {
+        let Some(op) = self.op else {
+            return Vec::new();
+        };
+        let (profile_name, prefix_path) = self.effect_target();
+        self.state = GateState::Installing {
+            action,
+            packages: packages.clone(),
+            auto,
+            verifying: false,
+        };
+        vec![GateEffect::InstallDependencies {
+            op,
+            profile_name,
+            prefix_path,
+            packages,
+        }]
+    }
+
+    fn on_repair_status(
+        &mut self,
+        op: OpId,
+        result: Result<RepairStatus, ServiceError>,
+    ) -> Vec<GateEffect> {
+        let Some(action) = self.pending_action() else {
+            return Vec::new();
+        };
+        let is_status_step = |a| {
+            matches!(
+                a,
+                Awaiting::LaunchRepairStatus
+                    | Awaiting::InstallVerify { .. }
+                    | Awaiting::RepairVerify
+            )
+        };
+        let Some(step) = self.accept(op, is_status_step) else {
+            return Vec::new();
+        };
+        let prefix = self.scope.prefix_path.clone();
+        match step {
+            Awaiting::LaunchRepairStatus => match result {
+                Ok(status) if status.is_busy() => self.show_busy(action, status),
+                Ok(status) if status.required => self.block_for_repair(action, status),
+                Ok(_) | Err(_) => match self.known_repairs.get(&prefix).cloned() {
+                    Some(known) => self.block_for_repair(action, known),
+                    None => self.check_packages(action),
+                },
+            },
+            Awaiting::InstallVerify { install_succeeded } => match result {
+                Ok(status) if status.is_busy() => self.show_busy(action, status),
+                Ok(status) if status.required => self.block_for_repair(action, status),
+                Ok(_) => {
+                    self.known_repairs.remove(&prefix);
+                    if install_succeeded {
+                        self.check_packages_with(action, true)
+                    } else {
+                        self.reset();
+                        Vec::new()
+                    }
+                }
+                Err(error) => self.block_for_repair(action, verification_failure(&error)),
+            },
+            Awaiting::RepairVerify => match result {
+                Ok(status) if status.is_busy() => self.show_busy(action, status),
+                Ok(status) if status.required => self.block_for_repair(action, status),
+                Ok(_) => {
+                    self.known_repairs.remove(&prefix);
+                    self.check_packages(action)
+                }
+                Err(error) => self.block_for_repair(action, verification_failure(&error)),
+            },
+            Awaiting::Dependencies { .. } | Awaiting::Repair => Vec::new(),
+        }
+    }
+
+    fn on_dependencies(
+        &mut self,
+        op: OpId,
+        result: Result<Vec<DependencyStatus>, ServiceError>,
+    ) -> Vec<GateEffect> {
+        let Some(action) = self.pending_action() else {
+            return Vec::new();
+        };
+        let Some(Awaiting::Dependencies { after_install }) =
+            self.accept(op, |a| matches!(a, Awaiting::Dependencies { .. }))
+        else {
+            return Vec::new();
+        };
+        // A failed lookup cannot tell what is missing: allow the launch.
+        let Ok(statuses) = result else {
+            return self.allow(action);
+        };
+        let missing: Vec<String> = self
+            .scope
+            .required_packages
+            .iter()
+            .filter(|package| {
+                statuses
+                    .iter()
+                    .find(|s| &s.package_name == *package)
+                    .is_none_or(|s| s.state.blocks_launch())
+            })
+            .cloned()
+            .collect();
+        if missing.is_empty() {
+            self.allow(action)
+        } else if self.scope.auto_install && !after_install {
+            self.install(action, missing, true)
+        } else {
+            self.state = GateState::Missing {
+                action,
+                packages: missing,
+            };
+            Vec::new()
+        }
+    }
+
+    fn on_install_request_finished(
+        &mut self,
+        op: OpId,
+        result: Result<(), ServiceError>,
+    ) -> Vec<GateEffect> {
+        if result.is_ok() || self.op != Some(op) {
+            return Vec::new();
+        }
+        if let GateState::Installing {
+            action,
+            packages,
+            auto,
+            verifying: false,
+        } = &self.state
+        {
+            if *auto {
+                self.reset();
+            } else {
+                self.state = GateState::Missing {
+                    action: *action,
+                    packages: packages.clone(),
+                };
+            }
+        }
+        Vec::new()
+    }
+
+    fn on_install_completed(&mut self, done: InstallCompletion) -> Vec<GateEffect> {
+        let GateState::Installing {
+            action,
+            verifying: false,
+            ..
+        } = self.state
+        else {
+            return Vec::new();
+        };
+        if self.op.is_none()
+            || done.profile_name != self.scope.profile_name
+            || done.prefix_path != self.scope.prefix_path
+        {
+            return Vec::new();
+        }
+        match done.restore_state {
+            // `Pending`: the restore never completed, so the prefix needs a
+            // repair just like a failed one.
+            RestoreState::Failed | RestoreState::Pending => self.block_for_repair(
+                action,
+                RepairStatus {
+                    required: true,
+                    state: Some(done.restore_state),
+                    last_error: done.restore_error,
+                    in_progress: false,
+                },
+            ),
+            RestoreState::Succeeded => {
+                let Some(op) = self.op else {
+                    return Vec::new();
+                };
+                self.awaiting = Some(Awaiting::InstallVerify {
+                    install_succeeded: done.install_succeeded,
+                });
+                if let GateState::Installing { verifying, .. } = &mut self.state {
+                    *verifying = true;
+                }
+                vec![self.check_repair(op)]
+            }
+            RestoreState::NotRequired if done.install_succeeded => {
+                self.check_packages_with(action, true)
+            }
+            RestoreState::NotRequired => {
+                self.reset();
+                Vec::new()
+            }
+        }
+    }
+
+    fn on_repair(&mut self) -> Vec<GateEffect> {
+        let GateState::RepairRequired {
+            repairing: false, ..
+        } = self.state
+        else {
+            return Vec::new();
+        };
+        let op = self.begin(Awaiting::Repair);
+        if let GateState::RepairRequired { repairing, .. } = &mut self.state {
+            *repairing = true;
+        }
+        let (profile_name, prefix_path) = self.effect_target();
+        vec![GateEffect::RepairPrefixVersion {
+            op,
+            profile_name,
+            prefix_path,
+        }]
+    }
+
+    /// A different profile or prefix resets the gate. A changed package list
+    /// re-checks an open missing-packages prompt so Install never sends a
+    /// stale list.
+    fn on_scope_changed(&mut self, scope: GateScope) -> Vec<GateEffect> {
+        if !self.scope.same_target(&scope) {
+            self.reset();
+            self.scope = scope;
+            return Vec::new();
+        }
+        let packages_changed = self.scope.required_packages != scope.required_packages;
+        self.scope = scope;
+        match self.state {
+            GateState::Missing { action, .. } if packages_changed => self.check_packages(action),
+            _ => Vec::new(),
+        }
+    }
+
+    fn on_repair_finished(
+        &mut self,
+        op: OpId,
+        result: Result<RepairStatus, ServiceError>,
+    ) -> Vec<GateEffect> {
+        let Some(action) = self.pending_action() else {
+            return Vec::new();
+        };
+        if self.accept(op, |a| a == Awaiting::Repair).is_none() {
+            return Vec::new();
+        }
+        match result {
+            Ok(status) if status.is_busy() => self.show_busy(action, status),
+            Ok(status) if status.required => self.block_for_repair(action, status),
+            Ok(_) => {
+                self.awaiting = Some(Awaiting::RepairVerify);
+                vec![self.check_repair(op)]
+            }
+            Err(error) => self.block_for_repair(action, RepairStatus::failed(error.message)),
+        }
+    }
+}
+
+fn verification_failure(error: &ServiceError) -> RepairStatus {
+    RepairStatus::failed(format!(
+        "Unable to verify prefix repair status: {}",
+        error.message
+    ))
+}
+
+impl Default for DepGate {
+    fn default() -> Self {
+        Self::new(GateScope::default())
+    }
+}
+
+impl ViewModel for DepGate {
+    type Intent = GateIntent;
+    type Effect = GateEffect;
+
+    fn reduce(&mut self, intent: GateIntent) -> Vec<GateEffect> {
+        match intent {
+            GateIntent::ScopeChanged(scope) => self.on_scope_changed(scope),
+            // An install or repair in flight owns the gate until it reports
+            // back; a second launch press must not drop its result.
+            GateIntent::RequestLaunch(_) if self.is_locked() => Vec::new(),
+            GateIntent::RequestLaunch(action) => self.start_check(action),
+            GateIntent::Retry => self.retry(),
+            GateIntent::RepairStatusLoaded { op, result } => self.on_repair_status(op, result),
+            GateIntent::DependenciesLoaded { op, result } => self.on_dependencies(op, result),
+            GateIntent::InstallDependencies => match &self.state {
+                GateState::Missing { action, packages } => {
+                    let (action, packages) = (*action, packages.clone());
+                    self.install(action, packages, false)
+                }
+                _ => Vec::new(),
+            },
+            GateIntent::InstallRequestFinished { op, result } => {
+                self.on_install_request_finished(op, result)
+            }
+            GateIntent::InstallCompleted(done) => self.on_install_completed(done),
+            GateIntent::Skip => match self.state {
+                GateState::Missing { action, .. } => self.allow(action),
+                _ => Vec::new(),
+            },
+            GateIntent::Cancel => {
+                // The modal buttons are disabled while installing or repairing.
+                if !self.is_locked() {
+                    self.reset();
+                }
+                Vec::new()
+            }
+            GateIntent::Repair => self.on_repair(),
+            GateIntent::RepairFinished { op, result } => self.on_repair_finished(op, result),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;

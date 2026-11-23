@@ -1,0 +1,1936 @@
+{
+  "cases": [
+    {
+      "name": "group order",
+      "preview": {
+        "resolved_method": "proton_run",
+        "validation": {
+          "issues": []
+        },
+        "environment": [
+          {
+            "key": "DXVK_HUD",
+            "value": "fps",
+            "source": "profile_custom"
+          },
+          {
+            "key": "PROTON_NO_ESYNC",
+            "value": "1",
+            "source": "launch_optimization"
+          },
+          {
+            "key": "STEAM_COMPAT_CLIENT_INSTALL_PATH",
+            "value": "/steam/root",
+            "source": "steam_proton"
+          },
+          {
+            "key": "WINEPREFIX",
+            "value": "/prefixes/synthetic-quest",
+            "source": "proton_runtime"
+          },
+          {
+            "key": "DISPLAY",
+            "value": ":0",
+            "source": "host"
+          },
+          {
+            "key": "XDG_RUNTIME_DIR",
+            "value": "/run/user/1000",
+            "source": "host"
+          }
+        ],
+        "cleared_variables": [],
+        "wrappers": [
+          "gamescope"
+        ],
+        "wrapper_details": [
+          {
+            "command": [
+              "gamemoderun"
+            ],
+            "source": "optimization",
+            "active": true,
+            "reason": "Enabled by launch optimization 'Use GameMode'",
+            "optimization_id": "use_gamemode",
+            "optimization_label": "Use GameMode",
+            "folded_into": null
+          }
+        ],
+        "effective_command": "gamescope -- /compat/proton run /games/synthetic-quest/game.exe",
+        "directives_error": null,
+        "steam_launch_options": null,
+        "proton_setup": {
+          "wine_prefix_path": "/prefixes/synthetic-quest",
+          "compat_data_path": "/steam/compatdata/9999001",
+          "steam_client_install_path": "/steam/root",
+          "proton_executable": "/compat/proton",
+          "umu_run_path": null
+        },
+        "working_directory": "/games/synthetic-quest",
+        "game_executable": "/games/synthetic-quest/game.exe",
+        "game_executable_name": "game.exe",
+        "trainer": null,
+        "generated_at": "2026-04-23T12:00:00.000Z",
+        "display_text": "",
+        "gamescope_decision": {
+          "enabled": true,
+          "allow_nested": false,
+          "inside_gamescope_session": false,
+          "active": true,
+          "reason": "active",
+          "mangohud_folded_into_gamescope": false
+        },
+        "umu_decision": null
+      },
+      "expected": {
+        "env_groups": [
+          {
+            "id": "host",
+            "label": "Host",
+            "vars": [
+              {
+                "key": "DISPLAY",
+                "value": ":0"
+              },
+              {
+                "key": "XDG_RUNTIME_DIR",
+                "value": "/run/user/1000"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "steam_proton",
+            "label": "Steam + Proton",
+            "vars": [
+              {
+                "key": "STEAM_COMPAT_CLIENT_INSTALL_PATH",
+                "value": "/steam/root"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "proton_runtime",
+            "label": "Proton runtime",
+            "vars": [
+              {
+                "key": "WINEPREFIX",
+                "value": "/prefixes/synthetic-quest"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "launch_optimization",
+            "label": "Launch optimization",
+            "vars": [
+              {
+                "key": "PROTON_NO_ESYNC",
+                "value": "1"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "profile_custom",
+            "label": "Profile custom",
+            "vars": [
+              {
+                "key": "DXVK_HUD",
+                "value": "fps"
+              }
+            ],
+            "cleared": false
+          }
+        ],
+        "clipboard": [
+          "DISPLAY=:0\nXDG_RUNTIME_DIR=/run/user/1000",
+          "STEAM_COMPAT_CLIENT_INSTALL_PATH=/steam/root",
+          "WINEPREFIX=/prefixes/synthetic-quest",
+          "PROTON_NO_ESYNC=1",
+          "DXVK_HUD=fps"
+        ],
+        "wrapper_chain": [
+          {
+            "id": "optimization-0",
+            "kind": "optimization",
+            "token": "gamemoderun",
+            "active": true,
+            "reason": "Enabled by launch optimization 'Use GameMode'"
+          },
+          {
+            "id": "runtime-proton",
+            "kind": "runtime",
+            "token": "proton",
+            "active": true,
+            "reason": "Direct Proton launch"
+          }
+        ],
+        "summary_meta": "6 env vars · 1 wrapper"
+      }
+    },
+    {
+      "name": "default preview",
+      "preview": {
+        "resolved_method": "proton_run",
+        "validation": {
+          "issues": []
+        },
+        "environment": [
+          {
+            "key": "DISPLAY",
+            "value": ":0",
+            "source": "host"
+          },
+          {
+            "key": "WINEPREFIX",
+            "value": "/prefixes/synthetic-quest",
+            "source": "proton_runtime"
+          },
+          {
+            "key": "PROTON_NO_ESYNC",
+            "value": "1",
+            "source": "launch_optimization"
+          },
+          {
+            "key": "DXVK_HUD",
+            "value": "fps",
+            "source": "profile_custom"
+          }
+        ],
+        "cleared_variables": [
+          "WINEDLLOVERRIDES",
+          "WINEESYNC"
+        ],
+        "wrappers": [
+          "gamescope"
+        ],
+        "wrapper_details": [
+          {
+            "command": [
+              "gamemoderun"
+            ],
+            "source": "optimization",
+            "active": true,
+            "reason": "Enabled by launch optimization 'Use GameMode'",
+            "optimization_id": "use_gamemode",
+            "optimization_label": "Use GameMode",
+            "folded_into": null
+          }
+        ],
+        "effective_command": "gamescope -- /compat/proton run /games/synthetic-quest/game.exe",
+        "directives_error": null,
+        "steam_launch_options": null,
+        "proton_setup": {
+          "wine_prefix_path": "/prefixes/synthetic-quest",
+          "compat_data_path": "/steam/compatdata/9999001",
+          "steam_client_install_path": "/steam/root",
+          "proton_executable": "/compat/proton",
+          "umu_run_path": null
+        },
+        "working_directory": "/games/synthetic-quest",
+        "game_executable": "/games/synthetic-quest/game.exe",
+        "game_executable_name": "game.exe",
+        "trainer": null,
+        "generated_at": "2026-04-23T12:00:00.000Z",
+        "display_text": "",
+        "gamescope_decision": {
+          "enabled": true,
+          "allow_nested": false,
+          "inside_gamescope_session": false,
+          "active": true,
+          "reason": "active",
+          "mangohud_folded_into_gamescope": false
+        },
+        "umu_decision": null
+      },
+      "expected": {
+        "env_groups": [
+          {
+            "id": "host",
+            "label": "Host",
+            "vars": [
+              {
+                "key": "DISPLAY",
+                "value": ":0"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "proton_runtime",
+            "label": "Proton runtime",
+            "vars": [
+              {
+                "key": "WINEPREFIX",
+                "value": "/prefixes/synthetic-quest"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "launch_optimization",
+            "label": "Launch optimization",
+            "vars": [
+              {
+                "key": "PROTON_NO_ESYNC",
+                "value": "1"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "profile_custom",
+            "label": "Profile custom",
+            "vars": [
+              {
+                "key": "DXVK_HUD",
+                "value": "fps"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "cleared",
+            "label": "Cleared before launch",
+            "vars": [
+              {
+                "key": "WINEDLLOVERRIDES",
+                "value": null
+              },
+              {
+                "key": "WINEESYNC",
+                "value": null
+              }
+            ],
+            "cleared": true
+          }
+        ],
+        "clipboard": [
+          "DISPLAY=:0",
+          "WINEPREFIX=/prefixes/synthetic-quest",
+          "PROTON_NO_ESYNC=1",
+          "DXVK_HUD=fps",
+          "unset WINEDLLOVERRIDES\nunset WINEESYNC"
+        ],
+        "wrapper_chain": [
+          {
+            "id": "optimization-0",
+            "kind": "optimization",
+            "token": "gamemoderun",
+            "active": true,
+            "reason": "Enabled by launch optimization 'Use GameMode'"
+          },
+          {
+            "id": "runtime-proton",
+            "kind": "runtime",
+            "token": "proton",
+            "active": true,
+            "reason": "Direct Proton launch"
+          }
+        ],
+        "summary_meta": "4 env vars · 1 wrapper"
+      }
+    },
+    {
+      "name": "null environment",
+      "preview": {
+        "resolved_method": "proton_run",
+        "validation": {
+          "issues": []
+        },
+        "environment": null,
+        "cleared_variables": [
+          "WINEDLLOVERRIDES",
+          "WINEESYNC"
+        ],
+        "wrappers": [
+          "gamescope"
+        ],
+        "wrapper_details": [
+          {
+            "command": [
+              "gamemoderun"
+            ],
+            "source": "optimization",
+            "active": true,
+            "reason": "Enabled by launch optimization 'Use GameMode'",
+            "optimization_id": "use_gamemode",
+            "optimization_label": "Use GameMode",
+            "folded_into": null
+          }
+        ],
+        "effective_command": "gamescope -- /compat/proton run /games/synthetic-quest/game.exe",
+        "directives_error": null,
+        "steam_launch_options": null,
+        "proton_setup": {
+          "wine_prefix_path": "/prefixes/synthetic-quest",
+          "compat_data_path": "/steam/compatdata/9999001",
+          "steam_client_install_path": "/steam/root",
+          "proton_executable": "/compat/proton",
+          "umu_run_path": null
+        },
+        "working_directory": "/games/synthetic-quest",
+        "game_executable": "/games/synthetic-quest/game.exe",
+        "game_executable_name": "game.exe",
+        "trainer": null,
+        "generated_at": "2026-04-23T12:00:00.000Z",
+        "display_text": "",
+        "gamescope_decision": {
+          "enabled": true,
+          "allow_nested": false,
+          "inside_gamescope_session": false,
+          "active": true,
+          "reason": "active",
+          "mangohud_folded_into_gamescope": false
+        },
+        "umu_decision": null
+      },
+      "expected": {
+        "env_groups": [],
+        "clipboard": [],
+        "wrapper_chain": [
+          {
+            "id": "optimization-0",
+            "kind": "optimization",
+            "token": "gamemoderun",
+            "active": true,
+            "reason": "Enabled by launch optimization 'Use GameMode'"
+          },
+          {
+            "id": "runtime-proton",
+            "kind": "runtime",
+            "token": "proton",
+            "active": true,
+            "reason": "Direct Proton launch"
+          }
+        ],
+        "summary_meta": "0 env vars · 1 wrapper"
+      }
+    },
+    {
+      "name": "wrapper order and flags",
+      "preview": {
+        "resolved_method": "proton_run",
+        "validation": {
+          "issues": []
+        },
+        "environment": [
+          {
+            "key": "DISPLAY",
+            "value": ":0",
+            "source": "host"
+          },
+          {
+            "key": "WINEPREFIX",
+            "value": "/prefixes/synthetic-quest",
+            "source": "proton_runtime"
+          },
+          {
+            "key": "PROTON_NO_ESYNC",
+            "value": "1",
+            "source": "launch_optimization"
+          },
+          {
+            "key": "DXVK_HUD",
+            "value": "fps",
+            "source": "profile_custom"
+          }
+        ],
+        "cleared_variables": [
+          "WINEDLLOVERRIDES",
+          "WINEESYNC"
+        ],
+        "wrappers": [
+          "gamescope"
+        ],
+        "wrapper_details": [
+          {
+            "command": [
+              "unshare",
+              "--net"
+            ],
+            "source": "network_isolation",
+            "active": false,
+            "reason": "unshare --net is not available on the host",
+            "optimization_id": "use_gamemode",
+            "optimization_label": "Use GameMode",
+            "folded_into": null
+          },
+          {
+            "command": [
+              "gamemoderun"
+            ],
+            "source": "optimization",
+            "active": true,
+            "reason": "Enabled by launch optimization 'Use GameMode'",
+            "optimization_id": "use_gamemode",
+            "optimization_label": "Use GameMode",
+            "folded_into": null
+          },
+          {
+            "command": [
+              "gamescope",
+              "-f",
+              "--"
+            ],
+            "source": "gamescope",
+            "active": false,
+            "reason": "skipped",
+            "optimization_id": "use_gamemode",
+            "optimization_label": "Use GameMode",
+            "folded_into": null
+          }
+        ],
+        "effective_command": "gamescope -- /compat/proton run /games/synthetic-quest/game.exe",
+        "directives_error": null,
+        "steam_launch_options": null,
+        "proton_setup": {
+          "wine_prefix_path": "/prefixes/synthetic-quest",
+          "compat_data_path": "/steam/compatdata/9999001",
+          "steam_client_install_path": "/steam/root",
+          "proton_executable": "/compat/proton",
+          "umu_run_path": null
+        },
+        "working_directory": "/games/synthetic-quest",
+        "game_executable": "/games/synthetic-quest/game.exe",
+        "game_executable_name": "game.exe",
+        "trainer": null,
+        "generated_at": "2026-04-23T12:00:00.000Z",
+        "display_text": "",
+        "gamescope_decision": {
+          "enabled": true,
+          "allow_nested": false,
+          "inside_gamescope_session": false,
+          "active": true,
+          "reason": "active",
+          "mangohud_folded_into_gamescope": false
+        },
+        "umu_decision": null
+      },
+      "expected": {
+        "env_groups": [
+          {
+            "id": "host",
+            "label": "Host",
+            "vars": [
+              {
+                "key": "DISPLAY",
+                "value": ":0"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "proton_runtime",
+            "label": "Proton runtime",
+            "vars": [
+              {
+                "key": "WINEPREFIX",
+                "value": "/prefixes/synthetic-quest"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "launch_optimization",
+            "label": "Launch optimization",
+            "vars": [
+              {
+                "key": "PROTON_NO_ESYNC",
+                "value": "1"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "profile_custom",
+            "label": "Profile custom",
+            "vars": [
+              {
+                "key": "DXVK_HUD",
+                "value": "fps"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "cleared",
+            "label": "Cleared before launch",
+            "vars": [
+              {
+                "key": "WINEDLLOVERRIDES",
+                "value": null
+              },
+              {
+                "key": "WINEESYNC",
+                "value": null
+              }
+            ],
+            "cleared": true
+          }
+        ],
+        "clipboard": [
+          "DISPLAY=:0",
+          "WINEPREFIX=/prefixes/synthetic-quest",
+          "PROTON_NO_ESYNC=1",
+          "DXVK_HUD=fps",
+          "unset WINEDLLOVERRIDES\nunset WINEESYNC"
+        ],
+        "wrapper_chain": [
+          {
+            "id": "isolation-0",
+            "kind": "isolation",
+            "token": "unshare --net",
+            "active": false,
+            "reason": "unshare --net is not available on the host"
+          },
+          {
+            "id": "optimization-1",
+            "kind": "optimization",
+            "token": "gamemoderun",
+            "active": true,
+            "reason": "Enabled by launch optimization 'Use GameMode'"
+          },
+          {
+            "id": "gamescope-2",
+            "kind": "gamescope",
+            "token": "gamescope -f --",
+            "active": false,
+            "reason": "skipped"
+          },
+          {
+            "id": "runtime-proton",
+            "kind": "runtime",
+            "token": "proton",
+            "active": true,
+            "reason": "Direct Proton launch"
+          }
+        ],
+        "summary_meta": "4 env vars · 1 wrapper"
+      }
+    },
+    {
+      "name": "folded wrappers",
+      "preview": {
+        "resolved_method": "proton_run",
+        "validation": {
+          "issues": []
+        },
+        "environment": [
+          {
+            "key": "DISPLAY",
+            "value": ":0",
+            "source": "host"
+          },
+          {
+            "key": "WINEPREFIX",
+            "value": "/prefixes/synthetic-quest",
+            "source": "proton_runtime"
+          },
+          {
+            "key": "PROTON_NO_ESYNC",
+            "value": "1",
+            "source": "launch_optimization"
+          },
+          {
+            "key": "DXVK_HUD",
+            "value": "fps",
+            "source": "profile_custom"
+          }
+        ],
+        "cleared_variables": [
+          "WINEDLLOVERRIDES",
+          "WINEESYNC"
+        ],
+        "wrappers": [
+          "gamescope"
+        ],
+        "wrapper_details": [
+          {
+            "command": [
+              "gamescope",
+              "--"
+            ],
+            "source": "gamescope",
+            "active": true,
+            "reason": "active",
+            "optimization_id": "use_gamemode",
+            "optimization_label": "Use GameMode",
+            "folded_into": null
+          },
+          {
+            "command": [
+              "mangohud"
+            ],
+            "source": "optimization",
+            "active": true,
+            "reason": "Enabled by launch optimization 'Use GameMode'",
+            "optimization_id": "use_gamemode",
+            "optimization_label": "Use GameMode",
+            "folded_into": "gamescope --mangoapp"
+          },
+          {
+            "command": [
+              "gamemoderun"
+            ],
+            "source": "optimization",
+            "active": true,
+            "reason": "Enabled by launch optimization 'Use GameMode'",
+            "optimization_id": "use_gamemode",
+            "optimization_label": "Use GameMode"
+          }
+        ],
+        "effective_command": "gamescope -- /compat/proton run /games/synthetic-quest/game.exe",
+        "directives_error": null,
+        "steam_launch_options": null,
+        "proton_setup": {
+          "wine_prefix_path": "/prefixes/synthetic-quest",
+          "compat_data_path": "/steam/compatdata/9999001",
+          "steam_client_install_path": "/steam/root",
+          "proton_executable": "/compat/proton",
+          "umu_run_path": null
+        },
+        "working_directory": "/games/synthetic-quest",
+        "game_executable": "/games/synthetic-quest/game.exe",
+        "game_executable_name": "game.exe",
+        "trainer": null,
+        "generated_at": "2026-04-23T12:00:00.000Z",
+        "display_text": "",
+        "gamescope_decision": {
+          "enabled": true,
+          "allow_nested": false,
+          "inside_gamescope_session": false,
+          "active": true,
+          "reason": "active",
+          "mangohud_folded_into_gamescope": false
+        },
+        "umu_decision": null
+      },
+      "expected": {
+        "env_groups": [
+          {
+            "id": "host",
+            "label": "Host",
+            "vars": [
+              {
+                "key": "DISPLAY",
+                "value": ":0"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "proton_runtime",
+            "label": "Proton runtime",
+            "vars": [
+              {
+                "key": "WINEPREFIX",
+                "value": "/prefixes/synthetic-quest"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "launch_optimization",
+            "label": "Launch optimization",
+            "vars": [
+              {
+                "key": "PROTON_NO_ESYNC",
+                "value": "1"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "profile_custom",
+            "label": "Profile custom",
+            "vars": [
+              {
+                "key": "DXVK_HUD",
+                "value": "fps"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "cleared",
+            "label": "Cleared before launch",
+            "vars": [
+              {
+                "key": "WINEDLLOVERRIDES",
+                "value": null
+              },
+              {
+                "key": "WINEESYNC",
+                "value": null
+              }
+            ],
+            "cleared": true
+          }
+        ],
+        "clipboard": [
+          "DISPLAY=:0",
+          "WINEPREFIX=/prefixes/synthetic-quest",
+          "PROTON_NO_ESYNC=1",
+          "DXVK_HUD=fps",
+          "unset WINEDLLOVERRIDES\nunset WINEESYNC"
+        ],
+        "wrapper_chain": [
+          {
+            "id": "gamescope-0",
+            "kind": "gamescope",
+            "token": "gamescope --",
+            "active": true,
+            "reason": "active"
+          },
+          {
+            "id": "optimization-1",
+            "kind": "optimization",
+            "token": "mangohud",
+            "active": true,
+            "reason": "Enabled by launch optimization 'Use GameMode'",
+            "foldedInto": "gamescope --mangoapp"
+          },
+          {
+            "id": "optimization-2",
+            "kind": "optimization",
+            "token": "gamemoderun",
+            "active": true,
+            "reason": "Enabled by launch optimization 'Use GameMode'"
+          },
+          {
+            "id": "runtime-proton",
+            "kind": "runtime",
+            "token": "proton",
+            "active": true,
+            "reason": "Direct Proton launch"
+          }
+        ],
+        "summary_meta": "4 env vars · 2 wrappers"
+      }
+    },
+    {
+      "name": "umu row",
+      "preview": {
+        "resolved_method": "proton_run",
+        "validation": {
+          "issues": []
+        },
+        "environment": [
+          {
+            "key": "DISPLAY",
+            "value": ":0",
+            "source": "host"
+          },
+          {
+            "key": "WINEPREFIX",
+            "value": "/prefixes/synthetic-quest",
+            "source": "proton_runtime"
+          },
+          {
+            "key": "PROTON_NO_ESYNC",
+            "value": "1",
+            "source": "launch_optimization"
+          },
+          {
+            "key": "DXVK_HUD",
+            "value": "fps",
+            "source": "profile_custom"
+          }
+        ],
+        "cleared_variables": [
+          "WINEDLLOVERRIDES",
+          "WINEESYNC"
+        ],
+        "wrappers": [
+          "gamescope"
+        ],
+        "wrapper_details": [
+          {
+            "command": [
+              "gamemoderun"
+            ],
+            "source": "optimization",
+            "active": true,
+            "reason": "Enabled by launch optimization 'Use GameMode'",
+            "optimization_id": "use_gamemode",
+            "optimization_label": "Use GameMode",
+            "folded_into": null
+          }
+        ],
+        "effective_command": "gamescope -- /compat/proton run /games/synthetic-quest/game.exe",
+        "directives_error": null,
+        "steam_launch_options": null,
+        "proton_setup": {
+          "wine_prefix_path": "/prefixes/synthetic-quest",
+          "compat_data_path": "/steam/compatdata/9999001",
+          "steam_client_install_path": "/steam/root",
+          "proton_executable": "/compat/proton",
+          "umu_run_path": null
+        },
+        "working_directory": "/games/synthetic-quest",
+        "game_executable": "/games/synthetic-quest/game.exe",
+        "game_executable_name": "game.exe",
+        "trainer": null,
+        "generated_at": "2026-04-23T12:00:00.000Z",
+        "display_text": "",
+        "gamescope_decision": {
+          "enabled": true,
+          "allow_nested": false,
+          "inside_gamescope_session": false,
+          "active": true,
+          "reason": "active",
+          "mangohud_folded_into_gamescope": false
+        },
+        "umu_decision": {
+          "requested_preference": "auto",
+          "umu_run_path_on_backend_path": "/usr/bin/umu-run",
+          "will_use_umu": true,
+          "reason": "using umu-run at /usr/bin/umu-run",
+          "csv_coverage": "found",
+          "gameid_resolution": null
+        }
+      },
+      "expected": {
+        "env_groups": [
+          {
+            "id": "host",
+            "label": "Host",
+            "vars": [
+              {
+                "key": "DISPLAY",
+                "value": ":0"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "proton_runtime",
+            "label": "Proton runtime",
+            "vars": [
+              {
+                "key": "WINEPREFIX",
+                "value": "/prefixes/synthetic-quest"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "launch_optimization",
+            "label": "Launch optimization",
+            "vars": [
+              {
+                "key": "PROTON_NO_ESYNC",
+                "value": "1"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "profile_custom",
+            "label": "Profile custom",
+            "vars": [
+              {
+                "key": "DXVK_HUD",
+                "value": "fps"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "cleared",
+            "label": "Cleared before launch",
+            "vars": [
+              {
+                "key": "WINEDLLOVERRIDES",
+                "value": null
+              },
+              {
+                "key": "WINEESYNC",
+                "value": null
+              }
+            ],
+            "cleared": true
+          }
+        ],
+        "clipboard": [
+          "DISPLAY=:0",
+          "WINEPREFIX=/prefixes/synthetic-quest",
+          "PROTON_NO_ESYNC=1",
+          "DXVK_HUD=fps",
+          "unset WINEDLLOVERRIDES\nunset WINEESYNC"
+        ],
+        "wrapper_chain": [
+          {
+            "id": "optimization-0",
+            "kind": "optimization",
+            "token": "gamemoderun",
+            "active": true,
+            "reason": "Enabled by launch optimization 'Use GameMode'"
+          },
+          {
+            "id": "runtime-umu",
+            "kind": "runtime",
+            "token": "umu-run",
+            "active": true,
+            "reason": "using umu-run at /usr/bin/umu-run",
+            "detail": "csv coverage: found"
+          }
+        ],
+        "summary_meta": "4 env vars · 1 wrapper · umu: umu-run"
+      }
+    },
+    {
+      "name": "umu gameid",
+      "preview": {
+        "resolved_method": "proton_run",
+        "validation": {
+          "issues": []
+        },
+        "environment": [
+          {
+            "key": "DISPLAY",
+            "value": ":0",
+            "source": "host"
+          },
+          {
+            "key": "WINEPREFIX",
+            "value": "/prefixes/synthetic-quest",
+            "source": "proton_runtime"
+          },
+          {
+            "key": "PROTON_NO_ESYNC",
+            "value": "1",
+            "source": "launch_optimization"
+          },
+          {
+            "key": "DXVK_HUD",
+            "value": "fps",
+            "source": "profile_custom"
+          }
+        ],
+        "cleared_variables": [
+          "WINEDLLOVERRIDES",
+          "WINEESYNC"
+        ],
+        "wrappers": [
+          "gamescope"
+        ],
+        "wrapper_details": [
+          {
+            "command": [
+              "gamemoderun"
+            ],
+            "source": "optimization",
+            "active": true,
+            "reason": "Enabled by launch optimization 'Use GameMode'",
+            "optimization_id": "use_gamemode",
+            "optimization_label": "Use GameMode",
+            "folded_into": null
+          }
+        ],
+        "effective_command": "gamescope -- /compat/proton run /games/synthetic-quest/game.exe",
+        "directives_error": null,
+        "steam_launch_options": null,
+        "proton_setup": {
+          "wine_prefix_path": "/prefixes/synthetic-quest",
+          "compat_data_path": "/steam/compatdata/9999001",
+          "steam_client_install_path": "/steam/root",
+          "proton_executable": "/compat/proton",
+          "umu_run_path": null
+        },
+        "working_directory": "/games/synthetic-quest",
+        "game_executable": "/games/synthetic-quest/game.exe",
+        "game_executable_name": "game.exe",
+        "trainer": null,
+        "generated_at": "2026-04-23T12:00:00.000Z",
+        "display_text": "",
+        "gamescope_decision": {
+          "enabled": true,
+          "allow_nested": false,
+          "inside_gamescope_session": false,
+          "active": true,
+          "reason": "active",
+          "mangohud_folded_into_gamescope": false
+        },
+        "umu_decision": {
+          "requested_preference": "auto",
+          "umu_run_path_on_backend_path": "/usr/bin/umu-run",
+          "will_use_umu": true,
+          "reason": "using umu-run at /usr/bin/umu-run",
+          "csv_coverage": "missing",
+          "gameid_resolution": {
+            "game_id": "umu-9999001",
+            "store": "steam",
+            "source": "steam_app_id",
+            "lookup_key": null,
+            "fetched_at": null,
+            "expires_at": null,
+            "error_category": null
+          }
+        }
+      },
+      "expected": {
+        "env_groups": [
+          {
+            "id": "host",
+            "label": "Host",
+            "vars": [
+              {
+                "key": "DISPLAY",
+                "value": ":0"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "proton_runtime",
+            "label": "Proton runtime",
+            "vars": [
+              {
+                "key": "WINEPREFIX",
+                "value": "/prefixes/synthetic-quest"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "launch_optimization",
+            "label": "Launch optimization",
+            "vars": [
+              {
+                "key": "PROTON_NO_ESYNC",
+                "value": "1"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "profile_custom",
+            "label": "Profile custom",
+            "vars": [
+              {
+                "key": "DXVK_HUD",
+                "value": "fps"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "cleared",
+            "label": "Cleared before launch",
+            "vars": [
+              {
+                "key": "WINEDLLOVERRIDES",
+                "value": null
+              },
+              {
+                "key": "WINEESYNC",
+                "value": null
+              }
+            ],
+            "cleared": true
+          }
+        ],
+        "clipboard": [
+          "DISPLAY=:0",
+          "WINEPREFIX=/prefixes/synthetic-quest",
+          "PROTON_NO_ESYNC=1",
+          "DXVK_HUD=fps",
+          "unset WINEDLLOVERRIDES\nunset WINEESYNC"
+        ],
+        "wrapper_chain": [
+          {
+            "id": "optimization-0",
+            "kind": "optimization",
+            "token": "gamemoderun",
+            "active": true,
+            "reason": "Enabled by launch optimization 'Use GameMode'"
+          },
+          {
+            "id": "runtime-umu",
+            "kind": "runtime",
+            "token": "umu-run",
+            "active": true,
+            "reason": "using umu-run at /usr/bin/umu-run",
+            "detail": "csv coverage: missing · GAMEID umu-9999001 (Steam app id)"
+          }
+        ],
+        "summary_meta": "4 env vars · 1 wrapper · umu: umu-run"
+      }
+    },
+    {
+      "name": "umu direct proton fallback",
+      "preview": {
+        "resolved_method": "proton_run",
+        "validation": {
+          "issues": []
+        },
+        "environment": [
+          {
+            "key": "DISPLAY",
+            "value": ":0",
+            "source": "host"
+          },
+          {
+            "key": "WINEPREFIX",
+            "value": "/prefixes/synthetic-quest",
+            "source": "proton_runtime"
+          },
+          {
+            "key": "PROTON_NO_ESYNC",
+            "value": "1",
+            "source": "launch_optimization"
+          },
+          {
+            "key": "DXVK_HUD",
+            "value": "fps",
+            "source": "profile_custom"
+          }
+        ],
+        "cleared_variables": [
+          "WINEDLLOVERRIDES",
+          "WINEESYNC"
+        ],
+        "wrappers": [
+          "gamescope"
+        ],
+        "wrapper_details": [
+          {
+            "command": [
+              "gamemoderun"
+            ],
+            "source": "optimization",
+            "active": true,
+            "reason": "Enabled by launch optimization 'Use GameMode'",
+            "optimization_id": "use_gamemode",
+            "optimization_label": "Use GameMode",
+            "folded_into": null
+          }
+        ],
+        "effective_command": "gamescope -- /compat/proton run /games/synthetic-quest/game.exe",
+        "directives_error": null,
+        "steam_launch_options": null,
+        "proton_setup": {
+          "wine_prefix_path": "/prefixes/synthetic-quest",
+          "compat_data_path": "/steam/compatdata/9999001",
+          "steam_client_install_path": "/steam/root",
+          "proton_executable": "/compat/proton",
+          "umu_run_path": null
+        },
+        "working_directory": "/games/synthetic-quest",
+        "game_executable": "/games/synthetic-quest/game.exe",
+        "game_executable_name": "game.exe",
+        "trainer": null,
+        "generated_at": "2026-04-23T12:00:00.000Z",
+        "display_text": "",
+        "gamescope_decision": {
+          "enabled": true,
+          "allow_nested": false,
+          "inside_gamescope_session": false,
+          "active": true,
+          "reason": "active",
+          "mangohud_folded_into_gamescope": false
+        },
+        "umu_decision": {
+          "requested_preference": "auto",
+          "umu_run_path_on_backend_path": "/usr/bin/umu-run",
+          "will_use_umu": false,
+          "reason": "preference = Proton — direct Proton always",
+          "csv_coverage": "found",
+          "gameid_resolution": null
+        }
+      },
+      "expected": {
+        "env_groups": [
+          {
+            "id": "host",
+            "label": "Host",
+            "vars": [
+              {
+                "key": "DISPLAY",
+                "value": ":0"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "proton_runtime",
+            "label": "Proton runtime",
+            "vars": [
+              {
+                "key": "WINEPREFIX",
+                "value": "/prefixes/synthetic-quest"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "launch_optimization",
+            "label": "Launch optimization",
+            "vars": [
+              {
+                "key": "PROTON_NO_ESYNC",
+                "value": "1"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "profile_custom",
+            "label": "Profile custom",
+            "vars": [
+              {
+                "key": "DXVK_HUD",
+                "value": "fps"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "cleared",
+            "label": "Cleared before launch",
+            "vars": [
+              {
+                "key": "WINEDLLOVERRIDES",
+                "value": null
+              },
+              {
+                "key": "WINEESYNC",
+                "value": null
+              }
+            ],
+            "cleared": true
+          }
+        ],
+        "clipboard": [
+          "DISPLAY=:0",
+          "WINEPREFIX=/prefixes/synthetic-quest",
+          "PROTON_NO_ESYNC=1",
+          "DXVK_HUD=fps",
+          "unset WINEDLLOVERRIDES\nunset WINEESYNC"
+        ],
+        "wrapper_chain": [
+          {
+            "id": "optimization-0",
+            "kind": "optimization",
+            "token": "gamemoderun",
+            "active": true,
+            "reason": "Enabled by launch optimization 'Use GameMode'"
+          },
+          {
+            "id": "runtime-umu",
+            "kind": "runtime",
+            "token": "umu-run",
+            "active": false,
+            "reason": "preference = Proton — direct Proton always",
+            "detail": "csv coverage: found"
+          },
+          {
+            "id": "runtime-proton",
+            "kind": "runtime",
+            "token": "proton",
+            "active": true,
+            "reason": "Direct Proton launch"
+          }
+        ],
+        "summary_meta": "4 env vars · 1 wrapper · umu: direct Proton"
+      }
+    },
+    {
+      "name": "steam runtime row",
+      "preview": {
+        "resolved_method": "steam_applaunch",
+        "validation": {
+          "issues": []
+        },
+        "environment": [
+          {
+            "key": "DISPLAY",
+            "value": ":0",
+            "source": "host"
+          },
+          {
+            "key": "WINEPREFIX",
+            "value": "/prefixes/synthetic-quest",
+            "source": "proton_runtime"
+          },
+          {
+            "key": "PROTON_NO_ESYNC",
+            "value": "1",
+            "source": "launch_optimization"
+          },
+          {
+            "key": "DXVK_HUD",
+            "value": "fps",
+            "source": "profile_custom"
+          }
+        ],
+        "cleared_variables": [
+          "WINEDLLOVERRIDES",
+          "WINEESYNC"
+        ],
+        "wrappers": [
+          "gamescope"
+        ],
+        "wrapper_details": [
+          {
+            "command": [
+              "gamemoderun"
+            ],
+            "source": "optimization",
+            "active": true,
+            "reason": "Enabled by launch optimization 'Use GameMode'",
+            "optimization_id": "use_gamemode",
+            "optimization_label": "Use GameMode",
+            "folded_into": null
+          }
+        ],
+        "effective_command": "gamescope -- /compat/proton run /games/synthetic-quest/game.exe",
+        "directives_error": null,
+        "steam_launch_options": null,
+        "proton_setup": {
+          "wine_prefix_path": "/prefixes/synthetic-quest",
+          "compat_data_path": "/steam/compatdata/9999001",
+          "steam_client_install_path": "/steam/root",
+          "proton_executable": "/compat/proton",
+          "umu_run_path": null
+        },
+        "working_directory": "/games/synthetic-quest",
+        "game_executable": "/games/synthetic-quest/game.exe",
+        "game_executable_name": "game.exe",
+        "trainer": null,
+        "generated_at": "2026-04-23T12:00:00.000Z",
+        "display_text": "",
+        "gamescope_decision": {
+          "enabled": true,
+          "allow_nested": false,
+          "inside_gamescope_session": false,
+          "active": true,
+          "reason": "active",
+          "mangohud_folded_into_gamescope": false
+        },
+        "umu_decision": null
+      },
+      "expected": {
+        "env_groups": [
+          {
+            "id": "host",
+            "label": "Host",
+            "vars": [
+              {
+                "key": "DISPLAY",
+                "value": ":0"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "proton_runtime",
+            "label": "Proton runtime",
+            "vars": [
+              {
+                "key": "WINEPREFIX",
+                "value": "/prefixes/synthetic-quest"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "launch_optimization",
+            "label": "Launch optimization",
+            "vars": [
+              {
+                "key": "PROTON_NO_ESYNC",
+                "value": "1"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "profile_custom",
+            "label": "Profile custom",
+            "vars": [
+              {
+                "key": "DXVK_HUD",
+                "value": "fps"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "cleared",
+            "label": "Cleared before launch",
+            "vars": [
+              {
+                "key": "WINEDLLOVERRIDES",
+                "value": null
+              },
+              {
+                "key": "WINEESYNC",
+                "value": null
+              }
+            ],
+            "cleared": true
+          }
+        ],
+        "clipboard": [
+          "DISPLAY=:0",
+          "WINEPREFIX=/prefixes/synthetic-quest",
+          "PROTON_NO_ESYNC=1",
+          "DXVK_HUD=fps",
+          "unset WINEDLLOVERRIDES\nunset WINEESYNC"
+        ],
+        "wrapper_chain": [
+          {
+            "id": "optimization-0",
+            "kind": "optimization",
+            "token": "gamemoderun",
+            "active": true,
+            "reason": "Enabled by launch optimization 'Use GameMode'"
+          },
+          {
+            "id": "runtime-proton",
+            "kind": "runtime",
+            "token": "proton",
+            "active": true,
+            "reason": "Launched through Steam"
+          }
+        ],
+        "summary_meta": "4 env vars · 1 wrapper"
+      }
+    },
+    {
+      "name": "null wrapper details",
+      "preview": {
+        "resolved_method": "proton_run",
+        "validation": {
+          "issues": []
+        },
+        "environment": [
+          {
+            "key": "DISPLAY",
+            "value": ":0",
+            "source": "host"
+          },
+          {
+            "key": "WINEPREFIX",
+            "value": "/prefixes/synthetic-quest",
+            "source": "proton_runtime"
+          },
+          {
+            "key": "PROTON_NO_ESYNC",
+            "value": "1",
+            "source": "launch_optimization"
+          },
+          {
+            "key": "DXVK_HUD",
+            "value": "fps",
+            "source": "profile_custom"
+          }
+        ],
+        "cleared_variables": [
+          "WINEDLLOVERRIDES",
+          "WINEESYNC"
+        ],
+        "wrappers": [
+          "gamescope"
+        ],
+        "wrapper_details": null,
+        "effective_command": "gamescope -- /compat/proton run /games/synthetic-quest/game.exe",
+        "directives_error": null,
+        "steam_launch_options": null,
+        "proton_setup": {
+          "wine_prefix_path": "/prefixes/synthetic-quest",
+          "compat_data_path": "/steam/compatdata/9999001",
+          "steam_client_install_path": "/steam/root",
+          "proton_executable": "/compat/proton",
+          "umu_run_path": null
+        },
+        "working_directory": "/games/synthetic-quest",
+        "game_executable": "/games/synthetic-quest/game.exe",
+        "game_executable_name": "game.exe",
+        "trainer": null,
+        "generated_at": "2026-04-23T12:00:00.000Z",
+        "display_text": "",
+        "gamescope_decision": {
+          "enabled": true,
+          "allow_nested": false,
+          "inside_gamescope_session": false,
+          "active": true,
+          "reason": "active",
+          "mangohud_folded_into_gamescope": false
+        },
+        "umu_decision": null
+      },
+      "expected": {
+        "env_groups": [
+          {
+            "id": "host",
+            "label": "Host",
+            "vars": [
+              {
+                "key": "DISPLAY",
+                "value": ":0"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "proton_runtime",
+            "label": "Proton runtime",
+            "vars": [
+              {
+                "key": "WINEPREFIX",
+                "value": "/prefixes/synthetic-quest"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "launch_optimization",
+            "label": "Launch optimization",
+            "vars": [
+              {
+                "key": "PROTON_NO_ESYNC",
+                "value": "1"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "profile_custom",
+            "label": "Profile custom",
+            "vars": [
+              {
+                "key": "DXVK_HUD",
+                "value": "fps"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "cleared",
+            "label": "Cleared before launch",
+            "vars": [
+              {
+                "key": "WINEDLLOVERRIDES",
+                "value": null
+              },
+              {
+                "key": "WINEESYNC",
+                "value": null
+              }
+            ],
+            "cleared": true
+          }
+        ],
+        "clipboard": [
+          "DISPLAY=:0",
+          "WINEPREFIX=/prefixes/synthetic-quest",
+          "PROTON_NO_ESYNC=1",
+          "DXVK_HUD=fps",
+          "unset WINEDLLOVERRIDES\nunset WINEESYNC"
+        ],
+        "wrapper_chain": null,
+        "summary_meta": "4 env vars"
+      }
+    },
+    {
+      "name": "native no runtime rows",
+      "preview": {
+        "resolved_method": "native",
+        "validation": {
+          "issues": []
+        },
+        "environment": [
+          {
+            "key": "DISPLAY",
+            "value": ":0",
+            "source": "host"
+          },
+          {
+            "key": "WINEPREFIX",
+            "value": "/prefixes/synthetic-quest",
+            "source": "proton_runtime"
+          },
+          {
+            "key": "PROTON_NO_ESYNC",
+            "value": "1",
+            "source": "launch_optimization"
+          },
+          {
+            "key": "DXVK_HUD",
+            "value": "fps",
+            "source": "profile_custom"
+          }
+        ],
+        "cleared_variables": [
+          "WINEDLLOVERRIDES",
+          "WINEESYNC"
+        ],
+        "wrappers": [
+          "gamescope"
+        ],
+        "wrapper_details": [],
+        "effective_command": "gamescope -- /compat/proton run /games/synthetic-quest/game.exe",
+        "directives_error": null,
+        "steam_launch_options": null,
+        "proton_setup": null,
+        "working_directory": "/games/synthetic-quest",
+        "game_executable": "/games/synthetic-quest/game.exe",
+        "game_executable_name": "game.exe",
+        "trainer": null,
+        "generated_at": "2026-04-23T12:00:00.000Z",
+        "display_text": "",
+        "gamescope_decision": {
+          "enabled": true,
+          "allow_nested": false,
+          "inside_gamescope_session": false,
+          "active": true,
+          "reason": "active",
+          "mangohud_folded_into_gamescope": false
+        },
+        "umu_decision": null
+      },
+      "expected": {
+        "env_groups": [
+          {
+            "id": "host",
+            "label": "Host",
+            "vars": [
+              {
+                "key": "DISPLAY",
+                "value": ":0"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "proton_runtime",
+            "label": "Proton runtime",
+            "vars": [
+              {
+                "key": "WINEPREFIX",
+                "value": "/prefixes/synthetic-quest"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "launch_optimization",
+            "label": "Launch optimization",
+            "vars": [
+              {
+                "key": "PROTON_NO_ESYNC",
+                "value": "1"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "profile_custom",
+            "label": "Profile custom",
+            "vars": [
+              {
+                "key": "DXVK_HUD",
+                "value": "fps"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "cleared",
+            "label": "Cleared before launch",
+            "vars": [
+              {
+                "key": "WINEDLLOVERRIDES",
+                "value": null
+              },
+              {
+                "key": "WINEESYNC",
+                "value": null
+              }
+            ],
+            "cleared": true
+          }
+        ],
+        "clipboard": [
+          "DISPLAY=:0",
+          "WINEPREFIX=/prefixes/synthetic-quest",
+          "PROTON_NO_ESYNC=1",
+          "DXVK_HUD=fps",
+          "unset WINEDLLOVERRIDES\nunset WINEESYNC"
+        ],
+        "wrapper_chain": [],
+        "summary_meta": "4 env vars · 0 wrappers"
+      }
+    },
+    {
+      "name": "single env var, inactive wrapper",
+      "preview": {
+        "resolved_method": "proton_run",
+        "validation": {
+          "issues": []
+        },
+        "environment": [
+          {
+            "key": "DISPLAY",
+            "value": ":0",
+            "source": "host"
+          }
+        ],
+        "cleared_variables": [
+          "WINEDLLOVERRIDES",
+          "WINEESYNC"
+        ],
+        "wrappers": [
+          "gamescope"
+        ],
+        "wrapper_details": [
+          {
+            "command": [
+              "gamemoderun"
+            ],
+            "source": "optimization",
+            "active": false,
+            "reason": "Enabled by launch optimization 'Use GameMode'",
+            "optimization_id": "use_gamemode",
+            "optimization_label": "Use GameMode",
+            "folded_into": null
+          }
+        ],
+        "effective_command": "gamescope -- /compat/proton run /games/synthetic-quest/game.exe",
+        "directives_error": null,
+        "steam_launch_options": null,
+        "proton_setup": null,
+        "working_directory": "/games/synthetic-quest",
+        "game_executable": "/games/synthetic-quest/game.exe",
+        "game_executable_name": "game.exe",
+        "trainer": null,
+        "generated_at": "2026-04-23T12:00:00.000Z",
+        "display_text": "",
+        "gamescope_decision": {
+          "enabled": true,
+          "allow_nested": false,
+          "inside_gamescope_session": false,
+          "active": true,
+          "reason": "active",
+          "mangohud_folded_into_gamescope": false
+        },
+        "umu_decision": null
+      },
+      "expected": {
+        "env_groups": [
+          {
+            "id": "host",
+            "label": "Host",
+            "vars": [
+              {
+                "key": "DISPLAY",
+                "value": ":0"
+              }
+            ],
+            "cleared": false
+          },
+          {
+            "id": "cleared",
+            "label": "Cleared before launch",
+            "vars": [
+              {
+                "key": "WINEDLLOVERRIDES",
+                "value": null
+              },
+              {
+                "key": "WINEESYNC",
+                "value": null
+              }
+            ],
+            "cleared": true
+          }
+        ],
+        "clipboard": [
+          "DISPLAY=:0",
+          "unset WINEDLLOVERRIDES\nunset WINEESYNC"
+        ],
+        "wrapper_chain": [
+          {
+            "id": "optimization-0",
+            "kind": "optimization",
+            "token": "gamemoderun",
+            "active": false,
+            "reason": "Enabled by launch optimization 'Use GameMode'"
+          }
+        ],
+        "summary_meta": "1 env var · 0 wrappers"
+      }
+    }
+  ],
+  "empty_summary_meta": "0 env vars",
+  "env_source_labels": [
+    {
+      "source": "proton_runtime",
+      "label": "Proton runtime"
+    },
+    {
+      "source": "launch_optimization",
+      "label": "Launch optimization"
+    },
+    {
+      "source": "host",
+      "label": "Host"
+    },
+    {
+      "source": "steam_proton",
+      "label": "Steam + Proton"
+    },
+    {
+      "source": "profile_custom",
+      "label": "Profile custom"
+    }
+  ],
+  "gameid_source_labels": [
+    {
+      "source": "explicit_override",
+      "label": "profile override"
+    },
+    {
+      "source": "steam_app_id",
+      "label": "Steam app id"
+    },
+    {
+      "source": "fresh_cache",
+      "label": "cache hit"
+    },
+    {
+      "source": "fresh_lookup",
+      "label": "fresh HTTP lookup"
+    },
+    {
+      "source": "stale_cache",
+      "label": "stale cache fallback"
+    },
+    {
+      "source": "cached_not_found",
+      "label": "cached not found"
+    },
+    {
+      "source": "lookup_disabled",
+      "label": "lookup disabled"
+    },
+    {
+      "source": "missing_hints",
+      "label": "missing store/codename"
+    },
+    {
+      "source": "api_unavailable",
+      "label": "API unavailable"
+    },
+    {
+      "source": "fallback",
+      "label": "fallback"
+    }
+  ]
+}

@@ -1,0 +1,297 @@
+{
+  "tabs": [
+    {
+      "id": "overview",
+      "label": "Overview"
+    },
+    {
+      "id": "profiles",
+      "label": "Profiles"
+    },
+    {
+      "id": "launch-options",
+      "label": "Launch options"
+    },
+    {
+      "id": "trainer",
+      "label": "Trainer"
+    },
+    {
+      "id": "history",
+      "label": "History"
+    },
+    {
+      "id": "compatibility",
+      "label": "Compatibility"
+    }
+  ],
+  "default_tab": "overview",
+  "tab_ids": [
+    {
+      "id": "overview",
+      "valid": true
+    },
+    {
+      "id": "profiles",
+      "valid": true
+    },
+    {
+      "id": "launch-options",
+      "valid": true
+    },
+    {
+      "id": "trainer",
+      "valid": true
+    },
+    {
+      "id": "history",
+      "valid": true
+    },
+    {
+      "id": "compatibility",
+      "valid": true
+    },
+    {
+      "id": "Overview",
+      "valid": false
+    },
+    {
+      "id": " trainer",
+      "valid": false
+    },
+    {
+      "id": "launch_options",
+      "valid": false
+    },
+    {
+      "id": "",
+      "valid": false
+    }
+  ],
+  "display_path": [
+    {
+      "value": null,
+      "expected": "Not set"
+    },
+    {
+      "value": "",
+      "expected": "Not set"
+    },
+    {
+      "value": "   ",
+      "expected": "Not set"
+    },
+    {
+      "value": " /games/quest ",
+      "expected": "/games/quest"
+    },
+    {
+      "value": "/x",
+      "expected": "/x"
+    }
+  ],
+  "hero_image": [
+    {
+      "input": {
+        "customBgPath": "/art/bg.png",
+        "bg": {
+          "url": "bg",
+          "loading": false
+        },
+        "hero": {
+          "url": "hero",
+          "loading": false
+        },
+        "headerImage": "h",
+        "metaLoading": false
+      },
+      "expected": {
+        "url": "bg",
+        "showSkeleton": false
+      }
+    },
+    {
+      "input": {
+        "customBgPath": "/art/bg.png",
+        "bg": {
+          "url": null,
+          "loading": true
+        },
+        "hero": {
+          "url": "hero",
+          "loading": false
+        },
+        "headerImage": "h",
+        "metaLoading": false
+      },
+      "expected": {
+        "url": null,
+        "showSkeleton": true
+      }
+    },
+    {
+      "input": {
+        "customBgPath": "/art/bg.png",
+        "bg": {
+          "url": null,
+          "loading": false
+        },
+        "hero": {
+          "url": "hero",
+          "loading": false
+        },
+        "headerImage": "h",
+        "metaLoading": false
+      },
+      "expected": {
+        "url": "hero",
+        "showSkeleton": false
+      }
+    },
+    {
+      "input": {
+        "customBgPath": "  ",
+        "bg": {
+          "url": null,
+          "loading": true
+        },
+        "hero": {
+          "url": "hero",
+          "loading": false
+        },
+        "headerImage": "h",
+        "metaLoading": false
+      },
+      "expected": {
+        "url": null,
+        "showSkeleton": true
+      }
+    },
+    {
+      "input": {
+        "bg": {
+          "url": "bg",
+          "loading": false
+        },
+        "hero": {
+          "url": "hero",
+          "loading": false
+        },
+        "headerImage": "h",
+        "metaLoading": false
+      },
+      "expected": {
+        "url": "bg",
+        "showSkeleton": false
+      }
+    },
+    {
+      "input": {
+        "bg": {
+          "url": null,
+          "loading": false
+        },
+        "hero": {
+          "url": null,
+          "loading": true
+        },
+        "headerImage": "h",
+        "metaLoading": false
+      },
+      "expected": {
+        "url": null,
+        "showSkeleton": true
+      }
+    },
+    {
+      "input": {
+        "bg": {
+          "url": null,
+          "loading": false
+        },
+        "hero": {
+          "url": "hero",
+          "loading": false
+        },
+        "headerImage": "h",
+        "metaLoading": true
+      },
+      "expected": {
+        "url": "hero",
+        "showSkeleton": false
+      }
+    },
+    {
+      "input": {
+        "bg": {
+          "url": null,
+          "loading": false
+        },
+        "hero": {
+          "url": null,
+          "loading": false
+        },
+        "headerImage": "h",
+        "metaLoading": true
+      },
+      "expected": {
+        "url": null,
+        "showSkeleton": true
+      }
+    },
+    {
+      "input": {
+        "bg": {
+          "url": null,
+          "loading": false
+        },
+        "hero": {
+          "url": null,
+          "loading": false
+        },
+        "headerImage": "h",
+        "metaLoading": false
+      },
+      "expected": {
+        "url": "h",
+        "showSkeleton": false
+      }
+    },
+    {
+      "input": {
+        "bg": {
+          "url": "",
+          "loading": false
+        },
+        "hero": {
+          "url": "",
+          "loading": false
+        },
+        "headerImage": "",
+        "metaLoading": false
+      },
+      "expected": {
+        "url": null,
+        "showSkeleton": false
+      }
+    },
+    {
+      "input": {
+        "bg": {
+          "url": null,
+          "loading": false
+        },
+        "hero": {
+          "url": null,
+          "loading": false
+        },
+        "headerImage": null,
+        "metaLoading": false
+      },
+      "expected": {
+        "url": null,
+        "showSkeleton": false
+      }
+    }
+  ]
+}

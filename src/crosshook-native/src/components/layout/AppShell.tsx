@@ -12,7 +12,11 @@ import { Inspector } from '@/components/layout/Inspector';
 import { InstanceGuardBanner } from '@/components/layout/InstanceGuardBanner';
 import { MetadataStatusBanner } from '@/components/layout/MetadataStatusBanner';
 import Sidebar, { type AppRoute } from '@/components/layout/Sidebar';
-import { type HeroDetailTabId, isHeroDetailTabId } from '@/components/library/hero-detail-model';
+import {
+  HERO_DETAIL_DEFAULT_TAB,
+  type HeroDetailTabId,
+  isHeroDetailTabId,
+} from '@/components/library/hero-detail-model';
 import { OnboardingWizard } from '@/components/OnboardingWizard';
 import { CommandPalette } from '@/components/palette/CommandPalette';
 import { useInspectorSelection } from '@/context/InspectorSelectionContext';
@@ -192,7 +196,7 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
         setNavigationToast('Select a profile before opening game details.');
         return;
       }
-      const heroDetailTab = isHeroDetailTabId(tab) ? tab : 'overview';
+      const heroDetailTab = isHeroDetailTabId(tab) ? tab : HERO_DETAIL_DEFAULT_TAB;
       try {
         await selectProfile(trimmed, { collectionId, throwOnFailure: true });
         setNavigationToast(null);

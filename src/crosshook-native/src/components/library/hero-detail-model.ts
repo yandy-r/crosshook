@@ -4,6 +4,9 @@
 
 export type HeroDetailTabId = 'overview' | 'profiles' | 'launch-options' | 'trainer' | 'history' | 'compatibility';
 
+/** Tab Hero Detail opens on, and the fallback for an unknown requested tab. */
+export const HERO_DETAIL_DEFAULT_TAB: HeroDetailTabId = 'overview';
+
 export type HeroDetailProfilesScrollTarget = 'runtime';
 
 export interface HeroDetailTabRequestOptions {

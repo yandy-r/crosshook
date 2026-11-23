@@ -9,7 +9,9 @@ drives every toolkit, and its tests need no UI, runtime or disk.
 
 Contents: the `ViewModel` trait, `Form<T>` (dirty/touched tracking and a
 submit state machine), the `ServiceError` mirror of `crosshook_app::AppError`,
-two worked screens (`library`, `settings`), and the `testing` harness.
+two worked screens (`library`, `settings`), the launch view-models
+(`launch`: dependency gate, pipeline and its detail panel) and the Hero
+Detail model (`hero`), and the `testing` harness.
 
 ## Rules
 
@@ -355,6 +357,103 @@ assert_eq!(LogFilter::parse(" debug "), Some(LogFilter::Debug));
 assert_eq!(LogFilter::parse("crosshook=debug"), None);
 ```
 
+## Launch and Hero Detail
+
+Ported once from Classic TypeScript so every native screen shares one tested
+copy. Classic keeps its TypeScript; the parity fixtures freeze the behaviour
+both must match.
+
+| Module                    | Classic source                                            |
+| ------------------------- | --------------------------------------------------------- |
+| `launch::dep_gate`        | `useLaunchDepGate.ts`, `LaunchDepGateModal.tsx`           |
+| `launch::pipeline`        | `derivePipelineNodes.ts`                                  |
+| `launch::pipeline_detail` | `derivePipelineDetail.ts`, `launchPreviewPresentation.ts` |
+| `launch::validation_map`  | `mapValidationToNode.ts`                                  |
+| `hero::model`             | `hero-detail-model.ts`, `AppShell.tsx` tab fallback       |
+
+- **Inputs** are plain data (`launch::preview`): the subset of core
+  `LaunchPreview` the derivations read, and `PipelineProfile` (tier-1 profile
+  fields). With the `app` feature, `From<&core LaunchPreview>`,
+  `PipelineProfile::from_profile`, `GateScope::from_profile` and the
+  prefix-dependency conversions build them.
+- **Pipeline** (`derive_pipeline`): tier 1 (no preview) checks only that the
+  profile paths are set; tier 2 uses the preview, where only **fatal** issues
+  mark a node as an error (warnings are not shown yet) and the launch node
+  summarizes the nodes before it. A non-idle `LaunchPhase` overlays live
+  status; an exited session is `Idle`. Labels are `PipelineNodeId::label`.
+- **Dependency gate** (`DepGate`, a `ViewModel`): `RequestLaunch` checks the
+  prefix repair status, then the required packages, and returns
+  `GateEffect::Launch` when the launch may start. Otherwise it shows a busy
+  prefix (retry), a required repair, or missing packages (install, skip or
+  cancel; `auto_install` installs without asking). Every service effect
+  carries an `OpId`; a new request, `Cancel` or a different profile or prefix
+  (`ScopeChanged`) makes older ids stale, so late results never launch.
+  Classic quirks kept on purpose: a failed dependency or repair-status lookup
+  allows the launch unless this session already saw a repair requirement for
+  the prefix (remembered per prefix, also across profile changes);
+  `CheckFailed` and `UserSkipped` packages do not block; duplicate required
+  packages stay duplicated.
+- **Hero Detail** (`hero::model`): Classic shows all six tabs for every
+  launch method, with or without a trainer; an unknown requested id opens
+  `Overview`. `display_path` shows `Not set` for blank paths and
+  `resolve_hero_image` picks custom background, SteamGridDB background,
+  SteamGridDB hero, then Steam header image (a loading source shows a
+  skeleton). DOM test ids are not ported.
+- **Bridge contract**: subscribe to `prefix-dep-complete` before running
+  `GateEffect::InstallDependencies` (the job can finish before the request
+  returns), drop a gate's pending tasks with the gate, and keep one gate per
+  launch panel across profile changes (`ScopeChanged`).
+
+### Deviations from Classic and from the YAN-842 wording
+
+- `GateIntent` / `ViewModel::reduce` instead of `GateEvent` / `apply`: the
+  crate's `ViewModel` contract fixes the names.
+- `RequestLaunch` is ignored while an install or a repair runs (Classic
+  started a new check and dropped the running one's result). `Retry` keeps
+  the busy modal up until its answer arrives and ignores a second press.
+- A busy status after a repair or install shows the busy modal; Classic's
+  repair path showed it too, through the modal's `in_progress` check.
+- The gate reads `required_packages` and `auto_install` when a result
+  arrives, so a same-profile settings change applies to a check in flight
+  (Classic captured them when the check started).
+- `HeroTab::from_id` accepts only the six ids; Classic's `in` check also
+  matched object prototype keys such as `constructor`.
+- `str::trim` strips U+0085 and keeps U+FEFF, the reverse of JS `trim`; this
+  only matters for paths made of those characters.
+- After a successful install the gate re-checks the profile's current
+  packages before launching (Classic launched straight away), and never
+  auto-installs a second time: packages still missing show the modal. A
+  changed package list re-checks an open missing-packages prompt.
+- `OpId`s carry a process-unique gate id (a static counter; the only shared
+  state in the crate), so a reply meant for an earlier gate never matches a
+  new one.
+- The completion event carries no job id, so any completion for the same
+  profile and prefix counts, as in Classic.
+
+### Parity fixtures
+
+`src/crosshook-native/src/utils/__tests__/exportParityFixtures.test.ts` runs
+the real TypeScript functions on fixed inputs (every Vitest case of these
+modules plus a state matrix: idle, validating, blocked, launching, waiting for
+the trainer, running, exited, trainer attached, each method) and writes
+`tests/fixtures/ts_parity/{pipeline,pipeline_detail,validation_map,hero}.json`.
+The Rust tests (`src/launch/parity_tests.rs`, `src/hero/model/tests.rs`) load
+them with `include_str!` and assert equal output, so CI needs no Node.
+
+- `./scripts/export-ts-parity-fixtures.sh` rewrites the files; then
+  `git diff --exit-code` on that directory proves the export is reproducible.
+- Plain `npm test` runs the same file in compare mode and fails when the
+  TypeScript output no longer matches the committed JSON.
+- The dependency gate's Vitest cases are async React-hook scenarios, not
+  input/output pairs, so each one is a named intent/effect script in
+  `src/launch/dep_gate/tests.rs` (`vitest_*`) instead of a `dep_gate.json`
+  fixture. Unmount cases become "a remounted gate ignores results it did not
+  request"; subscription races become stale `OpId`s.
+- The hero image fixture types carry the TypeScript camelCase names through
+  `cfg_attr(test, serde(rename = ..))`, which compiles away outside tests.
+- `serde`/`serde_json` are **dev-dependencies** only; the fixture types derive
+  `Deserialize` under `cfg(test)`.
+
 ## Adding a view-model for a ported screen
 
 1. Read the React oracle (component, hooks, stores) and list its user actions,
@@ -412,7 +511,8 @@ assert_eq!(LogFilter::parse("crosshook=debug"), None);
   never change the running set, and the Currently Playing count matches a
   reference model. Strategies stay in `#[cfg(test)]` files; regressions are
   kept in `proptest-regressions/`.
-- Tests in `src/error/tests.rs` and `src/library/app/tests.rs` need the `app`
+- Tests in `src/error/tests.rs`, `src/library/app/tests.rs` and
+  `src/launch/app/tests.rs` need the `app`
   feature, so run both feature sets:
 
 ```bash
@@ -429,7 +529,7 @@ Workspace clippy and tests build default features only; CI adds the
 
 - **Runtime-only:** all view-model state (cards, search keys, query, filter,
   sort, visible indices, pending favorite saves, running sessions, the event
-  buffer, form values, baselines, touched fields, errors and submit ids). It is
+  buffer, the dependency gate and its remembered repairs, form values, baselines, touched fields, errors and submit ids). It is
   rebuilt from service results on each start and never persisted.
 - **No persistence here:** the crate reads and writes no file, database or
   setting. Persistent changes (favorites, settings) are effects; the bridge
@@ -438,12 +538,14 @@ Workspace clippy and tests build default features only; CI adds the
 
 ## Dependencies
 
-- **Default build: none.** Dev: `proptest`. `cargo tree -p crosshook-view-model`
+- **Default build: none.** Dev: `proptest`, `serde`, `serde_json` (parity
+  fixtures). `cargo tree -p crosshook-view-model`
   contains no tokio and no UI toolkit; `check-app-deps.sh` guards that.
 - **`app` feature** (off by default): adds optional `crosshook-app` and
   `crosshook-core` and the conversions (`From<&AppError>`/`From<AppError>` for
   `ServiceError`, `ProfileCard::from_summary`, `From` for `SessionId`,
-  `SessionKind` and `RunningSession`, `running_snapshot`, `session_event`).
+  `SessionKind` and `RunningSession`, `running_snapshot`, `session_event`, and
+  the launch conversions listed in § _Launch and Hero Detail_).
   It is off because both crates depend on tokio, which would put tokio back in
   the tree. There is no self dev-dependency with features for the same reason.
   A bridge crate (which already depends on `crosshook-app`) enables it.
