@@ -6,9 +6,11 @@
 # Runs:
 #   1. src/utils/__tests__/exportParityFixtures.test.ts in write mode →
 #      crates/crosshook-view-model/tests/fixtures/ts_parity/*.json
-#   2. src/utils/__tests__/exportProfileNormalizeFixtures.test.ts in write mode →
+#   2. src/utils/__tests__/exportAutosaveParityFixtures.test.ts in write mode →
+#      crates/crosshook-view-model/tests/fixtures/ts_parity/autosave.json
+#   3. src/utils/__tests__/exportProfileNormalizeFixtures.test.ts in write mode →
 #      crates/crosshook-core/tests/fixtures/profile_normalize/*.classic.normalized.json
-#   3. cargo test -p crosshook-core --test profile_normalize_golden in write mode →
+#   4. cargo test -p crosshook-core --test profile_normalize_golden in write mode →
 #      crates/crosshook-core/tests/fixtures/profile_normalize/*.classic.toml
 #
 # Without write mode (plain `npm test` and `cargo test`) the same tests fail
@@ -37,6 +39,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT/src/crosshook-native"
 CROSSHOOK_WRITE_PARITY_FIXTURES=1 npx --no-install vitest run \
   src/utils/__tests__/exportParityFixtures.test.ts \
+  src/utils/__tests__/exportAutosaveParityFixtures.test.ts \
   src/utils/__tests__/exportProfileNormalizeFixtures.test.ts
 CROSSHOOK_WRITE_CLASSIC_TOML_FIXTURES=1 cargo test \
   --manifest-path "$REPO_ROOT/src/crosshook-native/Cargo.toml" \

@@ -1,0 +1,653 @@
+{
+  "constants": {
+    "section_debounce_ms": 350,
+    "environment_debounce_ms": 400,
+    "saved_status_hold_ms": 3000
+  },
+  "scenarios": [
+    {
+      "name": "rapid_profile_draft_edits_coalesce",
+      "scope": {
+        "selected_profile": "Test Game",
+        "draft_name": "Test Game",
+        "profile_exists": true,
+        "launch_method": "proton_run"
+      },
+      "steps": [
+        {
+          "at_ms": 0,
+          "kind": "edit",
+          "section": "profile_draft",
+          "revision": "111"
+        },
+        {
+          "at_ms": 150,
+          "kind": "edit",
+          "section": "profile_draft",
+          "revision": "222"
+        },
+        {
+          "at_ms": 300,
+          "kind": "edit",
+          "section": "profile_draft",
+          "revision": "333"
+        },
+        {
+          "at_ms": 650,
+          "kind": "advance_to"
+        }
+      ],
+      "expected_saves": [
+        {
+          "at_ms": 650,
+          "target": "full_profile",
+          "section_kind": null,
+          "profile_name": "Test Game",
+          "revision": "333"
+        }
+      ],
+      "final_value": "333"
+    },
+    {
+      "name": "rapid_launch_optimizations_coalesce",
+      "scope": {
+        "selected_profile": "Test Game",
+        "draft_name": "Test Game",
+        "profile_exists": true,
+        "launch_method": "proton_run"
+      },
+      "steps": [
+        {
+          "at_ms": 0,
+          "kind": "edit",
+          "section": "launch_optimizations",
+          "revision": "opt_a"
+        },
+        {
+          "at_ms": 150,
+          "kind": "edit",
+          "section": "launch_optimizations",
+          "revision": "opt_a,opt_b"
+        },
+        {
+          "at_ms": 300,
+          "kind": "edit",
+          "section": "launch_optimizations",
+          "revision": "opt_b"
+        },
+        {
+          "at_ms": 650,
+          "kind": "advance_to"
+        }
+      ],
+      "expected_saves": [
+        {
+          "at_ms": 650,
+          "target": "section",
+          "section_kind": "launch_optimizations",
+          "profile_name": "Test Game",
+          "revision": "opt_b"
+        }
+      ],
+      "final_value": "opt_b"
+    },
+    {
+      "name": "separate_launch_sections_sequential",
+      "scope": {
+        "selected_profile": "Test Game",
+        "draft_name": "Test Game",
+        "profile_exists": true,
+        "launch_method": "proton_run"
+      },
+      "steps": [
+        {
+          "at_ms": 0,
+          "kind": "edit",
+          "section": "gamescope",
+          "revision": "gs-1"
+        },
+        {
+          "at_ms": 350,
+          "kind": "advance_to"
+        },
+        {
+          "at_ms": 400,
+          "kind": "edit",
+          "section": "mangohud",
+          "revision": "60"
+        },
+        {
+          "at_ms": 750,
+          "kind": "advance_to"
+        }
+      ],
+      "expected_saves": [
+        {
+          "at_ms": 350,
+          "target": "section",
+          "section_kind": "gamescope",
+          "profile_name": "Test Game",
+          "revision": "gs-1"
+        },
+        {
+          "at_ms": 750,
+          "target": "section",
+          "section_kind": "mangohud",
+          "profile_name": "Test Game",
+          "revision": "60"
+        }
+      ],
+      "final_value": "60"
+    },
+    {
+      "name": "all_five_launch_sections_dedicated_targets",
+      "scope": {
+        "selected_profile": "Test Game",
+        "draft_name": "Test Game",
+        "profile_exists": true,
+        "launch_method": "proton_run"
+      },
+      "steps": [
+        {
+          "at_ms": 0,
+          "kind": "edit",
+          "section": "launch_optimizations",
+          "revision": "gamemode"
+        },
+        {
+          "at_ms": 400,
+          "kind": "advance_to"
+        },
+        {
+          "at_ms": 400,
+          "kind": "edit",
+          "section": "gamescope",
+          "revision": "gs"
+        },
+        {
+          "at_ms": 800,
+          "kind": "advance_to"
+        },
+        {
+          "at_ms": 800,
+          "kind": "edit",
+          "section": "trainer_gamescope",
+          "revision": "tgs"
+        },
+        {
+          "at_ms": 1200,
+          "kind": "advance_to"
+        },
+        {
+          "at_ms": 1200,
+          "kind": "edit",
+          "section": "mangohud",
+          "revision": "90"
+        },
+        {
+          "at_ms": 1600,
+          "kind": "advance_to"
+        },
+        {
+          "at_ms": 1600,
+          "kind": "edit",
+          "section": "command_arguments",
+          "revision": "--fast"
+        },
+        {
+          "at_ms": 2000,
+          "kind": "advance_to"
+        }
+      ],
+      "expected_saves": [
+        {
+          "at_ms": 350,
+          "target": "section",
+          "section_kind": "launch_optimizations",
+          "profile_name": "Test Game",
+          "revision": "gamemode"
+        },
+        {
+          "at_ms": 750,
+          "target": "section",
+          "section_kind": "gamescope",
+          "profile_name": "Test Game",
+          "revision": "gs"
+        },
+        {
+          "at_ms": 1150,
+          "target": "section",
+          "section_kind": "trainer_gamescope",
+          "profile_name": "Test Game",
+          "revision": "tgs"
+        },
+        {
+          "at_ms": 1550,
+          "target": "section",
+          "section_kind": "mangohud",
+          "profile_name": "Test Game",
+          "revision": "90"
+        },
+        {
+          "at_ms": 1950,
+          "target": "section",
+          "section_kind": "command_arguments",
+          "profile_name": "Test Game",
+          "revision": "--fast"
+        }
+      ],
+      "final_value": "--fast"
+    },
+    {
+      "name": "environment_blur_400ms_and_dedupe",
+      "scope": {
+        "selected_profile": "Test Game",
+        "draft_name": "Test Game",
+        "profile_exists": true,
+        "launch_method": "proton_run"
+      },
+      "steps": [
+        {
+          "at_ms": 0,
+          "kind": "edit",
+          "section": "environment",
+          "revision": "{\"FOO\":\"1\"}"
+        },
+        {
+          "at_ms": 350,
+          "kind": "advance_to"
+        },
+        {
+          "at_ms": 400,
+          "kind": "advance_to"
+        },
+        {
+          "at_ms": 500,
+          "kind": "edit",
+          "section": "environment",
+          "revision": "{\"FOO\":\"1\"}"
+        },
+        {
+          "at_ms": 1000,
+          "kind": "advance_to"
+        }
+      ],
+      "expected_saves": [
+        {
+          "at_ms": 400,
+          "target": "full_profile",
+          "section_kind": null,
+          "profile_name": "Test Game",
+          "revision": "{\"FOO\":\"1\"}"
+        }
+      ],
+      "final_value": "{\"FOO\":\"1\"}"
+    },
+    {
+      "name": "launch_hooks_350ms_full_profile",
+      "scope": {
+        "selected_profile": "Test Game",
+        "draft_name": "Test Game",
+        "profile_exists": true,
+        "launch_method": "proton_run"
+      },
+      "steps": [
+        {
+          "at_ms": 0,
+          "kind": "edit",
+          "section": "launch_hooks",
+          "revision": "hook-1"
+        },
+        {
+          "at_ms": 350,
+          "kind": "advance_to"
+        }
+      ],
+      "expected_saves": [
+        {
+          "at_ms": 350,
+          "target": "full_profile",
+          "section_kind": null,
+          "profile_name": "Test Game",
+          "revision": "hook-1"
+        }
+      ],
+      "final_value": "hook-1"
+    },
+    {
+      "name": "trainer_350ms_full_profile",
+      "scope": {
+        "selected_profile": "Test Game",
+        "draft_name": "Test Game",
+        "profile_exists": true,
+        "launch_method": "proton_run"
+      },
+      "steps": [
+        {
+          "at_ms": 0,
+          "kind": "edit",
+          "section": "trainer",
+          "revision": "trainer-1"
+        },
+        {
+          "at_ms": 350,
+          "kind": "advance_to"
+        }
+      ],
+      "expected_saves": [
+        {
+          "at_ms": 350,
+          "target": "full_profile",
+          "section_kind": null,
+          "profile_name": "Test Game",
+          "revision": "trainer-1"
+        }
+      ],
+      "final_value": "trainer-1"
+    },
+    {
+      "name": "flush_on_card_switch_saves_once",
+      "scope": {
+        "selected_profile": "Test Game",
+        "draft_name": "Test Game",
+        "profile_exists": true,
+        "launch_method": "proton_run"
+      },
+      "steps": [
+        {
+          "at_ms": 0,
+          "kind": "edit",
+          "section": "profile_draft",
+          "revision": "555"
+        },
+        {
+          "at_ms": 100,
+          "kind": "flush"
+        },
+        {
+          "at_ms": 600,
+          "kind": "advance_to"
+        }
+      ],
+      "expected_saves": [
+        {
+          "at_ms": 100,
+          "target": "full_profile",
+          "section_kind": null,
+          "profile_name": "Test Game",
+          "revision": "555"
+        }
+      ],
+      "final_value": "555"
+    },
+    {
+      "name": "flush_launch_sections_saves_once",
+      "scope": {
+        "selected_profile": "Test Game",
+        "draft_name": "Test Game",
+        "profile_exists": true,
+        "launch_method": "proton_run"
+      },
+      "steps": [
+        {
+          "at_ms": 0,
+          "kind": "edit",
+          "section": "launch_optimizations",
+          "revision": "opt_x"
+        },
+        {
+          "at_ms": 0,
+          "kind": "edit",
+          "section": "command_arguments",
+          "revision": "--arg"
+        },
+        {
+          "at_ms": 100,
+          "kind": "flush"
+        },
+        {
+          "at_ms": 600,
+          "kind": "advance_to"
+        }
+      ],
+      "expected_saves": [
+        {
+          "at_ms": 100,
+          "target": "section",
+          "section_kind": "launch_optimizations",
+          "profile_name": "Test Game",
+          "revision": "opt_x"
+        },
+        {
+          "at_ms": 100,
+          "target": "section",
+          "section_kind": "command_arguments",
+          "profile_name": "Test Game",
+          "revision": "--arg"
+        }
+      ],
+      "final_value": "--arg"
+    },
+    {
+      "name": "native_method_gates_optimizations_and_command_arguments",
+      "scope": {
+        "selected_profile": "Test Game",
+        "draft_name": "Test Game",
+        "profile_exists": true,
+        "launch_method": "native"
+      },
+      "steps": [
+        {
+          "at_ms": 0,
+          "kind": "edit",
+          "section": "launch_optimizations",
+          "revision": "opt_a"
+        },
+        {
+          "at_ms": 0,
+          "kind": "edit",
+          "section": "command_arguments",
+          "revision": "--native"
+        },
+        {
+          "at_ms": 500,
+          "kind": "advance_to"
+        }
+      ],
+      "expected_saves": [],
+      "final_value": ""
+    },
+    {
+      "name": "unsaved_profile_suppresses_autosave",
+      "scope": {
+        "selected_profile": "",
+        "draft_name": "Unsaved Draft",
+        "profile_exists": false,
+        "launch_method": "proton_run"
+      },
+      "steps": [
+        {
+          "at_ms": 0,
+          "kind": "edit",
+          "section": "profile_draft",
+          "revision": "777"
+        },
+        {
+          "at_ms": 500,
+          "kind": "advance_to"
+        }
+      ],
+      "expected_saves": [],
+      "final_value": ""
+    },
+    {
+      "name": "mid_rename_suppresses_autosave",
+      "scope": {
+        "selected_profile": "Test Game",
+        "draft_name": "Renamed Draft",
+        "profile_exists": true,
+        "launch_method": "proton_run"
+      },
+      "steps": [
+        {
+          "at_ms": 0,
+          "kind": "edit",
+          "section": "profile_draft",
+          "revision": "888"
+        },
+        {
+          "at_ms": 500,
+          "kind": "advance_to"
+        }
+      ],
+      "expected_saves": [],
+      "final_value": ""
+    },
+    {
+      "name": "edit_during_in_flight_save_persists_latest",
+      "scope": {
+        "selected_profile": "Test Game",
+        "draft_name": "Test Game",
+        "profile_exists": true,
+        "launch_method": "proton_run"
+      },
+      "steps": [
+        {
+          "at_ms": 0,
+          "kind": "edit",
+          "section": "profile_draft",
+          "revision": "111"
+        },
+        {
+          "at_ms": 0,
+          "kind": "hold_save"
+        },
+        {
+          "at_ms": 350,
+          "kind": "advance_to"
+        },
+        {
+          "at_ms": 400,
+          "kind": "edit",
+          "section": "profile_draft",
+          "revision": "222"
+        },
+        {
+          "at_ms": 450,
+          "kind": "release_save"
+        },
+        {
+          "at_ms": 750,
+          "kind": "advance_to"
+        }
+      ],
+      "expected_saves": [
+        {
+          "at_ms": 350,
+          "target": "full_profile",
+          "section_kind": null,
+          "profile_name": "Test Game",
+          "revision": "111"
+        },
+        {
+          "at_ms": 750,
+          "target": "full_profile",
+          "section_kind": null,
+          "profile_name": "Test Game",
+          "revision": "222"
+        }
+      ],
+      "final_value": "222"
+    }
+  ],
+  "chip_cases": [
+    {
+      "name": "error_beats_all_other_tones",
+      "statuses": [
+        {
+          "tone": "success",
+          "label": "Saved automatically"
+        },
+        {
+          "tone": "warning",
+          "label": "Save profile first"
+        },
+        {
+          "tone": "saving",
+          "label": "Saving..."
+        },
+        {
+          "tone": "error",
+          "label": "Failed to save"
+        }
+      ],
+      "expected_tone": "error",
+      "expected_label": "Failed to save",
+      "visible_at_2999ms": true,
+      "visible_at_3000ms": true
+    },
+    {
+      "name": "saving_beats_warning_and_success",
+      "statuses": [
+        {
+          "tone": "success",
+          "label": "Saved automatically"
+        },
+        {
+          "tone": "warning",
+          "label": "Save profile first"
+        },
+        {
+          "tone": "saving",
+          "label": "Saving..."
+        }
+      ],
+      "expected_tone": "saving",
+      "expected_label": "Saving...",
+      "visible_at_2999ms": true,
+      "visible_at_3000ms": true
+    },
+    {
+      "name": "warning_tie_keeps_first_label",
+      "statuses": [
+        {
+          "tone": "idle",
+          "label": "Ready"
+        },
+        {
+          "tone": "warning",
+          "label": "First warning"
+        },
+        {
+          "tone": "warning",
+          "label": "Second warning"
+        },
+        {
+          "tone": "success",
+          "label": "Saved automatically"
+        }
+      ],
+      "expected_tone": "warning",
+      "expected_label": "First warning",
+      "visible_at_2999ms": true,
+      "visible_at_3000ms": true
+    },
+    {
+      "name": "success_beats_idle_and_fades_at_3000ms",
+      "statuses": [
+        {
+          "tone": "idle",
+          "label": "Ready"
+        },
+        {
+          "tone": "success",
+          "label": "Saved automatically"
+        }
+      ],
+      "expected_tone": "success",
+      "expected_label": "Saved automatically",
+      "visible_at_2999ms": true,
+      "visible_at_3000ms": false
+    }
+  ]
+}

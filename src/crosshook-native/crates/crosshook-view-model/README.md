@@ -10,8 +10,9 @@ drives every toolkit, and its tests need no UI, runtime or disk.
 Contents: the `ViewModel` trait, `Form<T>` (dirty/touched tracking and a
 submit state machine), the `ServiceError` mirror of `crosshook_app::AppError`,
 two worked screens (`library`, `settings`), the launch view-models
-(`launch`: dependency gate, pipeline and its detail panel) and the Hero
-Detail model (`hero`), and the `testing` harness.
+(`launch`: dependency gate, pipeline and its detail panel), the Hero
+Detail model (`hero`), the profile autosave state machine (`profile::autosave`),
+and the `testing` harness.
 
 ## Rules
 
@@ -430,15 +431,126 @@ both must match.
 - The completion event carries no job id, so any completion for the same
   profile and prefix counts, as in Classic.
 
+## Profile autosave
+
+`profile::autosave::ProfileAutosave` ports Classic's per-section debounce,
+flush, single-flight serialization, self-write suppression, and status chip
+merging into one pure state machine:
+
+| Classic source                                                      | Section / behaviour                                               |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `useHeroProfilesAutosave.ts`, `useProfileCrud.ts`                   | `ProfileDraft` (350 ms, `FullProfile`, single-flight + revision)  |
+| `useHeroLaunchHooksAutosave.ts`, `useHeroTrainerAutosave.ts`        | `LaunchHooks` and `Trainer` (350 ms, `FullProfile`)               |
+| `useLaunchEnvironmentAutosave.ts`                                   | `Environment` (400 ms blur debounce, `FullProfile`)               |
+| `useProfileLaunchAutosave.ts`, `useProfileLaunchAutosaveEffects.ts` | Five dedicated `SectionSaveKind` writers (`350 ms`, method-gated) |
+| `useAutoSaveChip.ts`                                                | `combine_statuses` priority order + 3,000 ms `"Saved"` hold       |
+
+- **Grouping**: dedicated launch sections (`LaunchOptimizations`,
+  `Gamescope`, `TrainerGamescope`, `MangoHud`, `CommandArguments`) persist via
+  `SaveTarget::Section(...)` so `ProfileWriter` keeps the cached health
+  snapshot valid. Any due or flushed `FullProfile` edit (`ProfileDraft`,
+  `LaunchHooks`, `Trainer`, `Environment`) persists as one atomic
+  `SaveTarget::FullProfile` write covering all dirty eligible sections.
+- **Bridge contract**: normalize drafts through `crosshook_core::profile::normalize_profile`
+  before computing revision hashes, pass an injected monotonic clock
+  (`AutosaveInstant`), drive at most one timer per editor matching
+  `scheduled_tick()`, echo `SaveRequest.id` in `SaveSucceeded` / `SaveFailed`,
+  and forward `ProfilesChanged` / `Resync` via `external_changes_from_app_event`
+  (`app` feature; revision hashes attach only to single-profile changes).
+  `FullProfile` edits update `latest_draft_revision` and `base_revision`, and
+  `pending_self_writes` suppresses `Saved` / `PresetApplied` echoes by
+  `ExternalChange.origin_save_id` (when supplied by the bridge, even if saving
+  normalized the committed revision before `SaveSucceeded` arrived) or by
+  matching revision hash. Dedicated `Section` writes instead store section
+  fingerprints in `section_saved_revs` without clobbering `base_revision`, and
+  clear `disk_base_matches` so neither external reverts nor local full-profile
+  edits back to the old `base_revision` are suppressed as no-ops; `FullProfile`
+  writes cover all sections while in flight and clear stale `section_saved_revs`
+  entries upon completion (as do external reloads and conflicts).
+  `Conflict` retains any active `in_flight` save and defers `ResolveConflict`
+  (`KeepMine` / `ReloadTheirs`) until that write settles; after an external
+  rename, `KeepMine` writes to the conflict's target profile name and updates
+  `scope.selected_profile` (and `draft_name` if not mid-rename). Same-profile
+  `Loaded` arrivals while local edits or an active save exist keep `in_flight`
+  single-flight tracking intact and surface `Conflict`, and automatic or flushed
+  saves attempted while a reload is pending likewise surface `Conflict`
+  (preserving renamed profile targets) instead of writing before the reload
+  settles; bridge handlers must echo `AutosaveEffect::Reload::id` in
+  `AutosaveEvent::Loaded::reload_id` (`None` for explicit loads) so out-of-order
+  or superseded reload replies are rejected.
+- **Idle gate**: `Idle`, `Conflict`, and non-retryable or exhausted `Error`
+  states never emit `AutosaveEffect::ScheduleTick`.
+
+```rust
+use crosshook_view_model::launch::LaunchMethod;
+use crosshook_view_model::profile::{
+    AutosaveEffect, AutosaveEvent, AutosaveInstant, AutosaveScope, AutosaveSection,
+    AutosaveState, ProfileAutosave, RevisionHash,
+};
+
+let mut vm = ProfileAutosave::new(
+    AutosaveScope::saved("Elden Ring", LaunchMethod::ProtonRun),
+    Some(RevisionHash::new("rev-0")),
+);
+let t0 = AutosaveInstant::from_millis(0);
+let effects = vm.apply(
+    AutosaveEvent::Edit {
+        section: AutosaveSection::ProfileDraft,
+        revision: RevisionHash::new("rev-1"),
+    },
+    t0,
+);
+assert!(effects.contains(&AutosaveEffect::ScheduleTick(AutosaveInstant::from_millis(350))));
+
+let save_effects = vm.apply(AutosaveEvent::Tick, AutosaveInstant::from_millis(350));
+let AutosaveEffect::Save(req) = &save_effects[0] else {
+    unreachable!("expected Save");
+};
+let _ = vm.apply(
+    AutosaveEvent::SaveSucceeded {
+        id: req.id,
+        committed_rev: RevisionHash::new("rev-1"),
+    },
+    AutosaveInstant::from_millis(360),
+);
+let _ = vm.apply(AutosaveEvent::Tick, AutosaveInstant::from_millis(3_360));
+assert_eq!(vm.state(), &AutosaveState::Idle);
+assert_eq!(vm.scheduled_tick(), None);
+```
+
+### Deviations from Classic and from the YAN-850 wording
+
+- **`AutosaveInstant` instead of `std::time::Instant`**: `clippy.toml` bans
+  `Instant::now` and `Instant::elapsed` across `--all-targets`, so tests could
+  not construct `std::time::Instant` values cleanly. `AutosaveInstant` wraps
+  monotonic milliseconds with saturating `Duration` arithmetic.
+- **`AutosaveIntent` + `ViewModel::reduce` alongside `apply`**: `ProfileAutosave`
+  exposes `apply(&mut self, AutosaveEvent, AutosaveInstant) -> Vec<AutosaveEffect>`
+  as requested and also implements `ViewModel<Intent = AutosaveIntent>`.
+- **`max_wait` and `retry_backoff` defaults**: Classic does not cap continuous
+  typing or auto-retry failed writes on a backoff timer. `AutosavePolicy::default`
+  enables a 2,000 ms `max_wait` cap and `[1s, 2s, 4s, 8s]` backoff for
+  retryable errors (`Io`, `Unavailable`, `Internal`); `AutosavePolicy::classic_parity`
+  disables both for parity fixture replay.
+- **Independent section deadlines**: Classic's `useProfileLaunchAutosaveEffects`
+  shared `[profile]` across all five `useEffect`s, so editing MangoHud reset
+  Gamescope's timer. `ProfileAutosave` tracks each section's deadline
+  independently while preserving identical save-target grouping.
+- **Process-unique `SaveId` mount**: `SaveId` adds an atomic `mount` counter
+  alongside `OpId` so replies from an earlier instance never match a new one.
+
 ### Parity fixtures
 
-`src/crosshook-native/src/utils/__tests__/exportParityFixtures.test.ts` runs
-the real TypeScript functions on fixed inputs (every Vitest case of these
-modules plus a state matrix: idle, validating, blocked, launching, waiting for
-the trainer, running, exited, trainer attached, each method) and writes
-`tests/fixtures/ts_parity/{pipeline,pipeline_detail,validation_map,hero}.json`.
-The Rust tests (`src/launch/parity_tests.rs`, `src/hero/model/tests.rs`) load
-them with `include_str!` and assert equal output, so CI needs no Node.
+`src/crosshook-native/src/utils/__tests__/exportParityFixtures.test.ts` and
+`exportAutosaveParityFixtures.test.ts` run the real TypeScript functions and
+Classic hooks on fixed inputs (every Vitest case of these modules plus a state
+matrix: idle, validating, blocked, launching, waiting for the trainer, running,
+exited, trainer attached, each method, and autosave debounce/grouping/chip
+scenarios) and write
+`tests/fixtures/ts_parity/{pipeline,pipeline_detail,validation_map,hero,autosave}.json`.
+The Rust tests (`src/launch/parity_tests.rs`, `src/hero/model/tests.rs`,
+`src/profile/autosave/parity_tests.rs`) load them with `include_str!` and
+assert equal output, so CI needs no Node.
 
 - `./scripts/export-ts-parity-fixtures.sh` rewrites the files; then
   `git diff --exit-code` on that directory proves the export is reproducible.
@@ -511,9 +623,9 @@ them with `include_str!` and assert equal output, so CI needs no Node.
   never change the running set, and the Currently Playing count matches a
   reference model. Strategies stay in `#[cfg(test)]` files; regressions are
   kept in `proptest-regressions/`.
-- Tests in `src/error/tests.rs`, `src/library/app/tests.rs` and
-  `src/launch/app/tests.rs` need the `app`
-  feature, so run both feature sets:
+- Tests in `src/error/tests.rs`, `src/library/app/tests.rs`,
+  `src/launch/app/tests.rs`, and `src/profile/autosave/app/tests.rs` need the
+  `app` feature, so run both feature sets:
 
 ```bash
 cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-view-model
@@ -529,7 +641,8 @@ Workspace clippy and tests build default features only; CI adds the
 
 - **Runtime-only:** all view-model state (cards, search keys, query, filter,
   sort, visible indices, pending favorite saves, running sessions, the event
-  buffer, the dependency gate and its remembered repairs, form values, baselines, touched fields, errors and submit ids). It is
+  buffer, the dependency gate and its remembered repairs, profile autosave
+  deadlines/in-flight ids/self-write tokens/conflict state, form values, baselines, touched fields, errors and submit ids). It is
   rebuilt from service results on each start and never persisted.
 - **No persistence here:** the crate reads and writes no file, database or
   setting. Persistent changes (favorites, settings) are effects; the bridge

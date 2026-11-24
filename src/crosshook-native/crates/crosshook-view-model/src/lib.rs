@@ -16,6 +16,7 @@ pub mod form;
 pub mod hero;
 pub mod launch;
 pub mod library;
+pub mod profile;
 pub mod settings;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
