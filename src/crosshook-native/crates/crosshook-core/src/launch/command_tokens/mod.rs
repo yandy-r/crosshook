@@ -121,8 +121,26 @@ enum CommandStage {
     /// Inside `env` arguments: `KEY=VAL` stays `EnvAssignment`, flags stay `Flag`,
     /// first other token is the wrapped command.
     EnvCommandPrefix,
+    /// Expecting the operand of an operand-taking `env` option (e.g. `-u NAME`, `-C DIR`).
+    EnvFlagOperand,
     /// Past the primary executable (or `%command%`); remaining tokens are flags/args/strings.
     Arguments,
+}
+
+fn env_option_takes_separate_operand(token: &str) -> bool {
+    matches!(
+        token,
+        "-u" | "--unset"
+            | "-C"
+            | "--chdir"
+            | "-S"
+            | "--split-string"
+            | "-a"
+            | "--argv0"
+            | "--block-signal"
+            | "--default-signal"
+            | "--ignore-signal"
+    )
 }
 
 fn wrapper_behavior(token: &str) -> Option<WrapperBehavior> {
@@ -343,7 +361,9 @@ fn classify_token(text: &str, is_quoted: bool, stage: &mut CommandStage) -> Comm
     }
 
     if is_quoted {
-        if matches!(
+        if *stage == CommandStage::EnvFlagOperand {
+            *stage = CommandStage::EnvCommandPrefix;
+        } else if matches!(
             stage,
             CommandStage::CommandPrefix
                 | CommandStage::WrapperFlagsBeforeCommand
@@ -356,8 +376,15 @@ fn classify_token(text: &str, is_quoted: bool, stage: &mut CommandStage) -> Comm
 
     match *stage {
         CommandStage::CommandPrefix => classify_command_head(text, stage, true),
+        CommandStage::EnvFlagOperand => {
+            *stage = CommandStage::EnvCommandPrefix;
+            CommandTokenKind::Argument
+        }
         CommandStage::EnvCommandPrefix => {
             if is_flag_token(text) {
+                if env_option_takes_separate_operand(text) {
+                    *stage = CommandStage::EnvFlagOperand;
+                }
                 CommandTokenKind::Flag
             } else if text == "--" {
                 *stage = CommandStage::CommandPrefix;

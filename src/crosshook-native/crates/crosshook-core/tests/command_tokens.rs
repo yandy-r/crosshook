@@ -195,6 +195,35 @@ fn tokenizes_env_wrapper_and_quoted_env_values() {
 }
 
 #[test]
+fn tokenizes_env_operand_taking_options_without_leaving_command_prefix() {
+    let input = r#"env -i -u LD_PRELOAD -C "/my dir" --unset=OLD FOO=bar /games/game --flag"#;
+    assert_eq!(
+        kinds_and_slices(input),
+        vec![
+            (CommandTokenKind::Wrapper, "env"),
+            (CommandTokenKind::Whitespace, " "),
+            (CommandTokenKind::Flag, "-i"),
+            (CommandTokenKind::Whitespace, " "),
+            (CommandTokenKind::Flag, "-u"),
+            (CommandTokenKind::Whitespace, " "),
+            (CommandTokenKind::Argument, "LD_PRELOAD"),
+            (CommandTokenKind::Whitespace, " "),
+            (CommandTokenKind::Flag, "-C"),
+            (CommandTokenKind::Whitespace, " "),
+            (CommandTokenKind::QuotedString, r#""/my dir""#),
+            (CommandTokenKind::Whitespace, " "),
+            (CommandTokenKind::Flag, "--unset=OLD"),
+            (CommandTokenKind::Whitespace, " "),
+            (CommandTokenKind::EnvAssignment, "FOO=bar"),
+            (CommandTokenKind::Whitespace, " "),
+            (CommandTokenKind::Executable, "/games/game"),
+            (CommandTokenKind::Whitespace, " "),
+            (CommandTokenKind::Flag, "--flag"),
+        ]
+    );
+}
+
+#[test]
 fn maps_every_token_kind_to_theme_role() {
     assert_eq!(
         highlight_role(CommandTokenKind::EnvAssignment),
