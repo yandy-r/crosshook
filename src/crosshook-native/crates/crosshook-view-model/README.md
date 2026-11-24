@@ -437,13 +437,13 @@ both must match.
 flush, single-flight serialization, self-write suppression, and status chip
 merging into one pure state machine:
 
-| Classic source                                                     | Section / behaviour                                               |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| `useHeroProfilesAutosave.ts`, `useProfileCrud.ts`                  | `ProfileDraft` (350 ms, `FullProfile`, single-flight + revision)  |
-| `useHeroLaunchHooksAutosave.ts`, `useHeroTrainerAutosave.ts`       | `LaunchHooks` and `Trainer` (350 ms, `FullProfile`)               |
-| `useLaunchEnvironmentAutosave.ts`                                  | `Environment` (400 ms blur debounce, `FullProfile`)               |
-| `useProfileLaunchAutosave.ts`, `useProfileLaunchAutosaveEffects.ts`| Five dedicated `SectionSaveKind` writers (`350 ms`, method-gated) |
-| `useAutoSaveChip.ts`                                               | `combine_statuses` priority order + 3,000 ms `"Saved"` hold       |
+| Classic source                                                      | Section / behaviour                                               |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `useHeroProfilesAutosave.ts`, `useProfileCrud.ts`                   | `ProfileDraft` (350 ms, `FullProfile`, single-flight + revision)  |
+| `useHeroLaunchHooksAutosave.ts`, `useHeroTrainerAutosave.ts`        | `LaunchHooks` and `Trainer` (350 ms, `FullProfile`)               |
+| `useLaunchEnvironmentAutosave.ts`                                   | `Environment` (400 ms blur debounce, `FullProfile`)               |
+| `useProfileLaunchAutosave.ts`, `useProfileLaunchAutosaveEffects.ts` | Five dedicated `SectionSaveKind` writers (`350 ms`, method-gated) |
+| `useAutoSaveChip.ts`                                                | `combine_statuses` priority order + 3,000 ms `"Saved"` hold       |
 
 - **Grouping**: dedicated launch sections (`LaunchOptimizations`,
   `Gamescope`, `TrainerGamescope`, `MangoHud`, `CommandArguments`) persist via
