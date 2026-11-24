@@ -11,8 +11,8 @@ use std::collections::{BTreeMap, HashSet};
 use crate::launch::catalog::OptimizationCatalog;
 use crate::launch::request::METHOD_STEAM_APPLAUNCH;
 use crate::profile::models::{
-    resolve_launch_method, GameProfile, InjectionSection, LaunchCommandArgumentsSection,
-    LaunchOptimizationsSection, LoadedDllHook,
+    resolve_launch_method, GameProfile, InjectionNormalizePolicy, LaunchCommandArgumentsSection,
+    LaunchOptimizationsSection,
 };
 
 /// Suffix automatically appended to exported trainer launcher display names.
@@ -160,85 +160,6 @@ pub fn normalize_command_arguments_for_save(
     for_edit
 }
 
-fn loaded_dll_hook_name_from_path(path: &str, index: usize) -> String {
-    let basename = path.rsplit(['/', '\\']).next().map(str::trim).unwrap_or("");
-    if basename.is_empty() {
-        format!("DLL hook {}", index + 1)
-    } else {
-        basename.to_string()
-    }
-}
-
-fn normalize_loaded_dll_hook(hook: &LoadedDllHook, index: usize) -> LoadedDllHook {
-    let id = hook.id.trim();
-    let name = hook.name.trim();
-    LoadedDllHook {
-        id: if id.is_empty() {
-            format!("loaded-dll-hook-{}", index + 1)
-        } else {
-            id.to_string()
-        },
-        name: if name.is_empty() {
-            loaded_dll_hook_name_from_path(&hook.path, index)
-        } else {
-            name.to_string()
-        },
-        path: hook.path.clone(),
-        enabled: hook.enabled,
-        extra: hook.extra.clone(),
-    }
-}
-
-/// Normalizes `injection` matching Classic's `normalizeInjectionSection`.
-///
-/// Note: Rust's `Vec<LoadedDllHook>` cannot distinguish an omitted
-/// `loaded_hooks` field from an explicit empty array `[]`, so when
-/// `loaded_hooks` is empty and legacy `dll_paths` is populated we convert the
-/// legacy arrays into `legacy-dll-hook-N` rows.
-fn normalize_injection_section(injection: &InjectionSection) -> InjectionSection {
-    let loaded_hooks = if !injection.loaded_hooks.is_empty() {
-        injection
-            .loaded_hooks
-            .iter()
-            .enumerate()
-            .map(|(index, hook)| normalize_loaded_dll_hook(hook, index))
-            .collect::<Vec<_>>()
-    } else if !injection.dll_paths.is_empty() {
-        injection
-            .dll_paths
-            .iter()
-            .enumerate()
-            .map(|(index, path)| LoadedDllHook {
-                id: format!("legacy-dll-hook-{}", index + 1),
-                name: loaded_dll_hook_name_from_path(path, index),
-                path: path.clone(),
-                enabled: injection
-                    .inject_on_launch
-                    .get(index)
-                    .copied()
-                    .unwrap_or(false),
-                extra: toml::Table::new(),
-            })
-            .collect::<Vec<_>>()
-    } else {
-        Vec::new()
-    };
-
-    let dll_paths = loaded_hooks.iter().map(|hook| hook.path.clone()).collect();
-    let inject_on_launch = loaded_hooks.iter().map(|hook| hook.enabled).collect();
-
-    InjectionSection {
-        loaded_hooks,
-        method: injection.method,
-        stage: injection.stage,
-        timeout_ms: injection.timeout_ms,
-        fallback: injection.fallback,
-        dll_paths,
-        inject_on_launch,
-        extra: injection.extra.clone(),
-    }
-}
-
 fn normalize_launch_presets(
     raw_presets: &BTreeMap<String, LaunchOptimizationsSection>,
     active_preset: &str,
@@ -294,7 +215,9 @@ pub fn normalize_profile_for_edit_with_catalog(
     }
 
     profile.trainer.kind = profile.trainer.kind.trim().to_string();
-    profile.injection = normalize_injection_section(&profile.injection);
+    profile
+        .injection
+        .reconcile(InjectionNormalizePolicy::ClassicEditor);
     profile.steam.enabled = method == METHOD_STEAM_APPLAUNCH;
     profile.steam.launcher.display_name =
         strip_automatic_launcher_suffix(&profile.steam.launcher.display_name);

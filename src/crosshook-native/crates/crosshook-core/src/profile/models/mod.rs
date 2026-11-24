@@ -16,6 +16,7 @@ mod trainer;
 #[cfg(test)]
 mod tests;
 
+pub(crate) use game_meta::InjectionNormalizePolicy;
 pub use game_meta::{
     GameSection, InjectionFallback, InjectionMethod, InjectionSection, InjectionStage,
     LauncherSection, LoadedDllHook, SteamSection,

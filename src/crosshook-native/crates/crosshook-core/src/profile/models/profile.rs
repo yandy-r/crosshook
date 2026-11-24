@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::game_meta::{GameSection, InjectionSection, LoadedDllHook, SteamSection};
+use super::game_meta::{GameSection, InjectionNormalizePolicy, InjectionSection, SteamSection};
 use super::hooks::{HookStage, LaunchHook};
 use super::launch::{CollectionDefaultsSection, LaunchSection};
 use super::local_override::LocalOverrideSection;
@@ -69,50 +69,7 @@ impl GameProfile {
     /// profile derives deterministic DLL hook rows before refreshing the legacy
     /// arrays from the canonical data.
     pub fn normalize_injection(&mut self) {
-        if self.injection.loaded_hooks.is_empty() && !self.injection.dll_paths.is_empty() {
-            self.injection.loaded_hooks = self
-                .injection
-                .dll_paths
-                .iter()
-                .enumerate()
-                .filter_map(|(index, path)| {
-                    let trimmed = path.trim();
-                    if trimmed.is_empty() {
-                        return None;
-                    }
-
-                    Some(LoadedDllHook {
-                        id: format!("legacy-dll-{}", index + 1),
-                        name: dll_hook_name(trimmed, index),
-                        path: trimmed.to_string(),
-                        enabled: self
-                            .injection
-                            .inject_on_launch
-                            .get(index)
-                            .copied()
-                            .unwrap_or(false),
-                        extra: toml::Table::new(),
-                    })
-                })
-                .collect();
-        }
-
-        self.injection
-            .loaded_hooks
-            .retain(|hook| !hook.id.trim().is_empty());
-
-        self.injection.dll_paths = self
-            .injection
-            .loaded_hooks
-            .iter()
-            .map(|hook| hook.path.clone())
-            .collect();
-        self.injection.inject_on_launch = self
-            .injection
-            .loaded_hooks
-            .iter()
-            .map(|hook| hook.enabled)
-            .collect();
+        self.injection.reconcile(InjectionNormalizePolicy::Storage);
     }
 
     /// Returns the effective profile used at runtime where local overrides take precedence
@@ -311,14 +268,4 @@ impl GameProfile {
         portable.local_override = portable.local_override.extra_only();
         portable
     }
-}
-
-fn dll_hook_name(path: &str, index: usize) -> String {
-    std::path::Path::new(path)
-        .file_stem()
-        .and_then(|value| value.to_str())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned)
-        .unwrap_or_else(|| format!("DLL Hook {}", index + 1))
 }
