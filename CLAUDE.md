@@ -99,7 +99,14 @@ For storage changes, plans must also:
 
 ## Picking Linear work
 
-For the Native UI migration project ([P-YAN-43](https://linear.app/itcn/project/crosshook-native-ui-migration-d11256c28102)), pick the earliest open milestone first: **M0 before M1 before M2**. Do not start new M2+ or unscheduled issues while M0 has open work, unless Yandy names them. Throwaway spikes live on `spike/*` branches and are **never merged to** `main`. Hardware or owner steps are noted and handed back to Yandy; do not fake results.
+Applies to **every** CrossHook Linear project (e.g. the Native UI migration, [P-YAN-43](https://linear.app/itcn/project/crosshook-native-ui-migration-d11256c28102)), unless Yandy names specific issues:
+
+1. **Earliest open milestone first** (M0 before M1 before M2, …). Do not start issues in a later milestone, or unscheduled ones, while an earlier milestone has open, unblocked work.
+2. **Priority inside the milestone**: Urgent → High → Medium → Low → No priority; break ties by milestone order in Linear, then oldest.
+3. **Blockers pull work forward**: if an open issue in an earlier milestone is blocked by an issue in a later milestone (or an unscheduled one), that blocker is picked next, ahead of the rest of its own milestone. Follow the chain the same way (a blocker's own blockers first). Skip blocked issues until their blockers are done.
+4. **Only when everything in a milestone is done or blocked** move on to the next milestone and repeat.
+
+Throwaway spikes live on `spike/*` branches and are **never merged to** `main`. Hardware or owner steps are noted and handed back to Yandy; do not fake results.
 
 <!-- agent-rules:sync:end -->
 
