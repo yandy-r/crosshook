@@ -16,6 +16,7 @@ from pathlib import Path
 import bench_guard
 from bench_capture import CaptureError, capture
 from bench_cli import SCHEMAS, arguments
+from bench_flatpak import FlatpakSandboxScope
 from bench_guard import (
     ENV_SCENARIO,
     FLATPAK_APP_ID,
@@ -162,6 +163,7 @@ def _run(args, outcome: dict[str, bool]) -> int:
     lock_fd: int | None = None
     binary: Path | None = None
     binary_sha256: str | None = None  # hashed before launch: what ran must be what is recorded
+    flatpak_scope: FlatpakSandboxScope | None = None
     driven = [m for m in args.selected if args.collect == "presentation" and m in INPUT_DRIVEN]
     previous = {number: signal.signal(number, _abort) for number in (signal.SIGTERM, signal.SIGHUP)}
     sealing_signals = (signal.SIGTERM, signal.SIGHUP, signal.SIGINT)
@@ -242,6 +244,10 @@ def _run(args, outcome: dict[str, bool]) -> int:
             env["CROSSHOOK_BENCH_ROOT"] = str(target)
             if args.env == "E3-sw":
                 env.update(VK_ICD_FILENAMES="/dev/null", LIBGL_ALWAYS_SOFTWARE="1")
+            if args.flatpak:
+                flatpak_scope = FlatpakSandboxScope.capture_before_launch(
+                    FLATPAK_APP_ID, env, isolated_root=root,
+                )
             command = launch_command(args, env)
         partial = False
         for metric in args.selected:
@@ -309,6 +315,11 @@ def _run(args, outcome: dict[str, bool]) -> int:
                 print(f"RAW_FINALIZE_FAILED: {error}", file=sys.stderr)
         finally:  # whatever a sealing step raised: the lock, the root and the handlers are always released
             try:
+                if flatpak_scope is not None:
+                    try:
+                        flatpak_scope.cleanup()
+                    except Exception as error:  # noqa: BLE001 - teardown cleanup must never block lock/rmtree/signals
+                        print(f"FLATPAK_CLEANUP_FAILED: {error}", file=sys.stderr)
                 if lock_fd is not None:
                     os.close(lock_fd)
                 if root:

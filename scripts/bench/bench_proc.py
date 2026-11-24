@@ -54,7 +54,8 @@ def _drain_stdout(proc: subprocess.Popen, selector: selectors.BaseSelector, buff
 
 
 def run_cancellable(command: list[str], timeout: float, cancel: threading.Event | None, *,
-                    stdout_limit: int | None = None, step: float = .5) -> tuple[int, str]:
+                    stdout_limit: int | None = None, step: float = .5,
+                    env: dict[str, str] | None = None) -> tuple[int, str]:
     """Run `command` without a shell in its own session and return `(returncode, text)`.
 
     The process group is killed on timeout or when `cancel` is set (`CommandFailed`). `text` is the child's
@@ -63,7 +64,7 @@ def run_cancellable(command: list[str], timeout: float, cancel: threading.Event 
     kills the group (`CommandFailed("overflow")`) instead of truncating.
     """
     capture = stdout_limit is not None
-    proc = subprocess.Popen(command, stdin=subprocess.DEVNULL,
+    proc = subprocess.Popen(command, env=env, stdin=subprocess.DEVNULL,
                             stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL if capture else subprocess.PIPE,
                             text=not capture, start_new_session=True)

@@ -6,10 +6,12 @@ import csv
 import os
 import signal
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
 
+from bench_flatpak import FlatpakSandboxScope, extract_app_id
 from bench_session import PRESENTATION_HINT, locked_error, session_locked
 
 
@@ -70,10 +72,36 @@ def _signals_deferred():
             signal.raise_signal(caught[0])  # the restored handler decides: abort, ignore or default
 
 
+def _isolated_root_from_env(env: dict[str, str]) -> Path | None:
+    raw_home = env.get("HOME")
+    if not raw_home:
+        return None
+    home = Path(raw_home)
+    if home.name == "home" and home.parent.name.startswith("crosshook-bench-"):
+        return home.parent
+    return None
+
+
 def stop(proc: subprocess.Popen) -> None:
     """Terminate the app's whole process group and reap it; a signal received meanwhile waits."""
     with _signals_deferred():
-        _terminate(proc)
+        scope = getattr(proc, "_flatpak_scope", None)
+        tree_pids: set[int] = set()
+        if scope is not None:
+            try:
+                if proc.poll() is None:
+                    tree_pids = process_tree(proc.pid)
+            except Exception as error:  # noqa: BLE001 - teardown cleanup must never mask termination
+                print(f"FLATPAK_TREE_PROBE_FAILED: {error}", file=sys.stderr)
+            proc._flatpak_scope = None  # type: ignore[attr-defined]
+        try:
+            _terminate(proc)
+        finally:
+            if scope is not None:
+                try:
+                    scope.cleanup(tree_pids=tree_pids)
+                except Exception as error:  # noqa: BLE001 - teardown cleanup must never block pipe close/unwind
+                    print(f"FLATPAK_CLEANUP_FAILED: {error}", file=sys.stderr)
 
 
 def _terminate(proc: subprocess.Popen) -> None:
@@ -122,19 +150,33 @@ def ready(command: list[str], env: dict[str, str], timeout: float,
         child_env.pop("CROSSHOOK_BENCH_EXIT_AFTER_READY", None)
     # Flatpak's explicit --env overrides launcher inheritance.
     command = list(command)
-    if command[0] == "flatpak":
+    is_flatpak = bool(command) and Path(command[0]).name == "flatpak"
+    if is_flatpak:
         command.insert(-1, f"--env=CROSSHOOK_BENCH_EXIT_AFTER_READY={int(exit_after)}")
     if session_locked():
         raise CaptureError(locked_error("before launch"))
+    # Snapshot Flatpak instances before recording `start` so `flatpak ps` does not inflate ready_ms.
+    flatpak_scope = (
+        FlatpakSandboxScope.capture_before_launch(
+            extract_app_id(command),
+            child_env,
+            isolated_root=_isolated_root_from_env(child_env),
+        )
+        if is_flatpak
+        else None
+    )
     start = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
     proc = subprocess.Popen(command, env=child_env, start_new_session=True,
                             stdin=subprocess.PIPE if stdin else None,
                             stderr=subprocess.PIPE, stdout=subprocess.DEVNULL)
-    assert proc.stderr is not None
-    os.set_blocking(proc.stderr.fileno(), False)
-    pending = b""
-    recent: list[str] = []
     try:
+        if flatpak_scope is not None:
+            proc._flatpak_scope = flatpak_scope  # type: ignore[attr-defined]
+            flatpak_scope.bind_launch(proc.pid)
+        assert proc.stderr is not None
+        os.set_blocking(proc.stderr.fileno(), False)
+        pending = b""
+        recent: list[str] = []
         with selectors.DefaultSelector() as selector:
             selector.register(proc.stderr, selectors.EVENT_READ)
             deadline = time.monotonic() + timeout
@@ -180,7 +222,8 @@ def ready(command: list[str], env: dict[str, str], timeout: float,
                            "Last stderr: " + " | ".join(recent[-5:]))
     except BaseException:
         stop(proc)
-        proc.stderr.close()
+        if proc.stderr is not None:
+            proc.stderr.close()
         if proc.stdin is not None:
             proc.stdin.close()
         raise
