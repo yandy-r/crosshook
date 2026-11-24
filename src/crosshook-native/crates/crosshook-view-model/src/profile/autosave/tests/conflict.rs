@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 
 use super::super::*;
 use super::{make_vm, ms, rev};
+use crate::launch::LaunchMethod;
 use crate::testing::Script;
 
 #[test]
@@ -444,7 +445,7 @@ fn external_renamed_from_active_reloads_clean_or_conflicts_when_dirty() {
         ]
     );
 
-    // 3. KeepMine after Saving -> Conflict uses `now` fallback timestamp (not 0).
+    // 3. KeepMine while active save is in flight defers until in-flight settles.
     let mut in_flight_vm = make_vm(AutosavePolicy::default());
     let _ = in_flight_vm.apply(
         AutosaveEvent::Edit {
@@ -453,7 +454,10 @@ fn external_renamed_from_active_reloads_clean_or_conflicts_when_dirty() {
         },
         ms(100),
     );
-    let _ = in_flight_vm.apply(AutosaveEvent::Tick, ms(450));
+    let AutosaveEffect::Save(first_req) = &in_flight_vm.apply(AutosaveEvent::Tick, ms(450))[0]
+    else {
+        panic!("expected initial save");
+    };
     let _ = in_flight_vm.apply(
         AutosaveEvent::ExternalChange(ExternalChange {
             profile_name: Some("Renamed Game".into()),
@@ -464,12 +468,21 @@ fn external_renamed_from_active_reloads_clean_or_conflicts_when_dirty() {
         }),
         ms(460),
     );
-    let keep = in_flight_vm.apply(
-        AutosaveEvent::ResolveConflict(ConflictResolution::KeepMine),
-        ms(500),
+    assert!(in_flight_vm
+        .apply(
+            AutosaveEvent::ResolveConflict(ConflictResolution::KeepMine),
+            ms(500),
+        )
+        .is_empty());
+    let resumed = in_flight_vm.apply(
+        AutosaveEvent::SaveFailed {
+            id: first_req.id,
+            error: ServiceError::new(ServiceErrorKind::Io, "disk busy"),
+        },
+        ms(505),
     );
-    let AutosaveEffect::Save(req) = &keep[1] else {
-        panic!("expected KeepMine Save");
+    let AutosaveEffect::Save(req) = &resumed[1] else {
+        panic!("expected deferred KeepMine Save after first save settled, got {resumed:?}");
     };
     assert_eq!(req.profile_name, "Test Game");
     let _ = in_flight_vm.apply(
@@ -481,6 +494,6 @@ fn external_renamed_from_active_reloads_clean_or_conflicts_when_dirty() {
     );
     assert!(matches!(
         in_flight_vm.state(),
-        AutosaveState::Dirty { since, .. } if *since == ms(500)
+        AutosaveState::Dirty { since, .. } if *since == ms(100)
     ));
 }

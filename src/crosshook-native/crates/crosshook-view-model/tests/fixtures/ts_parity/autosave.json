@@ -565,10 +565,6 @@
       "name": "error_beats_all_other_tones",
       "statuses": [
         {
-          "tone": "idle",
-          "label": "Ready"
-        },
-        {
           "tone": "success",
           "label": "Saved automatically"
         },

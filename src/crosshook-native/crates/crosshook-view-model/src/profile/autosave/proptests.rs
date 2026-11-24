@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use proptest::prelude::*;
 
+use crate::launch::LaunchMethod;
 use crate::{ServiceError, ServiceErrorKind};
 
 use super::*;
@@ -17,6 +18,7 @@ enum EditMode {
 enum Step {
     Edit(AutosaveSection, EditMode),
     Advance(u16),
+    Settle(bool),
     Flush,
     SwitchMethod(bool),
     ToggleMidRename(bool),
@@ -50,6 +52,7 @@ fn arb_step() -> impl Strategy<Value = Step> {
     prop_oneof![
         4 => (arb_section(), arb_edit_mode()).prop_map(|(s, m)| Step::Edit(s, m)),
         2 => (1u16..800).prop_map(Step::Advance),
+        2 => any::<bool>().prop_map(Step::Settle),
         1 => Just(Step::Flush),
         1 => any::<bool>().prop_map(Step::SwitchMethod),
         1 => any::<bool>().prop_map(Step::ToggleMidRename),
@@ -62,6 +65,7 @@ struct ModelHarness {
     vm: ProfileAutosave,
     now: u64,
     rev_counter: u64,
+    fail_count: u8,
     baseline: BTreeMap<AutosaveSection, RevisionHash>,
     draft_store: BTreeMap<AutosaveSection, RevisionHash>,
     disk_store: BTreeMap<AutosaveSection, RevisionHash>,
@@ -83,6 +87,7 @@ impl ModelHarness {
             ),
             now: 0,
             rev_counter: 0,
+            fail_count: 0,
             draft_store: baseline.clone(),
             disk_store: baseline.clone(),
             baseline,
@@ -154,13 +159,16 @@ impl ModelHarness {
         );
         self.now += 1;
         let effects = match fail_kind {
-            Some(kind) => self.vm.apply(
-                AutosaveEvent::SaveFailed {
-                    id: req.id,
-                    error: ServiceError::new(kind, "failed"),
-                },
-                AutosaveInstant::from_millis(self.now),
-            ),
+            Some(kind) => {
+                self.fail_count = self.fail_count.saturating_add(1);
+                self.vm.apply(
+                    AutosaveEvent::SaveFailed {
+                        id: req.id,
+                        error: ServiceError::new(kind, "failed"),
+                    },
+                    AutosaveInstant::from_millis(self.now),
+                )
+            }
             None => {
                 for (sec, rev) in &snapshot {
                     self.disk_store.insert(*sec, rev.clone());
@@ -212,11 +220,9 @@ impl ModelHarness {
 proptest! {
     #[test]
     fn reference_model_convergence_single_flight_and_idle_gate(
-        steps in prop::collection::vec(arb_step(), 1..40),
-        fail_first in any::<bool>(),
+        steps in prop::collection::vec(arb_step(), 1..48),
     ) {
         let mut h = ModelHarness::new("Prop Game");
-        let mut failed_once = false;
 
         for step in steps {
             let eff = match step {
@@ -229,7 +235,9 @@ proptest! {
                         EditMode::Repeat => h.draft_store[&sec].clone(),
                         EditMode::UndoToBaseline => h.baseline[&sec].clone(),
                     };
-                    if h.vm.scope().can_autosave_section(sec) || !h.vm.scope().can_autosave() {
+                    if h.vm.scope().method_supports_section(sec)
+                        || h.vm.has_queued_dirty_section(sec)
+                    {
                         h.draft_store.insert(sec, rev.clone());
                     }
                     h.vm.apply(
@@ -252,6 +260,13 @@ proptest! {
                         }
                     }
                     out
+                }
+                Step::Settle(fail) => {
+                    if h.in_flight.is_some() {
+                        let kind = (fail && h.fail_count < 3).then_some(ServiceErrorKind::Io);
+                        h.settle_in_flight(kind);
+                    }
+                    Vec::new()
                 }
                 Step::Flush => h.vm.apply(AutosaveEvent::Flush, AutosaveInstant::from_millis(h.now)),
                 Step::SwitchMethod(is_native) => {
@@ -286,14 +301,6 @@ proptest! {
                 ),
             };
             h.capture_save(eff);
-
-            if h.in_flight.is_some() {
-                let kind = (fail_first && !failed_once).then_some(ServiceErrorKind::Io);
-                if kind.is_some() {
-                    failed_once = true;
-                }
-                h.settle_in_flight(kind);
-            }
         }
 
         h.drain_to_idle();

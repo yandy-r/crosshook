@@ -24,12 +24,22 @@ impl ProfileAutosave {
         if active_name.is_empty() {
             return;
         }
+        let conflict_name = matches!(self.state, AutosaveState::Conflict { .. })
+            .then(|| self.conflict_reload_name.as_deref())
+            .flatten()
+            .map(str::to_owned);
         let renamed_from_active = matches!(
             &change.reason,
-            ProfileChangeKind::Renamed { from } if from.trim() == active_name
+            ProfileChangeKind::Renamed { from }
+                if from.trim() == active_name
+                    || conflict_name.as_deref() == Some(from.trim())
         );
         if let Some(target_name) = change.profile_name.as_deref() {
-            if target_name.trim() != active_name && !renamed_from_active {
+            let trimmed_target = target_name.trim();
+            if trimmed_target != active_name
+                && conflict_name.as_deref() != Some(trimmed_target)
+                && !renamed_from_active
+            {
                 return;
             }
         }
@@ -52,16 +62,17 @@ impl ProfileAutosave {
             }
         }
 
+        let default_name = conflict_name.as_deref().unwrap_or(&active_name);
         let reload_name = if renamed_from_active {
             change
                 .profile_name
                 .as_deref()
                 .map(str::trim)
                 .filter(|s| !s.is_empty())
-                .unwrap_or(&active_name)
+                .unwrap_or(default_name)
                 .to_owned()
         } else {
-            active_name
+            default_name.to_owned()
         };
 
         self.scheduled_tick = None;
@@ -72,6 +83,8 @@ impl ProfileAutosave {
         match &self.state {
             AutosaveState::Idle | AutosaveState::Saved { .. } if self.dirty_sections.is_empty() => {
                 self.conflict_reload_name = None;
+                self.pending_resolution = None;
+                self.failed_sections.clear();
                 if let Some(rev) = change.revision {
                     self.base_revision = Some(rev.clone());
                     self.latest_draft_revision = Some(rev);
@@ -85,6 +98,8 @@ impl ProfileAutosave {
             AutosaveState::Conflict {
                 local, sections, ..
             } => {
+                self.pending_resolution = None;
+                self.failed_sections.clear();
                 if renamed_from_active {
                     self.conflict_reload_name = Some(reload_name.clone());
                 }
@@ -105,7 +120,8 @@ impl ProfileAutosave {
             _ => {
                 let sections = self.dirty_sections();
                 let local = self.conflict_local_revision();
-                self.in_flight = None;
+                self.pending_resolution = None;
+                self.failed_sections.clear();
                 self.conflict_reload_name = renamed_from_active.then(|| reload_name.clone());
                 let details = ConflictDetails {
                     profile_name: reload_name,
@@ -131,6 +147,49 @@ impl ProfileAutosave {
         now: AutosaveInstant,
         effects: &mut Vec<AutosaveEffect>,
     ) {
+        if !matches!(self.state, AutosaveState::Conflict { .. })
+            || self.scope.profile_name().is_empty()
+        {
+            return;
+        }
+        if self.in_flight.is_some() {
+            self.pending_resolution = Some((resolution, now));
+            return;
+        }
+        self.execute_conflict_resolution(resolution, now, effects);
+    }
+
+    pub(super) fn settle_in_flight_during_conflict(
+        &mut self,
+        in_flight: InFlightSave,
+        succeeded_rev: Option<&RevisionHash>,
+        now: AutosaveInstant,
+        effects: &mut Vec<AutosaveEffect>,
+    ) {
+        match succeeded_rev {
+            Some(committed_rev) => {
+                if committed_rev != &in_flight.revision {
+                    self.update_pending_self_write(&in_flight.revision, committed_rev);
+                }
+            }
+            None => {
+                self.remove_pending_self_write(&in_flight.revision);
+            }
+        }
+        for (sec, entry) in in_flight.entries {
+            self.dirty_sections.entry(sec).or_insert(entry);
+        }
+        if let Some((resolution, res_now)) = self.pending_resolution.take() {
+            self.execute_conflict_resolution(resolution, res_now.max(now), effects);
+        }
+    }
+
+    pub(super) fn execute_conflict_resolution(
+        &mut self,
+        resolution: ConflictResolution,
+        now: AutosaveInstant,
+        effects: &mut Vec<AutosaveEffect>,
+    ) {
         let AutosaveState::Conflict {
             local,
             remote,
@@ -150,6 +209,8 @@ impl ProfileAutosave {
                 self.retry_attempt = 0;
                 self.scheduled_tick = None;
                 self.conflict_reload_name = None;
+                self.pending_resolution = None;
+                self.failed_sections.clear();
                 let mut entries = BTreeMap::new();
                 for sec in &sections {
                     let entry = self
@@ -209,6 +270,7 @@ impl ProfileAutosave {
         if eligible.is_empty() {
             self.scheduled_tick = None;
             if self.dirty_sections.is_empty() {
+                self.failed_sections.clear();
                 self.state = AutosaveState::Idle;
                 self.emit_status(AutosaveStatus::idle(), effects);
             } else if let AutosaveState::Error { retry_at, .. } = &mut self.state {
@@ -293,6 +355,7 @@ impl ProfileAutosave {
         };
         let sections: BTreeSet<AutosaveSection> = entries.keys().copied().collect();
         self.scheduled_tick = None;
+        self.failed_sections.clear();
         self.record_pending_self_write(revision.clone());
         self.in_flight = Some(InFlightSave {
             id,

@@ -457,12 +457,17 @@ merging into one pure state machine:
   `scheduled_tick()`, echo `SaveRequest.id` in `SaveSucceeded` / `SaveFailed`,
   and forward `ProfilesChanged` / `Resync` via `external_changes_from_app_event`
   (`app` feature). `FullProfile` edits update `latest_draft_revision` and
-  `base_revision`; dedicated `Section` edits track section fingerprints
-  independently in `section_saved_revs` without clobbering the full-profile
-  baseline. To suppress self-write `ProfilesChanged` echoes that arrive before
-  `SaveSucceeded` on dedicated `Section` saves, either tag `Edit` /
-  `SaveRequest.revision` with the full-profile revision hash or use a unified
-  revision scheme between `Edit` and `ExternalChange`.
+  `base_revision`, and `pending_self_writes` suppresses `Saved` / `PresetApplied`
+  echoes whenever `ExternalChange.revision` uses the same full-profile hash
+  domain. Dedicated `Section` writes instead store section fingerprints in
+  `section_saved_revs` without clobbering `base_revision`; because
+  `ProfileWriter::commit` publishes `AppEvent::ProfilesChanged { reason: Saved }`
+  before returning, a bridge using per-section fingerprints must suppress or
+  section-match its own in-flight `Section` `ProfilesChanged` echo rather than
+  tagging staggered `Section` edits with full-draft hashes. `Conflict` retains
+  any active `in_flight` save and defers `ResolveConflict` (`KeepMine` /
+  `ReloadTheirs`) until that write settles so a late in-flight save cannot
+  overwrite `ReloadTheirs` or race a second save.
 - **Idle gate**: `Idle`, `Conflict`, and non-retryable or exhausted `Error`
   states never emit `AutosaveEffect::ScheduleTick`.
 

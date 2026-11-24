@@ -492,7 +492,7 @@ async function runChipCases() {
     st('error', 'Failed to save'),
   ];
   const inputs = [
-    { name: 'error_beats_all_other_tones', statuses: [idle, saved, warn, saving, err] },
+    { name: 'error_beats_all_other_tones', statuses: [saved, warn, saving, err] },
     { name: 'saving_beats_warning_and_success', statuses: [saved, warn, saving] },
     {
       name: 'warning_tie_keeps_first_label',
@@ -511,7 +511,7 @@ async function runChipCases() {
         launchOptimizationsStatus: statuses[0],
         gamescopeAutoSaveStatus: statuses[1],
         mangoHudAutoSaveStatus: statuses[2],
-        commandArgumentsAutoSaveStatus: statuses[4] ?? statuses[3],
+        commandArgumentsAutoSaveStatus: statuses[3],
       })
     );
     const { tone: expected_tone, label: expected_label } = hook.result.current.combinedAutoSaveStatus;

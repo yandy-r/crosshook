@@ -12,7 +12,6 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::launch::LaunchMethod;
 use crate::ViewModel;
 
 #[cfg(feature = "app")]
@@ -89,6 +88,8 @@ pub struct ProfileAutosave {
     pub(super) retry_attempt: u32,
     pub(super) next_edit_seq: u64,
     pub(super) conflict_reload_name: Option<String>,
+    pub(super) pending_resolution: Option<(ConflictResolution, AutosaveInstant)>,
+    pub(super) failed_sections: BTreeSet<AutosaveSection>,
 }
 
 impl ProfileAutosave {
@@ -123,6 +124,8 @@ impl ProfileAutosave {
             retry_attempt: 0,
             next_edit_seq: 0,
             conflict_reload_name: None,
+            pending_resolution: None,
+            failed_sections: BTreeSet::new(),
         }
     }
 
@@ -226,12 +229,7 @@ impl ProfileAutosave {
     /// Per-section status for UI badges and [`combine_statuses`].
     #[must_use]
     pub fn section_status(&self, section: AutosaveSection) -> AutosaveStatus {
-        if section.requires_proton_or_steam()
-            && !matches!(
-                self.scope.launch_method,
-                LaunchMethod::ProtonRun | LaunchMethod::SteamApplaunch
-            )
-        {
+        if !self.scope.method_supports_section(section) {
             return AutosaveStatus::warning("Unavailable for current method", None);
         }
         if !self.scope.profile_exists {
@@ -255,7 +253,9 @@ impl ProfileAutosave {
         }
         if self.dirty_sections.contains_key(&section) {
             if let AutosaveState::Error { error, .. } = &self.state {
-                return AutosaveStatus::error("Failed to save", Some(error.message.clone()));
+                if self.failed_sections.contains(&section) {
+                    return AutosaveStatus::error("Failed to save", Some(error.message.clone()));
+                }
             }
             return AutosaveStatus::saving();
         }
@@ -263,6 +263,11 @@ impl ProfileAutosave {
             return AutosaveStatus::saved();
         }
         AutosaveStatus::idle()
+    }
+
+    #[cfg(test)]
+    pub(super) fn has_queued_dirty_section(&self, section: AutosaveSection) -> bool {
+        self.dirty_sections.contains_key(&section)
     }
 }
 

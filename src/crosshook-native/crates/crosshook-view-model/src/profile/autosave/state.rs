@@ -247,12 +247,10 @@ impl AutosaveScope {
         self.profile_exists && !selected.is_empty() && selected == draft
     }
 
-    /// True when `section` is eligible to autosave under the current scope.
+    /// True when `launch_method` supports autosaving `section`, independent of
+    /// profile existence or rename state.
     #[must_use]
-    pub fn can_autosave_section(&self, section: AutosaveSection) -> bool {
-        if !self.can_autosave() {
-            return false;
-        }
+    pub const fn method_supports_section(&self, section: AutosaveSection) -> bool {
         if section.requires_proton_or_steam() {
             return matches!(
                 self.launch_method,
@@ -260,6 +258,12 @@ impl AutosaveScope {
             );
         }
         true
+    }
+
+    /// True when `section` is eligible to autosave under the current scope.
+    #[must_use]
+    pub fn can_autosave_section(&self, section: AutosaveSection) -> bool {
+        self.can_autosave() && self.method_supports_section(section)
     }
 }
 

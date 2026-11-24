@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use crate::launch::LaunchMethod;
 use crate::{ServiceError, ServiceErrorKind};
 
 use super::super::*;

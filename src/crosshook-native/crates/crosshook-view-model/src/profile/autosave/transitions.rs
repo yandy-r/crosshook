@@ -6,6 +6,7 @@ use std::collections::BTreeSet;
 use crate::{ServiceError, ServiceErrorKind};
 
 use super::effects::AutosaveEffect;
+use super::events::ConflictResolution;
 use super::policy::AutosaveStatus;
 use super::state::{
     AutosaveInstant, AutosaveScope, AutosaveSection, AutosaveState, RevisionHash, SaveId,
@@ -118,23 +119,8 @@ impl ProfileAutosave {
         now: AutosaveInstant,
         effects: &mut Vec<AutosaveEffect>,
     ) {
-        if self.scope.can_autosave() && !self.scope.can_autosave_section(section) {
-            if self.dirty_sections.is_empty()
-                && self.in_flight.is_none()
-                && !matches!(
-                    self.state,
-                    AutosaveState::Error { .. } | AutosaveState::Conflict { .. }
-                )
-            {
-                if matches!(self.state, AutosaveState::Saved { .. }) {
-                    self.state = AutosaveState::Idle;
-                    self.scheduled_tick = None;
-                }
-                self.emit_status(
-                    AutosaveStatus::warning("Unavailable for current method", None),
-                    effects,
-                );
-            }
+        if !self.scope.method_supports_section(section) {
+            self.handle_method_gated_edit(section, &revision, effects);
             return;
         }
 
@@ -142,20 +128,22 @@ impl ProfileAutosave {
             self.latest_draft_revision = Some(revision.clone());
         }
 
-        if !self.in_flight_covers(section) && self.matches_saved_revision(section, &revision) {
+        if !matches!(self.state, AutosaveState::Conflict { .. })
+            && !self.in_flight_covers(section)
+            && self.matches_saved_revision(section, &revision)
+        {
             let was_dirty = self.dirty_sections.remove(&section).is_some();
+            self.failed_sections.remove(&section);
             if !was_dirty
                 && self.in_flight.is_none()
                 && matches!(self.state, AutosaveState::Saved { .. })
             {
                 return;
             }
-            if self.in_flight.is_none()
-                && self.dirty_sections.is_empty()
-                && !matches!(self.state, AutosaveState::Conflict { .. })
-            {
+            if self.in_flight.is_none() && self.dirty_sections.is_empty() {
                 self.retry_attempt = 0;
                 self.scheduled_tick = None;
+                self.failed_sections.clear();
                 self.state = AutosaveState::Idle;
                 self.emit_status(AutosaveStatus::idle(), effects);
             } else if matches!(self.state, AutosaveState::Dirty { .. }) {
@@ -180,6 +168,7 @@ impl ProfileAutosave {
         let from_error = matches!(self.state, AutosaveState::Error { .. });
         if from_error {
             self.retry_attempt = 0;
+            self.failed_sections.clear();
             for (&sec, entry) in &mut self.dirty_sections {
                 entry.since = now;
                 entry.deadline = Self::compute_deadline_for(
@@ -220,6 +209,12 @@ impl ProfileAutosave {
                     *local = revision;
                 }
                 sections.insert(section);
+                if matches!(
+                    self.pending_resolution,
+                    Some((ConflictResolution::ReloadTheirs, _))
+                ) {
+                    self.pending_resolution = None;
+                }
             }
             AutosaveState::Saving { .. } => {
                 self.emit_status(AutosaveStatus::saving(), effects);
@@ -321,8 +316,13 @@ impl ProfileAutosave {
         let Some(in_flight) = self.in_flight.take_if(|f| f.id == id) else {
             return;
         };
+        if matches!(self.state, AutosaveState::Conflict { .. }) {
+            self.settle_in_flight_during_conflict(in_flight, Some(&committed_rev), now, effects);
+            return;
+        }
 
         self.retry_attempt = 0;
+        self.failed_sections.clear();
         if in_flight.target == SaveTarget::FullProfile {
             self.base_revision = Some(committed_rev.clone());
         }
@@ -338,6 +338,14 @@ impl ProfileAutosave {
             self.section_saved_revs.insert(*sec, saved_rev);
         }
         self.prune_clean_dirty_sections(in_flight.target, &in_flight.entries, &committed_rev);
+        if in_flight.target == SaveTarget::FullProfile
+            && !self
+                .dirty_sections
+                .keys()
+                .any(|s| s.save_target() == SaveTarget::FullProfile)
+        {
+            self.latest_draft_revision = Some(committed_rev.clone());
+        }
 
         let eligible = self.eligible_dirty_sections();
         if !eligible.is_empty() && self.scope.can_autosave() {
@@ -372,6 +380,13 @@ impl ProfileAutosave {
             return;
         }
 
+        if !self.scope.can_autosave() {
+            self.scheduled_tick = None;
+            self.state = AutosaveState::Idle;
+            self.emit_status(self.inactive_status(), effects);
+            return;
+        }
+
         match self.policy.saved_status_hold {
             Some(hold) if !hold.is_zero() => {
                 let fade_at = now.saturating_add(hold);
@@ -401,8 +416,13 @@ impl ProfileAutosave {
         let Some(in_flight) = self.in_flight.take_if(|f| f.id == id) else {
             return;
         };
+        if matches!(self.state, AutosaveState::Conflict { .. }) {
+            self.settle_in_flight_during_conflict(in_flight, None, now, effects);
+            return;
+        }
 
         self.remove_pending_self_write(&in_flight.revision);
+        let failed_secs: BTreeSet<AutosaveSection> = in_flight.entries.keys().copied().collect();
         for (sec, entry) in in_flight.entries {
             match self.dirty_sections.get_mut(&sec) {
                 Some(newer) => newer.since = newer.since.min(entry.since),
@@ -413,6 +433,7 @@ impl ProfileAutosave {
         }
 
         if error.kind == ServiceErrorKind::Cancelled {
+            self.failed_sections.clear();
             let eligible = self.eligible_dirty_sections();
             if eligible.is_empty() || !self.scope.can_autosave() {
                 self.scheduled_tick = None;
@@ -438,6 +459,7 @@ impl ProfileAutosave {
             return;
         }
 
+        self.failed_sections = failed_secs;
         self.retry_attempt = self.retry_attempt.saturating_add(1);
         let retry_at = if is_retryable_error(&error.kind)
             && self.scope.can_autosave()

@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
 use super::effects::AutosaveEffect;
+use super::events::ConflictResolution;
 use super::policy::{AutosavePolicy, AutosaveStatus};
 use super::state::{AutosaveInstant, AutosaveSection, AutosaveState, RevisionHash, SaveTarget};
 use super::{DirtyEntry, ProfileAutosave, MAX_PENDING_SELF_WRITES};
@@ -18,6 +19,8 @@ impl ProfileAutosave {
         self.scheduled_tick = None;
         self.retry_attempt = 0;
         self.conflict_reload_name = None;
+        self.pending_resolution = None;
+        self.failed_sections.clear();
     }
 
     pub(super) fn eligible_dirty_sections(&self) -> BTreeSet<AutosaveSection> {
@@ -71,6 +74,86 @@ impl ProfileAutosave {
         match policy.max_wait {
             Some(max_wait) => debounced.min(since.saturating_add(max_wait)).max(now),
             None => debounced,
+        }
+    }
+
+    pub(super) fn handle_method_gated_edit(
+        &mut self,
+        section: AutosaveSection,
+        revision: &RevisionHash,
+        effects: &mut Vec<AutosaveEffect>,
+    ) {
+        if self.dirty_sections.contains_key(&section) {
+            if !matches!(self.state, AutosaveState::Conflict { .. })
+                && !self.in_flight_covers(section)
+                && self.matches_saved_revision(section, revision)
+            {
+                self.dirty_sections.remove(&section);
+                self.failed_sections.remove(&section);
+                if self.in_flight.is_none() && self.dirty_sections.is_empty() {
+                    self.retry_attempt = 0;
+                    self.scheduled_tick = None;
+                    self.failed_sections.clear();
+                    self.state = AutosaveState::Idle;
+                    self.emit_status(AutosaveStatus::idle(), effects);
+                } else if matches!(self.state, AutosaveState::Dirty { .. }) {
+                    self.set_dirty_state();
+                    if !self.scope.can_autosave() || self.earliest_eligible_deadline().is_none() {
+                        self.scheduled_tick = None;
+                        self.emit_status(self.dirty_without_eligible_status(), effects);
+                    }
+                } else if matches!(self.state, AutosaveState::Error { .. })
+                    && self.eligible_dirty_sections().is_empty()
+                {
+                    if let AutosaveState::Error { retry_at, .. } = &mut self.state {
+                        *retry_at = None;
+                    }
+                    self.scheduled_tick = None;
+                }
+                return;
+            }
+
+            self.next_edit_seq = self.next_edit_seq.wrapping_add(1);
+            if let Some(entry) = self.dirty_sections.get_mut(&section) {
+                entry.revision = revision.clone();
+                entry.edit_seq = self.next_edit_seq;
+            }
+            if let AutosaveState::Conflict {
+                local, sections, ..
+            } = &mut self.state
+            {
+                if !sections
+                    .iter()
+                    .any(|s| s.save_target() == SaveTarget::FullProfile)
+                {
+                    *local = revision.clone();
+                }
+                sections.insert(section);
+                if matches!(
+                    self.pending_resolution,
+                    Some((ConflictResolution::ReloadTheirs, _))
+                ) {
+                    self.pending_resolution = None;
+                }
+            }
+            return;
+        }
+
+        if self.dirty_sections.is_empty()
+            && self.in_flight.is_none()
+            && !matches!(
+                self.state,
+                AutosaveState::Error { .. } | AutosaveState::Conflict { .. }
+            )
+        {
+            if matches!(self.state, AutosaveState::Saved { .. }) {
+                self.state = AutosaveState::Idle;
+                self.scheduled_tick = None;
+            }
+            self.emit_status(
+                AutosaveStatus::warning("Unavailable for current method", None),
+                effects,
+            );
         }
     }
 
@@ -131,7 +214,11 @@ impl ProfileAutosave {
         if self.section_saved_revs.get(&section) == Some(revision) {
             return true;
         }
-        let other_dirty = self.dirty_sections.keys().any(|k| *k != section);
+        let other_dirty = self.dirty_sections.keys().any(|k| *k != section)
+            || self
+                .in_flight
+                .as_ref()
+                .is_some_and(|f| f.entries.keys().any(|k| *k != section));
         !other_dirty && self.base_revision.as_ref() == Some(revision)
     }
 
