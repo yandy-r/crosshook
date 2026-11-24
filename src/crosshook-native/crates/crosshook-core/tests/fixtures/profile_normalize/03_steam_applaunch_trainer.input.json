@@ -1,0 +1,45 @@
+{
+  "game": {
+    "name": "  Elden Ring  ",
+    "executable_path": "/steam/steamapps/common/ELDEN RING/Game/eldenring.exe"
+  },
+  "trainer": {
+    "path": "/trainers/eldenring_fling.exe",
+    "type": "  standalone  ",
+    "loading_mode": "source_directory",
+    "required_protontricks": ["vcrun2019"],
+    "community_trainer_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  },
+  "injection": {
+    "dll_paths": [],
+    "inject_on_launch": [],
+    "loaded_hooks": [],
+    "method": "disabled",
+    "stage": "trainer_launch",
+    "timeout_ms": 0,
+    "fallback": "warn_and_continue"
+  },
+  "steam": {
+    "enabled": true,
+    "app_id": "1245620",
+    "compatdata_path": "/steam/steamapps/compatdata/1245620",
+    "proton_path": "/steam/steamapps/common/Proton 9.0",
+    "launcher": {
+      "icon_path": "/icons/elden.png",
+      "display_name": "Elden Ring - Trainer"
+    }
+  },
+  "launch": {
+    "method": "",
+    "optimizations": {
+      "enabled_option_ids": ["use_gamemode"]
+    },
+    "command_arguments": {
+      "enabled_argument_ids": ["skip_launcher"],
+      "custom_args": ["-- %command%", "-nolog"]
+    },
+    "custom_env_vars": {
+      "VKD3D_CONFIG": "dxr11"
+    }
+  }
+}

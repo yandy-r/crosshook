@@ -1,0 +1,58 @@
+{
+  "game": {
+    "name": "Legacy Injection Game",
+    "executable_path": "/portable/game.exe"
+  },
+  "trainer": {
+    "path": "/portable/trainer.exe",
+    "type": "",
+    "loading_mode": "source_directory"
+  },
+  "injection": {
+    "dll_paths": ["/mods/first.dll", "C:\\Mods\\second.dll"],
+    "inject_on_launch": [true],
+    "method": "manual_map",
+    "stage": "manual",
+    "timeout_ms": 2500,
+    "fallback": "abort_launch"
+  },
+  "steam": {
+    "enabled": false,
+    "app_id": "",
+    "compatdata_path": "",
+    "proton_path": "",
+    "launcher": {
+      "icon_path": "",
+      "display_name": ""
+    }
+  },
+  "runtime": {
+    "prefix_path": "  /portable/pfx  ",
+    "proton_path": "  /portable/proton  ",
+    "working_directory": ""
+  },
+  "launch": {
+    "method": "proton_run",
+    "optimizations": {
+      "enabled_option_ids": []
+    },
+    "command_arguments": {
+      "enabled_argument_ids": [],
+      "custom_args": []
+    },
+    "custom_env_vars": {}
+  },
+  "local_override": {
+    "game": {
+      "executable_path": "/local/machine/game.exe"
+    },
+    "trainer": {
+      "path": "/local/machine/trainer.exe",
+      "extra_protontricks": ["d3dx9"]
+    },
+    "runtime": {
+      "prefix_path": "/local/machine/pfx",
+      "proton_path": "/local/machine/proton"
+    }
+  }
+}

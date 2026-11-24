@@ -1,0 +1,46 @@
+[game]
+name = "My.Game"
+executable_path = ""
+
+[trainer]
+path = ""
+type = ""
+loading_mode = "source_directory"
+
+[injection]
+method = "disabled"
+stage = "trainer_launch"
+timeout_ms = 0
+fallback = "warn_and_continue"
+dll_paths = []
+inject_on_launch = []
+
+[steam]
+enabled = false
+app_id = ""
+compatdata_path = ""
+proton_path = ""
+
+[steam.launcher]
+icon_path = ""
+display_name = "My.Game"
+
+[launch]
+method = "proton_run"
+
+[local_override.game]
+executable_path = 'C:\Games\Synthetic\My.Game.exe'
+custom_cover_art_path = ""
+custom_portrait_art_path = ""
+custom_background_art_path = ""
+
+[local_override.trainer]
+path = ""
+
+[local_override.steam]
+compatdata_path = ""
+proton_path = ""
+
+[local_override.runtime]
+prefix_path = ""
+proton_path = ""

@@ -4,6 +4,7 @@ use crate::profile::GamescopeConfig;
 
 pub mod catalog;
 pub mod command_arguments;
+pub mod command_tokens;
 pub mod diagnostics;
 pub mod env;
 pub mod hooks;
@@ -30,6 +31,10 @@ pub use command_arguments::{
     load_catalog as load_command_argument_catalog, resolve_command_arguments,
     resolve_command_arguments_for_method, CommandArgumentCatalog, CommandArgumentEntry,
     CommandArgumentResolveError, ResolvedCommandArguments,
+};
+pub use command_tokens::{
+    highlight_launch_preview, highlight_role, tokenize_command, CommandHighlightRole, CommandToken,
+    CommandTokenKind, HighlightedSpan, MAX_PREVIEW_DISPLAY_FIELD_LEN, MAX_PREVIEW_FLAG_TOKENS,
 };
 pub use diagnostics::{
     analyze, should_surface_report, CoexistenceAdvisoryRecord, DiagnosticReport,

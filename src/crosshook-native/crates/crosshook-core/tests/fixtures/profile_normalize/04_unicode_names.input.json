@@ -1,0 +1,56 @@
+{
+  "game": {
+    "name": "  エルデンリング: Shadow of the Erdtree — 黄金樹  ",
+    "executable_path": "/games/日本語/ゲーム.exe"
+  },
+  "trainer": {
+    "path": "/trainers/日本語/トレーナー - Trainer.exe",
+    "type": "  カスタム  ",
+    "loading_mode": "source_directory"
+  },
+  "injection": {
+    "dll_paths": [],
+    "inject_on_launch": [],
+    "loaded_hooks": [],
+    "method": "disabled",
+    "stage": "trainer_launch",
+    "timeout_ms": 0,
+    "fallback": "warn_and_continue"
+  },
+  "steam": {
+    "enabled": false,
+    "app_id": "",
+    "compatdata_path": "",
+    "proton_path": "",
+    "launcher": {
+      "icon_path": "",
+      "display_name": "  黄金樹 - Trainer  "
+    }
+  },
+  "runtime": {
+    "prefix_path": "  /prefixes/日本語  ",
+    "proton_path": "  /compat/Proton-GE  ",
+    "working_directory": "  /games/日本語  ",
+    "umu_store": "  GOG  ",
+    "umu_codename": "  黄金樹_2077  "
+  },
+  "launch": {
+    "method": "proton_run",
+    "optimizations": {
+      "enabled_option_ids": ["use_gamemode"]
+    },
+    "command_arguments": {
+      "enabled_argument_ids": [],
+      "custom_args": ["  --title=黄金樹  "]
+    },
+    "presets": {
+      "  標準プリセット  ": {
+        "enabled_option_ids": ["use_gamemode"]
+      }
+    },
+    "active_preset": "  標準プリセット  ",
+    "custom_env_vars": {
+      "GAME_TITLE": "エルデンリング — 黄金樹"
+    }
+  }
+}

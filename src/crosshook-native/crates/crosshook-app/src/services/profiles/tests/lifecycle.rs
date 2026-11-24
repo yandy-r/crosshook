@@ -302,9 +302,88 @@ async fn save_rejects_invalid_runtime_steam_app_id_without_writing() {
         .await
         .unwrap_err();
 
+    assert_eq!(
+        error.kind(),
+        crate::AppErrorKind::Validation {
+            field: "runtime.steam_app_id",
+        }
+    );
     assert!(error.message().contains("Invalid Steam App ID"));
     assert!(!harness.profiles.profile_exists("Alpha"));
     assert_eq!(harness.next_event().await, None);
+}
+
+#[tokio::test]
+async fn save_normalizes_non_normalized_profile_before_writing() {
+    let harness = Harness::new(Metadata::Disabled);
+    let mut profile = GameProfile::default();
+    profile.game.name = "   ".to_string();
+    profile.game.executable_path = "/games/synthetic/EldenRing.exe".to_string();
+    profile.trainer.kind = "  standalone  ".to_string();
+    profile.steam.launcher.display_name = "  Elden Ring - Trainer  ".to_string();
+    profile.runtime.prefix_path = "  /prefixes/elden  ".to_string();
+    profile.runtime.proton_path = "  /compat/proton  ".to_string();
+    profile.runtime.working_directory = "  /games/synthetic  ".to_string();
+    profile.runtime.umu_store = "  GOG  ".to_string();
+    profile.runtime.umu_codename = "  elden_ring  ".to_string();
+    profile.launch.command_arguments.enabled_argument_ids = vec![
+        "  force_vulkan  ".to_string(),
+        "force_vulkan".to_string(),
+        "   ".to_string(),
+    ];
+    profile.launch.command_arguments.custom_args = vec![
+        "   ".to_string(),
+        "  --dx11  ".to_string(),
+        "\t".to_string(),
+    ];
+
+    harness
+        .writer
+        .save("Elden".to_string(), profile)
+        .await
+        .unwrap();
+
+    let saved = harness.profiles.load("Elden").unwrap();
+    assert_eq!(saved.game.name, "EldenRing");
+    assert_eq!(saved.launch.method, "proton_run");
+    assert!(!saved.steam.enabled);
+    assert_eq!(saved.trainer.kind, "standalone");
+    assert_eq!(saved.steam.launcher.display_name, "Elden Ring");
+    assert_eq!(saved.runtime.prefix_path, "/prefixes/elden");
+    assert_eq!(saved.runtime.proton_path, "/compat/proton");
+    assert_eq!(saved.runtime.working_directory, "/games/synthetic");
+    assert_eq!(saved.runtime.umu_store, "gog");
+    assert_eq!(saved.runtime.umu_codename, "elden_ring");
+    assert_eq!(
+        saved.launch.command_arguments.enabled_argument_ids,
+        vec!["force_vulkan"]
+    );
+    assert_eq!(saved.launch.command_arguments.custom_args, vec!["--dx11"]);
+}
+
+#[tokio::test]
+async fn save_new_profile_applies_settings_default_launch_method_before_normalizing() {
+    let harness = Harness::new(Metadata::Disabled);
+    harness
+        .settings
+        .save(&AppSettingsData {
+            default_launch_method: "steam_applaunch".to_string(),
+            ..AppSettingsData::default()
+        })
+        .unwrap();
+
+    let mut profile = GameProfile::default();
+    profile.game.executable_path = "/games/synthetic/game.exe".to_string();
+
+    harness
+        .writer
+        .save("SteamDefault".to_string(), profile)
+        .await
+        .unwrap();
+
+    let saved = harness.profiles.load("SteamDefault").unwrap();
+    assert_eq!(saved.launch.method, "steam_applaunch");
+    assert!(saved.steam.enabled);
 }
 
 #[tokio::test]

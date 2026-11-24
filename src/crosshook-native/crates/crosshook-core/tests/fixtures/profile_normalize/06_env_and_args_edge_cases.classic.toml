@@ -1,0 +1,81 @@
+[game]
+name = "Edge Case Runner"
+executable_path = ""
+
+[trainer]
+path = ""
+type = ""
+loading_mode = "source_directory"
+
+[injection]
+method = "disabled"
+stage = "trainer_launch"
+timeout_ms = 0
+fallback = "warn_and_continue"
+dll_paths = []
+inject_on_launch = []
+
+[steam]
+enabled = false
+app_id = ""
+compatdata_path = ""
+proton_path = ""
+
+[steam.launcher]
+icon_path = ""
+display_name = "Edge Case Runner"
+
+[runtime]
+prefix_path = ""
+proton_path = ""
+working_directory = ""
+umu_codename = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+[launch]
+method = "proton_run"
+active_preset = "Fast"
+
+[launch.optimizations]
+enabled_option_ids = [
+    "use_gamemode",
+    "show_mangohud_overlay",
+]
+
+[launch.command_arguments]
+enabled_argument_ids = [
+    "force_vulkan",
+    "skip_launcher",
+]
+custom_args = [
+    "--dx11",
+    "-- %command%",
+    '--cfg="my path"',
+]
+
+[launch.presets.Fast]
+enabled_option_ids = [
+    "use_gamemode",
+    "show_mangohud_overlay",
+]
+
+[launch.custom_env_vars]
+A_VAR = "first"
+QUOTED = 'a "b" c'
+Z_VAR = "last"
+
+[local_override.game]
+executable_path = "/games/edge/runner.exe"
+custom_cover_art_path = ""
+custom_portrait_art_path = ""
+custom_background_art_path = ""
+
+[local_override.trainer]
+path = ""
+
+[local_override.steam]
+compatdata_path = ""
+proton_path = ""
+
+[local_override.runtime]
+prefix_path = "/prefixes/edge"
+proton_path = "/compat/proton"

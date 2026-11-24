@@ -6,9 +6,10 @@
 
 use crosshook_core::metadata::{ConfigRevisionSource, SyncSource};
 use crosshook_core::profile::{
-    profile_to_shareable_toml_with_options, validate_steam_app_id, DuplicateProfileResult,
-    GameProfile, ProfileStore, ShareableTomlOptions,
+    normalize_profile, profile_to_shareable_toml_with_options, DuplicateProfileResult, GameProfile,
+    ProfileStore, ShareableTomlOptions,
 };
+use crosshook_core::steam::validate_steam_app_id;
 
 use super::defaults_art::{apply_new_profile_defaults, auto_import_custom_art};
 use super::launcher_cleanup::cleanup_launchers_for_profile_delete;
@@ -154,20 +155,17 @@ impl ProfileMutation for SaveProfile {
     fn persist(self, ctx: &CommitContext<'_>) -> Result<Persisted<()>, AppError> {
         let Self { name, mut profile } = self;
         // BR-4: reject a malformed runtime Steam App ID before touching disk.
-        validate_steam_app_id(profile.runtime.steam_app_id.trim()).map_err(|error| {
-            AppError::validation(
-                "steam_app_id",
-                format!("Invalid Steam App ID in runtime section: {error}"),
-            )
-        })?;
+        validate_steam_app_id(profile.runtime.steam_app_id.trim())?;
 
         profile.clear_extra();
         if ctx.profiles.profile_exists(&name) {
             let existing = ctx.profiles.load(&name)?;
+            profile = normalize_profile(profile);
             profile.preserve_extra_from(&existing);
         } else {
             let settings = ctx.settings.load()?;
             apply_new_profile_defaults(&mut profile, &settings, ctx.metadata);
+            profile = normalize_profile(profile);
         }
         auto_import_custom_art(&name, &mut profile);
 

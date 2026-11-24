@@ -16,13 +16,17 @@ mod trainer;
 #[cfg(test)]
 mod tests;
 
+pub(crate) use game_meta::InjectionNormalizePolicy;
 pub use game_meta::{
     GameSection, InjectionFallback, InjectionMethod, InjectionSection, InjectionStage,
     LauncherSection, LoadedDllHook, SteamSection,
 };
 pub use gamescope::{GamescopeConfig, GamescopeFilter};
 pub use hooks::{HookStage, LaunchHook};
-pub use launch::{CollectionDefaultsSection, LaunchOptimizationsSection, LaunchSection};
+pub use launch::{
+    CollectionDefaultsSection, LaunchCommandArgumentsSection, LaunchOptimizationsSection,
+    LaunchSection,
+};
 pub use legacy::LegacyProfileData;
 pub use local_override::{
     LocalOverrideGameSection, LocalOverrideRuntimeSection, LocalOverrideSection,

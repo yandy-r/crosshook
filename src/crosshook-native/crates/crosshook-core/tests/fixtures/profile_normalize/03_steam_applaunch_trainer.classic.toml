@@ -1,0 +1,61 @@
+[game]
+name = "Elden Ring"
+executable_path = ""
+
+[trainer]
+path = ""
+type = "standalone"
+loading_mode = "source_directory"
+required_protontricks = ["vcrun2019"]
+community_trainer_sha256 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+[injection]
+method = "disabled"
+stage = "trainer_launch"
+timeout_ms = 0
+fallback = "warn_and_continue"
+dll_paths = []
+inject_on_launch = []
+
+[steam]
+enabled = true
+app_id = "1245620"
+compatdata_path = ""
+proton_path = ""
+
+[steam.launcher]
+icon_path = "/icons/elden.png"
+display_name = "Elden Ring"
+
+[launch]
+method = "steam_applaunch"
+
+[launch.optimizations]
+enabled_option_ids = ["use_gamemode"]
+
+[launch.command_arguments]
+enabled_argument_ids = ["skip_launcher"]
+custom_args = [
+    "-- %command%",
+    "-nolog",
+]
+
+[launch.custom_env_vars]
+VKD3D_CONFIG = "dxr11"
+
+[local_override.game]
+executable_path = "/steam/steamapps/common/ELDEN RING/Game/eldenring.exe"
+custom_cover_art_path = ""
+custom_portrait_art_path = ""
+custom_background_art_path = ""
+
+[local_override.trainer]
+path = "/trainers/eldenring_fling.exe"
+
+[local_override.steam]
+compatdata_path = "/steam/steamapps/compatdata/1245620"
+proton_path = "/steam/steamapps/common/Proton 9.0"
+
+[local_override.runtime]
+prefix_path = ""
+proton_path = ""
