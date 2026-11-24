@@ -353,3 +353,45 @@ fn section_status_isolates_failed_section_and_skips_saved_hold_when_paused() {
     assert_eq!(paused_vm.state(), &AutosaveState::Idle);
     assert_eq!(paused_vm.scheduled_tick(), None);
 }
+
+#[test]
+fn section_save_invalidates_baseline_echo_suppression_while_preserving_undo() {
+    let mut vm = make_vm(AutosavePolicy::default());
+    // Save a dedicated Gamescope section change; base_revision stays "r0" for FullProfile undo,
+    // while disk_base_matches becomes false so external restore to "r0" is NOT suppressed.
+    let _ = vm.apply(
+        AutosaveEvent::Edit {
+            section: AutosaveSection::Gamescope,
+            revision: rev("gs-1"),
+        },
+        ms(0),
+    );
+    let AutosaveEffect::Save(gs_req) = &vm.apply(AutosaveEvent::Tick, ms(350))[0] else {
+        panic!("expected Gamescope save");
+    };
+    let _ = vm.apply(
+        AutosaveEvent::SaveSucceeded {
+            id: gs_req.id,
+            committed_rev: rev("gs-1"),
+        },
+        ms(360),
+    );
+
+    let external_restore = vm.apply(
+        AutosaveEvent::ExternalChange(ExternalChange {
+            profile_name: Some("Test Game".into()),
+            reason: ProfileChangeKind::Saved,
+            revision: Some(rev("r0")),
+        }),
+        ms(400),
+    );
+    assert_eq!(
+        external_restore,
+        vec![
+            AutosaveEffect::ShowStatus(AutosaveStatus::idle()),
+            AutosaveEffect::Reload {
+                profile_name: "Test Game".into()
+            },
+        ]
+    );
+}

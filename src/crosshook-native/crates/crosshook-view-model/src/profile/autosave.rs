@@ -90,6 +90,7 @@ pub struct ProfileAutosave {
     pub(super) conflict_reload_name: Option<String>,
     pub(super) pending_resolution: Option<(ConflictResolution, AutosaveInstant)>,
     pub(super) failed_sections: BTreeSet<AutosaveSection>,
+    pub(super) disk_base_matches: bool,
 }
 
 impl ProfileAutosave {
@@ -115,7 +116,7 @@ impl ProfileAutosave {
             state: AutosaveState::Idle,
             status: AutosaveStatus::idle(),
             base_revision: base_revision.clone(),
-            latest_draft_revision: base_revision,
+            latest_draft_revision: base_revision.clone(),
             section_saved_revs: BTreeMap::new(),
             dirty_sections: BTreeMap::new(),
             in_flight: None,
@@ -126,6 +127,7 @@ impl ProfileAutosave {
             conflict_reload_name: None,
             pending_resolution: None,
             failed_sections: BTreeSet::new(),
+            disk_base_matches: base_revision.is_some(),
         }
     }
 

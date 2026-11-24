@@ -55,7 +55,8 @@ impl ProfileAutosave {
                 if matches!(
                     self.state,
                     AutosaveState::Idle | AutosaveState::Saved { .. }
-                ) && self.base_revision.as_ref() == Some(rev)
+                ) && self.disk_base_matches
+                    && self.base_revision.as_ref() == Some(rev)
                 {
                     return;
                 }
@@ -85,6 +86,7 @@ impl ProfileAutosave {
                 self.conflict_reload_name = None;
                 self.pending_resolution = None;
                 self.failed_sections.clear();
+                self.disk_base_matches = change.revision.is_some();
                 if let Some(rev) = change.revision {
                     self.base_revision = Some(rev.clone());
                     self.latest_draft_revision = Some(rev);
@@ -230,6 +232,7 @@ impl ProfileAutosave {
             ConflictResolution::ReloadTheirs => {
                 let target_name = self.conflict_reload_name.take().unwrap_or(profile_name);
                 self.reset_working_state();
+                self.disk_base_matches = remote.is_some();
                 self.base_revision = remote.clone();
                 self.latest_draft_revision = remote;
                 self.state = AutosaveState::Idle;

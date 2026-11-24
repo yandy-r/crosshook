@@ -223,11 +223,30 @@ proptest! {
         steps in prop::collection::vec(arb_step(), 1..48),
     ) {
         let mut h = ModelHarness::new("Prop Game");
+        let full_rev = |store: &BTreeMap<AutosaveSection, RevisionHash>| -> RevisionHash {
+            let parts: Vec<&str> = [
+                AutosaveSection::ProfileDraft,
+                AutosaveSection::LaunchHooks,
+                AutosaveSection::Trainer,
+                AutosaveSection::Environment,
+            ]
+            .iter()
+            .map(|s| store[s].as_str())
+            .collect();
+            RevisionHash::new(format!("full:{}", parts.join("|")))
+        };
+        let _ = h.vm.apply(
+            AutosaveEvent::Loaded {
+                scope: AutosaveScope::saved("Prop Game", LaunchMethod::ProtonRun),
+                revision: full_rev(&h.disk_store),
+            },
+            AutosaveInstant::from_millis(0),
+        );
 
         for step in steps {
             let eff = match step {
                 Step::Edit(sec, mode) => {
-                    let rev = match mode {
+                    let section_val = match mode {
                         EditMode::Fresh => {
                             h.rev_counter += 1;
                             RevisionHash::new(format!("rev-{}", h.rev_counter))
@@ -238,10 +257,15 @@ proptest! {
                     if h.vm.scope().method_supports_section(sec)
                         || h.vm.has_queued_dirty_section(sec)
                     {
-                        h.draft_store.insert(sec, rev.clone());
+                        h.draft_store.insert(sec, section_val.clone());
                     }
+                    let event_rev = if sec.save_target() == SaveTarget::FullProfile {
+                        full_rev(&h.draft_store)
+                    } else {
+                        section_val
+                    };
                     h.vm.apply(
-                        AutosaveEvent::Edit { section: sec, revision: rev },
+                        AutosaveEvent::Edit { section: sec, revision: event_rev },
                         AutosaveInstant::from_millis(h.now),
                     )
                 }

@@ -25,6 +25,7 @@ impl ProfileAutosave {
         self.scope = scope;
         self.base_revision = Some(revision.clone());
         self.latest_draft_revision = Some(revision);
+        self.disk_base_matches = true;
         self.state = AutosaveState::Idle;
         self.emit_status(AutosaveStatus::idle(), effects);
     }
@@ -40,6 +41,7 @@ impl ProfileAutosave {
             self.scope = next_scope;
             self.base_revision = None;
             self.latest_draft_revision = None;
+            self.disk_base_matches = false;
             self.state = AutosaveState::Idle;
             self.emit_status(AutosaveStatus::idle(), effects);
             return;
@@ -325,6 +327,9 @@ impl ProfileAutosave {
         self.failed_sections.clear();
         if in_flight.target == SaveTarget::FullProfile {
             self.base_revision = Some(committed_rev.clone());
+            self.disk_base_matches = true;
+        } else {
+            self.disk_base_matches = false;
         }
         if committed_rev != in_flight.revision {
             self.update_pending_self_write(&in_flight.revision, &committed_rev);
