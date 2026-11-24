@@ -50,23 +50,4 @@ pub fn resolve_art_app_id(profile: &GameProfile) -> &str {
     profile.runtime.steam_app_id.trim()
 }
 
-/// Validates a Steam App ID string.
-///
-/// Accepts: pure ASCII decimal digits, 1–12 characters.
-/// Accepts: empty string (means "not set").
-/// Rejects: non-digit characters, strings longer than 12 digits.
-pub fn validate_steam_app_id(value: &str) -> Result<(), String> {
-    if value.is_empty() {
-        return Ok(());
-    }
-    if value.len() > 12 {
-        return Err(format!(
-            "Steam App ID must be at most 12 digits, got {}",
-            value.len()
-        ));
-    }
-    if !value.chars().all(|c| c.is_ascii_digit()) {
-        return Err("Steam App ID must contain only numeric digits (0-9)".to_string());
-    }
-    Ok(())
-}
+pub use crate::steam::validate_steam_app_id;

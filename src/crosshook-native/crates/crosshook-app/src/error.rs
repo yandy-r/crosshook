@@ -318,5 +318,14 @@ impl From<crosshook_core::launch::ValidationError> for AppError {
     }
 }
 
+impl From<crosshook_core::steam::SteamAppIdValidationError> for AppError {
+    fn from(error: crosshook_core::steam::SteamAppIdValidationError) -> Self {
+        Self::validation(
+            "runtime.steam_app_id",
+            format!("Invalid Steam App ID in runtime section: {error}"),
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests;

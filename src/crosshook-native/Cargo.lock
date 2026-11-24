@@ -705,6 +705,7 @@ dependencies = [
  "infer",
  "memchr",
  "nix",
+ "proptest",
  "quick-xml 0.41.0",
  "reqwest",
  "rusqlite",

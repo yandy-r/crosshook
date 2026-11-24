@@ -1,0 +1,61 @@
+{
+  "game": {
+    "name": "Edge Case Runner",
+    "executable_path": "/games/edge/runner.exe"
+  },
+  "trainer": {
+    "path": "",
+    "type": "",
+    "loading_mode": "source_directory"
+  },
+  "injection": {
+    "dll_paths": [],
+    "inject_on_launch": [],
+    "loaded_hooks": [],
+    "method": "disabled",
+    "stage": "trainer_launch",
+    "timeout_ms": 0,
+    "fallback": "warn_and_continue"
+  },
+  "steam": {
+    "enabled": false,
+    "app_id": "",
+    "compatdata_path": "",
+    "proton_path": "",
+    "launcher": {
+      "icon_path": "",
+      "display_name": ""
+    }
+  },
+  "runtime": {
+    "prefix_path": "  /prefixes/edge  ",
+    "proton_path": "  /compat/proton  ",
+    "working_directory": "",
+    "umu_store": "go\ng",
+    "umu_codename": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "launch": {
+    "method": "proton_run",
+    "optimizations": {
+      "enabled_option_ids": ["stale_opt"]
+    },
+    "command_arguments": {
+      "enabled_argument_ids": ["  force_vulkan  ", "force_vulkan", "", "  skip_launcher  "],
+      "custom_args": ["   ", "  --dx11  ", "\t", "-- %command%", "--cfg=\"my path\""]
+    },
+    "presets": {
+      "   ": {
+        "enabled_option_ids": ["ignored"]
+      },
+      "  Fast  ": {
+        "enabled_option_ids": ["use_gamemode", "show_mangohud_overlay", "use_gamemode"]
+      }
+    },
+    "active_preset": "  Fast  ",
+    "custom_env_vars": {
+      "Z_VAR": "last",
+      "A_VAR": "first",
+      "QUOTED": "a \"b\" c"
+    }
+  }
+}

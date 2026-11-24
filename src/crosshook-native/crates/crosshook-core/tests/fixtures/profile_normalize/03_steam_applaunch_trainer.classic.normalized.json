@@ -1,0 +1,92 @@
+{
+  "game": {
+    "name": "Elden Ring",
+    "executable_path": "/steam/steamapps/common/ELDEN RING/Game/eldenring.exe",
+    "custom_cover_art_path": "",
+    "custom_portrait_art_path": "",
+    "custom_background_art_path": ""
+  },
+  "trainer": {
+    "path": "/trainers/eldenring_fling.exe",
+    "type": "standalone",
+    "loading_mode": "source_directory",
+    "required_protontricks": [
+      "vcrun2019"
+    ],
+    "community_trainer_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "trainer_type": "unknown"
+  },
+  "injection": {
+    "dll_paths": [],
+    "inject_on_launch": [],
+    "loaded_hooks": [],
+    "method": "disabled",
+    "stage": "trainer_launch",
+    "timeout_ms": 0,
+    "fallback": "warn_and_continue"
+  },
+  "steam": {
+    "enabled": true,
+    "app_id": "1245620",
+    "compatdata_path": "/steam/steamapps/compatdata/1245620",
+    "proton_path": "/steam/steamapps/common/Proton 9.0",
+    "launcher": {
+      "icon_path": "/icons/elden.png",
+      "display_name": "Elden Ring"
+    }
+  },
+  "launch": {
+    "method": "steam_applaunch",
+    "optimizations": {
+      "enabled_option_ids": [
+        "use_gamemode"
+      ]
+    },
+    "command_arguments": {
+      "enabled_argument_ids": [
+        "skip_launcher"
+      ],
+      "custom_args": [
+        "-- %command%",
+        "-nolog"
+      ]
+    },
+    "presets": {},
+    "active_preset": "",
+    "custom_env_vars": {
+      "VKD3D_CONFIG": "dxr11"
+    },
+    "network_isolation": true
+  },
+  "runtime": {
+    "prefix_path": "",
+    "proton_path": "",
+    "working_directory": "",
+    "steam_app_id": "",
+    "umu_game_id": "",
+    "umu_store": "",
+    "umu_codename": ""
+  },
+  "local_override": {
+    "game": {
+      "executable_path": "",
+      "custom_cover_art_path": "",
+      "custom_portrait_art_path": "",
+      "custom_background_art_path": ""
+    },
+    "trainer": {
+      "path": "",
+      "extra_protontricks": []
+    },
+    "steam": {
+      "compatdata_path": "",
+      "proton_path": ""
+    },
+    "runtime": {
+      "prefix_path": "",
+      "proton_path": ""
+    }
+  },
+  "pre_launch_hooks": [],
+  "post_exit_hooks": []
+}

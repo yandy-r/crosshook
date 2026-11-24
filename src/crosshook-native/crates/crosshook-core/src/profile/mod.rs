@@ -11,6 +11,7 @@ mod legacy;
 pub mod lutris_import;
 mod models;
 pub mod mutations;
+pub mod normalize;
 mod toml_store;
 
 pub use collection_exchange::{
@@ -46,10 +47,18 @@ pub use models::{
     resolve_art_app_id, resolve_launch_method, resolve_trainer_launch_method,
     validate_steam_app_id, CollectionDefaultsSection, GameProfile, GameSection, GamescopeConfig,
     GamescopeFilter, HookStage, InjectionFallback, InjectionMethod, InjectionSection,
-    InjectionStage, LaunchHook, LaunchOptimizationsSection, LaunchSection, LauncherSection,
-    LegacyProfileData, LoadedDllHook, LocalOverrideGameSection, LocalOverrideRuntimeSection,
-    LocalOverrideSection, LocalOverrideSteamSection, LocalOverrideTrainerSection, MangoHudConfig,
-    MangoHudPosition, RuntimeSection, SteamSection, TrainerLoadingMode, TrainerSection,
+    InjectionStage, LaunchCommandArgumentsSection, LaunchHook, LaunchOptimizationsSection,
+    LaunchSection, LauncherSection, LegacyProfileData, LoadedDllHook, LocalOverrideGameSection,
+    LocalOverrideRuntimeSection, LocalOverrideSection, LocalOverrideSteamSection,
+    LocalOverrideTrainerSection, MangoHudConfig, MangoHudPosition, RuntimeSection, SteamSection,
+    TrainerLoadingMode, TrainerSection,
+};
+pub use normalize::{
+    derive_game_name, derive_launcher_display_name, normalize_command_arguments_for_save,
+    normalize_launch_optimization_ids, normalize_profile, normalize_profile_for_edit,
+    normalize_profile_for_edit_with_catalog, normalize_profile_with_catalog,
+    normalize_umu_runtime_hint, strip_automatic_launcher_suffix, AUTOMATIC_LAUNCHER_SUFFIX,
+    UMU_RUNTIME_HINT_MAX_LENGTH,
 };
 pub use toml_store::{
     bundled_optimization_preset_toml_key, profile_to_shareable_toml_with_options,

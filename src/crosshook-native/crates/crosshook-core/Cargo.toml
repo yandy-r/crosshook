@@ -71,5 +71,6 @@ test = true
 workspace = true
 
 [dev-dependencies]
+proptest = { version = "1", default-features = false, features = ["std"] }
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "time"] }
 wiremock = "0.6"

@@ -1,0 +1,93 @@
+{
+  "game": {
+    "name": "エルデンリング: Shadow of the Erdtree — 黄金樹",
+    "executable_path": "/games/日本語/ゲーム.exe",
+    "custom_cover_art_path": "",
+    "custom_portrait_art_path": "",
+    "custom_background_art_path": ""
+  },
+  "trainer": {
+    "path": "/trainers/日本語/トレーナー - Trainer.exe",
+    "type": "カスタム",
+    "loading_mode": "source_directory",
+    "trainer_type": "unknown",
+    "required_protontricks": [],
+    "community_trainer_sha256": ""
+  },
+  "injection": {
+    "dll_paths": [],
+    "inject_on_launch": [],
+    "loaded_hooks": [],
+    "method": "disabled",
+    "stage": "trainer_launch",
+    "timeout_ms": 0,
+    "fallback": "warn_and_continue"
+  },
+  "steam": {
+    "enabled": false,
+    "app_id": "",
+    "compatdata_path": "",
+    "proton_path": "",
+    "launcher": {
+      "icon_path": "",
+      "display_name": "黄金樹"
+    }
+  },
+  "runtime": {
+    "prefix_path": "/prefixes/日本語",
+    "proton_path": "/compat/Proton-GE",
+    "working_directory": "/games/日本語",
+    "steam_app_id": "",
+    "umu_game_id": "",
+    "umu_store": "gog",
+    "umu_codename": "黄金樹_2077"
+  },
+  "launch": {
+    "method": "proton_run",
+    "optimizations": {
+      "enabled_option_ids": [
+        "use_gamemode"
+      ]
+    },
+    "command_arguments": {
+      "enabled_argument_ids": [],
+      "custom_args": [
+        "--title=黄金樹"
+      ]
+    },
+    "presets": {
+      "標準プリセット": {
+        "enabled_option_ids": [
+          "use_gamemode"
+        ]
+      }
+    },
+    "active_preset": "標準プリセット",
+    "custom_env_vars": {
+      "GAME_TITLE": "エルデンリング — 黄金樹"
+    },
+    "network_isolation": true
+  },
+  "local_override": {
+    "game": {
+      "executable_path": "",
+      "custom_cover_art_path": "",
+      "custom_portrait_art_path": "",
+      "custom_background_art_path": ""
+    },
+    "trainer": {
+      "path": "",
+      "extra_protontricks": []
+    },
+    "steam": {
+      "compatdata_path": "",
+      "proton_path": ""
+    },
+    "runtime": {
+      "prefix_path": "",
+      "proton_path": ""
+    }
+  },
+  "pre_launch_hooks": [],
+  "post_exit_hooks": []
+}

@@ -1,0 +1,46 @@
+{
+  "game": {
+    "name": "  Celeste Native  ",
+    "executable_path": "/games/celeste/Celeste.bin.x86_64"
+  },
+  "trainer": {
+    "path": "",
+    "type": "   ",
+    "loading_mode": "source_directory"
+  },
+  "injection": {
+    "dll_paths": [],
+    "inject_on_launch": [],
+    "loaded_hooks": [],
+    "method": "disabled",
+    "stage": "trainer_launch",
+    "timeout_ms": 0,
+    "fallback": "warn_and_continue"
+  },
+  "steam": {
+    "enabled": true,
+    "app_id": "",
+    "compatdata_path": "",
+    "proton_path": "",
+    "launcher": {
+      "icon_path": "",
+      "display_name": ""
+    }
+  },
+  "runtime": {
+    "prefix_path": "  ",
+    "proton_path": "  ",
+    "working_directory": "  "
+  },
+  "launch": {
+    "method": "native",
+    "optimizations": {
+      "enabled_option_ids": []
+    },
+    "command_arguments": {
+      "enabled_argument_ids": [],
+      "custom_args": []
+    },
+    "custom_env_vars": {}
+  }
+}

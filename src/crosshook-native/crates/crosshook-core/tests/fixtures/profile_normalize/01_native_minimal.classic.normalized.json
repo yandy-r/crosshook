@@ -1,0 +1,81 @@
+{
+  "game": {
+    "name": "Celeste Native",
+    "executable_path": "/games/celeste/Celeste.bin.x86_64",
+    "custom_cover_art_path": "",
+    "custom_portrait_art_path": "",
+    "custom_background_art_path": ""
+  },
+  "trainer": {
+    "path": "",
+    "type": "",
+    "loading_mode": "source_directory",
+    "trainer_type": "unknown",
+    "required_protontricks": [],
+    "community_trainer_sha256": ""
+  },
+  "injection": {
+    "dll_paths": [],
+    "inject_on_launch": [],
+    "loaded_hooks": [],
+    "method": "disabled",
+    "stage": "trainer_launch",
+    "timeout_ms": 0,
+    "fallback": "warn_and_continue"
+  },
+  "steam": {
+    "enabled": false,
+    "app_id": "",
+    "compatdata_path": "",
+    "proton_path": "",
+    "launcher": {
+      "icon_path": "",
+      "display_name": "Celeste Native"
+    }
+  },
+  "runtime": {
+    "prefix_path": "",
+    "proton_path": "",
+    "working_directory": "",
+    "steam_app_id": "",
+    "umu_game_id": "",
+    "umu_store": "",
+    "umu_codename": ""
+  },
+  "launch": {
+    "method": "native",
+    "optimizations": {
+      "enabled_option_ids": []
+    },
+    "command_arguments": {
+      "enabled_argument_ids": [],
+      "custom_args": []
+    },
+    "presets": {},
+    "active_preset": "",
+    "custom_env_vars": {},
+    "network_isolation": true
+  },
+  "local_override": {
+    "game": {
+      "executable_path": "",
+      "custom_cover_art_path": "",
+      "custom_portrait_art_path": "",
+      "custom_background_art_path": ""
+    },
+    "trainer": {
+      "path": "",
+      "extra_protontricks": []
+    },
+    "steam": {
+      "compatdata_path": "",
+      "proton_path": ""
+    },
+    "runtime": {
+      "prefix_path": "",
+      "proton_path": ""
+    }
+  },
+  "pre_launch_hooks": [],
+  "post_exit_hooks": []
+}

@@ -22,7 +22,10 @@ pub use game_meta::{
 };
 pub use gamescope::{GamescopeConfig, GamescopeFilter};
 pub use hooks::{HookStage, LaunchHook};
-pub use launch::{CollectionDefaultsSection, LaunchOptimizationsSection, LaunchSection};
+pub use launch::{
+    CollectionDefaultsSection, LaunchCommandArgumentsSection, LaunchOptimizationsSection,
+    LaunchSection,
+};
 pub use legacy::LegacyProfileData;
 pub use local_override::{
     LocalOverrideGameSection, LocalOverrideRuntimeSection, LocalOverrideSection,

@@ -1,0 +1,102 @@
+{
+  "game": {
+    "name": "Legacy Injection Game",
+    "executable_path": "/portable/game.exe",
+    "custom_cover_art_path": "",
+    "custom_portrait_art_path": "",
+    "custom_background_art_path": ""
+  },
+  "trainer": {
+    "path": "/portable/trainer.exe",
+    "type": "",
+    "loading_mode": "source_directory",
+    "trainer_type": "unknown",
+    "required_protontricks": [],
+    "community_trainer_sha256": ""
+  },
+  "injection": {
+    "dll_paths": [
+      "/mods/first.dll",
+      "C:\\Mods\\second.dll"
+    ],
+    "inject_on_launch": [
+      true,
+      false
+    ],
+    "loaded_hooks": [
+      {
+        "id": "legacy-dll-hook-1",
+        "name": "first.dll",
+        "path": "/mods/first.dll",
+        "enabled": true
+      },
+      {
+        "id": "legacy-dll-hook-2",
+        "name": "second.dll",
+        "path": "C:\\Mods\\second.dll",
+        "enabled": false
+      }
+    ],
+    "method": "manual_map",
+    "stage": "manual",
+    "timeout_ms": 2500,
+    "fallback": "abort_launch"
+  },
+  "steam": {
+    "enabled": false,
+    "app_id": "",
+    "compatdata_path": "",
+    "proton_path": "",
+    "launcher": {
+      "icon_path": "",
+      "display_name": "Legacy Injection Game"
+    }
+  },
+  "runtime": {
+    "prefix_path": "/portable/pfx",
+    "proton_path": "/portable/proton",
+    "working_directory": "",
+    "steam_app_id": "",
+    "umu_game_id": "",
+    "umu_store": "",
+    "umu_codename": ""
+  },
+  "launch": {
+    "method": "proton_run",
+    "optimizations": {
+      "enabled_option_ids": []
+    },
+    "command_arguments": {
+      "enabled_argument_ids": [],
+      "custom_args": []
+    },
+    "presets": {},
+    "active_preset": "",
+    "custom_env_vars": {},
+    "network_isolation": true
+  },
+  "local_override": {
+    "game": {
+      "executable_path": "/local/machine/game.exe",
+      "custom_cover_art_path": "",
+      "custom_portrait_art_path": "",
+      "custom_background_art_path": ""
+    },
+    "trainer": {
+      "path": "/local/machine/trainer.exe",
+      "extra_protontricks": [
+        "d3dx9"
+      ]
+    },
+    "steam": {
+      "compatdata_path": "",
+      "proton_path": ""
+    },
+    "runtime": {
+      "prefix_path": "/local/machine/pfx",
+      "proton_path": "/local/machine/proton"
+    }
+  },
+  "pre_launch_hooks": [],
+  "post_exit_hooks": []
+}

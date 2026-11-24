@@ -39,7 +39,7 @@ impl ResolvedLaunchMethod {
         }
     }
 
-    pub(super) fn as_str(self) -> &'static str {
+    pub fn as_str(self) -> &'static str {
         match self {
             Self::SteamApplaunch => METHOD_STEAM_APPLAUNCH,
             Self::ProtonRun => METHOD_PROTON_RUN,

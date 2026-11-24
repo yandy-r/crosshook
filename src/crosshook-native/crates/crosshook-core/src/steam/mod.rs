@@ -1,5 +1,6 @@
 //! Steam discovery and auto-populate foundations.
 
+pub mod app_id;
 pub mod auto_populate;
 mod client_path;
 pub mod diagnostics;
@@ -11,6 +12,7 @@ mod paths;
 pub mod proton;
 pub mod vdf;
 
+pub use app_id::{validate_steam_app_id, SteamAppIdValidationError, MAX_STEAM_APP_ID_DIGITS};
 pub use auto_populate::attempt_auto_populate;
 pub use client_path::steam_client_install_path_from_compatdata;
 pub use diagnostics::DiagnosticCollector;
