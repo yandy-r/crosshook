@@ -9,6 +9,7 @@ mod conflict;
 mod edge_cases;
 mod review_fixes;
 mod review_fixes_2;
+mod review_fixes_3;
 
 pub(super) fn ms(n: u64) -> AutosaveInstant {
     AutosaveInstant::from_millis(n)
@@ -441,4 +442,45 @@ fn sequential_full_profile_saves_do_not_leave_stale_section_undo_baseline() {
         vec![AutosaveEffect::ShowStatus(AutosaveStatus::idle())]
     );
     assert!(!vm.is_dirty());
+}
+
+#[test]
+fn section_save_invalidates_stale_full_profile_undo_baseline() {
+    let mut vm = make_vm(AutosavePolicy::default());
+    let edit_gs = |r: &str| AutosaveEvent::Edit {
+        section: AutosaveSection::Gamescope,
+        revision: rev(r),
+    };
+    let edit_pd = |r: &str| AutosaveEvent::Edit {
+        section: AutosaveSection::ProfileDraft,
+        revision: rev(r),
+    };
+
+    let _ = vm.apply(edit_gs("gs-1"), ms(0));
+    let AutosaveEffect::Save(gs_req) = &vm.apply(AutosaveEvent::Tick, ms(350))[0] else {
+        panic!("expected Gamescope save");
+    };
+    let _ = vm.apply(
+        AutosaveEvent::SaveSucceeded {
+            id: gs_req.id,
+            committed_rev: rev("gs-1"),
+        },
+        ms(360),
+    );
+
+    // Section-local undo still matches `section_saved_revs["Gamescope"] == "gs-1"`.
+    let _ = vm.apply(edit_gs("gs-2"), ms(380));
+    assert!(vm.is_dirty());
+    let _ = vm.apply(edit_gs("gs-1"), ms(390));
+    assert!(!vm.is_dirty());
+
+    // Restoring the original full-profile snapshot "r0" after a section write MUST NOT be dropped.
+    let _ = vm.apply(edit_pd("r0"), ms(400));
+    assert!(vm.is_dirty());
+    let flushed = vm.apply(AutosaveEvent::Flush, ms(410));
+    assert!(matches!(
+        flushed.as_slice(),
+        [AutosaveEffect::Save(req)]
+            if req.target == SaveTarget::FullProfile && req.revision == rev("r0")
+    ));
 }

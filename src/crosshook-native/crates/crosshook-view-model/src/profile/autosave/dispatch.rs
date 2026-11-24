@@ -98,6 +98,7 @@ impl ProfileAutosave {
                 self.pending_resolution = None;
                 self.pending_flush = false;
                 self.failed_sections.clear();
+                self.section_saved_revs.clear();
                 self.disk_base_matches = change.revision.is_some();
                 if let Some(rev) = change.revision {
                     self.base_revision = Some(rev.clone());
@@ -114,6 +115,8 @@ impl ProfileAutosave {
                 self.pending_flush = false;
                 self.pending_reload = None;
                 self.failed_sections.clear();
+                self.section_saved_revs.clear();
+                self.disk_base_matches = false;
                 if renamed_from_active {
                     self.conflict_reload_name = Some(reload_name.clone());
                 }
@@ -138,6 +141,8 @@ impl ProfileAutosave {
                 self.pending_flush = false;
                 self.pending_reload = None;
                 self.failed_sections.clear();
+                self.section_saved_revs.clear();
+                self.disk_base_matches = false;
                 self.conflict_reload_name =
                     (reload_name != active_name).then(|| reload_name.clone());
                 let details = ConflictDetails {
@@ -178,6 +183,8 @@ impl ProfileAutosave {
         self.pending_reload = None;
         self.pending_resolution = None;
         self.failed_sections.clear();
+        self.section_saved_revs.clear();
+        self.disk_base_matches = false;
         self.conflict_reload_name = (conflict_name != active_name).then(|| conflict_name.clone());
         let details = ConflictDetails {
             profile_name: conflict_name,

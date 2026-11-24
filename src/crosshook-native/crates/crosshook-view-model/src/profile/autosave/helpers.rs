@@ -271,9 +271,9 @@ impl ProfileAutosave {
     }
 
     pub(super) fn in_flight_covers(&self, section: AutosaveSection) -> bool {
-        self.in_flight
-            .as_ref()
-            .is_some_and(|f| f.entries.contains_key(&section))
+        self.in_flight.as_ref().is_some_and(|f| {
+            f.target == SaveTarget::FullProfile || f.entries.contains_key(&section)
+        })
     }
 
     pub(super) fn matches_saved_revision(
@@ -291,7 +291,7 @@ impl ProfileAutosave {
                 .in_flight
                 .as_ref()
                 .is_some_and(|f| f.entries.keys().any(|k| *k != section));
-        !other_dirty && self.base_revision.as_ref() == Some(revision)
+        !other_dirty && self.disk_base_matches && self.base_revision.as_ref() == Some(revision)
     }
 
     pub(super) fn prune_clean_dirty_sections(

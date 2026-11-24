@@ -359,10 +359,10 @@ fn section_status_isolates_failed_section_and_skips_saved_hold_when_paused() {
 }
 
 #[test]
-fn section_save_invalidates_baseline_echo_suppression_while_preserving_undo() {
+fn section_save_invalidates_stale_baseline_for_echo_and_full_profile_edits() {
     let mut vm = make_vm(AutosavePolicy::default());
-    // Save a dedicated Gamescope section change; base_revision stays "r0" for FullProfile undo,
-    // while disk_base_matches becomes false so external restore to "r0" is NOT suppressed.
+    // Save a dedicated Gamescope section change; disk now differs from `base_revision` ("r0"),
+    // so `disk_base_matches` becomes false and external restore to "r0" triggers Reload.
     let _ = vm.apply(
         AutosaveEvent::Edit {
             section: AutosaveSection::Gamescope,

@@ -336,6 +336,7 @@ impl ProfileAutosave {
         if in_flight.target == SaveTarget::FullProfile {
             self.base_revision = Some(committed_rev.clone());
             self.disk_base_matches = true;
+            self.section_saved_revs.clear();
         } else {
             self.disk_base_matches = false;
         }

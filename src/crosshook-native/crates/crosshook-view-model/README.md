@@ -463,7 +463,10 @@ merging into one pure state machine:
   normalized the committed revision before `SaveSucceeded` arrived) or by
   matching revision hash. Dedicated `Section` writes instead store section
   fingerprints in `section_saved_revs` without clobbering `base_revision`, and
-  clear `disk_base_matches` so external reverts to `base_revision` still reload.
+  clear `disk_base_matches` so neither external reverts nor local full-profile
+  edits back to the old `base_revision` are suppressed as no-ops; `FullProfile`
+  writes cover all sections while in flight and clear stale `section_saved_revs`
+  entries upon completion (as do external reloads and conflicts).
   `Conflict` retains any active `in_flight` save and defers `ResolveConflict`
   (`KeepMine` / `ReloadTheirs`) until that write settles; after an external
   rename, `KeepMine` writes to the conflict's target profile name and updates
