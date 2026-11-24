@@ -128,6 +128,10 @@ For storage changes, plans must also:
 - Explicitly classify each datum as TOML settings, SQLite metadata, or runtime-only state.
 - Include a persistence/usability section that addresses migration/backward compatibility, offline expectations, degraded/failure fallback, and what users can view or edit.
 
+## Picking Linear work
+
+For the Native UI migration project ([P-YAN-43](https://linear.app/itcn/project/crosshook-native-ui-migration-d11256c28102)), pick the earliest open milestone first: **M0 before M1 before M2**. Do not start new M2+ or unscheduled issues while M0 has open work, unless Yandy names them. Throwaway spikes live on `spike/*` branches and are **never merged to** `main`. Hardware or owner steps are noted and handed back to Yandy; do not fake results.
+
 <!-- agent-rules:sync:end -->
 
 ## Labels (use only these families)
