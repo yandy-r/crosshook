@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bench
 import bench_capture
 import bench_flatpak
+import bench_flatpak_io
 from bench_capture import CaptureError
 from bench_flatpak import (
     FlatpakInstance,
@@ -76,11 +77,12 @@ class ParseTests(unittest.TestCase):
             APP_ID,
         )
         self.assertEqual(extract_app_id(["flatpak", "run", "--", APP_ID]), APP_ID)
+        self.assertEqual(extract_app_id(["flatpak", "run", "--user", "-p", APP_ID]), APP_ID)
         self.assertEqual(extract_app_id(["flatpak", "run"]), APP_ID)
 
     def test_now_boot_ticks_uses_integer_floor(self):
-        with patch.object(bench_flatpak.time, "clock_gettime_ns", return_value=86400_009_999_999), \
-                patch.object(bench_flatpak.os, "sysconf", return_value=100):
+        with patch.object(bench_flatpak_io.time, "clock_gettime_ns", return_value=86400_009_999_999), \
+                patch.object(bench_flatpak_io.os, "sysconf", return_value=100):
             self.assertEqual(bench_flatpak.now_boot_ticks(), 8640000)
 
     def test_path_within_rejects_relative_paths(self):
@@ -161,37 +163,105 @@ class SelectionTests(unittest.TestCase):
             uid=UID,
             proc_info_fn=lambda pid: procs.get(pid),
             instance_info_fn=lambda iid: infos.get(iid),
+            subsandbox_in_root_fn=lambda *_a: False,
         )
         return [inst.instance for inst in selected]
 
-    def test_selects_portal_subsandbox_and_surviving_main_but_preserves_baseline_and_others(self):
+    def test_selects_portal_subsandbox_and_surviving_main_when_no_foreign_instance(self):
         ps_text = "\n".join([
-            f"1001\t2001\t2002\t{APP_ID}",        # pre-existing user CrossHook in baseline
             f"1002\t2101\t2102\t{APP_ID}",        # started before launch_start_ticks (not in baseline)
             f"1003\t2201\t2202\tcom.plexamp.Plexamp",  # unrelated Flatpak app started after launch
             f"1004\t2301\t2302\t{APP_ID}",        # foreign UID instance started after launch
-            f"1005\t2401\t2402\t{APP_ID}",        # concurrent real user CrossHook (outside isolated_root)
             f"1006\t2501\t2502\t{APP_ID}",        # surviving bench main sandbox (ancestry + isolated path)
             f"1007\t2601\t2602\t{APP_ID}",        # reparented glycin-svg portal subsandbox (ppid=1, sandbox=true)
         ])
         procs = {
             5000: ProcInfo(5000, 4000, 10_000, UID),
-            2001: ProcInfo(2001, 1, 10_500, UID),     # even if start_time >= launch, baseline wins
             2101: ProcInfo(2101, 1, 9_999, UID),      # started before launch
             2201: ProcInfo(2201, 1, 10_100, UID),     # wrong app_id
             2301: ProcInfo(2301, 1, 10_100, UID + 1), # foreign UID
-            2401: ProcInfo(2401, 1, 10_100, UID),     # personal CrossHook outside isolated_root
             2501: ProcInfo(2501, 5000, 10_010, UID),  # child of launch_pid
             2601: ProcInfo(2601, 1800, 10_050, UID),  # reparented to flatpak-portal / systemd --user
             1800: ProcInfo(1800, 1, 500, UID),
         }
         infos = {
-            "1005": InstanceInfo(str(self.user_app), is_subsandbox=False),
             "1006": InstanceInfo(str(self.isolated_app), is_subsandbox=False),
             "1007": InstanceInfo(None, is_subsandbox=True),
         }
-        chosen = self._run_select(ps_text, procs, baseline=frozenset({"1001"}), inst_infos=infos)
+        chosen = self._run_select(ps_text, procs, baseline=frozenset(), inst_infos=infos)
         self.assertEqual(chosen, ["1006", "1007"])
+
+    def test_fails_closed_on_unattributed_subsandbox_when_baseline_or_concurrent_user_exists(self):
+        ps_text = "\n".join([
+            f"1001\t2001\t2002\t{APP_ID}",  # pre-existing user CrossHook in baseline
+            f"1005\t2401\t2402\t{APP_ID}",  # concurrent real user CrossHook (outside isolated_root)
+            f"1006\t2501\t2502\t{APP_ID}",  # bench main sandbox (ancestry + isolated path)
+            f"1007\t2601\t2602\t{APP_ID}",  # unattributed portal subsandbox spawned during run -> must spare
+            f"1008\t2701\t2702\t{APP_ID}",  # portal subsandbox proved via isolated child env
+        ])
+        procs = {
+            5000: ProcInfo(5000, 4000, 10_000, UID),
+            2001: ProcInfo(2001, 1, 500, UID),
+            2401: ProcInfo(2401, 1, 10_100, UID),
+            2501: ProcInfo(2501, 5000, 10_010, UID),
+            2601: ProcInfo(2601, 1800, 10_050, UID),
+            2701: ProcInfo(2701, 1800, 10_060, UID),
+        }
+        infos = {
+            "1005": InstanceInfo(str(self.user_app), is_subsandbox=False),
+            "1006": InstanceInfo(str(self.isolated_app), is_subsandbox=False),
+            "1007": InstanceInfo(None, is_subsandbox=True),
+            "1008": InstanceInfo(None, is_subsandbox=True),
+        }
+        # Both pre-launch baseline and concurrent non-isolated instance fail closed on 1007, while 1006 + 1008 match.
+        for baseline in (frozenset({"1001"}), frozenset()):
+            selected = select_instances_to_kill(
+                parse_ps(ps_text),
+                app_id=APP_ID,
+                baseline_instances=baseline,
+                baseline_known=True,
+                launch_pid=5000,
+                launch_start_ticks=10_000,
+                isolated_root=self.root,
+                uid=UID,
+                proc_info_fn=lambda pid: procs.get(pid),
+                instance_info_fn=lambda iid: infos.get(iid),
+                subsandbox_in_root_fn=lambda inst, *_a: inst.instance == "1008",
+            )
+            self.assertEqual([inst.instance for inst in selected], ["1006", "1008"])
+
+    def test_subsandbox_env_in_root_checks_isolated_keys_uid_and_pid_reuse(self):
+        inst = FlatpakInstance("1008", 900, 901, APP_ID)
+        procs = {
+            901: ProcInfo(901, 1, 10_010, UID),
+            902: ProcInfo(902, 901, 10_020, UID),
+        }
+        iso_env = b"PATH=/usr/bin\x00FLATPAK_SANDBOX_DIR=" + os.fsencode(str(self.isolated_app / "sandbox"))
+        with patch.object(bench_flatpak, "_read_direct_children", return_value=[902]), \
+                patch.object(bench_flatpak, "_read_small_bytes", side_effect=[None, iso_env]):
+            self.assertTrue(
+                bench_flatpak._subsandbox_env_in_root(inst, self.root, UID, 10_000, lambda p: procs.get(p))
+            )
+        # Foreign env path or UID mismatch must fail closed.
+        foreign_env = b"HOME=" + os.fsencode(str(self.user_app))
+        with patch.object(bench_flatpak, "_read_direct_children", return_value=[902]), \
+                patch.object(bench_flatpak, "_read_small_bytes", side_effect=[None, foreign_env]):
+            self.assertFalse(
+                bench_flatpak._subsandbox_env_in_root(inst, self.root, UID, 10_000, lambda p: procs.get(p))
+            )
+        # PID reuse between before/after proc reads fails closed.
+        seq_902 = iter([ProcInfo(902, 901, 10_020, UID), ProcInfo(902, 901, 99_999, UID)])
+        with patch.object(bench_flatpak, "_read_direct_children", return_value=[902]), \
+                patch.object(bench_flatpak, "_read_small_bytes", side_effect=[None, iso_env]):
+            self.assertFalse(
+                bench_flatpak._subsandbox_env_in_root(
+                    inst,
+                    self.root,
+                    UID,
+                    10_000,
+                    lambda p: procs.get(p) if p != 902 else next(seq_902),
+                )
+            )
 
     def test_tracked_tree_pids_and_isolated_path_match_when_baseline_unknown(self):
         ps_text = "\n".join([
@@ -247,14 +317,14 @@ class SelectionTests(unittest.TestCase):
 
 class SubprocessAndScopeTests(unittest.TestCase):
     def test_kill_instance_refuses_non_numeric_ids_without_spawning(self):
-        with patch.object(bench_flatpak, "run_cancellable") as runner:
+        with patch.object(bench_flatpak_io, "run_cancellable") as runner:
             self.assertFalse(kill_instance(APP_ID))
             self.assertFalse(kill_instance("--help"))
             self.assertFalse(kill_instance(""))
         runner.assert_not_called()
 
     def test_list_instances_handles_missing_flatpak_and_scrubs_loader_env(self):
-        with patch.object(bench_flatpak, "run_cancellable", side_effect=FileNotFoundError("flatpak")):
+        with patch.object(bench_flatpak_io, "run_cancellable", side_effect=FileNotFoundError("flatpak")):
             self.assertIsNone(list_instances({"XDG_RUNTIME_DIR": "/tmp/rt"}))
 
         seen_env: dict[str, str] = {}
@@ -264,7 +334,7 @@ class SubprocessAndScopeTests(unittest.TestCase):
             return 0, f"55555\t101\t102\t{APP_ID}\n"
 
         with patch.dict(os.environ, {"LD_PRELOAD": "/bad/shim.so"}, clear=False), \
-                patch.object(bench_flatpak, "run_cancellable", side_effect=fake_run):
+                patch.object(bench_flatpak_io, "run_cancellable", side_effect=fake_run):
             rows = list_instances({"XDG_RUNTIME_DIR": "/tmp/custom-rt", "LD_PRELOAD": "/other.so"})
         self.assertEqual(rows, [FlatpakInstance("55555", 101, 102, APP_ID)])
         self.assertNotIn("LD_PRELOAD", seen_env)
@@ -305,11 +375,13 @@ class SubprocessAndScopeTests(unittest.TestCase):
         scope = FlatpakSandboxScope.capture_before_launch(
             APP_ID,
             {},
+            isolated_root=Path("/tmp/bench-isolated"),
             uid=UID,
             list_fn=lambda: next(snapshots),
             kill_fn=do_kill,
             proc_info_fn=proc_lookup,
             instance_info_fn=lambda iid: InstanceInfo(None, is_subsandbox=True),
+            subsandbox_in_root_fn=lambda inst, *_a: inst.instance == "2207604640",
             clock_ticks_fn=lambda: 10_000,
             sleep_fn=lambda _dt: None,
             monotonic_fn=lambda: next(clock),
@@ -370,16 +442,86 @@ class SubprocessAndScopeTests(unittest.TestCase):
         written = "".join(call.args[0] for call in stderr.write.call_args_list)
         self.assertIn("FLATPAK_CLEANUP_INCOMPLETE: remaining instances: 2207604640", written)
 
+    def test_scope_observe_live_retains_draining_ownership_for_pre_cleanup_exits_with_foreign_baseline(self):
+        baseline_rows = [FlatpakInstance("1001", 2001, 2002, APP_ID)]
+        owned_sub = FlatpakInstance("2207604640", 753359, 753366, APP_ID)
+        foreign_dead = FlatpakInstance("3333333333", 853359, None, APP_ID)
+        snapshots = iter([
+            baseline_rows,                                     # baseline capture
+            [*baseline_rows, owned_sub],                       # observe_live while running
+            [*baseline_rows, owned_sub, foreign_dead],         # cleanup poll 1: owned_sub exited before cleanup
+            [*baseline_rows, foreign_dead],                    # cleanup poll 2: owned_sub cleared, foreign_dead ignored
+        ])
+        clock = iter([0.0, 0.0, 0.2])
+        sub_alive = True
+        killed: list[str] = []
+
+        def proc_lookup(pid: int) -> ProcInfo | None:
+            if pid == 2001:
+                return ProcInfo(2001, 1, 500, UID)
+            if pid == 753359 and sub_alive:
+                return ProcInfo(753359, 1, 10_050, UID)
+            return None
+
+        scope = FlatpakSandboxScope.capture_before_launch(
+            APP_ID,
+            {},
+            isolated_root=Path("/tmp/bench-isolated"),
+            uid=UID,
+            list_fn=lambda: next(snapshots),
+            kill_fn=lambda iid: (killed.append(iid), True)[1],
+            proc_info_fn=proc_lookup,
+            instance_info_fn=lambda _iid: InstanceInfo(None, is_subsandbox=True),
+            subsandbox_in_root_fn=lambda inst, *_a: inst.instance == "2207604640",
+            clock_ticks_fn=lambda: 10_000,
+            sleep_fn=lambda _dt: None,
+            monotonic_fn=lambda: next(clock),
+        )
+        observed = scope.observe_live()
+        self.assertEqual(observed, frozenset({"2207604640"}))
+        sub_alive = False  # subsandbox exited before cleanup() starts; row lingers as draining
+        targeted = scope.cleanup(wait_timeout=5.0, poll_step=0.1, rekill_interval=1.0)
+        self.assertEqual(targeted, [])
+        self.assertEqual(killed, [])
+
+    def test_scope_cleanup_waits_for_exited_draining_subsandbox_when_no_foreign_instance(self):
+        exited_sub = FlatpakInstance("2207604640", 753359, 753366, APP_ID)
+        snapshots = iter([[], [exited_sub], []])
+        clock = iter([0.0, 0.0, 0.2])
+        killed: list[str] = []
+        scope = FlatpakSandboxScope.capture_before_launch(
+            APP_ID,
+            {},
+            isolated_root=Path("/tmp/bench-isolated"),
+            uid=UID,
+            list_fn=lambda: next(snapshots),
+            kill_fn=lambda iid: (killed.append(iid), True)[1],
+            proc_info_fn=lambda _pid: None,
+            instance_info_fn=lambda _iid: InstanceInfo(None, is_subsandbox=True),
+            subsandbox_in_root_fn=lambda *_a: False,
+            clock_ticks_fn=lambda: 10_000,
+            sleep_fn=lambda _dt: None,
+            monotonic_fn=lambda: next(clock),
+        )
+        targeted = scope.cleanup(wait_timeout=5.0, poll_step=0.1, rekill_interval=1.0)
+        self.assertEqual(targeted, [])
+        self.assertEqual(killed, [])
+
 
 class LifecycleIntegrationTests(unittest.TestCase):
     def test_ready_and_stop_trigger_flatpak_cleanup_on_success_and_failure(self):
         class FakeScope:
             def __init__(self):
                 self.bound: list[int] = []
+                self.observed: list[frozenset[int]] = []
                 self.cleanups: list[frozenset[int]] = []
 
             def bind_launch(self, pid: int) -> None:
                 self.bound.append(pid)
+
+            def observe_live(self, *, tree_pids=()) -> frozenset[str]:
+                self.observed.append(frozenset(tree_pids))
+                return frozenset()
 
             def cleanup(self, *, tree_pids=(), **_kwargs):
                 self.cleanups.append(frozenset(tree_pids))
@@ -410,6 +552,8 @@ class LifecycleIntegrationTests(unittest.TestCase):
                 bench_capture.stop(proc)
                 proc.stderr.close()
         cap.assert_called_once()
+        self.assertEqual(len(scope_ok.observed), 1)
+        self.assertIn(proc.pid, scope_ok.observed[0])
         self.assertEqual(len(scope_ok.cleanups), 1)
         self.assertIn(proc.pid, scope_ok.cleanups[0])
 

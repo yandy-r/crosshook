@@ -91,6 +91,7 @@ def stop(proc: subprocess.Popen) -> None:
             try:
                 if proc.poll() is None:
                     tree_pids = process_tree(proc.pid)
+                    scope.observe_live(tree_pids=tree_pids)
             except Exception as error:  # noqa: BLE001 - teardown cleanup must never mask termination
                 print(f"FLATPAK_TREE_PROBE_FAILED: {error}", file=sys.stderr)
             proc._flatpak_scope = None  # type: ignore[attr-defined]
