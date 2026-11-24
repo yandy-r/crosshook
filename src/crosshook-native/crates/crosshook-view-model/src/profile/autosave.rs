@@ -76,7 +76,7 @@ pub(super) struct PendingReload {
     pub(super) id: ReloadId,
     pub(super) profile_name: String,
     pub(super) reason: ProfileChangeKind,
-    pub(super) save_seq_at_request: u64,
+    pub(super) remote: Option<RevisionHash>,
 }
 
 /// Pure, deterministic autosave reducer for one profile editor instance.

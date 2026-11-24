@@ -32,10 +32,12 @@ impl ProfileAutosave {
                 return;
             }
             if self.is_dirty() {
-                self.on_loaded_conflict(loaded_name, revision, reload.reason, effects);
-                return;
-            }
-            if self.last_save_seq != reload.save_seq_at_request {
+                self.enter_conflict_with_target(
+                    loaded_name,
+                    Some(revision),
+                    reload.reason,
+                    effects,
+                );
                 return;
             }
         } else {
@@ -55,7 +57,7 @@ impl ProfileAutosave {
                         .pending_reload
                         .take()
                         .map_or(ProfileChangeKind::Saved, |pending| pending.reason);
-                    self.on_loaded_conflict(loaded_name, revision, reason, effects);
+                    self.enter_conflict_with_target(loaded_name, Some(revision), reason, effects);
                     return;
                 }
             }

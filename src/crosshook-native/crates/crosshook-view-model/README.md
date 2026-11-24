@@ -472,9 +472,12 @@ merging into one pure state machine:
   rename, `KeepMine` writes to the conflict's target profile name and updates
   `scope.selected_profile` (and `draft_name` if not mid-rename). Same-profile
   `Loaded` arrivals while local edits or an active save exist keep `in_flight`
-  single-flight tracking intact and surface `Conflict`; bridge handlers must
-  echo `AutosaveEffect::Reload::id` in `AutosaveEvent::Loaded::reload_id` (`None`
-  for explicit loads) so out-of-order or superseded reload replies are rejected.
+  single-flight tracking intact and surface `Conflict`, and automatic or flushed
+  saves attempted while a reload is pending likewise surface `Conflict`
+  (preserving renamed profile targets) instead of writing before the reload
+  settles; bridge handlers must echo `AutosaveEffect::Reload::id` in
+  `AutosaveEvent::Loaded::reload_id` (`None` for explicit loads) so out-of-order
+  or superseded reload replies are rejected.
 - **Idle gate**: `Idle`, `Conflict`, and non-retryable or exhausted `Error`
   states never emit `AutosaveEffect::ScheduleTick`.
 
