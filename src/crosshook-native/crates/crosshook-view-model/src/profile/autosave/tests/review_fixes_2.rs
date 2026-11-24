@@ -395,20 +395,20 @@ fn undo_clearing_last_failed_section_schedules_remaining_dirty_while_partial_und
 
     // Part 2: Partial undo while another failed section stays dirty keeps Error + retry policy.
     let mut vm2 = make_vm(AutosavePolicy::default());
-    let _ = vm2.apply(edit(AutosaveSection::ProfileDraft, "r1"), ms(0));
-    let _ = vm2.apply(edit(AutosaveSection::LaunchHooks, "r1"), ms(10));
-    let AutosaveEffect::Save(init_req) = &vm2.apply(AutosaveEvent::Tick, ms(360))[0] else {
-        panic!("expected initial save");
+    let _ = vm2.apply(edit(AutosaveSection::ProfileDraft, "full-1"), ms(0));
+    let _ = vm2.apply(edit(AutosaveSection::Gamescope, "gs-0"), ms(10));
+    let AutosaveEffect::Save(seed_req) = &vm2.apply(AutosaveEvent::Tick, ms(360))[0] else {
+        panic!("expected seed save");
     };
     let _ = vm2.apply(
         AutosaveEvent::SaveSucceeded {
-            id: init_req.id,
-            committed_rev: rev("r1"),
+            id: seed_req.id,
+            committed_rev: rev("full-1"),
         },
         ms(370),
     );
-    let _ = vm2.apply(edit(AutosaveSection::ProfileDraft, "r2"), ms(400));
-    let _ = vm2.apply(edit(AutosaveSection::LaunchHooks, "r2"), ms(410));
+    let _ = vm2.apply(edit(AutosaveSection::ProfileDraft, "full-2"), ms(400));
+    let _ = vm2.apply(edit(AutosaveSection::Gamescope, "gs-1"), ms(410));
     let AutosaveEffect::Save(full_req) = &vm2.apply(AutosaveEvent::Tick, ms(750))[0] else {
         panic!("expected FullProfile save");
     };
@@ -420,7 +420,7 @@ fn undo_clearing_last_failed_section_schedules_remaining_dirty_while_partial_und
         ms(760),
     );
     assert!(vm2
-        .apply(edit(AutosaveSection::LaunchHooks, "r1"), ms(800))
+        .apply(edit(AutosaveSection::Gamescope, "gs-0"), ms(800))
         .is_empty());
     assert!(matches!(
         vm2.state(),

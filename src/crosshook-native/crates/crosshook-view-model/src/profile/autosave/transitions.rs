@@ -343,12 +343,9 @@ impl ProfileAutosave {
             self.update_pending_self_write(in_flight.id, &committed_rev);
         }
         for (sec, entry) in &in_flight.entries {
-            let saved_rev = if sec.save_target() == SaveTarget::FullProfile {
-                committed_rev.clone()
-            } else {
-                entry.revision.clone()
-            };
-            self.section_saved_revs.insert(*sec, saved_rev);
+            if sec.save_target() != SaveTarget::FullProfile {
+                self.section_saved_revs.insert(*sec, entry.revision.clone());
+            }
         }
         self.prune_clean_dirty_sections(in_flight.target, &in_flight.entries, &committed_rev);
         if in_flight.target == SaveTarget::FullProfile

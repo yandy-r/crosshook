@@ -281,7 +281,9 @@ impl ProfileAutosave {
         section: AutosaveSection,
         revision: &RevisionHash,
     ) -> bool {
-        if self.section_saved_revs.get(&section) == Some(revision) {
+        if section.save_target() != SaveTarget::FullProfile
+            && self.section_saved_revs.get(&section) == Some(revision)
+        {
             return true;
         }
         let other_dirty = self.dirty_sections.keys().any(|k| *k != section)

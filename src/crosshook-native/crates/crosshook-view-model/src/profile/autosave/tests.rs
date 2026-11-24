@@ -381,3 +381,64 @@ fn non_retryable_and_cancelled_errors_behave_distinctly() {
     assert!(matches!(vm.state(), AutosaveState::Dirty { .. }));
     assert!(cancelled.contains(&AutosaveEffect::ScheduleTick(ms(1_210))));
 }
+
+#[test]
+fn sequential_full_profile_saves_do_not_leave_stale_section_undo_baseline() {
+    let mut vm = make_vm(AutosavePolicy::default());
+    let edit_pd = |r: &str| AutosaveEvent::Edit {
+        section: AutosaveSection::ProfileDraft,
+        revision: rev(r),
+    };
+    let edit_lh = |r: &str| AutosaveEvent::Edit {
+        section: AutosaveSection::LaunchHooks,
+        revision: rev(r),
+    };
+    let _ = vm.apply(edit_pd("r1"), ms(0));
+    let AutosaveEffect::Save(s1) = &vm.apply(AutosaveEvent::Tick, ms(350))[0] else {
+        panic!("save 1")
+    };
+    let _ = vm.apply(
+        AutosaveEvent::SaveSucceeded {
+            id: s1.id,
+            committed_rev: rev("r1"),
+        },
+        ms(360),
+    );
+    let _ = vm.apply(edit_lh("r2"), ms(400));
+    let AutosaveEffect::Save(s2) = &vm.apply(AutosaveEvent::Tick, ms(750))[0] else {
+        panic!("save 2")
+    };
+    let _ = vm.apply(
+        AutosaveEvent::SaveSucceeded {
+            id: s2.id,
+            committed_rev: rev("r2"),
+        },
+        ms(760),
+    );
+
+    // Reverting ProfileDraft back to old snapshot "r1" is NOT a no-op against current base "r2".
+    assert_eq!(
+        vm.apply(edit_pd("r1"), ms(800)),
+        vec![
+            AutosaveEffect::ShowStatus(AutosaveStatus::saving()),
+            AutosaveEffect::ScheduleTick(ms(1_150))
+        ]
+    );
+    let AutosaveEffect::Save(s3) = &vm.apply(AutosaveEvent::Tick, ms(1_150))[0] else {
+        panic!("save 3")
+    };
+    let _ = vm.apply(
+        AutosaveEvent::SaveSucceeded {
+            id: s3.id,
+            committed_rev: rev("r1"),
+        },
+        ms(1_160),
+    );
+    assert_eq!(vm.base_revision(), Some(&rev("r1")));
+    let _ = vm.apply(edit_pd("r3"), ms(1_200));
+    assert_eq!(
+        vm.apply(edit_pd("r1"), ms(1_250)),
+        vec![AutosaveEffect::ShowStatus(AutosaveStatus::idle())]
+    );
+    assert!(!vm.is_dirty());
+}
