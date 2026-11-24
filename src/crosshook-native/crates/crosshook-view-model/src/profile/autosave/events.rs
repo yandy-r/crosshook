@@ -2,7 +2,9 @@
 
 use crate::ServiceError;
 
-use super::state::{AutosaveInstant, AutosaveScope, AutosaveSection, RevisionHash, SaveId};
+use super::state::{
+    AutosaveInstant, AutosaveScope, AutosaveSection, ReloadId, RevisionHash, SaveId,
+};
 
 /// Reason profiles changed on the `crosshook-app` event bus.
 ///
@@ -71,6 +73,9 @@ pub enum AutosaveEvent {
         scope: AutosaveScope,
         /// Revision hash of the loaded profile.
         revision: RevisionHash,
+        /// Echoed [`ReloadId`] when answering [`super::AutosaveEffect::Reload`],
+        /// or `None` for an initial/explicit load.
+        reload_id: Option<ReloadId>,
     },
     /// Active profile selection, draft name, existence or launch method changed.
     ScopeChanged(AutosaveScope),

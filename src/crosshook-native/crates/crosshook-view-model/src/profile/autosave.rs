@@ -43,7 +43,7 @@ pub use policy::{
     DEFAULT_SECTION_DEBOUNCE,
 };
 pub use state::{
-    AutosaveInstant, AutosaveScope, AutosaveSection, AutosaveState, RevisionHash, SaveId,
+    AutosaveInstant, AutosaveScope, AutosaveSection, AutosaveState, ReloadId, RevisionHash, SaveId,
     SaveTarget, SectionSaveKind,
 };
 
@@ -73,6 +73,7 @@ pub(super) struct PendingSelfWrite {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct PendingReload {
+    pub(super) id: ReloadId,
     pub(super) profile_name: String,
     pub(super) reason: ProfileChangeKind,
     pub(super) save_seq_at_request: u64,
@@ -86,6 +87,7 @@ pub(super) struct PendingReload {
 pub struct ProfileAutosave {
     pub(super) mount: u64,
     pub(super) last_save_seq: u64,
+    pub(super) last_reload_seq: u64,
     pub(super) scope: AutosaveScope,
     pub(super) policy: AutosavePolicy,
     pub(super) state: AutosaveState,
@@ -125,6 +127,7 @@ impl ProfileAutosave {
         Self {
             mount: NEXT_MOUNT.fetch_add(1, Ordering::Relaxed),
             last_save_seq: 0,
+            last_reload_seq: 0,
             scope,
             policy,
             state: AutosaveState::Idle,
@@ -153,8 +156,12 @@ impl ProfileAutosave {
     pub fn apply(&mut self, event: AutosaveEvent, now: AutosaveInstant) -> Vec<AutosaveEffect> {
         let mut effects = Vec::new();
         match event {
-            AutosaveEvent::Loaded { scope, revision } => {
-                self.on_loaded(scope, revision, &mut effects);
+            AutosaveEvent::Loaded {
+                scope,
+                revision,
+                reload_id,
+            } => {
+                self.on_loaded(scope, revision, reload_id, &mut effects);
             }
             AutosaveEvent::ScopeChanged(scope) => {
                 self.on_scope_changed(scope, now, &mut effects);

@@ -3,7 +3,6 @@ use std::collections::BTreeSet;
 use super::super::*;
 use super::{make_vm, ms, rev};
 use crate::launch::LaunchMethod;
-use crate::testing::Script;
 
 fn ext(
     profile_name: Option<&str>,
@@ -25,19 +24,17 @@ fn ext_ev(name: Option<&str>, reason: ProfileChangeKind, revision: Option<&str>)
 #[test]
 fn external_change_reloads_when_idle_and_conflicts_when_dirty_or_saving() {
     // External change while Idle -> Reload, no Conflict.
-    let vm = Script::new(make_vm(AutosavePolicy::default()))
-        .step(
-            AutosaveIntent::at(
-                ms(10),
-                ext_ev(Some("Test Game"), ProfileChangeKind::Saved, Some("disk-r1")),
-            ),
-            [AutosaveEffect::Reload {
-                profile_name: "Test Game".into(),
-            }],
-        )
-        .assert_state(|vm| assert_eq!(vm.state(), &AutosaveState::Idle))
-        .into_inner();
-    assert_eq!(vm.base_revision(), Some(&rev("disk-r1")));
+    let mut idle_vm = make_vm(AutosavePolicy::default());
+    let idle_reload = idle_vm.apply(
+        ext_ev(Some("Test Game"), ProfileChangeKind::Saved, Some("disk-r1")),
+        ms(10),
+    );
+    assert!(matches!(
+        idle_reload.as_slice(),
+        [AutosaveEffect::Reload { profile_name, .. }] if profile_name == "Test Game"
+    ));
+    assert_eq!(idle_vm.state(), &AutosaveState::Idle);
+    assert_eq!(idle_vm.base_revision(), Some(&rev("disk-r1")));
 
     // External change while Dirty -> Conflict, no auto-merge, KeepMine overwrites, ReloadTheirs reloads.
     let mut vm = make_vm(AutosavePolicy::default());
@@ -130,15 +127,13 @@ fn external_change_reloads_when_idle_and_conflicts_when_dirty_or_saving() {
         AutosaveEvent::ResolveConflict(ConflictResolution::ReloadTheirs),
         ms(380),
     );
-    assert_eq!(
-        reload,
-        vec![
-            AutosaveEffect::ShowStatus(AutosaveStatus::idle()),
-            AutosaveEffect::Reload {
-                profile_name: "Test Game".into()
-            },
-        ]
-    );
+    assert!(matches!(
+        reload.as_slice(),
+        [
+            AutosaveEffect::ShowStatus(status),
+            AutosaveEffect::Reload { profile_name, .. },
+        ] if *status == AutosaveStatus::idle() && profile_name == "Test Game"
+    ));
     assert!(!vm.is_dirty());
 }
 
@@ -388,12 +383,10 @@ fn external_renamed_from_active_reloads_clean_or_conflicts_when_dirty() {
         ext_ev(Some("Renamed Game"), rename.clone(), Some("r2")),
         ms(10),
     );
-    assert_eq!(
-        reload,
-        vec![AutosaveEffect::Reload {
-            profile_name: "Renamed Game".into()
-        }]
-    );
+    assert!(matches!(
+        reload.as_slice(),
+        [AutosaveEffect::Reload { profile_name, .. }] if profile_name == "Renamed Game"
+    ));
 
     // 2. Dirty -> Enters Conflict showing new name; ReloadTheirs reloads new name.
     let mut dirty = make_vm(AutosavePolicy::default());
@@ -425,15 +418,13 @@ fn external_renamed_from_active_reloads_clean_or_conflicts_when_dirty() {
         AutosaveEvent::ResolveConflict(ConflictResolution::ReloadTheirs),
         ms(60),
     );
-    assert_eq!(
-        theirs,
-        vec![
-            AutosaveEffect::ShowStatus(AutosaveStatus::idle()),
-            AutosaveEffect::Reload {
-                profile_name: "Renamed Game".into()
-            },
-        ]
-    );
+    assert!(matches!(
+        theirs.as_slice(),
+        [
+            AutosaveEffect::ShowStatus(status),
+            AutosaveEffect::Reload { profile_name, .. },
+        ] if *status == AutosaveStatus::idle() && profile_name == "Renamed Game"
+    ));
 
     // 3. KeepMine while active save is in flight defers until in-flight settles and targets the renamed profile.
     let mut in_flight_vm = make_vm(AutosavePolicy::default());

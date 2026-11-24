@@ -7,7 +7,7 @@ use super::effects::{AutosaveEffect, ConflictDetails, SaveRequest};
 use super::events::{ConflictResolution, ExternalChange, ProfileChangeKind};
 use super::policy::AutosaveStatus;
 use super::state::{
-    AutosaveInstant, AutosaveSection, AutosaveState, RevisionHash, SaveId, SaveTarget,
+    AutosaveInstant, AutosaveSection, AutosaveState, ReloadId, RevisionHash, SaveId, SaveTarget,
 };
 use super::{DirtyEntry, InFlightSave, PendingReload, ProfileAutosave};
 
@@ -99,16 +99,9 @@ impl ProfileAutosave {
                     self.base_revision = Some(rev.clone());
                     self.latest_draft_revision = Some(rev);
                 }
-                self.pending_reload = Some(PendingReload {
-                    profile_name: reload_name.clone(),
-                    reason: reload_reason,
-                    save_seq_at_request: self.last_save_seq,
-                });
                 self.state = AutosaveState::Idle;
                 self.emit_status(AutosaveStatus::idle(), effects);
-                effects.push(AutosaveEffect::Reload {
-                    profile_name: reload_name,
-                });
+                self.request_reload(reload_name, reload_reason, effects);
             }
             AutosaveState::Conflict {
                 local, sections, ..
@@ -298,18 +291,31 @@ impl ProfileAutosave {
                 self.disk_base_matches = remote.is_some();
                 self.base_revision = remote.clone();
                 self.latest_draft_revision = remote;
-                self.pending_reload = Some(PendingReload {
-                    profile_name: target_name.clone(),
-                    reason: ProfileChangeKind::Saved,
-                    save_seq_at_request: self.last_save_seq,
-                });
                 self.state = AutosaveState::Idle;
                 self.emit_status(AutosaveStatus::idle(), effects);
-                effects.push(AutosaveEffect::Reload {
-                    profile_name: target_name,
-                });
+                self.request_reload(target_name, ProfileChangeKind::Saved, effects);
             }
         }
+    }
+
+    pub(super) fn request_reload(
+        &mut self,
+        profile_name: String,
+        reason: ProfileChangeKind,
+        effects: &mut Vec<AutosaveEffect>,
+    ) {
+        self.last_reload_seq = self.last_reload_seq.wrapping_add(1);
+        let id = ReloadId {
+            mount: self.mount,
+            seq: self.last_reload_seq,
+        };
+        self.pending_reload = Some(PendingReload {
+            id,
+            profile_name: profile_name.clone(),
+            reason,
+            save_seq_at_request: self.last_save_seq,
+        });
+        effects.push(AutosaveEffect::Reload { id, profile_name });
     }
 
     pub(super) fn dispatch_due(

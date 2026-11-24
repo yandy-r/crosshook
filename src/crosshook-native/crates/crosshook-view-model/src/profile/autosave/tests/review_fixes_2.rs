@@ -27,10 +27,11 @@ fn edit(section: AutosaveSection, r: &str) -> AutosaveEvent {
     }
 }
 
-fn loaded(name: &str, r: &str) -> AutosaveEvent {
+fn loaded(name: &str, r: &str, reload_id: Option<ReloadId>) -> AutosaveEvent {
     AutosaveEvent::Loaded {
         scope: AutosaveScope::saved(name, LaunchMethod::ProtonRun),
         revision: rev(r),
+        reload_id,
     }
 }
 
@@ -227,7 +228,7 @@ fn loaded_during_in_flight_save_preserves_single_flight_and_settles_in_conflict(
         panic!("expected save");
     };
 
-    let loaded_eff = vm.apply(loaded("Test Game", "disk-external"), ms(360));
+    let loaded_eff = vm.apply(loaded("Test Game", "disk-external", None), ms(360));
     assert_eq!(
         loaded_eff,
         vec![
@@ -263,15 +264,13 @@ fn loaded_during_in_flight_save_preserves_single_flight_and_settles_in_conflict(
         },
         ms(380),
     );
-    assert_eq!(
-        settled,
-        vec![
-            AutosaveEffect::ShowStatus(AutosaveStatus::idle()),
-            AutosaveEffect::Reload {
-                profile_name: "Test Game".into(),
-            },
-        ]
-    );
+    assert!(matches!(
+        settled.as_slice(),
+        [
+            AutosaveEffect::ShowStatus(status),
+            AutosaveEffect::Reload { profile_name, .. },
+        ] if *status == AutosaveStatus::idle() && profile_name == "Test Game"
+    ));
 }
 
 #[test]
@@ -287,15 +286,17 @@ fn loaded_overtaken_by_intervening_edit_conflicts_and_stale_reload_after_save_is
         ),
         ms(10),
     );
-    assert_eq!(
-        reload,
-        vec![AutosaveEffect::Reload {
-            profile_name: "Test Game".into(),
-        }]
-    );
+    let [AutosaveEffect::Reload {
+        id: reload_1,
+        profile_name,
+    }] = reload.as_slice()
+    else {
+        panic!("expected Reload, got {reload:?}");
+    };
+    assert_eq!(profile_name, "Test Game");
 
     let _ = vm.apply(edit(AutosaveSection::ProfileDraft, "local-r2"), ms(20));
-    let conflict = vm.apply(loaded("Test Game", "remote-r1"), ms(30));
+    let conflict = vm.apply(loaded("Test Game", "remote-r1", Some(*reload_1)), ms(30));
     assert_eq!(
         conflict,
         vec![
@@ -312,7 +313,7 @@ fn loaded_overtaken_by_intervening_edit_conflicts_and_stale_reload_after_save_is
 
     // 2. If the intervening edit finished saving before Loaded returned, stale Loaded is ignored.
     let mut vm2 = make_vm(AutosavePolicy::default());
-    let _ = vm2.apply(
+    let reload2 = vm2.apply(
         ext(
             Some("Test Game"),
             ProfileChangeKind::Saved,
@@ -321,6 +322,9 @@ fn loaded_overtaken_by_intervening_edit_conflicts_and_stale_reload_after_save_is
         ),
         ms(10),
     );
+    let AutosaveEffect::Reload { id: reload_2, .. } = reload2[0] else {
+        panic!("expected Reload 2");
+    };
     let _ = vm2.apply(edit(AutosaveSection::ProfileDraft, "local-r2"), ms(20));
     let AutosaveEffect::Save(req) = &vm2.apply(AutosaveEvent::Tick, ms(370))[0] else {
         panic!("expected save");
@@ -333,7 +337,7 @@ fn loaded_overtaken_by_intervening_edit_conflicts_and_stale_reload_after_save_is
         ms(380),
     );
     assert!(vm2
-        .apply(loaded("Test Game", "remote-r1"), ms(390))
+        .apply(loaded("Test Game", "remote-r1", Some(reload_2)), ms(390))
         .is_empty());
     assert_eq!(vm2.base_revision(), Some(&rev("local-r2")));
 }

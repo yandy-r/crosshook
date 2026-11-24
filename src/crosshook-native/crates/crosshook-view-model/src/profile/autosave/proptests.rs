@@ -240,6 +240,7 @@ proptest! {
             AutosaveEvent::Loaded {
                 scope: AutosaveScope::saved("Prop Game", LaunchMethod::ProtonRun),
                 revision: full_rev(&h.disk_store),
+                reload_id: None,
             },
             AutosaveInstant::from_millis(0),
         );
@@ -402,7 +403,10 @@ proptest! {
             prop_assert_eq!(h.disk_store, h.draft_store);
         } else {
             prop_assert!(
-                eff.contains(&AutosaveEffect::Reload { profile_name: "Prop Game".into() }),
+                eff.iter().any(|e| matches!(
+                    e,
+                    AutosaveEffect::Reload { profile_name, .. } if profile_name == "Prop Game"
+                )),
                 "expected Reload effect, got {eff:?}"
             );
             prop_assert!(!h.vm.is_dirty());

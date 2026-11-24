@@ -103,6 +103,31 @@ impl SaveId {
     }
 }
 
+/// Identifier of one dispatched reload request.
+///
+/// Unique across [`super::ProfileAutosave`] instances in the process (each
+/// instance owns a distinct `mount`), so stale or out-of-order reload replies
+/// never overwrite newer state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ReloadId {
+    pub(super) mount: u64,
+    pub(super) seq: u64,
+}
+
+impl ReloadId {
+    /// Instance id that issued this reload request.
+    #[must_use]
+    pub const fn mount(self) -> u64 {
+        self.mount
+    }
+
+    /// Per-instance sequence number of this reload request.
+    #[must_use]
+    pub const fn seq(self) -> u64 {
+        self.seq
+    }
+}
+
 /// Logical profile editor sections tracked for debouncing and save grouping.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(test, derive(serde::Deserialize), serde(rename_all = "snake_case"))]

@@ -79,15 +79,13 @@ fn deferred_reload_theirs_waits_for_in_flight_and_conflict_tracks_renamed_name()
         },
         ms(380),
     );
-    assert_eq!(
-        settled,
-        vec![
-            AutosaveEffect::ShowStatus(AutosaveStatus::idle()),
-            AutosaveEffect::Reload {
-                profile_name: "Renamed Game".into()
-            },
-        ]
-    );
+    assert!(matches!(
+        settled.as_slice(),
+        [
+            AutosaveEffect::ShowStatus(status),
+            AutosaveEffect::Reload { profile_name, .. },
+        ] if *status == AutosaveStatus::idle() && profile_name == "Renamed Game"
+    ));
     assert!(!vm.is_dirty());
 }
 
@@ -392,13 +390,70 @@ fn section_save_invalidates_baseline_echo_suppression_while_preserving_undo() {
         }),
         ms(400),
     );
-    assert_eq!(
-        external_restore,
-        vec![
-            AutosaveEffect::ShowStatus(AutosaveStatus::idle()),
-            AutosaveEffect::Reload {
-                profile_name: "Test Game".into()
-            },
-        ]
-    );
+    assert!(matches!(
+        external_restore.as_slice(),
+        [
+            AutosaveEffect::ShowStatus(status),
+            AutosaveEffect::Reload { profile_name, .. },
+        ] if *status == AutosaveStatus::idle() && profile_name == "Test Game"
+    ));
+}
+
+#[test]
+fn out_of_order_and_superseded_reload_completions_are_rejected() {
+    let ext_saved = |r: &str| {
+        AutosaveEvent::ExternalChange(ExternalChange {
+            profile_name: Some("Test Game".into()),
+            reason: ProfileChangeKind::Saved,
+            revision: Some(rev(r)),
+            origin_save_id: None,
+        })
+    };
+    let loaded_ev = |r: &str, reload_id: Option<ReloadId>| AutosaveEvent::Loaded {
+        scope: AutosaveScope::saved("Test Game", LaunchMethod::ProtonRun),
+        revision: rev(r),
+        reload_id,
+    };
+
+    let mut vm = make_vm(AutosavePolicy::default());
+    let eff1 = vm.apply(ext_saved("r1"), ms(10));
+    let AutosaveEffect::Reload { id: reload_1, .. } = eff1[0] else {
+        panic!("expected first Reload, got {eff1:?}");
+    };
+    let eff2 = vm.apply(ext_saved("r2"), ms(20));
+    let AutosaveEffect::Reload { id: reload_2, .. } = eff2[0] else {
+        panic!("expected second Reload, got {eff2:?}");
+    };
+    assert_ne!(reload_1, reload_2);
+
+    // Older reload arriving BEFORE newer is ignored while reload_2 stays armed.
+    assert!(vm
+        .apply(loaded_ev("stale-r1", Some(reload_1)), ms(25))
+        .is_empty());
+    assert!(vm.apply(loaded_ev("r2", Some(reload_2)), ms(30)).is_empty());
+    assert_eq!(vm.base_revision(), Some(&rev("r2")));
+
+    // Older reload arriving AFTER newer finished is ALSO rejected.
+    assert!(vm
+        .apply(loaded_ev("stale-r1", Some(reload_1)), ms(35))
+        .is_empty());
+    assert_eq!(vm.base_revision(), Some(&rev("r2")));
+
+    // Explicit load (`reload_id: None`) clears pending reload and rejects cross-instance ids.
+    let eff3 = vm.apply(ext_saved("r3"), ms(40));
+    let AutosaveEffect::Reload { id: reload_3, .. } = eff3[0] else {
+        panic!("expected third Reload");
+    };
+    let mut other_vm = make_vm(AutosavePolicy::default());
+    let AutosaveEffect::Reload { id: foreign_id, .. } =
+        other_vm.apply(ext_saved("other"), ms(41))[0]
+    else {
+        panic!("expected foreign Reload");
+    };
+    assert!(vm
+        .apply(loaded_ev("other", Some(foreign_id)), ms(42))
+        .is_empty());
+    let _ = vm.apply(loaded_ev("manual-r4", None), ms(45));
+    assert!(vm.apply(loaded_ev("r3", Some(reload_3)), ms(50)).is_empty());
+    assert_eq!(vm.base_revision(), Some(&rev("manual-r4")));
 }

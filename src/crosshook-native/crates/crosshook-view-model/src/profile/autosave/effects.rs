@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use super::events::ProfileChangeKind;
 use super::policy::AutosaveStatus;
-use super::state::{AutosaveInstant, AutosaveSection, RevisionHash, SaveId, SaveTarget};
+use super::state::{AutosaveInstant, AutosaveSection, ReloadId, RevisionHash, SaveId, SaveTarget};
 
 /// Persistence command emitted when debounced or flushed edits are ready to write.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,6 +53,8 @@ pub enum AutosaveEffect {
     /// Reload the profile from disk (external change while idle, or user chose
     /// `ReloadTheirs`).
     Reload {
+        /// Unique reload operation id; echo in [`super::AutosaveEvent::Loaded`].
+        id: ReloadId,
         /// Trimmed profile name to reload.
         profile_name: String,
     },

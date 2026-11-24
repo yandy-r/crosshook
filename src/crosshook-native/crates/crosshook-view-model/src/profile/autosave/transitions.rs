@@ -7,9 +7,10 @@ use crate::{ServiceError, ServiceErrorKind};
 
 use super::effects::AutosaveEffect;
 use super::events::ProfileChangeKind;
+use super::helpers::is_retryable_error;
 use super::policy::AutosaveStatus;
 use super::state::{
-    AutosaveInstant, AutosaveScope, AutosaveSection, AutosaveState, RevisionHash, SaveId,
+    AutosaveInstant, AutosaveScope, AutosaveSection, AutosaveState, ReloadId, RevisionHash, SaveId,
     SaveTarget,
 };
 use super::{DirtyEntry, ProfileAutosave};
@@ -19,27 +20,42 @@ impl ProfileAutosave {
         &mut self,
         scope: AutosaveScope,
         revision: RevisionHash,
+        reload_id: Option<ReloadId>,
         effects: &mut Vec<AutosaveEffect>,
     ) {
         let loaded_name = scope.profile_name().to_owned();
-        let active_name = self.scope.profile_name().to_owned();
-        let matched_reload = self
-            .pending_reload
-            .take_if(|pending| pending.profile_name == loaded_name);
-        let is_same_profile =
-            !active_name.is_empty() && (loaded_name == active_name || matched_reload.is_some());
-
-        if is_same_profile {
+        if let Some(id) = reload_id {
+            let Some(reload) = self.pending_reload.take_if(|pending| pending.id == id) else {
+                return;
+            };
             if matches!(self.state, AutosaveState::Conflict { .. }) {
                 return;
             }
             if self.is_dirty() {
-                let reason = matched_reload.map_or(ProfileChangeKind::Saved, |p| p.reason);
-                self.on_loaded_conflict(loaded_name, revision, reason, effects);
+                self.on_loaded_conflict(loaded_name, revision, reload.reason, effects);
                 return;
             }
-            if let Some(reload) = matched_reload {
-                if self.last_save_seq != reload.save_seq_at_request {
+            if self.last_save_seq != reload.save_seq_at_request {
+                return;
+            }
+        } else {
+            let active_name = self.scope.profile_name().to_owned();
+            let is_same_profile = !active_name.is_empty()
+                && (loaded_name == active_name
+                    || self
+                        .pending_reload
+                        .as_ref()
+                        .is_some_and(|pending| pending.profile_name == loaded_name));
+            if is_same_profile {
+                if matches!(self.state, AutosaveState::Conflict { .. }) {
+                    return;
+                }
+                if self.is_dirty() {
+                    let reason = self
+                        .pending_reload
+                        .take()
+                        .map_or(ProfileChangeKind::Saved, |pending| pending.reason);
+                    self.on_loaded_conflict(loaded_name, revision, reason, effects);
                     return;
                 }
             }
@@ -432,35 +448,7 @@ impl ProfileAutosave {
         }
 
         if error.kind == ServiceErrorKind::Cancelled {
-            self.failed_sections.clear();
-            let eligible = self.eligible_dirty_sections();
-            if eligible.is_empty() || !self.scope.can_autosave() {
-                self.scheduled_tick = None;
-                let status = if self.dirty_sections.is_empty() {
-                    self.pending_flush = false;
-                    self.state = AutosaveState::Idle;
-                    AutosaveStatus::idle()
-                } else {
-                    self.set_dirty_state();
-                    self.dirty_without_eligible_status()
-                };
-                self.emit_status(status, effects);
-                return;
-            }
-            for sec in eligible {
-                if let Some(entry) = self.dirty_sections.get_mut(&sec) {
-                    let min_ready = now.saturating_add(self.policy.debounce_for(sec));
-                    entry.deadline = entry.deadline.max(min_ready);
-                }
-            }
-            if self.pending_flush {
-                self.pending_flush = false;
-                self.dispatch_all_eligible(false, effects);
-                return;
-            }
-            self.set_dirty_state();
-            self.emit_status(AutosaveStatus::saving(), effects);
-            self.sync_schedule_tick(effects);
+            self.handle_cancelled_save(now, effects);
             return;
         }
 
@@ -490,11 +478,4 @@ impl ProfileAutosave {
             effects.push(AutosaveEffect::ScheduleTick(at));
         }
     }
-}
-
-fn is_retryable_error(kind: &ServiceErrorKind) -> bool {
-    matches!(
-        kind,
-        ServiceErrorKind::Io | ServiceErrorKind::Unavailable | ServiceErrorKind::Internal
-    )
 }

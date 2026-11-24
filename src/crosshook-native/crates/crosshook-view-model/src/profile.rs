@@ -12,5 +12,5 @@ pub use autosave::{
     combine_statuses, AutosaveEffect, AutosaveEvent, AutosaveInstant, AutosaveIntent,
     AutosavePolicy, AutosaveScope, AutosaveSection, AutosaveState, AutosaveStatus, AutosaveTone,
     ConflictDetails, ConflictResolution, ExternalChange, ProfileAutosave, ProfileChangeKind,
-    RevisionHash, SaveId, SaveRequest, SaveTarget, SectionSaveKind,
+    ReloadId, RevisionHash, SaveId, SaveRequest, SaveTarget, SectionSaveKind,
 };

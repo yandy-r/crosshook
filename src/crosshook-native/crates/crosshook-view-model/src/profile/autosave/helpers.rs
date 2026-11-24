@@ -356,10 +356,55 @@ impl ProfileAutosave {
         }
     }
 
+    pub(super) fn handle_cancelled_save(
+        &mut self,
+        now: AutosaveInstant,
+        effects: &mut Vec<AutosaveEffect>,
+    ) {
+        self.failed_sections.clear();
+        let eligible = self.eligible_dirty_sections();
+        if eligible.is_empty() || !self.scope.can_autosave() {
+            self.scheduled_tick = None;
+            let status = if self.dirty_sections.is_empty() {
+                self.pending_flush = false;
+                self.state = AutosaveState::Idle;
+                AutosaveStatus::idle()
+            } else {
+                self.set_dirty_state();
+                self.dirty_without_eligible_status()
+            };
+            self.emit_status(status, effects);
+            return;
+        }
+        for sec in eligible {
+            if let Some(entry) = self.dirty_sections.get_mut(&sec) {
+                let min_ready = now.saturating_add(self.policy.debounce_for(sec));
+                entry.deadline = entry.deadline.max(min_ready);
+            }
+        }
+        if self.pending_flush {
+            self.pending_flush = false;
+            self.dispatch_all_eligible(false, effects);
+            return;
+        }
+        self.set_dirty_state();
+        self.emit_status(AutosaveStatus::saving(), effects);
+        self.sync_schedule_tick(effects);
+    }
+
     pub(super) fn emit_status(&mut self, next: AutosaveStatus, effects: &mut Vec<AutosaveEffect>) {
         if self.status != next {
             self.status = next.clone();
             effects.push(AutosaveEffect::ShowStatus(next));
         }
     }
+}
+
+pub(super) fn is_retryable_error(kind: &crate::ServiceErrorKind) -> bool {
+    matches!(
+        kind,
+        crate::ServiceErrorKind::Io
+            | crate::ServiceErrorKind::Unavailable
+            | crate::ServiceErrorKind::Internal
+    )
 }
