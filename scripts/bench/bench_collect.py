@@ -120,7 +120,7 @@ def _launch_spec(command_for: Callable[[dict[str, str]], list[str]], env: dict[s
     """Command and host env for one launch; Flatpak gets the shim variables only through --env."""
     env_i = {**env, "CROSSHOOK_BENCH_PRESENT_DIR": str(present_dir)}
     command_i = command_for(env_i)
-    if command_i[0] == "flatpak":
+    if command_i and Path(command_i[0]).name == "flatpak":
         for key in FLATPAK_ONLY_ENV:
             env_i.pop(key, None)
     return command_i, env_i
