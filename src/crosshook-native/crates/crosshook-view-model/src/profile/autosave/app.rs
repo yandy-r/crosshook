@@ -36,6 +36,9 @@ impl From<&ProfileChangeReason> for ProfileChangeKind {
 /// `AppEvent::Resync` maps to one broadcast resync (`profile_name: None`);
 /// `AppEvent::ProfilesChanged { names, .. }` emits a broadcast change when
 /// `names` is empty (conservative resync) or one per affected profile name.
+/// Supplied `revision` is attached only when a single profile name is reported;
+/// broadcast (`names.is_empty()`) and multi-profile events leave `revision`
+/// `None` so one profile's revision is never misattributed to another.
 /// Other `AppEvent` variants return an empty `Vec`.
 #[must_use]
 pub fn external_changes_from_app_event(
@@ -47,6 +50,7 @@ pub fn external_changes_from_app_event(
             profile_name: None,
             reason: ProfileChangeKind::Resync,
             revision: None,
+            origin_save_id: None,
         }],
         AppEvent::ProfilesChanged { reason, names } => {
             let reason = ProfileChangeKind::from(reason);
@@ -54,15 +58,18 @@ pub fn external_changes_from_app_event(
                 vec![ExternalChange {
                     profile_name: None,
                     reason,
-                    revision,
+                    revision: None,
+                    origin_save_id: None,
                 }]
             } else {
+                let single_revision = (names.len() == 1).then_some(revision).flatten();
                 names
                     .iter()
                     .map(|name| ExternalChange {
                         profile_name: Some(name.clone()),
                         reason: reason.clone(),
-                        revision: revision.clone(),
+                        revision: single_revision.clone(),
+                        origin_save_id: None,
                     })
                     .collect()
             }

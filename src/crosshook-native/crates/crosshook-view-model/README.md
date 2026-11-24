@@ -456,18 +456,21 @@ merging into one pure state machine:
   (`AutosaveInstant`), drive at most one timer per editor matching
   `scheduled_tick()`, echo `SaveRequest.id` in `SaveSucceeded` / `SaveFailed`,
   and forward `ProfilesChanged` / `Resync` via `external_changes_from_app_event`
-  (`app` feature). `FullProfile` edits update `latest_draft_revision` and
-  `base_revision`, and `pending_self_writes` suppresses `Saved` / `PresetApplied`
-  echoes whenever `ExternalChange.revision` uses the same full-profile hash
-  domain. Dedicated `Section` writes instead store section fingerprints in
-  `section_saved_revs` without clobbering `base_revision`; because
-  `ProfileWriter::commit` publishes `AppEvent::ProfilesChanged { reason: Saved }`
-  before returning, a bridge using per-section fingerprints must suppress or
-  section-match its own in-flight `Section` `ProfilesChanged` echo rather than
-  tagging staggered `Section` edits with full-draft hashes. `Conflict` retains
-  any active `in_flight` save and defers `ResolveConflict` (`KeepMine` /
-  `ReloadTheirs`) until that write settles so a late in-flight save cannot
-  overwrite `ReloadTheirs` or race a second save.
+  (`app` feature; revision hashes attach only to single-profile changes).
+  `FullProfile` edits update `latest_draft_revision` and `base_revision`, and
+  `pending_self_writes` suppresses `Saved` / `PresetApplied` echoes by
+  `ExternalChange.origin_save_id` (when supplied by the bridge, even if saving
+  normalized the committed revision before `SaveSucceeded` arrived) or by
+  matching revision hash. Dedicated `Section` writes instead store section
+  fingerprints in `section_saved_revs` without clobbering `base_revision`, and
+  clear `disk_base_matches` so external reverts to `base_revision` still reload.
+  `Conflict` retains any active `in_flight` save and defers `ResolveConflict`
+  (`KeepMine` / `ReloadTheirs`) until that write settles; after an external
+  rename, `KeepMine` writes to the conflict's target profile name and updates
+  `scope.selected_profile` (and `draft_name` if not mid-rename). Same-profile
+  `Loaded` arrivals while local edits or an active save exist keep `in_flight`
+  single-flight tracking intact and surface `Conflict`, while stale reloads
+  overtaken by a later committed save are ignored.
 - **Idle gate**: `Idle`, `Conflict`, and non-retryable or exhausted `Error`
   states never emit `AutosaveEffect::ScheduleTick`.
 

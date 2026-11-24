@@ -44,6 +44,11 @@ pub struct ExternalChange {
     pub reason: ProfileChangeKind,
     /// Revision hash of the external state, when known.
     pub revision: Option<RevisionHash>,
+    /// Write request id that originated this notification, when known by the bridge.
+    ///
+    /// When `Some`, [`super::ProfileAutosave`] suppresses matching self-write
+    /// echoes by id even if saving normalized the revision hash.
+    pub origin_save_id: Option<SaveId>,
 }
 
 /// Explicit user choice resolving an [`super::AutosaveState::Conflict`].

@@ -26,6 +26,7 @@ fn deferred_reload_theirs_waits_for_in_flight_and_conflict_tracks_renamed_name()
                 from: "Test Game".into(),
             },
             revision: Some(rev("remote-r2")),
+            origin_save_id: None,
         }),
         ms(360),
     );
@@ -37,6 +38,7 @@ fn deferred_reload_theirs_waits_for_in_flight_and_conflict_tracks_renamed_name()
             profile_name: Some("Renamed Game".into()),
             reason: ProfileChangeKind::Saved,
             revision: Some(rev("remote-r3")),
+            origin_save_id: None,
         }),
         ms(365),
     );
@@ -53,6 +55,7 @@ fn deferred_reload_theirs_waits_for_in_flight_and_conflict_tracks_renamed_name()
             profile_name: None,
             reason: ProfileChangeKind::Resync,
             revision: None,
+            origin_save_id: None,
         }),
         ms(368),
     );
@@ -125,6 +128,7 @@ fn latest_draft_revision_syncs_with_committed_rev_and_keep_mine() {
             profile_name: Some("Test Game".into()),
             reason: ProfileChangeKind::Saved,
             revision: Some(rev("remote-2")),
+            origin_save_id: None,
         }),
         ms(450),
     );
@@ -158,6 +162,7 @@ fn latest_draft_revision_syncs_with_committed_rev_and_keep_mine() {
             profile_name: Some("Test Game".into()),
             reason: ProfileChangeKind::Saved,
             revision: Some(rev("remote-4")),
+            origin_save_id: None,
         }),
         ms(510),
     );
@@ -260,6 +265,7 @@ fn in_flight_prevents_false_undo_and_conflict_skips_baseline_prune() {
             profile_name: Some("Test Game".into()),
             reason: ProfileChangeKind::Saved,
             revision: Some(rev("remote-r2")),
+            origin_save_id: None,
         }),
         ms(365),
     );
@@ -382,6 +388,7 @@ fn section_save_invalidates_baseline_echo_suppression_while_preserving_undo() {
             profile_name: Some("Test Game".into()),
             reason: ProfileChangeKind::Saved,
             revision: Some(rev("r0")),
+            origin_save_id: None,
         }),
         ms(400),
     );

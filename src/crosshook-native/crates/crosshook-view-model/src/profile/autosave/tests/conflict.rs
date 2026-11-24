@@ -5,6 +5,23 @@ use super::{make_vm, ms, rev};
 use crate::launch::LaunchMethod;
 use crate::testing::Script;
 
+fn ext(
+    profile_name: Option<&str>,
+    reason: ProfileChangeKind,
+    revision: Option<&str>,
+) -> ExternalChange {
+    ExternalChange {
+        profile_name: profile_name.map(str::to_owned),
+        reason,
+        revision: revision.map(RevisionHash::new),
+        origin_save_id: None,
+    }
+}
+
+fn ext_ev(name: Option<&str>, reason: ProfileChangeKind, revision: Option<&str>) -> AutosaveEvent {
+    AutosaveEvent::ExternalChange(ext(name, reason, revision))
+}
+
 #[test]
 fn external_change_reloads_when_idle_and_conflicts_when_dirty_or_saving() {
     // External change while Idle -> Reload, no Conflict.
@@ -12,11 +29,7 @@ fn external_change_reloads_when_idle_and_conflicts_when_dirty_or_saving() {
         .step(
             AutosaveIntent::at(
                 ms(10),
-                AutosaveEvent::ExternalChange(ExternalChange {
-                    profile_name: Some("Test Game".into()),
-                    reason: ProfileChangeKind::Saved,
-                    revision: Some(rev("disk-r1")),
-                }),
+                ext_ev(Some("Test Game"), ProfileChangeKind::Saved, Some("disk-r1")),
             ),
             [AutosaveEffect::Reload {
                 profile_name: "Test Game".into(),
@@ -36,11 +49,11 @@ fn external_change_reloads_when_idle_and_conflicts_when_dirty_or_saving() {
         ms(0),
     );
     let conflict = vm.apply(
-        AutosaveEvent::ExternalChange(ExternalChange {
-            profile_name: Some("Test Game".into()),
-            reason: ProfileChangeKind::Saved,
-            revision: Some(rev("remote-r2")),
-        }),
+        ext_ev(
+            Some("Test Game"),
+            ProfileChangeKind::Saved,
+            Some("remote-r2"),
+        ),
         ms(50),
     );
     assert_eq!(
@@ -86,11 +99,11 @@ fn external_change_reloads_when_idle_and_conflicts_when_dirty_or_saving() {
         panic!("expected save");
     };
     let conflict = vm.apply(
-        AutosaveEvent::ExternalChange(ExternalChange {
-            profile_name: Some("Test Game".into()),
-            reason: ProfileChangeKind::RolledBack,
-            revision: Some(rev("remote-r3")),
-        }),
+        ext_ev(
+            Some("Test Game"),
+            ProfileChangeKind::RolledBack,
+            Some("remote-r3"),
+        ),
         ms(360),
     );
     assert!(matches!(
@@ -145,11 +158,7 @@ fn self_write_events_never_yield_conflict_or_reload() {
     };
     assert!(vm
         .apply(
-            AutosaveEvent::ExternalChange(ExternalChange {
-                profile_name: Some("Test Game".into()),
-                reason: ProfileChangeKind::Saved,
-                revision: Some(rev("self-1")),
-            }),
+            ext_ev(Some("Test Game"), ProfileChangeKind::Saved, Some("self-1")),
             ms(360),
         )
         .is_empty());
@@ -189,11 +198,7 @@ fn self_write_events_never_yield_conflict_or_reload() {
     );
     assert!(vm
         .apply(
-            AutosaveEvent::ExternalChange(ExternalChange {
-                profile_name: Some("Test Game".into()),
-                reason: ProfileChangeKind::Saved,
-                revision: Some(rev("self-2")),
-            }),
+            ext_ev(Some("Test Game"), ProfileChangeKind::Saved, Some("self-2")),
             ms(780),
         )
         .is_empty());
@@ -202,21 +207,17 @@ fn self_write_events_never_yield_conflict_or_reload() {
     // Case 3: FavoriteToggled and other profiles are always ignored.
     assert!(vm
         .apply(
-            AutosaveEvent::ExternalChange(ExternalChange {
-                profile_name: Some("Test Game".into()),
-                reason: ProfileChangeKind::FavoriteToggled,
-                revision: None,
-            }),
+            ext_ev(Some("Test Game"), ProfileChangeKind::FavoriteToggled, None),
             ms(790),
         )
         .is_empty());
     assert!(vm
         .apply(
-            AutosaveEvent::ExternalChange(ExternalChange {
-                profile_name: Some("Other Game".into()),
-                reason: ProfileChangeKind::Saved,
-                revision: Some(rev("other-1")),
-            }),
+            ext_ev(
+                Some("Other Game"),
+                ProfileChangeKind::Saved,
+                Some("other-1")
+            ),
             ms(800),
         )
         .is_empty());
@@ -380,14 +381,11 @@ fn external_renamed_from_active_reloads_clean_or_conflicts_when_dirty() {
 
     // 1. Clean Idle -> Reloads the new profile name instead of ignoring Renamed { from }.
     let mut clean = make_vm(AutosavePolicy::default());
+    let rename = ProfileChangeKind::Renamed {
+        from: "Test Game".into(),
+    };
     let reload = clean.apply(
-        AutosaveEvent::ExternalChange(ExternalChange {
-            profile_name: Some("Renamed Game".into()),
-            reason: ProfileChangeKind::Renamed {
-                from: "Test Game".into(),
-            },
-            revision: Some(rev("r2")),
-        }),
+        ext_ev(Some("Renamed Game"), rename.clone(), Some("r2")),
         ms(10),
     );
     assert_eq!(
@@ -407,13 +405,7 @@ fn external_renamed_from_active_reloads_clean_or_conflicts_when_dirty() {
         ms(0),
     );
     let conflict = dirty.apply(
-        AutosaveEvent::ExternalChange(ExternalChange {
-            profile_name: Some("Renamed Game".into()),
-            reason: ProfileChangeKind::Renamed {
-                from: "Test Game".into(),
-            },
-            revision: Some(rev("remote-r2")),
-        }),
+        ext_ev(Some("Renamed Game"), rename.clone(), Some("remote-r2")),
         ms(50),
     );
     assert_eq!(
@@ -425,9 +417,7 @@ fn external_renamed_from_active_reloads_clean_or_conflicts_when_dirty() {
                 local: rev("local-r1"),
                 remote: Some(rev("remote-r2")),
                 sections: BTreeSet::from([AutosaveSection::ProfileDraft]),
-                reason: ProfileChangeKind::Renamed {
-                    from: "Test Game".into(),
-                },
+                reason: rename.clone(),
             }),
         ]
     );
@@ -445,7 +435,7 @@ fn external_renamed_from_active_reloads_clean_or_conflicts_when_dirty() {
         ]
     );
 
-    // 3. KeepMine while active save is in flight defers until in-flight settles.
+    // 3. KeepMine while active save is in flight defers until in-flight settles and targets the renamed profile.
     let mut in_flight_vm = make_vm(AutosavePolicy::default());
     let _ = in_flight_vm.apply(
         AutosaveEvent::Edit {
@@ -459,13 +449,7 @@ fn external_renamed_from_active_reloads_clean_or_conflicts_when_dirty() {
         panic!("expected initial save");
     };
     let _ = in_flight_vm.apply(
-        AutosaveEvent::ExternalChange(ExternalChange {
-            profile_name: Some("Renamed Game".into()),
-            reason: ProfileChangeKind::Renamed {
-                from: "Test Game".into(),
-            },
-            revision: Some(rev("remote-r2")),
-        }),
+        ext_ev(Some("Renamed Game"), rename, Some("remote-r2")),
         ms(460),
     );
     assert!(in_flight_vm
@@ -484,7 +468,8 @@ fn external_renamed_from_active_reloads_clean_or_conflicts_when_dirty() {
     let AutosaveEffect::Save(req) = &resumed[1] else {
         panic!("expected deferred KeepMine Save after first save settled, got {resumed:?}");
     };
-    assert_eq!(req.profile_name, "Test Game");
+    assert_eq!(req.profile_name, "Renamed Game");
+    assert_eq!(in_flight_vm.scope().profile_name(), "Renamed Game");
     let _ = in_flight_vm.apply(
         AutosaveEvent::SaveFailed {
             id: req.id,

@@ -148,6 +148,7 @@ impl ModelHarness {
                 profile_name: Some(req.profile_name.clone()),
                 reason: ProfileChangeKind::Saved,
                 revision: Some(req.revision.clone()),
+                origin_save_id: Some(req.id),
             }),
             AutosaveInstant::from_millis(self.now),
         );
@@ -255,7 +256,7 @@ proptest! {
                         EditMode::UndoToBaseline => h.baseline[&sec].clone(),
                     };
                     if h.vm.scope().method_supports_section(sec)
-                        || h.vm.has_queued_dirty_section(sec)
+                        || h.vm.dirty_sections().contains(&sec)
                     {
                         h.draft_store.insert(sec, section_val.clone());
                     }
@@ -312,6 +313,7 @@ proptest! {
                         profile_name: Some("Prop Game".into()),
                         reason: ProfileChangeKind::FavoriteToggled,
                         revision: None,
+                        origin_save_id: None,
                     }),
                     AutosaveInstant::from_millis(h.now),
                 ),
@@ -320,6 +322,7 @@ proptest! {
                         profile_name: Some("Other Game".into()),
                         reason: ProfileChangeKind::Saved,
                         revision: Some(RevisionHash::new("other")),
+                        origin_save_id: None,
                     }),
                     AutosaveInstant::from_millis(h.now),
                 ),
@@ -379,6 +382,7 @@ proptest! {
                 profile_name: Some("Prop Game".into()),
                 reason: ProfileChangeKind::Saved,
                 revision: Some(RevisionHash::new("remote-disk")),
+                origin_save_id: None,
             }),
             AutosaveInstant::from_millis(550),
         );

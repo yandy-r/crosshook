@@ -57,7 +57,18 @@ fn converts_resync_and_profiles_changed_events() {
     assert_eq!(out.len(), 1);
     assert_eq!(out[0].profile_name, None);
     assert_eq!(out[0].reason, ProfileChangeKind::Saved);
+    assert_eq!(out[0].revision, None);
+    assert_eq!(out[0].origin_save_id, None);
+
+    let single = AppEvent::ProfilesChanged {
+        reason: ProfileChangeReason::Saved,
+        names: vec!["Alpha".into()],
+    };
+    let out = external_changes_from_app_event(&single, Some(RevisionHash::new("r1")));
+    assert_eq!(out.len(), 1);
+    assert_eq!(out[0].profile_name.as_deref(), Some("Alpha"));
     assert_eq!(out[0].revision, Some(RevisionHash::new("r1")));
+    assert_eq!(out[0].origin_save_id, None);
 
     let named = AppEvent::ProfilesChanged {
         reason: ProfileChangeReason::PresetApplied,
@@ -66,7 +77,9 @@ fn converts_resync_and_profiles_changed_events() {
     let out = external_changes_from_app_event(&named, Some(RevisionHash::new("r2")));
     assert_eq!(out.len(), 2);
     assert_eq!(out[0].profile_name.as_deref(), Some("Alpha"));
+    assert_eq!(out[0].revision, None);
     assert_eq!(out[1].profile_name.as_deref(), Some("Beta"));
+    assert_eq!(out[1].revision, None);
     assert_eq!(out[0].reason, ProfileChangeKind::PresetApplied);
 
     let unrelated = AppEvent::HealthScanCompleted {

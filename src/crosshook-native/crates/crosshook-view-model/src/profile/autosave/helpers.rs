@@ -7,8 +7,10 @@ use std::time::Duration;
 use super::effects::AutosaveEffect;
 use super::events::ConflictResolution;
 use super::policy::{AutosavePolicy, AutosaveStatus};
-use super::state::{AutosaveInstant, AutosaveSection, AutosaveState, RevisionHash, SaveTarget};
-use super::{DirtyEntry, ProfileAutosave, MAX_PENDING_SELF_WRITES};
+use super::state::{
+    AutosaveInstant, AutosaveSection, AutosaveState, RevisionHash, SaveId, SaveTarget,
+};
+use super::{DirtyEntry, PendingSelfWrite, ProfileAutosave, MAX_PENDING_SELF_WRITES};
 
 impl ProfileAutosave {
     pub(super) fn reset_working_state(&mut self) {
@@ -21,6 +23,8 @@ impl ProfileAutosave {
         self.conflict_reload_name = None;
         self.pending_resolution = None;
         self.failed_sections.clear();
+        self.pending_flush = false;
+        self.pending_reload = None;
     }
 
     pub(super) fn eligible_dirty_sections(&self) -> BTreeSet<AutosaveSection> {
@@ -81,6 +85,7 @@ impl ProfileAutosave {
         &mut self,
         section: AutosaveSection,
         revision: &RevisionHash,
+        now: AutosaveInstant,
         effects: &mut Vec<AutosaveEffect>,
     ) {
         if self.dirty_sections.contains_key(&section) {
@@ -90,26 +95,7 @@ impl ProfileAutosave {
             {
                 self.dirty_sections.remove(&section);
                 self.failed_sections.remove(&section);
-                if self.in_flight.is_none() && self.dirty_sections.is_empty() {
-                    self.retry_attempt = 0;
-                    self.scheduled_tick = None;
-                    self.failed_sections.clear();
-                    self.state = AutosaveState::Idle;
-                    self.emit_status(AutosaveStatus::idle(), effects);
-                } else if matches!(self.state, AutosaveState::Dirty { .. }) {
-                    self.set_dirty_state();
-                    if !self.scope.can_autosave() || self.earliest_eligible_deadline().is_none() {
-                        self.scheduled_tick = None;
-                        self.emit_status(self.dirty_without_eligible_status(), effects);
-                    }
-                } else if matches!(self.state, AutosaveState::Error { .. })
-                    && self.eligible_dirty_sections().is_empty()
-                {
-                    if let AutosaveState::Error { retry_at, .. } = &mut self.state {
-                        *retry_at = None;
-                    }
-                    self.scheduled_tick = None;
-                }
+                self.finish_undo_section(now, effects);
                 return;
             }
 
@@ -118,23 +104,36 @@ impl ProfileAutosave {
                 entry.revision = revision.clone();
                 entry.edit_seq = self.next_edit_seq;
             }
-            if let AutosaveState::Conflict {
-                local, sections, ..
-            } = &mut self.state
-            {
-                if !sections
-                    .iter()
-                    .any(|s| s.save_target() == SaveTarget::FullProfile)
-                {
-                    *local = revision.clone();
-                }
-                sections.insert(section);
-                if matches!(
-                    self.pending_resolution,
-                    Some((ConflictResolution::ReloadTheirs, _))
-                ) {
-                    self.pending_resolution = None;
-                }
+            if matches!(self.state, AutosaveState::Conflict { .. }) {
+                self.record_conflict_edit(section, revision.clone());
+            }
+            return;
+        }
+
+        if let Some(in_flight_since) = self
+            .in_flight
+            .as_ref()
+            .and_then(|f| f.entries.get(&section))
+            .map(|e| e.since)
+        {
+            self.next_edit_seq = self.next_edit_seq.wrapping_add(1);
+            let deadline = Self::compute_deadline_for(
+                &self.policy,
+                now,
+                in_flight_since,
+                self.policy.debounce_for(section),
+            );
+            self.dirty_sections.insert(
+                section,
+                DirtyEntry {
+                    since: in_flight_since,
+                    deadline,
+                    revision: revision.clone(),
+                    edit_seq: self.next_edit_seq,
+                },
+            );
+            if matches!(self.state, AutosaveState::Conflict { .. }) {
+                self.record_conflict_edit(section, revision.clone());
             }
             return;
         }
@@ -154,6 +153,77 @@ impl ProfileAutosave {
                 AutosaveStatus::warning("Unavailable for current method", None),
                 effects,
             );
+        }
+    }
+
+    pub(super) fn finish_undo_section(
+        &mut self,
+        now: AutosaveInstant,
+        effects: &mut Vec<AutosaveEffect>,
+    ) {
+        if self.in_flight.is_none() && self.dirty_sections.is_empty() {
+            self.retry_attempt = 0;
+            self.scheduled_tick = None;
+            self.pending_flush = false;
+            self.failed_sections.clear();
+            self.state = AutosaveState::Idle;
+            self.emit_status(AutosaveStatus::idle(), effects);
+        } else if matches!(self.state, AutosaveState::Dirty { .. }) {
+            self.set_dirty_state();
+            if self.scope.can_autosave() && self.earliest_eligible_deadline().is_some() {
+                self.sync_schedule_tick(effects);
+            } else {
+                self.scheduled_tick = None;
+                let status = self.dirty_without_eligible_status();
+                self.emit_status(status, effects);
+            }
+        } else if matches!(self.state, AutosaveState::Error { .. }) {
+            if self.failed_sections.is_empty() {
+                self.retry_attempt = 0;
+                for entry in self.dirty_sections.values_mut() {
+                    entry.deadline = entry.deadline.max(now);
+                }
+                self.set_dirty_state();
+                if self.scope.can_autosave() && self.earliest_eligible_deadline().is_some() {
+                    self.emit_status(AutosaveStatus::saving(), effects);
+                    self.sync_schedule_tick(effects);
+                } else {
+                    self.scheduled_tick = None;
+                    let status = self.dirty_without_eligible_status();
+                    self.emit_status(status, effects);
+                }
+            } else if self.eligible_dirty_sections().is_empty() {
+                if let AutosaveState::Error { retry_at, .. } = &mut self.state {
+                    *retry_at = None;
+                }
+                self.scheduled_tick = None;
+            }
+        }
+    }
+
+    pub(super) fn record_conflict_edit(
+        &mut self,
+        section: AutosaveSection,
+        revision: RevisionHash,
+    ) {
+        if let AutosaveState::Conflict {
+            local, sections, ..
+        } = &mut self.state
+        {
+            if section.save_target() == SaveTarget::FullProfile
+                || !sections
+                    .iter()
+                    .any(|s| s.save_target() == SaveTarget::FullProfile)
+            {
+                *local = revision;
+            }
+            sections.insert(section);
+            if matches!(
+                self.pending_resolution,
+                Some((ConflictResolution::ReloadTheirs, _))
+            ) {
+                self.pending_resolution = None;
+            }
         }
     }
 
@@ -250,15 +320,16 @@ impl ProfileAutosave {
         }
     }
 
-    pub(super) fn record_pending_self_write(&mut self, rev: RevisionHash) {
+    pub(super) fn record_pending_self_write(&mut self, id: SaveId, revision: RevisionHash) {
         if self.pending_self_writes.len() >= MAX_PENDING_SELF_WRITES {
             self.pending_self_writes.pop_front();
         }
-        self.pending_self_writes.push_back(rev);
+        self.pending_self_writes
+            .push_back(PendingSelfWrite { id, revision });
     }
 
-    pub(super) fn remove_pending_self_write(&mut self, rev: &RevisionHash) -> bool {
-        if let Some(pos) = self.pending_self_writes.iter().position(|r| r == rev) {
+    pub(super) fn remove_pending_self_write_by_id(&mut self, id: SaveId) -> bool {
+        if let Some(pos) = self.pending_self_writes.iter().position(|w| w.id == id) {
             self.pending_self_writes.remove(pos);
             true
         } else {
@@ -266,9 +337,22 @@ impl ProfileAutosave {
         }
     }
 
-    pub(super) fn update_pending_self_write(&mut self, old: &RevisionHash, new: &RevisionHash) {
-        if let Some(slot) = self.pending_self_writes.iter_mut().find(|r| *r == old) {
-            *slot = new.clone();
+    pub(super) fn remove_pending_self_write_by_rev(&mut self, rev: &RevisionHash) -> bool {
+        if let Some(pos) = self
+            .pending_self_writes
+            .iter()
+            .position(|w| &w.revision == rev)
+        {
+            self.pending_self_writes.remove(pos);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub(super) fn update_pending_self_write(&mut self, id: SaveId, new: &RevisionHash) {
+        if let Some(slot) = self.pending_self_writes.iter_mut().find(|w| w.id == id) {
+            slot.revision = new.clone();
         }
     }
 

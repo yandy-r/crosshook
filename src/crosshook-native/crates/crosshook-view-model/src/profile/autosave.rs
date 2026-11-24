@@ -63,7 +63,19 @@ pub(super) struct InFlightSave {
     pub(super) target: SaveTarget,
     pub(super) entries: BTreeMap<AutosaveSection, DirtyEntry>,
     pub(super) revision: RevisionHash,
-    pub(super) flush_queued: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct PendingSelfWrite {
+    pub(super) id: SaveId,
+    pub(super) revision: RevisionHash,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct PendingReload {
+    pub(super) profile_name: String,
+    pub(super) reason: ProfileChangeKind,
+    pub(super) save_seq_at_request: u64,
 }
 
 /// Pure, deterministic autosave reducer for one profile editor instance.
@@ -83,7 +95,7 @@ pub struct ProfileAutosave {
     pub(super) section_saved_revs: BTreeMap<AutosaveSection, RevisionHash>,
     pub(super) dirty_sections: BTreeMap<AutosaveSection, DirtyEntry>,
     pub(super) in_flight: Option<InFlightSave>,
-    pub(super) pending_self_writes: VecDeque<RevisionHash>,
+    pub(super) pending_self_writes: VecDeque<PendingSelfWrite>,
     pub(super) scheduled_tick: Option<AutosaveInstant>,
     pub(super) retry_attempt: u32,
     pub(super) next_edit_seq: u64,
@@ -91,6 +103,8 @@ pub struct ProfileAutosave {
     pub(super) pending_resolution: Option<(ConflictResolution, AutosaveInstant)>,
     pub(super) failed_sections: BTreeSet<AutosaveSection>,
     pub(super) disk_base_matches: bool,
+    pub(super) pending_flush: bool,
+    pub(super) pending_reload: Option<PendingReload>,
 }
 
 impl ProfileAutosave {
@@ -128,6 +142,8 @@ impl ProfileAutosave {
             pending_resolution: None,
             failed_sections: BTreeSet::new(),
             disk_base_matches: base_revision.is_some(),
+            pending_flush: false,
+            pending_reload: None,
         }
     }
 
