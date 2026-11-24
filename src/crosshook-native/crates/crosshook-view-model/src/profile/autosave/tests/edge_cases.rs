@@ -401,3 +401,94 @@ fn section_revision_isolation_and_unsaved_cancelled_warning() {
         ))]
     );
 }
+
+#[test]
+fn external_rename_chains_and_changes_match_pending_reload_target() {
+    let ext_change = |name: &str, reason: ProfileChangeKind, r: &str| {
+        AutosaveEvent::ExternalChange(ExternalChange {
+            profile_name: Some(name.into()),
+            reason,
+            revision: Some(rev(r)),
+            origin_save_id: None,
+        })
+    };
+
+    // 1. Chained renames A -> B -> C while idle supersede reload B with reload C.
+    let mut vm = make_vm(AutosavePolicy::default());
+    let eff1 = vm.apply(
+        ext_change(
+            "B",
+            ProfileChangeKind::Renamed {
+                from: "Test Game".into(),
+            },
+            "r-b",
+        ),
+        ms(10),
+    );
+    let AutosaveEffect::Reload {
+        id: r1,
+        profile_name: p1,
+    } = &eff1[0]
+    else {
+        panic!("expected Reload B, got {eff1:?}");
+    };
+    assert_eq!(p1, "B");
+    let eff2 = vm.apply(
+        ext_change("C", ProfileChangeKind::Renamed { from: "B".into() }, "r-c"),
+        ms(20),
+    );
+    let [AutosaveEffect::Reload {
+        id: r2,
+        profile_name: p2,
+    }] = eff2.as_slice()
+    else {
+        panic!("expected Reload C, got {eff2:?}");
+    };
+    assert_eq!(p2, "C");
+    assert!(vm
+        .apply(
+            AutosaveEvent::Loaded {
+                scope: AutosaveScope::saved("B", LaunchMethod::ProtonRun),
+                revision: rev("r-b"),
+                reload_id: Some(*r1),
+            },
+            ms(25),
+        )
+        .is_empty());
+    assert!(vm
+        .apply(
+            AutosaveEvent::Loaded {
+                scope: AutosaveScope::saved("C", LaunchMethod::ProtonRun),
+                revision: rev("r-c"),
+                reload_id: Some(*r2),
+            },
+            ms(30),
+        )
+        .is_empty());
+    assert_eq!(vm.scope().profile_name(), "C");
+
+    // 2. Edit while reload B is pending -> Saved("B") conflicts targeting "B".
+    let mut vm2 = make_vm(AutosavePolicy::default());
+    let _ = vm2.apply(
+        ext_change(
+            "B",
+            ProfileChangeKind::Renamed {
+                from: "Test Game".into(),
+            },
+            "r-b",
+        ),
+        ms(10),
+    );
+    let _ = vm2.apply(
+        AutosaveEvent::Edit {
+            section: AutosaveSection::ProfileDraft,
+            revision: rev("local-1"),
+        },
+        ms(20),
+    );
+    let conflict = vm2.apply(ext_change("B", ProfileChangeKind::Saved, "r-b2"), ms(30));
+    assert!(matches!(
+        &conflict[1],
+        AutosaveEffect::ShowConflict(ConflictDetails { profile_name, .. }) if profile_name == "B"
+    ));
+}

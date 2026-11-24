@@ -24,20 +24,24 @@ impl ProfileAutosave {
         if active_name.is_empty() {
             return;
         }
-        let conflict_name = matches!(self.state, AutosaveState::Conflict { .. })
-            .then(|| self.conflict_reload_name.as_deref())
-            .flatten()
-            .map(str::to_owned);
+        let tracked_name = if matches!(self.state, AutosaveState::Conflict { .. }) {
+            self.conflict_reload_name.as_deref()
+        } else {
+            self.pending_reload
+                .as_ref()
+                .map(|pending| pending.profile_name.as_str())
+        }
+        .map(str::to_owned);
         let renamed_from_active = matches!(
             &change.reason,
             ProfileChangeKind::Renamed { from }
                 if from.trim() == active_name
-                    || conflict_name.as_deref() == Some(from.trim())
+                    || tracked_name.as_deref() == Some(from.trim())
         );
         if let Some(target_name) = change.profile_name.as_deref() {
             let trimmed_target = target_name.trim();
             if trimmed_target != active_name
-                && conflict_name.as_deref() != Some(trimmed_target)
+                && tracked_name.as_deref() != Some(trimmed_target)
                 && !renamed_from_active
             {
                 return;
@@ -69,7 +73,7 @@ impl ProfileAutosave {
             }
         }
 
-        let default_name = conflict_name.as_deref().unwrap_or(&active_name);
+        let default_name = tracked_name.as_deref().unwrap_or(&active_name);
         let reload_name = if renamed_from_active {
             change
                 .profile_name
@@ -134,7 +138,8 @@ impl ProfileAutosave {
                 self.pending_flush = false;
                 self.pending_reload = None;
                 self.failed_sections.clear();
-                self.conflict_reload_name = renamed_from_active.then(|| reload_name.clone());
+                self.conflict_reload_name =
+                    (reload_name != active_name).then(|| reload_name.clone());
                 let details = ConflictDetails {
                     profile_name: reload_name,
                     local: local.clone(),
