@@ -1,0 +1,7 @@
+iteration,ready_ms,first_present_ms,first_content_ms,p50_ms,p95_ms,first_present_p50_ms,first_present_p95_ms,first_content_p50_ms,first_content_p95_ms,status
+1,968.222442,953.385741,970.226741,,,,,,,measured
+2,942.685704,942.304168,948.049168,,,,,,,measured
+3,923.299045,909.675532,926.492532,,,,,,,measured
+4,938.895998,936.124815,941.678815,,,,,,,measured
+5,931.050633,925.825216,937.025216,,,,,,,measured
+summary,,,,938.895998,963.1150944,936.124815,951.1694264,941.678815,965.7912263999999,measured
