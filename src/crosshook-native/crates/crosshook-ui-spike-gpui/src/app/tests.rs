@@ -54,6 +54,27 @@ fn focused(shell: &Entity<Shell>, cx: &mut TestAppContext) -> Option<Target> {
     shell.read_with(cx, |s, _| s.focus.focused.clone())
 }
 
+/// A native Enter key-down/up, as the Wayland backend delivers it (Kit's `press` does the same):
+/// `simulate_keystrokes("enter")` goes in as IME newline text instead.
+fn native_enter(win: WindowHandle<Root>, cx: &mut TestAppContext) {
+    use gpui::InputEvent as _;
+    let key = gpui::Keystroke::parse("enter").unwrap();
+    cx.update_window(win.into(), |_, w, cx| {
+        w.dispatch_event(
+            gpui::KeyDownEvent {
+                keystroke: key.clone(),
+                is_held: false,
+                prefer_character_input: false,
+            }
+            .to_platform_input(),
+            cx,
+        );
+        w.dispatch_event(gpui::KeyUpEvent { keystroke: key }.to_platform_input(), cx);
+    })
+    .unwrap();
+    cx.run_until_parked();
+}
+
 fn keys(win: WindowHandle<Root>, cx: &mut TestAppContext, keys: &str) {
     cx.simulate_keystrokes(win.into(), keys);
     cx.run_until_parked();
@@ -177,15 +198,16 @@ fn palette_navigates_and_settings_page_scrolls(cx: &mut TestAppContext) {
         .ok()
         .flatten();
     assert_eq!(focus, Some(Target::Palette), "the palette input has focus");
-    // `simulate_keystrokes("enter")` reaches a focused Kit input as IME newline text, not a
-    // key-down (GPUI Kit TESTING.md), so dispatch what a real Enter resolves to in the dialog.
-    cx.dispatch_action(
-        win.into(),
-        gpui_component::dialog::Confirm { secondary: false },
-    );
-    cx.run_until_parked();
+    native_enter(win, cx);
     let (ov, route) = shell.read_with(cx, |s, _| (s.overlay, s.route()));
     assert!(ov.is_none(), "palette closed (route={route:?})");
+    let dialog_open = cx
+        .update_window(win.into(), |_, w, cx| {
+            use gpui_component::WindowExt as _;
+            w.has_active_dialog(cx)
+        })
+        .unwrap();
+    assert!(!dialog_open, "Kit's dialog layer closed too");
     assert_eq!(shell.read_with(cx, |s, _| s.route()), Route::Settings);
     cx.update_window(win.into(), |_, w, _| w.refresh()).ok();
     cx.run_until_parked();

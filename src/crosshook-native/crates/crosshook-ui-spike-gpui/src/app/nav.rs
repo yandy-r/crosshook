@@ -119,8 +119,8 @@ impl Shell {
         }
     }
 
-    /// A / Enter / Space on a spike-owned target. Kit inputs and the select consume their own
-    /// Enter first (their key context binds it), so this only sees wrapper targets.
+    /// A / Enter / Space on the focused target. The global `enter`/`space` bindings have no
+    /// context, which gpui ranks above the Kit inputs' own bindings, so Kit inputs land here too.
     fn activate(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(target) = self.focus.focused.clone() else {
             return;
@@ -134,7 +134,13 @@ impl Shell {
             Target::Field(n @ (6 | 8..=12)) => self.set_flag(n, !self.flag(n), cx),
             Target::Field(13) => self.save(window, cx),
             Target::Field(14) => self.open_overlay(Overlay::Modal, window, cx),
-            Target::Field(_) | Target::Search | Target::Palette => {}
+            // The spike's context-free `enter` binding outranks the Kit input's own Enter (gpui
+            // ranks a binding without context at the deepest depth), so the palette submits here.
+            Target::Palette => {
+                let q = self.palette.read(cx).value().to_string();
+                self.palette_submit(&q, window, cx);
+            }
+            Target::Field(_) | Target::Search => {}
             Target::InspectorAction(0) => self.focus_to(Target::Card(0), window, cx),
             Target::InspectorAction(_) => self.open_overlay(Overlay::Palette, window, cx),
             Target::Overlay(0) => self.pick_file(window, cx),
