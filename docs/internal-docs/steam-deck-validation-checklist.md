@@ -31,21 +31,7 @@ gamescope -W 1280 -H 800 -r 60 -- flatpak run dev.crosshook.CrossHook
 
 ## Gotchas
 
-WebKitGTK (Tauri's webview) has sluggish native scroll velocity. CrossHook compensates with the `useScrollEnhance` hook at `src/crosshook-native/src/hooks/useScrollEnhance.ts`. The exported `SCROLL_ENHANCE_SELECTORS` constant (aliased as `SCROLLABLE` inside the hook) determines which containers receive the enhanced scroll behavior:
-
-```
-.crosshook-route-card-scroll, .crosshook-page-scroll-body,
-.crosshook-subtab-content__inner--scroll, .crosshook-console-drawer__body,
-.crosshook-modal__body, .crosshook-palette__list,
-.crosshook-prefix-deps__log-output, .crosshook-discovery-results,
-.crosshook-collections-sidebar__list, .crosshook-collection-assign-menu__list,
-.crosshook-route-stack__body--scroll, .crosshook-sidebar__nav--scroll,
-.crosshook-inspector__body, .crosshook-hero-detail__body,
-.crosshook-hero-detail__profiles-editor, .crosshook-context-rail__body,
-.crosshook-install-page-tabs__panel-inner
-```
-
-Any new `overflow-y: auto` container introduced by collection modals **must** be added to `SCROLL_ENHANCE_SELECTORS`. If omitted, the enhanced scroll targets a parent container instead, causing dual-scroll jank. Inner scroll containers should also apply `overscroll-behavior: contain` to prevent scroll chaining.
+CrossHook uses native WebKitGTK scrolling only — do not reimplement wheel momentum in JavaScript. Any inner `overflow-y: auto` scroll container (including collection modals, sidebars, inspector panes, and log panels) must apply `overscroll-behavior: contain` to prevent scroll chaining to outer containers.
 
 ## Expected env var assertion
 
@@ -139,7 +125,7 @@ Use browser devtools 1280×800 emulation for layout checks; confirm final behavi
 
 - [ ] Two-column layout (`minmax(220px,280px) 1fr`) renders without horizontal page overflow
 - [ ] Cards rail and editor pane are both readable at 1280×800
-- [ ] Editor pane scrolls vertically (`.crosshook-hero-detail__profiles-editor` is in `SCROLL_ENHANCE_SELECTORS`)
+- [ ] Editor pane scrolls vertically (`.crosshook-hero-detail__profiles-editor` scrolls natively with `overscroll-behavior: contain`)
 
 ### Launch tab / hooks at deck viewport
 

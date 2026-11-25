@@ -40,11 +40,10 @@
   max-height: var(--radix-select-content-available-height, 320px);
   border-radius: var(--crosshook-radius-md);
   border: 1px solid var(--crosshook-color-border-strong);
-  background: rgba(10, 16, 30, 0.98);
+  background: var(--crosshook-color-surface-strong);
   box-shadow:
     0 16px 48px rgba(0, 0, 0, 0.5),
     0 0 0 1px rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(20px);
   overflow: hidden;
   animation: crosshook-select-in 120ms ease-out;
 }

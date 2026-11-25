@@ -467,6 +467,7 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
                           onLibraryFilterChange={handleLibraryFilterChange}
                           onOpenCommandPalette={openPalette}
                           openGameDetailIntent={openGameDetailIntent}
+                          runningProfiles={runningProfiles}
                         />
                       </Panel>
                       <Separator className="crosshook-resize-handle crosshook-resize-handle--horizontal" />
@@ -492,6 +493,7 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
                           onLibraryFilterChange={handleLibraryFilterChange}
                           onOpenCommandPalette={openPalette}
                           openGameDetailIntent={openGameDetailIntent}
+                          runningProfiles={runningProfiles}
                         />
                       </div>
                       <div className="crosshook-shell-stack__footer">

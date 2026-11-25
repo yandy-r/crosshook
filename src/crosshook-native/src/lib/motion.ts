@@ -4,8 +4,8 @@ export const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
 /**
  * Imperative resolved-motion read for code mounted outside PreferencesProvider
- * (useScrollEnhance, gamepad-nav). Attribute-first; matchMedia fallback covers
- * the pre-settings-load window; no matchMedia → full motion.
+ * (gamepad-nav). Attribute-first; matchMedia fallback covers the
+ * pre-settings-load window; no matchMedia → full motion.
  */
 export function isMotionReduced(): boolean {
   const value = document.documentElement.getAttribute(MOTION_ATTRIBUTE);

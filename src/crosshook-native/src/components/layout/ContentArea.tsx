@@ -21,6 +21,12 @@ interface ContentAreaProps {
   onLibraryFilterChange?: (key: LibraryFilterKey) => void;
   onOpenCommandPalette?: (restoreFocusTo?: HTMLElement | null) => void;
   openGameDetailIntent?: OpenGameDetailIntent | null;
+  /**
+   * Profiles with a running game session. The shell owns the single
+   * `useRunningProfiles` subscription and passes the snapshot down, so pages
+   * must not subscribe again.
+   */
+  runningProfiles?: ReadonlySet<string>;
 }
 
 export function ContentArea({
@@ -30,6 +36,7 @@ export function ContentArea({
   onLibraryFilterChange,
   onOpenCommandPalette,
   openGameDetailIntent,
+  runningProfiles,
 }: ContentAreaProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -71,6 +78,7 @@ export function ContentArea({
             onLibraryFilterChange={onLibraryFilterChange}
             onOpenCommandPalette={onOpenCommandPalette}
             openGameDetailIntent={openGameDetailIntent}
+            runningProfiles={runningProfiles}
           />
         );
       default: {

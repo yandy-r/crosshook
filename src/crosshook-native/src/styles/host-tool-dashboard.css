@@ -303,9 +303,9 @@
 
 /* ---------- Skeletons (loading placeholders) ----------------------------- */
 
+/* Solid fill pulsed through `opacity` (compositor-only) — see the keyframes below. */
 .crosshook-host-tool-dashboard-skeleton {
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04));
-  background-size: 200% 100%;
+  background: var(--crosshook-color-bg-elevated);
   border-radius: var(--crosshook-radius-sm);
   animation: crosshook-host-tool-dashboard-pulse 1.4s ease-in-out infinite;
 }
@@ -334,13 +334,16 @@
   border-left-color: transparent;
 }
 
+/* Compositor-only opacity pulse. The previous shimmer slid a gradient across the skeleton,
+   which repainted it every frame; `opacity` is promoted to its own layer instead. */
 @keyframes crosshook-host-tool-dashboard-pulse {
   0%,
   100% {
-    background-position: 200% 0;
+    opacity: 0.45;
   }
+
   50% {
-    background-position: -200% 0;
+    opacity: 0.85;
   }
 }
 

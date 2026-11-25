@@ -6,6 +6,8 @@ mod event_bridge;
 mod fatal;
 mod signals;
 
+use std::sync::{Arc, OnceLock};
+
 use crosshook_app::bootstrap::{
     pre_runtime, BootstrapError, BootstrapOptions, PreRuntimeOptions, PrefixJournalRecovery,
     UmuRefresh,
@@ -15,12 +17,15 @@ use crosshook_app::App;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let context = tauri::generate_context!();
-    let pre =
-        match pre_runtime(PreRuntimeOptions::new().with_env_policy(env_policy::WebKitEnvPolicy)) {
-            Ok(pre) => pre,
-            Err(BootstrapError::AlreadyRunning) => activation::exit_second_instance(),
-            Err(error) => fatal::show_and_exit(context, error),
-        };
+    // Filled by the env policy during `pre_runtime`, read once logging exists.
+    let dmabuf_decision = Arc::new(OnceLock::new());
+    let pre = match pre_runtime(PreRuntimeOptions::new().with_env_policy(
+        env_policy::WebKitEnvPolicy::new(Arc::clone(&dmabuf_decision)),
+    )) {
+        Ok(pre) => pre,
+        Err(BootstrapError::AlreadyRunning) => activation::exit_second_instance(),
+        Err(error) => fatal::show_and_exit(context, error),
+    };
     let bench = commands::bench::bench_enabled();
     let options = BootstrapOptions::new()
         .with_runtime_handle(tauri::async_runtime::handle().inner().clone())
@@ -43,6 +48,18 @@ pub fn run() {
         Err(BootstrapError::AlreadyRunning) => activation::exit_second_instance(),
         Err(error) => fatal::show_and_exit(context, error),
     };
+    // `App::bootstrap` has just installed the tracing subscriber; until then the
+    // pre-runtime policy could only report to stderr.
+    match dmabuf_decision.get() {
+        Some(report) => {
+            tracing::info!(
+                decision = %report.decision,
+                nvidia_gpu = report.nvidia_gpu,
+                "WebKit DMA-BUF renderer policy applied"
+            );
+        }
+        None => tracing::warn!("WebKit DMA-BUF renderer policy recorded no decision"),
+    }
     let startup_events = core.subscribe();
     let app_owner = core.app().clone();
     let instance_owner = core.clone();

@@ -1,4 +1,4 @@
-import { type RefObject, useEffect, useId, useMemo, useState } from 'react';
+import { type RefObject, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { PanelImperativeHandle } from 'react-resizable-panels';
 import { useHostReadinessContext } from '@/context/HostReadinessContext';
 import { subscribeEvent } from '@/lib/events';
@@ -107,6 +107,10 @@ export function ConsoleDrawer({ panelRef, mode = 'drawer', defaultCollapsed = tr
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const [lineCount, setLineCount] = useState(0);
   const bodyId = useId();
+  // Log events only add to a pending total; one state update per animation frame
+  // applies it, so a burst of thousands of lines costs a handful of re-renders.
+  const pendingCountRef = useRef(0);
+  const rafIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (mode === 'drawer') {
@@ -135,6 +139,16 @@ export function ConsoleDrawer({ panelRef, mode = 'drawer', defaultCollapsed = tr
   useEffect(() => {
     let active = true;
 
+    const flushPendingCount = () => {
+      // Clear the handle first: a later log event must schedule a new frame.
+      rafIdRef.current = null;
+      const pending = pendingCountRef.current;
+      pendingCountRef.current = 0;
+      if (pending > 0) {
+        setLineCount((current) => current + pending);
+      }
+    };
+
     // Mirror the launch-log and update-log streams so the badge stays in sync without changing ConsoleView.
     const handler = (event: { payload: LogPayload }) => {
       const nextLineCount = countLogLines(event.payload);
@@ -142,7 +156,10 @@ export function ConsoleDrawer({ panelRef, mode = 'drawer', defaultCollapsed = tr
         return;
       }
 
-      setLineCount((current) => current + nextLineCount);
+      pendingCountRef.current += nextLineCount;
+      if (rafIdRef.current === null) {
+        rafIdRef.current = window.requestAnimationFrame(flushPendingCount);
+      }
     };
 
     const unlistenLaunch = subscribeEvent<LogPayload>('launch-log', handler);
@@ -150,6 +167,12 @@ export function ConsoleDrawer({ panelRef, mode = 'drawer', defaultCollapsed = tr
 
     return () => {
       active = false;
+      // A frame still queued must not update state after unmount.
+      if (rafIdRef.current !== null) {
+        window.cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      pendingCountRef.current = 0;
       void unlistenLaunch.then((unlisten) => unlisten());
       void unlistenUpdate.then((unlisten) => unlisten());
     };
@@ -231,7 +254,7 @@ export function ConsoleDrawer({ panelRef, mode = 'drawer', defaultCollapsed = tr
       </button>
 
       <div id={bodyId} aria-hidden={collapsed} className="crosshook-console-drawer__body">
-        <ConsoleView />
+        <ConsoleView renderLines={!collapsed} />
       </div>
     </section>
   );

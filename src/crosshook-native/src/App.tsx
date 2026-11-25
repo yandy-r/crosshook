@@ -7,7 +7,6 @@ import { ProfileProvider } from '@/context/ProfileContext';
 import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
 import { useAriaLabelAudit } from '@/hooks/useAccessibilityPreferences';
 import { useGamepadNav } from '@/hooks/useGamepadNav';
-import { useScrollEnhance } from '@/hooks/useScrollEnhance';
 import { DevModeBanner } from '@/lib/DevModeBanner';
 import { getActiveFixture } from '@/lib/fixture';
 import { getActiveToggles, togglesToChipFragments } from '@/lib/toggles';
@@ -23,7 +22,6 @@ function handleGamepadBack(): void {
 export function App() {
   const gamepadOptions = useMemo(() => ({ onBack: handleGamepadBack }), []);
   const gamepadNav = useGamepadNav(gamepadOptions);
-  useScrollEnhance();
   useAriaLabelAudit();
 
   return (

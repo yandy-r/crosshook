@@ -11,6 +11,7 @@ mod detect;
 mod dirs;
 mod env;
 mod gateway;
+mod gpu;
 mod host_fs;
 mod picked_path;
 mod steam_deck;
@@ -25,6 +26,7 @@ pub use gateway::{
     host_command_with_env_and_directory_lifecycle, host_std_command,
     host_std_command_with_env_and_directory,
 };
+pub use gpu::has_nvidia_gpu;
 pub use host_fs::{
     host_path_is_dir, host_path_is_file, host_read_dir_names, host_read_file_bytes_if_system_path,
     normalized_path_exists_on_host, normalized_path_is_dir, normalized_path_is_dir_on_host,

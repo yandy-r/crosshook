@@ -1,7 +1,5 @@
 import { type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from 'react';
 
-const RESET_SCROLL_MOMENTUM_EVENT = 'crosshook:reset-scroll-momentum';
-
 const FOCUSABLE_SELECTOR = [
   'a[href]',
   'button:not([disabled])',
@@ -54,8 +52,6 @@ export function useMigrationReviewFocusTrap(onClose: () => void) {
     const portalHost = portalHostRef.current;
     if (!portalHost) return;
 
-    window.dispatchEvent(new Event(RESET_SCROLL_MOMENTUM_EVENT));
-
     previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
     bodyStyleRef.current = body.style.overflow;
@@ -80,7 +76,6 @@ export function useMigrationReviewFocusTrap(onClose: () => void) {
 
     return () => {
       window.cancelAnimationFrame(frame);
-      window.dispatchEvent(new Event(RESET_SCROLL_MOMENTUM_EVENT));
       body.style.overflow = bodyStyleRef.current;
       body.classList.remove('crosshook-modal-open');
 
