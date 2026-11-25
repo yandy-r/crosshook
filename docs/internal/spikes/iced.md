@@ -111,7 +111,7 @@ The Tauri B column is the E1 baseline B evidence already in [`../bench/README.md
 
 Notes:
 
-- READY is not defined the same way on both sides. Classic prints READY after the profile summary fetch and a double `requestAnimationFrame`; the spike prints it after the summaries are loaded and two `RedrawRequested` frames. Both wait for loaded data and painted frames, but the G2 READY gap is not a like-for-like gate figure. `first_present_ms` is measured the same way for both (shim presentation timestamps).
+- READY is not defined the same way on both sides. Classic prints READY after the profile summary fetch and a double `requestAnimationFrame`; the spike prints it after the summaries are loaded and two `RedrawRequested` events have been delivered (iced's redraw requests, not presentation confirmations). Neither READY gate observes compositor presentation, and they wait for different milestones, so the G2 READY gap is not a like-for-like gate figure. For a like-for-like start-up comparison use `first_present_ms` and `first_content_ms`, which come from the shim's presentation timestamps for both apps.
 - The console holds 10,000 lines (a ring) and lays out only the visible ones. Tauri B keeps all 50,000 as DOM rows. This explains most of the G8 gap, so a Classic ring buffer (M0-08) narrows it. The G8 `over_interval_percent` of 65.6 means two-thirds of frames took over 1.5 refresh periods (8.3 ms); p95 stays at three intervals.
 - G5 used `CROSSHOOK_BENCH_CLOCK_FLOOR_NS=1000` (see below): the spike's `t_perf_us` is exact CLOCK_MONOTONIC microseconds, not a 1 ms-floored `performance.now()`.
 - G3's `gpu_mb` of 50 is `nvidia-smi pmon` `fb`, which stayed flat.
