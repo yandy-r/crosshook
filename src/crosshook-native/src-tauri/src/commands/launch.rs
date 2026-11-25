@@ -74,7 +74,7 @@ pub async fn validate_launch(
     request: LaunchRequest,
     app: AppState<'_>,
 ) -> Result<(), LaunchValidationIssue> {
-    app.services().launch.validate(&request)
+    app.services().launch.validate(request).await
 }
 
 #[tauri::command]

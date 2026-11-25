@@ -1,6 +1,7 @@
 //! Metadata store health IPC surface.
 
 use super::{AppState, IpcResult};
+use crate::error_map::ipc;
 use crosshook_core::metadata::MetadataStatus;
 
 /// Reports metadata store health for the UI degraded-state banner and
@@ -11,5 +12,5 @@ use crosshook_core::metadata::MetadataStatus;
 /// `{"state":"disabled","reason":"..."}`.
 #[tauri::command]
 pub async fn metadata_store_status(app: AppState<'_>) -> IpcResult<MetadataStatus> {
-    Ok(app.services().diagnostics.metadata_status())
+    ipc(app.services().diagnostics.metadata_status().await)
 }

@@ -13,7 +13,7 @@ use crosshook_core::launch::{
 use super::gamescope::{execution_method, gamescope_plan, GamescopePlan};
 use super::queries::enrich_umu_gameid;
 use super::warnings::collect_launch_warnings;
-use super::LaunchService;
+use super::{run_blocking, LaunchEnv, LaunchService};
 use crate::jobs::{create_log_path_in, require};
 use crate::AppError;
 
@@ -51,18 +51,23 @@ impl LaunchService {
         kind: SessionKind,
     ) -> Result<Prepared, AppError> {
         force_kind_flags(&mut request, kind);
+        let fixed_env = self.env;
         // Before enrichment, warning DB writes, and log creation (H-4).
-        validate(&request)?;
+        let (mut request, env) = run_blocking(move || {
+            validate(&request)?;
+            let env = fixed_env.unwrap_or_else(LaunchEnv::detect);
+            Ok((request, env))
+        })
+        .await?;
 
         enrich_umu_gameid(&self.settings, &self.metadata, &mut request).await;
         let collected = collect_launch_warnings(&request, &self.profiles, &self.metadata).await;
-        let env = self.launch_env();
         let method = execution_method(&request, kind, env);
-        let log_path = create_log_path_in(
-            require(&self.log_dir)?,
-            log_prefix(kind),
-            &request.log_target_slug(),
-        )?;
+        let log_dir = self.log_dir.clone();
+        let prefix = log_prefix(kind);
+        let slug = request.log_target_slug();
+        let log_path =
+            run_blocking(move || create_log_path_in(require(&log_dir)?, prefix, &slug)).await?;
         let gamescope = gamescope_plan(&request, kind, env, &log_path);
 
         Ok(Prepared {

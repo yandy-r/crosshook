@@ -161,18 +161,19 @@ impl LaunchService {
         self
     }
 
-    /// The fixed [`LaunchEnv`], or the detected one.
-    pub(super) fn launch_env(&self) -> LaunchEnv {
-        self.env.unwrap_or_else(LaunchEnv::detect)
-    }
-
-    /// Resolves a runtime helper script.
+    /// Resolves a runtime helper script from the given [`HelperSource`].
+    ///
+    /// Separated from `&self` so callers can run filesystem probing inside
+    /// [`run_blocking`] without holding a borrow across the blocking boundary.
     ///
     /// # Errors
     /// [`AppErrorKind::Unavailable`] when no candidate location holds an
     /// acceptable helper.
-    pub(super) fn resolve_helper(&self, helper: RuntimeHelper) -> Result<PathBuf, AppError> {
-        let resolved = match &self.helpers {
+    pub(super) fn resolve_helper_with(
+        helpers: &HelperSource,
+        helper: RuntimeHelper,
+    ) -> Result<PathBuf, AppError> {
+        let resolved = match helpers {
             HelperSource::Detect => runtime_helpers::resolve(helper),
             #[cfg(test)]
             HelperSource::Roots(roots) => runtime_helpers::resolve_with(roots, helper),
