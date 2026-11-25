@@ -11,11 +11,11 @@ This is evidence, not a decision. ADR-0005 still needs the gpui control spike (M
   - Keyboard and gamepad reach every interactive widget in the slice.
   - Focus zones cycle and remember their last target.
   - The modal and the command palette trap focus.
-- On E1, every scenario stays inside the 180 Hz frame budget except the console replay:
-  - Library and settings scroll: p95 one refresh interval.
-  - Resize: p95 two intervals.
-  - Keystroke-to-photon: p95 at most 18.3 ms.
-  - Console replay: p95 16.7 ms (about three intervals) while 5,000 lines/s arrive.
+- E1 frame times at 180.06 Hz (one refresh interval is 5.554 ms):
+  - Library and settings scroll: p50 and p95 at one interval (p95 5.558 ms, within timestamp quantisation).
+  - Console replay at 5,000 lines/s: p95 16.7 ms, about 3 intervals.
+  - Resize: p50 one interval, p95 33.3 ms, about 6 intervals.
+  - Keystroke-to-photon (input to presented change, not frame time): p95 at most 18.3 ms.
 - Memory stays bounded:
   - The 50k-line replay grows memory by 2.3 MB, against 994 MB for Tauri B.
   - Idle PSS stays flat over 10 minutes.
@@ -29,6 +29,8 @@ This is evidence, not a decision. ADR-0005 still needs the gpui control spike (M
 
 ## Pinned revision and build
 
+Build figures below are local observations on E1 (no build logs are committed).
+
 | Item | Value |
 | --- | --- |
 | iced | git `a8231fd9ddf3570f95affba2d45a9be092007f71` (master, 2026-10-07, `0.15.0-dev`) |
@@ -36,7 +38,7 @@ This is evidence, not a decision. ADR-0005 still needs the gpui control spike (M
 | iced MSRV at this rev | 1.93 (repo toolchain 1.95.0) |
 | Other deps | `gilrs 0.11`, `rfd 0.16` (`xdg-portal`, `tokio`, `wayland`; no `gtk3`), `lru 0.16`, `image 0.25` (jpeg, png), `crosshook-core` |
 | Lockfile churn | `web-sys`, `js-sys`, `wasm-bindgen`, `wasm-bindgen-futures` had to move up for iced to resolve next to `reqwest` |
-| Unique crates in the normal dependency tree | 537 |
+| Unique crates (`cargo tree -e normal,build`, host target, name+version) | 436 |
 | Clean release build | 63 s on E1 (i9-14900HX, 32 threads; dependency sources already fetched) |
 | Incremental release build (one file touched) | 4.9 s |
 | Release binary | 32.2 MB; 25.0 MB stripped |
@@ -49,7 +51,7 @@ About 3 hours of wall time with an AI pair, from an empty crate to every E1 capt
 
 ## Code size
 
-`wc -l` on the spike branch (3,798 lines of Rust in total, including 151 lines of simulator tests):
+`wc -l` on the spike branch at `3cd03955` (3,807 lines of Rust in total, including 151 lines of simulator tests):
 
 | Area | Lines | Files |
 | --- | --- | --- |
@@ -58,7 +60,7 @@ About 3 hours of wall time with an AI pair, from an empty crate to every E1 capt
 | Log console (ring, culled widget, paced replay) | 414 | `src/console/*.rs` |
 | Modal and scrim | 43 | `src/app/view.rs` (`modal`, `scrim`) |
 | Gamepad (gilrs thread, mapping) | 135 | `src/gamepad.rs` |
-| Bench protocol and probe | ~410 | `src/bench.rs`, `src/app/bench_flow.rs`, `src/app/probe.rs` |
+| Bench protocol and probe | 408 | `src/bench.rs`, `src/app/bench_flow.rs`, `src/app/probe.rs` |
 
 The focus layer is the custom-widget cost the ADR should weigh. It works as follows:
 
@@ -71,10 +73,10 @@ The focus layer is the custom-widget cost the ADR should weigh. It works as foll
 
 | Criterion | Result | Evidence |
 | --- | --- | --- |
-| D-pad and keyboard reach every interactive widget, including modal trap and zone cycling, without forking iced core widgets | **Pass** | 31 tests pass, 6 of them through the headless `iced_test` simulator: Tab visits every collected target in tree order and wraps; F6 cycles sidebar, content, inspector with memory; the modal traps Tab and Escape returns focus to the opener; D-pad reaches cards that culling removed from the widget tree; the wheel scrolls the console. No widget is forked. |
-| E1 library scroll p95 ≤ 1 refresh interval (G4) | **Pass** | `library` p95 5.558 ms at 180.06 Hz (interval 5.554 ms) |
+| D-pad and keyboard reach every interactive widget, including modal trap and zone cycling, without forking iced core widgets | **Pass, with one caveat** | 31 tests pass, 6 of them through the headless `iced_test` simulator: Tab visits every collected target in tree order and wraps; F6 cycles sidebar, content, inspector with memory; the modal traps Tab and Escape returns focus to the opener; D-pad reaches cards that culling removed from the widget tree; the wheel scrolls the console. No widget is forked. Caveat: the `pick_list` is reachable, but A cycles its value instead of opening its menu (pain point 4). |
+| E1 library scroll p95 ≤ 1 refresh interval (G4) | **Pass (within quantisation)** | `library` p95 5.558 ms against a 5.554 ms interval: 4 µs over, within the presentation timestamp jitter (p50 5.556 ms) |
 | Console replay keeps memory bounded (G8 ≤ 15 MB growth) | **Pass** | G8 `memory_growth_mb` 2.31, peak PSS 270 MB |
-| Zero UI-thread stalls over 16 ms from core work (G6) | **Not measured** | G6 has no producer on E1 (`perf` missing, kernel tracing root-only; see the bench README). By design every `crosshook-core` call runs through `Task::perform` + `spawn_blocking`, and the G5/G8 frame data show no long frames. |
+| Zero UI-thread stalls over 16 ms from core work (G6) | **Not measured** | G6 has no producer on E1 (`perf` missing, kernel tracing root-only; see the bench README). By design every `crosshook-core` call runs through `Task::perform` + `spawn_blocking`. Frame data alone cannot prove the absence of core stalls: G4 `console` (p99 44.4 ms) and G9 (p95 33.3 ms) do contain long frames, whose cause was not traced. |
 | Renderer override works for wgpu-Vulkan, wgpu-GL and tiny-skia; adapter logged | **Partial** | See [Renderer override](#renderer-override): Vulkan and tiny-skia work natively and in the Flatpak; wgpu-GL finds no adapter through NVIDIA's EGL. |
 | `cargo tree -i gtk` / `-i glib-sys` empty; portal file dialog inside the Flatpak | **Partial** | Both trees are empty (the same check on `crosshook-native` finds `gtk v0.18.2`). The Flatpak smoke test of the dialog was blocked by a systemd user-manager fault on E1 (see [Open items](#open-items)). |
 | G1–G10 on E1 committed to `docs/internal/bench/C-iced/E1/` | **Partial** | G2, G3, G4, G5, G8, G9 captured. G1 needs a manual cache drop (sudo), G6/G7 cannot be produced on E1, and G10 needs the Flatpak bundle. |
@@ -84,12 +86,12 @@ The focus layer is the custom-widget cost the ADR should weigh. It works as foll
 
 E1, 2026-11-24/25, 3840×2160 @ 180.06 Hz (KWin 6.8, NVIDIA RTX 5070 Laptop, driver 620.70.06, kernel 7.3.4), native release binary, `--fixtures` seed 42 (500 profiles). Every run exited 0 and ended `captured` with a clean tree. CSVs are in [`../bench/C-iced/E1/`](../bench/C-iced/E1/).
 
-The Tauri B column is the E1 baseline B evidence already in [`../bench/README.md`](../bench/README.md) (native, same host, 2026-11-16). The G2 row comes from the YAN-1007 phase 1 note (PR #614: native `first_present_ms` 223 / 240 ms, `ready_ms` ~1008 ms). That baseline was captured as evidence, not as a gate, and it was not re-run for this comparison.
+The Tauri B column is the E1 baseline B evidence already in [`../bench/README.md`](../bench/README.md) (native, same host, 2026-11-16). The G2 rows come from its First-content supplemental table (native, 10 iterations). That baseline was captured as evidence, not as a gate, and it was not re-run for this comparison.
 
 | Metric | iced C (this spike) | Tauri B (native, README) |
 | --- | --- | --- |
-| G2 warm start to READY p50 / p95 | 281 / 333 ms | ~1008 ms |
-| G2 first presented frame p50 / p95 | 220 / 293 ms | 223 / 240 ms |
+| G2 warm start to READY p50 / p95 | 281 / 333 ms | 1038.1 / 1100.5 ms |
+| G2 first presented frame p50 / p95 | 220 / 293 ms | 245.8 / 316.3 ms |
 | G3 idle PSS (empty start → after 10 min) | 242 → 254 MB, flat after 10 s | — |
 | G4 `library` frame p50 / p95 | 5.56 / 5.56 ms | 211 / 418 ms |
 | G4 `settings` frame p50 / p95 | 5.56 / 5.56 ms | 117 / 344 ms |
@@ -102,11 +104,14 @@ The Tauri B column is the E1 baseline B evidence already in [`../bench/README.md
 | G8 replay frame p50 / p95 / p99 | 11.1 / 16.7 / 16.7 ms (1,822 frames) | 347.1 / 1009.4 / 1269.0 ms (46 frames) |
 | G8 memory growth / peak PSS | 2.3 / 270 MB | 993.8 / 3119.1 MB |
 | G9 resize frame p50 / p95 | 5.56 / 33.3 ms | 33 / 39 ms |
-| Idle CPU (20 s sample, window open, nothing moving) | 1 tick (0.05 %) | — |
-| 30-min idle soak, NVIDIA, default renderer | no crash (`timeout` exit 124, no panic output) | — |
+| Idle CPU (20 s sample, window open, nothing moving)¹ | 1 tick (0.05 %) | — |
+| 30-min idle soak, NVIDIA, default renderer¹ | no crash (`timeout` exit 124, no panic output) | — |
+
+¹ Local observation on E1, not a runner capture; nothing committed. `/proc/<pid>/stat` utime+stime over 20 s, and `timeout 1800` on the release binary with stderr captured.
 
 Notes:
 
+- READY is not defined the same way on both sides. Classic prints READY after the profile summary fetch and a double `requestAnimationFrame`; the spike prints it after the summaries are loaded and two `RedrawRequested` frames. Both wait for loaded data and painted frames, but the G2 READY gap is not a like-for-like gate figure. `first_present_ms` is measured the same way for both (shim presentation timestamps).
 - The console holds 10,000 lines (a ring) and lays out only the visible ones. Tauri B keeps all 50,000 as DOM rows. This explains most of the G8 gap, so a Classic ring buffer (M0-08) narrows it. The G8 `over_interval_percent` of 65.6 means two-thirds of frames took over 1.5 refresh periods (8.3 ms); p95 stays at three intervals.
 - G5 used `CROSSHOOK_BENCH_CLOCK_FLOOR_NS=1000` (see below): the spike's `t_perf_us` is exact CLOCK_MONOTONIC microseconds, not a 1 ms-floored `performance.now()`.
 - G3's `gpu_mb` of 50 is `nvidia-smi pmon` `fb`, which stayed flat.
@@ -147,6 +152,7 @@ These changes were needed so the existing harness could measure a wayland-rs app
 
 - **Focus witness blind to wayland-rs.** The shim wrapped `wl_proxy_add_listener`, but wayland-rs registers every proxy with `wl_proxy_add_dispatcher`, so no pointer or keyboard records appeared (`POINTER_NOT_OVER_WINDOW`). Also, wgpu-hal enables wayland-sys `dlopen`, which resolves symbols with `dlsym(handle, …)` and so bypasses `LD_PRELOAD`. The spike shim wraps `wl_proxy_add_dispatcher` (keeping the `dispatcher_data` ownership tag unchanged) and interposes `dlsym` for that one symbol name.
 - **G5 clock floor.** `CLOCK_FLOOR_NS` is fixed at 1 ms (the browser `performance.now()` floor). A native app commits its change frame within ~1 ms of the key, so every trial fell inside ±1 ms of `render_ns` and was `ambiguous` (`CAPTURE_TOO_SHORT`). The spike reads `CROSSHOOK_BENCH_CLOCK_FLOOR_NS` (default unchanged).
+- **Gateway scan.** `scripts/check-host-gateway.sh` gains the spike crate's `src/` in `SCAN_DIRS`, so the ADR-0001 check covers it.
 - **Console geometry.** The G4 `console` and G8 cursor sit at y = 860 of a 1600×1000 window, which assumes Classic's console height. The spike console had to grow from 300 to 380 px to sit under it.
 
 ## Open items
