@@ -1,5 +1,7 @@
 # CrossHook benchmark contract
 
+The shipping Classic `v0.6.1` [E1 DMA-BUF check](A/summary.md) and [synchronous IPC ranking](A/sync-command-ranking.md) are available for Track 1.
+
 Canonical environment and metric IDs for baseline A (current Tauri), tuned Tauri B, and native C comparisons. Values below define measurements; they do not claim any target has passed.
 
 ## Environments
