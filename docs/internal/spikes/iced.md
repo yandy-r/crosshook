@@ -111,7 +111,7 @@ The Tauri B column is the E1 baseline B evidence already in [`../bench/README.md
 
 Notes:
 
-- READY is not defined the same way on both sides. Classic prints READY after the profile summary fetch and a double `requestAnimationFrame`; the spike prints it after the summaries are loaded and two `RedrawRequested` events have been delivered (iced's redraw requests, not presentation confirmations). Neither READY gate observes compositor presentation, and they wait for different milestones, so the G2 READY gap is not a like-for-like gate figure. For a like-for-like start-up comparison use `first_present_ms` and `first_content_ms`, which come from the shim's presentation timestamps for both apps.
+- READY is not defined the same way on both sides. Classic prints READY after the profile summary fetch and a double `requestAnimationFrame`; the spike prints it after the summaries are loaded and two `RedrawRequested` events have been delivered (iced's redraw requests, not presentation confirmations). Neither READY gate observes compositor presentation, and they wait for different milestones, so the G2 READY gap is not a like-for-like gate figure. The only like-for-like start-up figure is `first_present_ms` (launch to the first presented toplevel frame, from the shim for both apps). `first_content_ms` is not: the runner picks the first frame presented at or after each app's own READY, so it inherits the READY difference. A shared content-ready milestone would be needed before it counts as framework-decision evidence.
 - The console holds 10,000 lines (a ring) and lays out only the visible ones. Tauri B keeps all 50,000 as DOM rows. This explains most of the G8 gap, so a Classic ring buffer (M0-08) narrows it. The G8 `over_interval_percent` of 65.6 means two-thirds of frames took over 1.5 refresh periods (8.3 ms); p95 stays at three intervals.
 - G5 used `CROSSHOOK_BENCH_CLOCK_FLOOR_NS=1000` (see below): the spike's `t_perf_us` is exact CLOCK_MONOTONIC microseconds, not a 1 ms-floored `performance.now()`.
 - G3's `gpu_mb` of 50 is `nvidia-smi pmon` `fb`, which stayed flat.
@@ -142,7 +142,7 @@ The wgpu-GL failure is the NVIDIA GL path that M5-03 (broken-GPU fallback) must 
 3. **`Id` hides its string.** `widget::Id` has no public accessor, so the target collector reads its `Debug` form (`core/src/widget/id.rs`). A stable accessor or a typed `Id` payload would remove that hack.
 4. **`pick_list` has no keyboard API.** It opens on click only (`widget/src/pick_list.rs`). The spike makes A cycle the value; an accessible dropdown needs its own overlay.
 5. **No virtualized list.** The grid uses manual windowing with spacer rows. The console needed a custom `Widget` calling `fill_text` per visible line (`console/log_view.rs`). Both work, but every list-heavy page will need this.
-6. **`window::frames()` is the only frame clock.** It is fine for READY ("two presented frames") and the probe marks. It is a redraw-request signal, not a presentation timestamp.
+6. **`window::frames()` is the only frame clock.** It is fine for READY ("two redraw requests") and the probe marks. It is a redraw-request signal, not a presentation timestamp.
 7. **`Simulator::operate` takes `&mut dyn Operation<()>`.** Collecting data in a test needs a unit-typed adapter (`CollectUnit`).
 8. **The upstream modal example has no focus trap.** The trap lives in the app's focus engine, which is where the native UI's focus layer (M1-15) would put it.
 
