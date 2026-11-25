@@ -31,7 +31,7 @@ pub const SETTINGS_SCROLL: &str = "settings-scroll";
 pub const WIDE_LAYOUT: f32 = 1440.0;
 pub const SIDEBAR_W: f32 = 200.0;
 pub const INSPECTOR_W: f32 = 260.0;
-pub const CONSOLE_H: f32 = 300.0;
+pub const CONSOLE_H: f32 = 380.0;
 pub const MAX_DECODES: usize = 16;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
