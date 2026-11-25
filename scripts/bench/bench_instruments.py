@@ -106,8 +106,8 @@ def sizes(binary: Path, bundle: Path, branch: str, runtime_delta_mb: float) -> d
         stripped = Path(directory) / "binary"
         output(["strip", "--strip-unneeded", "-o", str(stripped), str(binary)], 60)
         stripped_mb = stripped.stat().st_size / 1024**2
-    installed = output(["flatpak", "info", "--show-size", f"--branch={branch}",
-                        "dev.crosshook.CrossHook"])
+    # `flatpak info` takes the branch in the ref (APP//BRANCH); it has no --branch option.
+    installed = output(["flatpak", "info", "--show-size", f"dev.crosshook.CrossHook//{branch}"])
     return {"binary_mb": stripped_mb, "bundle_mb": bundle.stat().st_size / 1024**2,
             "installed_mb": size_mb(installed), "runtime_delta_mb": runtime_delta_mb,
             "status": "measured"}
