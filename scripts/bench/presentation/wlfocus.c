@@ -241,6 +241,85 @@ void wlfocus_free(wl_fn *copy) {
     free(copy);
 }
 
+/* ---- wl_proxy_add_dispatcher (wayland-rs clients: winit/iced) ----
+ * SPIKE BRANCH ONLY (YAN-773). wayland-rs never calls wl_proxy_add_listener; it installs one
+ * dispatcher per proxy and keeps `dispatcher_data` as its ownership tag (checked through
+ * wl_proxy_get_listener). The wrapper keeps that tag unchanged, logs the same K/M/G records
+ * and then calls the original dispatcher with unchanged arguments. */
+
+enum { DISP_KB = 1, DISP_PTR = 2, DISP_TL = 3 };
+
+struct wrapped_disp {
+    struct wl_proxy *proxy;
+    wl_dispatcher_func_t fn;
+    int cls;
+};
+
+static struct wrapped_disp g_disp[MAX_WRAPPED];
+
+static int disp_class(const char *cls) {
+    if (strcmp(cls, "wl_keyboard") == 0) return DISP_KB;
+    if (strcmp(cls, "wl_pointer") == 0) return DISP_PTR;
+    if (strcmp(cls, "xdg_toplevel") == 0) return DISP_TL;
+    return 0;
+}
+
+static int disp_wrap(const void *data, void *target, uint32_t opcode, const struct wl_message *msg,
+                     union wl_argument *args) {
+    wl_dispatcher_func_t fn = NULL;
+    int cls = 0;
+    pthread_mutex_lock(&g_wrap_lock);
+    for (int i = 0; i < MAX_WRAPPED; i++)
+        if (g_disp[i].proxy == (struct wl_proxy *)target) {
+            fn = g_disp[i].fn;
+            cls = g_disp[i].cls;
+            break;
+        }
+    pthread_mutex_unlock(&g_wrap_lock);
+    if (cls == DISP_KB && (opcode == KB_ENTER || opcode == KB_LEAVE))
+        rec("K\t%llu\t%s\t%u", ULL(now_ns()), opcode == KB_ENTER ? "enter" : "leave",
+            surface_id((struct wl_surface *)args[1].o));
+    else if (cls == DISP_PTR && (opcode == PTR_ENTER || opcode == PTR_LEAVE))
+        rec("M\t%llu\t%s\t%u", ULL(now_ns()), opcode == PTR_ENTER ? "enter" : "leave",
+            surface_id((struct wl_surface *)args[1].o));
+    else if (cls == DISP_TL && opcode == TL_CONFIGURE)
+        log_configure((struct wl_proxy *)target, args[0].i, args[1].i, args[2].a);
+    return fn ? fn(data, target, opcode, msg, args) : -1;
+}
+
+static void disp_detach(struct wl_proxy *proxy) {
+    pthread_mutex_lock(&g_wrap_lock);
+    for (int i = 0; i < MAX_WRAPPED; i++)
+        if (g_disp[i].proxy == proxy) memset(&g_disp[i], 0, sizeof g_disp[i]);
+    pthread_mutex_unlock(&g_wrap_lock);
+}
+
+int wl_proxy_add_dispatcher(struct wl_proxy *proxy, wl_dispatcher_func_t dispatcher,
+                            const void *dispatcher_data, void *data) {
+    typedef int (*add_fn)(struct wl_proxy *, wl_dispatcher_func_t, const void *, void *);
+    static add_fn real;
+    add_fn fn = __atomic_load_n(&real, __ATOMIC_ACQUIRE);
+    if (!fn) {
+        fn = (add_fn)dlsym(RTLD_NEXT, "wl_proxy_add_dispatcher");
+        if (!fn) abort();
+        __atomic_store_n(&real, fn, __ATOMIC_RELEASE);
+    }
+    int cls = (dispatcher && wlp_tracking()) ? disp_class(wl_proxy_get_class(proxy)) : 0;
+    if (cls) {
+        int placed = 0;
+        pthread_mutex_lock(&g_wrap_lock);
+        for (int i = 0; i < MAX_WRAPPED && !placed; i++)
+            if (!g_disp[i].proxy) {
+                g_disp[i] = (struct wrapped_disp){proxy, dispatcher, cls};
+                placed = 1;
+            }
+        pthread_mutex_unlock(&g_wrap_lock);
+        if (placed) dispatcher = disp_wrap;
+        else note_wrap_failed();
+    }
+    return fn(proxy, dispatcher, dispatcher_data, data);
+}
+
 /* ---- exported hooks ---- */
 
 /* GTK may register listeners before the shim has initialized; wlp_tracking() lets those
@@ -270,6 +349,7 @@ void wl_proxy_destroy(struct wl_proxy *proxy) {
     /* Forget the proxy first so a reused address cannot meet a stale entry; free the table
      * only after libwayland is done with it. */
     wl_fn *copy = wlfocus_detach(proxy);
+    disp_detach(proxy);
     fn(proxy);
     wlfocus_free(copy);
 }
