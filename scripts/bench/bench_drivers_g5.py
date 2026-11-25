@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import itertools
 import math
+import os
 import statistics
 import sys
 import time
@@ -58,7 +59,9 @@ G5_KEYS = {"search": (LETTER_KEYS[ALLOWED_SEARCH], KEY_BACKSPACE),
            "health_table": (KEY_ENTER,)}
 CURSOR_DX, CURSOR_DY = 640, 450
 CLOCK_MAX_HALF_RTT_NS = 2_000_000    # a best round trip above 4 ms cannot support a frame-level mapping
-CLOCK_FLOOR_NS = 1_000_000           # performance.now() is floored to 1 ms, added to the uncertainty
+# performance.now() is floored to 1 ms, added to the uncertainty. SPIKE BRANCH (YAN-773): a native
+# app whose t_perf_us is exact CLOCK_MONOTONIC microseconds sets CROSSHOOK_BENCH_CLOCK_FLOOR_NS=1000.
+CLOCK_FLOOR_NS = int(os.environ.get("CROSSHOOK_BENCH_CLOCK_FLOOR_NS", "1000000"))
 MIN_CLOCK_PAIRS = 10                 # adjacent pairs the app's samples must form (it sends at least 20)
 MIN_FAST_CLOCK_PAIRS = 5             # pairs within CLOCK_FLOOR_NS of the best round trip the offset uses
 CLOCK_SYNC_BUDGET_S = 35             # the app samples for up to 30 s while it is busy after READY
