@@ -182,7 +182,7 @@ impl Shell {
             Overlay::Palette => {
                 let palette = self.palette.clone();
                 window.open_dialog(cx, move |dialog, _, _| {
-                    super::view::palette_body(dialog, &palette).on_close(on_close.clone())
+                    super::view::palette_body(dialog, &palette, &this).on_close(on_close.clone())
                 });
                 self.focus_to(Target::Palette, window, cx);
             }
@@ -211,31 +211,7 @@ impl Shell {
         cx.notify();
     }
 
-    /// Registers the action handlers on the shell root element.
-    pub fn bind_actions(
-        &self,
-        root: gpui::Stateful<gpui::Div>,
-        cx: &mut Context<Self>,
-    ) -> gpui::Stateful<gpui::Div> {
-        use gpui::InteractiveElement as _;
-        root.on_action(cx.listener(|s, _: &DpadUp, w, cx| s.on_move(Dir::Up, w, cx)))
-            .on_action(cx.listener(|s, _: &DpadDown, w, cx| s.on_move(Dir::Down, w, cx)))
-            .on_action(cx.listener(|s, _: &DpadLeft, w, cx| s.on_move(Dir::Left, w, cx)))
-            .on_action(cx.listener(|s, _: &DpadRight, w, cx| s.on_move(Dir::Right, w, cx)))
-            .on_action(cx.listener(|s, _: &Confirm, w, cx| s.activate(w, cx)))
-            .on_action(cx.listener(|s, _: &Back, w, cx| s.on_back(w, cx)))
-            .on_action(cx.listener(|s, _: &NextZone, w, cx| s.on_zone(true, w, cx)))
-            .on_action(cx.listener(|s, _: &PrevZone, w, cx| s.on_zone(false, w, cx)))
-            .on_action(cx.listener(|s, _: &OpenPalette, w, cx| {
-                if s.overlay.is_none() {
-                    s.open_overlay(Overlay::Palette, w, cx);
-                }
-            }))
-            .on_action(cx.listener(|s, _: &HistoryBack, _, cx| s.go_back(cx)))
-            .on_action(cx.listener(|s, _: &HistoryForward, _, cx| s.go_forward(cx)))
-    }
-
-    /// Zone the engine currently has focus in (for the status bar).
+    /// Zone the engine currently has focus in (for the inspector).
     pub fn zone_label(&self) -> &'static str {
         match self.focus.zone() {
             Some(Zone::Sidebar) => "sidebar",
@@ -246,3 +222,36 @@ impl Shell {
         }
     }
 }
+
+/// Registers the navigation actions on `el`, routed to the shell entity.
+///
+/// Used twice: on the shell root, and on every Kit dialog body. Kit renders dialogs in its
+/// Root layer, outside the shell's element tree, so actions dispatched from a focused dialog
+/// button never bubble through the shell root (finding: overlays need their own registration).
+pub fn nav_actions<E: gpui::InteractiveElement>(el: E, shell: &gpui::Entity<Shell>) -> E {
+    macro_rules! on {
+        ($el:expr, $action:ty, |$s:ident, $w:ident, $cx:ident| $body:expr) => {{
+            let shell = shell.clone();
+            $el.on_action(move |_: &$action, $w: &mut Window, $cx: &mut gpui::App| {
+                shell.update($cx, |$s, $cx| $body);
+            })
+        }};
+    }
+    let el = on!(el, DpadUp, |s, w, cx| s.on_move(Dir::Up, w, cx));
+    let el = on!(el, DpadDown, |s, w, cx| s.on_move(Dir::Down, w, cx));
+    let el = on!(el, DpadLeft, |s, w, cx| s.on_move(Dir::Left, w, cx));
+    let el = on!(el, DpadRight, |s, w, cx| s.on_move(Dir::Right, w, cx));
+    let el = on!(el, Confirm, |s, w, cx| s.activate(w, cx));
+    let el = on!(el, Back, |s, w, cx| s.on_back(w, cx));
+    let el = on!(el, NextZone, |s, w, cx| s.on_zone(true, w, cx));
+    let el = on!(el, PrevZone, |s, w, cx| s.on_zone(false, w, cx));
+    let el = on!(el, OpenPalette, |s, w, cx| {
+        if s.overlay.is_none() {
+            s.open_overlay(Overlay::Palette, w, cx);
+        }
+    });
+    let el = on!(el, HistoryBack, |s, _w, cx| s.go_back(cx));
+    on!(el, HistoryForward, |s, _w, cx| s.go_forward(cx))
+}
+
+impl Shell {}

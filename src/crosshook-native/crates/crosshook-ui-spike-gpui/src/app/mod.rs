@@ -91,6 +91,8 @@ pub struct Shell {
     pub registry: Registry,
     /// Focus handles of spike-owned targets (cards, buttons, switches). Kit inputs own theirs.
     pub handles: HashMap<Target, FocusHandle>,
+    /// Focus handle of the shell root (fallback focus so actions reach the shell).
+    pub root_focus: FocusHandle,
     pub overlay: Option<Overlay>,
     /// Target focused before the overlay opened; focus returns there on close.
     pub opener: Option<Target>,
@@ -176,6 +178,7 @@ impl Shell {
             focus: FocusState::default(),
             registry: Registry::default(),
             handles: HashMap::new(),
+            root_focus: cx.focus_handle(),
             overlay: None,
             opener: None,
             search,

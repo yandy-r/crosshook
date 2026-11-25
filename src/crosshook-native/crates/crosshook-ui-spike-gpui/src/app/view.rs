@@ -36,15 +36,22 @@ impl Render for Shell {
             self.status_bar(cx)
         };
         self.bench_after_render(window, cx);
+        // With nothing focused, gpui dispatches key actions at the window root (Kit's Root),
+        // above this subtree, so the shell root owns a focus handle and takes focus when
+        // nothing else has it: F6 / LB / RB / D-pad then work from a cold start.
+        if window.focused(cx).is_none() {
+            window.focus(&self.root_focus, cx);
+        }
         let root = v_flex()
             .id("shell")
             .key_context("Shell")
+            .track_focus(&self.root_focus)
             .size_full()
             .bg(rgb(0x0b0e13))
             .text_color(rgb(0xe6e9ee))
             .child(body)
             .child(bottom);
-        self.bind_actions(root, cx)
+        super::nav::nav_actions(root, &cx.entity())
     }
 }
 
@@ -228,18 +235,24 @@ pub fn modal_body(
                 .text_xs()
                 .child("Opens the xdg-desktop-portal file chooser (no GTK)."),
         )
-        .child(
+        .child(super::nav::nav_actions(
             h_flex()
                 .gap_2()
                 .child(wrap(Target::Overlay(0), Some(b0), registry, window, pick))
                 .child(wrap(Target::Overlay(1), Some(b1), registry, window, close)),
-        )
+            shell,
+        ))
 }
 
 /// The command palette: a Kit `Dialog` holding a Kit `Input`; Enter navigates.
-pub fn palette_body(dialog: Dialog, palette: &Entity<InputState>) -> Dialog {
+pub fn palette_body(dialog: Dialog, palette: &Entity<InputState>, shell: &Entity<Shell>) -> Dialog {
     dialog
         .title("Go to…")
         .w(px(420.))
-        .child(Input::new(palette).id("palette"))
+        .child(super::nav::nav_actions(
+            div()
+                .id("palette-body")
+                .child(Input::new(palette).id("palette")),
+            shell,
+        ))
 }
