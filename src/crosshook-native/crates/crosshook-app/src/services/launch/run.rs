@@ -8,11 +8,10 @@ use std::io;
 
 use crosshook_core::launch::{
     build_launch_hook_execution_context, run_pre_launch_hooks, session_profile_key_for_name,
-    LaunchHookExecutionContext, LaunchSessionRegistry, SessionId, SessionKind, TeardownReason,
-    WatchdogOutcome,
+    LaunchHookExecutionContext, LaunchRequest, LaunchSessionRegistry, SessionId, SessionKind,
+    TeardownReason, WatchdogOutcome,
 };
 use crosshook_core::metadata::MetadataStore;
-use crosshook_core::profile::LaunchHook;
 use tokio::process::{Child, Command};
 use tokio::sync::{broadcast, oneshot};
 
@@ -67,15 +66,9 @@ impl LaunchService {
         let portal_guard =
             try_register_gamemode_portal_for_launch(&request, execution_method).await;
 
-        let hook_request = execution_request(&request, execution_method);
-        let hook_context = build_launch_hook_execution_context(&hook_request).map_err(|error| {
-            AppError::new(
-                AppErrorKind::Io,
-                format!("failed to prepare launch hook context: {error}"),
-            )
-        })?;
-        warnings
-            .extend(run_pre_launch_hooks_blocking(&request.pre_launch_hooks, &hook_context).await?);
+        let (hook_context, hook_warnings) =
+            prepare_and_run_pre_launch_hooks_blocking(&request, execution_method).await?;
+        warnings.extend(hook_warnings);
 
         let watchdog_outcome = WatchdogOutcome::new();
         let profile_key = session_profile_key_for_name(request.profile_name.as_deref());
@@ -296,13 +289,29 @@ fn publish_trainer(
     ));
 }
 
-async fn run_pre_launch_hooks_blocking(
-    hooks: &[LaunchHook],
-    context: &LaunchHookExecutionContext,
-) -> Result<Vec<crosshook_core::launch::LaunchValidationIssue>, AppError> {
-    let hooks = hooks.to_vec();
-    let context = context.clone();
-    run_blocking(move || Ok(run_pre_launch_hooks(&hooks, &context))).await
+async fn prepare_and_run_pre_launch_hooks_blocking(
+    request: &LaunchRequest,
+    execution_method: &'static str,
+) -> Result<
+    (
+        LaunchHookExecutionContext,
+        Vec<crosshook_core::launch::LaunchValidationIssue>,
+    ),
+    AppError,
+> {
+    let hook_request = execution_request(request, execution_method).into_owned();
+    let hooks = request.pre_launch_hooks.clone();
+    run_blocking(move || {
+        let context = build_launch_hook_execution_context(&hook_request).map_err(|error| {
+            AppError::new(
+                AppErrorKind::Io,
+                format!("failed to prepare launch hook context: {error}"),
+            )
+        })?;
+        let warnings = run_pre_launch_hooks(&hooks, &context);
+        Ok((context, warnings))
+    })
+    .await
 }
 
 /// Writes the start row only after a successful spawn. A store or task

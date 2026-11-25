@@ -140,3 +140,44 @@ where
     rx.await
         .unwrap_or_else(|_| Err(AppError::new(AppErrorKind::Cancelled, "job was cancelled")))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn run_blocking_returns_ok_and_executes_off_the_caller_thread() {
+        let caller = std::thread::current().id();
+        let worker = run_blocking(move || Ok(std::thread::current().id()))
+            .await
+            .expect("blocking task succeeds");
+        assert_ne!(
+            worker, caller,
+            "run_blocking must run on Tokio's blocking pool"
+        );
+    }
+
+    #[tokio::test]
+    async fn run_blocking_propagates_service_errors_unchanged() {
+        let error = run_blocking::<(), _>(|| Err(AppError::validation("name", "invalid profile")))
+            .await
+            .unwrap_err();
+        assert_eq!(error.kind(), AppErrorKind::Validation { field: "name" });
+        assert_eq!(error.message(), "invalid profile");
+    }
+
+    #[tokio::test]
+    async fn run_blocking_maps_panic_to_sanitized_internal_error() {
+        let error = run_blocking::<(), _>(|| {
+            panic!("sensitive /home/alice/secret payload");
+        })
+        .await
+        .unwrap_err();
+        assert_eq!(error.kind(), AppErrorKind::Internal);
+        assert_eq!(error.message(), "background task failed");
+        assert!(
+            !error.message().contains("alice"),
+            "panic payload must never leak through run_blocking"
+        );
+    }
+}

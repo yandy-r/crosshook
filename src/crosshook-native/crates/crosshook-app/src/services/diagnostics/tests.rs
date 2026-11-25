@@ -149,13 +149,64 @@ async fn export_rejects_unsafe_attachment_names_without_writing() {
     }
 }
 
-#[test]
-fn metadata_status_reports_the_store_health_unchanged() {
+#[tokio::test]
+async fn metadata_status_reports_the_store_health_unchanged() {
     let root = tempdir().unwrap();
-    let status = service(root.path()).metadata_status();
+    let status = service(root.path()).metadata_status().await.unwrap();
     assert_eq!(
-        serde_json::to_value(status).unwrap()["state"],
-        "disabled",
-        "a disabled store reports the disabled state"
+        serde_json::to_value(status).unwrap(),
+        serde_json::json!({
+            "state": "disabled",
+            "reason": "metadata store unavailable",
+        }),
+        "a disabled store preserves the exact disabled IPC shape"
     );
+}
+
+#[tokio::test]
+async fn metadata_status_reports_ok_for_a_live_sqlite_store() {
+    let root = tempdir().unwrap();
+    let dir = root.path();
+    let metadata = MetadataStore::with_path(&dir.join("metadata.db")).unwrap();
+    let svc = DiagnosticsService::new(
+        ProfileStore::with_base_path(dir.join("profiles")),
+        SettingsStore::with_base_path(dir.join("settings")),
+        RecentFilesStore::with_path(dir.join("data").join("recent.toml")),
+        metadata,
+    );
+    let status = svc.metadata_status().await.unwrap();
+    assert_eq!(
+        serde_json::to_value(status).unwrap(),
+        serde_json::json!({ "state": "ok" }),
+        "a live SQLite store reports the exact ok IPC shape via the blocking pool"
+    );
+}
+
+#[tokio::test]
+async fn metadata_status_reports_newer_schema_shape() {
+    let root = tempdir().unwrap();
+    let dir = root.path();
+    let db_path = dir.join("metadata.db");
+    let conn = rusqlite::Connection::open(&db_path).unwrap();
+    conn.pragma_update(None, "user_version", 999_u32).unwrap();
+    drop(conn);
+
+    let metadata = MetadataStore::with_path(&db_path).unwrap();
+    let expected = metadata.status();
+    let svc = DiagnosticsService::new(
+        ProfileStore::with_base_path(dir.join("profiles")),
+        SettingsStore::with_base_path(dir.join("settings")),
+        RecentFilesStore::with_path(dir.join("data").join("recent.toml")),
+        metadata,
+    );
+    let status = svc.metadata_status().await.unwrap();
+    assert_eq!(status, expected);
+    let json = serde_json::to_value(status).unwrap();
+    assert_eq!(json["state"], "newer_schema");
+    assert_eq!(json["found"], 999);
+    assert!(
+        json["supported"].as_u64().is_some_and(|v| v > 0 && v < 999),
+        "supported schema version must be populated"
+    );
+    assert_eq!(json.as_object().unwrap().len(), 3);
 }

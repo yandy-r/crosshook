@@ -84,12 +84,18 @@ impl DiagnosticsService {
         self
     }
 
-    /// Metadata store health for the UI degraded-state banner. In-memory
-    /// read; the JSON shape is part of the IPC contract: `{"state":"ok"}`,
+    /// Metadata store health for the UI degraded-state banner. Queries SQLite
+    /// `PRAGMA user_version` on Tokio's blocking pool so the caller's async
+    /// worker never blocks on the connection mutex; the JSON shape is part of
+    /// the IPC contract: `{"state":"ok"}`,
     /// `{"state":"newer_schema","found":N,"supported":N}`,
     /// `{"state":"disabled","reason":"..."}`.
-    pub fn metadata_status(&self) -> MetadataStatus {
-        self.metadata_store.status()
+    ///
+    /// # Errors
+    /// Blocking-task panic or cancellation mapped to a sanitized [`AppError`].
+    pub async fn metadata_status(&self) -> Result<MetadataStatus, AppError> {
+        let metadata = self.metadata_store.clone();
+        run_blocking(move || Ok(metadata.status())).await
     }
 
     /// Writes a diagnostic bundle. Invalid attachment names fail with a

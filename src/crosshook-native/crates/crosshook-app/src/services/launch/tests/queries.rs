@@ -3,32 +3,96 @@
 //! mod-coexistence scope and UMU enrichment.
 
 use crosshook_core::launch::{
-    session_profile_key_for_name, SessionKind, TeardownReason, METHOD_STEAM_APPLAUNCH,
+    session_profile_key_for_name, SessionKind, TeardownReason, ValidationError, ValidationSeverity,
+    METHOD_STEAM_APPLAUNCH,
 };
 use crosshook_core::mods::{ModCategory, ModProvenance, ProfileModInput};
 use crosshook_core::settings::{AppSettingsData, UmuDatabaseLookupPreference};
 
-use super::super::queries::enrich_umu_gameid;
+use super::super::queries::{enrich_umu_gameid, join_error_to_validation_issue, validate_with};
 use super::helpers::{Harness, Metadata};
 use crate::AppErrorKind;
 
-#[test]
-fn validate_reports_the_first_issue_for_an_invalid_request() {
+#[tokio::test]
+async fn validate_reports_the_first_issue_for_an_invalid_request() {
     let harness = Harness::new(Metadata::Enabled);
     let mut req = harness.proton_request("validate");
     req.method = "bogus-method".to_string();
 
-    let issue = harness.service.validate(&req).unwrap_err();
-    assert!(!issue.message.is_empty(), "issue carries a message");
+    let issue = harness.service.validate(req).await.unwrap_err();
+    assert_eq!(
+        issue,
+        ValidationError::UnsupportedMethod("bogus-method".to_string()).issue(),
+        "validate must preserve the exact core LaunchValidationIssue"
+    );
 }
 
-#[test]
-fn validate_accepts_a_valid_request() {
+#[tokio::test]
+async fn validate_accepts_a_valid_request() {
     let harness = Harness::new(Metadata::Enabled);
     harness
         .service
-        .validate(&harness.proton_request("valid"))
+        .validate(harness.proton_request("valid"))
+        .await
         .expect("valid request passes");
+}
+
+#[tokio::test]
+async fn validate_with_runs_off_caller_thread_and_sanitizes_panics() {
+    let harness = Harness::new(Metadata::Enabled);
+    let caller = std::thread::current().id();
+    let seen_worker = std::sync::Arc::new(std::sync::Mutex::new(None));
+    let seen_clone = std::sync::Arc::clone(&seen_worker);
+
+    validate_with(harness.proton_request("off-thread"), move |_| {
+        *seen_clone.lock().unwrap() = Some(std::thread::current().id());
+        Ok(())
+    })
+    .await
+    .expect("validator succeeds");
+
+    assert_ne!(
+        *seen_worker.lock().unwrap(),
+        Some(caller),
+        "validate_with must run on Tokio's blocking pool"
+    );
+
+    let issue = validate_with(harness.proton_request("panic"), |_| {
+        panic!("secret /home/alice/private path");
+    })
+    .await
+    .unwrap_err();
+    assert_eq!(issue.severity, ValidationSeverity::Fatal);
+    assert_eq!(issue.code.as_deref(), Some("internal_error"));
+    assert_eq!(issue.message, "background task failed");
+    assert!(!issue.message.contains("alice"));
+}
+
+#[tokio::test]
+async fn validate_join_error_sanitizes_panic_payload() {
+    let join_err = tokio::task::spawn_blocking(|| -> () {
+        panic!("secret /home/alice/private path");
+    })
+    .await
+    .unwrap_err();
+
+    let issue = join_error_to_validation_issue(join_err);
+    assert_eq!(issue.severity, ValidationSeverity::Fatal);
+    assert_eq!(issue.code.as_deref(), Some("internal_error"));
+    assert_eq!(issue.message, "background task failed");
+    assert!(!issue.message.contains("alice"));
+}
+
+#[tokio::test]
+async fn validate_join_error_maps_cancellation() {
+    let handle = tokio::spawn(std::future::pending::<()>());
+    handle.abort();
+    let join_err = handle.await.unwrap_err();
+
+    let issue = join_error_to_validation_issue(join_err);
+    assert_eq!(issue.severity, ValidationSeverity::Fatal);
+    assert_eq!(issue.code.as_deref(), Some("internal_error"));
+    assert_eq!(issue.message, "background task was cancelled");
 }
 
 #[tokio::test]

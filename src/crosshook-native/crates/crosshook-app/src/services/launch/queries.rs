@@ -1,18 +1,19 @@
 //! Read-only launch commands and session reset.
 //!
-//! Everything here is either pure ([`LaunchService::validate`],
-//! [`LaunchService::steam_launch_options_command`]) or in-memory
-//! ([`LaunchService::reset_sessions`]) and therefore synchronous (S7).
-//! [`LaunchService::preview`] and [`LaunchService::launch_history`] touch the
-//! stores; store I/O runs through [`run_blocking`]. The running-session
-//! snapshot lives in `sessions`.
+//! [`LaunchService::steam_launch_options_command`] (pure) and
+//! [`LaunchService::reset_sessions`] (in-memory) are synchronous (S7).
+//! [`LaunchService::validate`], [`LaunchService::preview`] and
+//! [`LaunchService::launch_history`] touch the filesystem, host probes or
+//! stores, so blocking work runs through Tokio's blocking pool
+//! ([`run_blocking`] / `spawn_blocking`). The running-session snapshot lives
+//! in `sessions`.
 
 use std::collections::BTreeMap;
 
 use crosshook_core::launch::{
     self, build_launch_preview, escape_steam_token, resolve_command_arguments_for_method,
     session_profile_key_for_name, LaunchPreview, LaunchRequest, LaunchValidationIssue,
-    TeardownReason, METHOD_STEAM_APPLAUNCH,
+    TeardownReason, ValidationSeverity, METHOD_STEAM_APPLAUNCH,
 };
 use crosshook_core::metadata::{LaunchHistoryEntry, MetadataStore, MAX_HISTORY_LIST_LIMIT};
 use crosshook_core::profile::GamescopeConfig;
@@ -27,6 +28,28 @@ use crate::AppError;
 /// when the caller passes no limit (the Tauri command's default).
 const DEFAULT_HISTORY_LIST_LIMIT: u32 = 20;
 
+/// Maps a blocking-task [`tokio::task::JoinError`] to a sanitized fatal
+/// [`LaunchValidationIssue`] without leaking panic payloads across IPC.
+pub(super) fn join_error_to_validation_issue(
+    error: tokio::task::JoinError,
+) -> LaunchValidationIssue {
+    let sanitized = AppError::from(error);
+    LaunchValidationIssue {
+        message: sanitized.message().to_string(),
+        help: "Retry launch validation; if this persists, export diagnostics.".to_string(),
+        severity: ValidationSeverity::Fatal,
+        code: Some("internal_error".to_string()),
+        trainer_hash_stored: None,
+        trainer_hash_current: None,
+        trainer_sha256_community: None,
+        hook_id: None,
+        hook_name: None,
+        hook_stage: None,
+        hook_exit_code: None,
+        hook_timed_out: None,
+    }
+}
+
 /// Populates `req.resolved_umu_game_id` from settings and the umu database.
 ///
 /// Settings default on a load error; the lookup itself is fail-soft (a failed
@@ -36,35 +59,64 @@ pub(super) async fn enrich_umu_gameid(
     metadata: &MetadataStore,
     req: &mut LaunchRequest,
 ) {
-    let loaded = settings
-        .load()
-        .unwrap_or_else(|_| AppSettingsData::default());
+    let settings = settings.clone();
+    let loaded = match run_blocking(move || settings.load().map_err(AppError::from)).await {
+        Ok(data) => data,
+        Err(error) => {
+            tracing::warn!(
+                kind = ?error.kind(),
+                %error,
+                "failed to load settings for UMU GAMEID lookup; falling back to defaults"
+            );
+            AppSettingsData::default()
+        }
+    };
     req.resolved_umu_game_id =
         Some(umu_database::resolve_umu_game_id(req, loaded.umu_database_lookup, metadata).await);
 }
 
+pub(super) async fn validate_with<F>(
+    req: LaunchRequest,
+    validator: F,
+) -> Result<(), LaunchValidationIssue>
+where
+    F: FnOnce(&LaunchRequest) -> Result<(), LaunchValidationIssue> + Send + 'static,
+{
+    tokio::task::spawn_blocking(move || validator(&req))
+        .await
+        .unwrap_or_else(|error| Err(join_error_to_validation_issue(error)))
+}
+
 impl LaunchService {
-    /// Validates a launch request, returning the first issue.
+    /// Validates a launch request on Tokio's blocking pool (validation probes
+    /// local paths and, under Flatpak, host paths), returning the first issue.
     ///
     /// # Errors
-    /// [`LaunchValidationIssue`] describing the first failing rule.
-    pub fn validate(&self, req: &LaunchRequest) -> Result<(), LaunchValidationIssue> {
-        launch::validate(req).map_err(|error| error.issue())
+    /// [`LaunchValidationIssue`] describing the first failing rule, or a
+    /// sanitized fatal issue if the blocking task panics or is cancelled.
+    pub async fn validate(&self, req: LaunchRequest) -> Result<(), LaunchValidationIssue> {
+        validate_with(req, |req| {
+            launch::validate(req).map_err(|error| error.issue())
+        })
+        .await
     }
 
     /// Builds the dry-run preview: UMU enrichment first, then the core
-    /// preview, then **only** the mod-coexistence warnings appended to
-    /// `preview.validation.issues` (I-16 — never low-disk, offline or
-    /// trainer-hash warnings).
+    /// preview on Tokio's blocking pool, then **only** the mod-coexistence
+    /// warnings appended to `preview.validation.issues` (I-16 — never
+    /// low-disk, offline or trainer-hash warnings).
     ///
     /// # Errors
     /// [`AppError`] with the core preview builder's message verbatim.
-    pub async fn preview(&self, req: LaunchRequest) -> Result<LaunchPreview, AppError> {
-        let mut req = req;
+    pub async fn preview(&self, mut req: LaunchRequest) -> Result<LaunchPreview, AppError> {
         enrich_umu_gameid(&self.settings, &self.metadata, &mut req).await;
-        let mut preview = build_launch_preview(&req).map_err(|error| {
-            AppError::new(crate::AppErrorKind::Validation { field: "launch" }, error)
-        })?;
+        let (req, mut preview) = run_blocking(move || {
+            let preview = build_launch_preview(&req).map_err(|error| {
+                AppError::new(crate::AppErrorKind::Validation { field: "launch" }, error)
+            })?;
+            Ok((req, preview))
+        })
+        .await?;
         let mut coexistence =
             collect_mod_coexistence_warnings(&req, &self.profiles, &self.metadata).await;
         preview.validation.issues.append(&mut coexistence);

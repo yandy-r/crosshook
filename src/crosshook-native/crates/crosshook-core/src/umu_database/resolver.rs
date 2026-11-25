@@ -209,6 +209,79 @@ fn limited_payload_json(payload_json: String) -> Option<String> {
     }
 }
 
+async fn should_use_umu_blocking(request: LaunchRequest) -> bool {
+    match tokio::task::spawn_blocking(move || {
+        should_use_umu(&request, force_no_umu_for_launch_request(&request)).0
+    })
+    .await
+    {
+        Ok(will_use) => will_use,
+        Err(error) => {
+            tracing::warn!(%error, "umu availability probe blocking task failed");
+            false
+        }
+    }
+}
+
+async fn read_fresh_cache_blocking(
+    metadata_store: &MetadataStore,
+    key: &UmuGameIdLookupKey,
+) -> Result<Option<UmuGameIdResolution>, String> {
+    let store = metadata_store.clone();
+    let key = key.clone();
+    match tokio::task::spawn_blocking(move || read_fresh_cache(&store, &key)).await {
+        Ok(Ok(res)) => Ok(res),
+        Ok(Err(error)) => Err(error.to_string()),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+async fn stale_or_unavailable_blocking(
+    metadata_store: &MetadataStore,
+    key: UmuGameIdLookupKey,
+    error_category: String,
+) -> UmuGameIdResolution {
+    let store = metadata_store.clone();
+    let fallback_key = key.clone();
+    let fallback_category = error_category.clone();
+    match tokio::task::spawn_blocking(move || stale_or_unavailable(&store, key, error_category))
+        .await
+    {
+        Ok(resolution) => resolution,
+        Err(error) => {
+            tracing::warn!(%error, "umu GAMEID stale-cache blocking task failed");
+            fallback(
+                UmuGameIdResolutionSource::ApiUnavailable,
+                Some(fallback_key),
+                Some(fallback_category),
+            )
+        }
+    }
+}
+
+async fn put_cache_entry_blocking(
+    metadata_store: &MetadataStore,
+    row: UmuGameIdCacheRow,
+    failure_msg: &'static str,
+) -> UmuGameIdCacheRow {
+    let store = metadata_store.clone();
+    let fallback_row = row.clone();
+    match tokio::task::spawn_blocking(move || {
+        if let Err(error) = store.put_umu_gameid_cache_entry(&row) {
+            tracing::warn!(%error, "{failure_msg}");
+        }
+        row
+    })
+    .await
+    {
+        Ok(row) => row,
+        Err(error) => {
+            tracing::warn!(%error, "{failure_msg} (blocking task failed)");
+            fallback_row
+        }
+    }
+}
+
 async fn live_lookup(
     metadata_store: &MetadataStore,
     key: UmuGameIdLookupKey,
@@ -224,9 +297,12 @@ async fn live_lookup(
                 Some(cache_expiry()),
             );
             if let Ok(row) = row {
-                if let Err(error) = metadata_store.put_umu_gameid_cache_entry(&row) {
-                    tracing::warn!(%error, "failed to persist umu GAMEID cache hit");
-                }
+                let row = put_cache_entry_blocking(
+                    metadata_store,
+                    row,
+                    "failed to persist umu GAMEID cache hit",
+                )
+                .await;
                 return from_cache(row, UmuGameIdResolutionSource::FreshLookup);
             }
             fallback(
@@ -244,9 +320,12 @@ async fn live_lookup(
                 Some(cache_expiry()),
             );
             if let Ok(row) = row {
-                if let Err(error) = metadata_store.put_umu_gameid_cache_entry(&row) {
-                    tracing::warn!(%error, "failed to persist umu GAMEID cached miss");
-                }
+                let row = put_cache_entry_blocking(
+                    metadata_store,
+                    row,
+                    "failed to persist umu GAMEID cached miss",
+                )
+                .await;
                 return from_cache(row, UmuGameIdResolutionSource::CachedNotFound);
             }
             fallback(
@@ -257,7 +336,7 @@ async fn live_lookup(
         }
         Err(error) => {
             tracing::warn!(%error, "umu GAMEID lookup failed");
-            stale_or_unavailable(metadata_store, key, "api_unavailable".to_string())
+            stale_or_unavailable_blocking(metadata_store, key, "api_unavailable".to_string()).await
         }
     }
 }
@@ -275,8 +354,7 @@ pub async fn resolve_umu_game_id(
         return fallback(UmuGameIdResolutionSource::Fallback, None, None);
     }
 
-    let (will_use_umu, _) = should_use_umu(request, force_no_umu_for_launch_request(request));
-    if !will_use_umu {
+    if !should_use_umu_blocking(request.clone()).await {
         return fallback(UmuGameIdResolutionSource::Fallback, None, None);
     }
 
@@ -290,27 +368,33 @@ pub async fn resolve_umu_game_id(
         return fallback(UmuGameIdResolutionSource::MissingHints, None, None);
     };
 
-    match read_fresh_cache(metadata_store, &key) {
+    match read_fresh_cache_blocking(metadata_store, &key).await {
         Ok(Some(resolution)) => return resolution,
         Ok(None) => {}
         Err(error) => {
             tracing::warn!(%error, "failed to read fresh umu GAMEID cache entry");
-            return stale_or_unavailable(metadata_store, key, "metadata_unavailable".to_string());
+            return stale_or_unavailable_blocking(
+                metadata_store,
+                key,
+                "metadata_unavailable".to_string(),
+            )
+            .await;
         }
     }
 
     let lock = lookup_lock(&key);
     let _lookup_guard = lock.lock().await;
-    let resolution = match read_fresh_cache(metadata_store, &key) {
+    let resolution = match read_fresh_cache_blocking(metadata_store, &key).await {
         Ok(Some(resolution)) => resolution,
         Ok(None) => live_lookup(metadata_store, key.clone()).await,
         Err(error) => {
             tracing::warn!(%error, "failed to read fresh umu GAMEID cache entry after lock");
-            stale_or_unavailable(
+            stale_or_unavailable_blocking(
                 metadata_store,
                 key.clone(),
                 "metadata_unavailable".to_string(),
             )
+            .await
         }
     };
     remove_lookup_lock(&key, &lock);
