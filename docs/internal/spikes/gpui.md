@@ -8,7 +8,10 @@ This is evidence, not a decision.
 
 - The exact pins build, but `gpui-kit =0.7.1` does not pin its own sub-crates (F2), and the issue's feature names do not exist (F3).
 - **F1 (blocker found and worked around):** `crosshook-core` enables zbus's `tokio` feature. Cargo feature unification turns it on for every zbus user in the binary: gpui-linux's portal listener, ashpd and `accesskit_unix`. These run on gpui's own threads (smol, gpui workers), outside any tokio context, and the app panicked at startup. The spike switches `crosshook-core`/`crosshook-app` zbus to `async-io` on this branch only. A real migration has to choose one zbus backend for the whole process.
-- All slice items were built, except the Flatpak staging (not done in the time box).
+- All slice items were built.
+- Flatpak staging: the binary was built inside `org.gnome.Sdk//50` and installed as local branch `spike-gpui` of `dev.crosshook.CrossHook`.
+  - The default renderer reaches READY inside the sandbox.
+  - `SPIKE_SMOKE_PICK=1` makes one `org.freedesktop.portal.FileChooser.OpenFile` call, and KDE's portal "Open File" window opens. Closing it returns `Response` code 1 (cancelled), and the app reports `No file picked`.
 - Most of what the iced spike had to hand-write is stock GPUI / GPUI Kit here:
   - virtualised lists (`VirtualList`, `uniform_list`);
   - real focus (`FocusHandle`, Tab order);
@@ -22,7 +25,8 @@ This is evidence, not a decision.
   - Resize p50 33.3 ms, worse than iced (5.56 ms).
   - Warm start p50 261 ms to READY.
 - Memory is bounded: the 50k-line replay grows PSS by 2.5 MB, peak 229 MB.
-- G4 (scroll pacing) could not be captured: the bench driver sees a pointer leave about 1.5 s after the priming notch on every G4 attempt (open item).
+- G4 scroll pacing is gpui's weakest metric. All three scenarios (`library`, `settings`, `console`) present every 6th refresh interval (p50 33.3 ms, p95 44.4 ms) while scrolling. iced presents every interval (5.56 ms) on `library` and `settings`.
+- The earlier G4 `FOCUS_LOST` failures were not gpui's fault: real pointer motion from a physical input device moved the cursor off the window (see [Bench harness findings](#bench-harness-findings)).
 - `cargo tree -i gtk` and `-i glib-sys` are empty.
 - `crosshook-core` is called only from `core_bridge`, on the tokio runtime. This is enforced by a test and a runtime assertion.
 
@@ -43,11 +47,17 @@ Build figures are local observations on E1 (i9-14900HX, 32 threads; dependency s
 | Incremental release build (one file touched)                            | 4.6 s (iced: 4.9 s)                                                                                                                                                                                                                                                                                                                          |
 | Clean / incremental dev build                                           | 50.8 s / 2.0 s                                                                                                                                                                                                                                                                                                                               |
 | Release binary                                                          | 57.1 MB; 44.1 MB stripped (iced: 32.2 / 25.0 MB). The debug binary is 789 MB                                                                                                                                                                                                                                                                  |
-| glibc                                                                   | The host build needs `GLIBC_2.44`, so the Flatpak binary must be built inside `org.gnome.Sdk//50`, as for iced                                                                                                                                                                                                                               |
+| glibc                                                                   | The host build needs `GLIBC_2.44`. Built inside `org.gnome.Sdk//50` (repo toolchain 1.95.0 mounted into the SDK, separate target dir), it needs `GLIBC_2.39`, as for iced. The SDK release build took 118 s                                                                                                                                 |
+| Flatpak (G10)                                                           | Bundle 10.3 MB, installed 42.2 MB, stripped binary 42.1 MB (SDK build). iced's Flatpak was a local branch only, with no G10                                                                                                                                                                                                                   |
 
 ## Effort
 
-About 1.3 hours of wall time with an AI pair (15:57 to 17:15 EST, 2026-11-25), out of a ~3-day (5-point) box. The code took about 1 hour. Most of the rest was the zbus panic (F1), test-harness behaviour and bench runs. The time box was respected; the unfinished items below are findings, not extensions.
+About 2 hours of wall time with an AI pair on 2026-11-25, out of a ~3-day (5-point) box:
+
+- First pass, 15:57–17:15 EST: the code, the tests, the zbus panic (F1) and G2/G3/G5/G8/G9.
+- Second pass, 17:14–17:58: G1, Flatpak staging, the portal smoke test, G10, the G4 pointer trace, the palette fix and the G4 re-capture.
+
+The time box was never the limiting factor. Each item still open below says why it is open.
 
 ## Code size
 
@@ -80,15 +90,15 @@ The line counts are close to iced's, but they buy different things:
 
 | Criterion | Result | Evidence |
 | --------- | ------ | -------- |
-| Time box respected, actual hours recorded | **Pass** | About 1.3 h of a ~3-day box; unfinished items recorded below |
-| Same metrics as M0-04 on E1 under `docs/internal/bench/C-gpui/E1/` | **Partial** | G2, G3, G5, G8, G9 captured. G4 failed every attempt on a pointer-leave the driver treats as `FOCUS_LOST` (open item). G1 was not run (sudo cache drop). G6/G7 cannot be produced on E1 (no producer, `perf` missing), as for iced and Tauri B. G10 needs the Flatpak bundle, which was not staged |
+| Time box respected, actual hours recorded | **Pass** | About 2 h of a ~3-day box ([Effort](#effort)) |
+| Same metrics as M0-04 on E1 under `docs/internal/bench/C-gpui/E1/` | **Pass (everything producible on E1)** | G1 (5 cold launches), G2, G3, G4 (`library`, `console`, `settings`, 4 iterations), G5, G8, G9 and G10 captured. G6/G7 cannot be produced on E1: there is no producer and `perf` is missing, as for iced and Tauri B |
 | Focus coverage (share of slice widgets reachable by D-pad and keyboard) | **Pass: 100 %, in headless tests** | Targets cover every interactive widget of the slice: 3 nav, back/forward, search, every card and its favourite, 15 form fields, 2 inspector actions, 2 modal buttons, palette. The `#[gpui::test]` suite drives real keystrokes through the real keymap and Kit Root. F6/Shift-F6 cycle zones with memory; arrows walk the library grid (cards culled by the list stay reachable); Tab moves gpui focus and the engine follows; Enter activates; Alt-←/→ walk history. A D-pad sweep reaches all 15 settings fields. Gamepad buttons map to the same actions (unit-tested; no physical pad driven on E1) |
 | G6 stalls from core work | **Not measured** | No G6 producer on E1. By construction no core call can run on the foreground executor (next row) |
 | `cargo tree -p … -i gtk` / `-i glib-sys` return nothing | **Pass** | Both `error: package ID specification … did not match any packages` (exit 101) |
 | No `crosshook-core` call on the gpui foreground executor | **Pass** | See [Core boundary](#core-boundary) |
 | Renderer override + adapter log | **Partial** | See [Renderer override](#renderer-override) |
-| Evidence: ashpd portal dialog, Lucide icons, back/forward estimate | **Partial** | Portal and icons wired; the Flatpak smoke test (`SPIKE_SMOKE_PICK=1` in a Flatpak) was not run. See [Evidence items](#evidence-items) |
-| Flatpak staging (`--branch=spike-gpui`, `app_id`) | **Not done** | `WindowOptions.app_id = "dev.crosshook.CrossHook"` is set; the SDK build and local Flatpak branch were not done in the time box |
+| Evidence: ashpd portal dialog, Lucide icons, back/forward estimate | **Pass** | In the `spike-gpui` Flatpak, `SPIKE_SMOKE_PICK=1` made one `FileChooser.OpenFile` call and the KDE portal "Open File" window appeared; closing it returned `Response` code 1 and `SPIKE_PICK_RESULT No file picked`. See [Evidence items](#evidence-items) |
+| Flatpak staging (`--branch=spike-gpui`, `app_id`) | **Pass** | Built in `org.gnome.Sdk//50` (`GLIBC_2.39`), installed as user branch `spike-gpui` next to `master`, `spike-iced` and `yan795-variant-a`. Those three are untouched (same commits before and after); `flatpak install` made `spike-gpui` the current branch, so the previously current `yan795-variant-a` was made current again. The default renderer reaches READY in the sandbox (Vulkan, NVIDIA, 1.6 s wall to exit-after-READY). The window's Wayland app id is `dev.crosshook.CrossHook`: KWin reports `resourceClass` `dev.crosshook.CrossHook` |
 | This report | **Done** | — |
 
 ## Core boundary
@@ -100,16 +110,24 @@ The line counts are close to iced's, but they buy different things:
 
 ## E1 results
 
-E1, 2026-11-25, 3840×2160 @ 180.06 Hz (KWin 6.8, NVIDIA RTX 5070 Laptop, driver 620.73.04), native release binary at `75aa6fc8`, `--fixtures` seed 42 (500 profiles). Every committed run exited 0 and ended `captured` with a clean tree. CSVs are in [`../bench/C-gpui/E1/`](../bench/C-gpui/E1/).
+E1, 2026-11-25, 3840×2160 @ 180.06 Hz (KWin 6.8, NVIDIA RTX 5070 Laptop, driver 620.73.04), `--fixtures` seed 42 (500 profiles). Every committed run exited 0 and ended `captured`. All but G4 ran on a clean tree; G4's `meta.json` says `dirty: true` because only this write-up and the E1 README were being edited, and no source file was modified. CSVs are in [`../bench/C-gpui/E1/`](../bench/C-gpui/E1/), and each run's commit is listed in that directory's README.
+
+- G1–G3, G5, G8 and G9 use the native release binary built from `75aa6fc8` (G1 ran at `f4fec19c`, same app code).
+- G4 uses the native binary from `f6c12fe7`, which adds only the palette Enter fix. Nothing it changes runs during G2, G3, G5, G8 or G9, which never open the palette.
+- G10 uses the SDK-built binary and its bundle.
 
 iced C numbers are from [`iced.md`](iced.md); Tauri B numbers are the E1 baseline B evidence in [`../bench/README.md`](../bench/README.md) (native, 2026-11-16, captured as evidence, not as a gate).
 
 | Metric                                              | gpui C (this spike)                     | iced C                        | Tauri B (native, README)               |
 | --------------------------------------------------- | --------------------------------------- | ----------------------------- | -------------------------------------- |
+| G1 cold start to READY p50 / p95 (5 launches)       | 939 / 963 ms                            | not captured                  | not captured                           |
+| G1 first presented frame p50 / p95                  | 936 / 951 ms                            | —                             | —                                      |
 | G2 warm start to READY p50 / p95                    | 261 / 410 ms                            | 281 / 333 ms                  | 1038.1 / 1100.5 ms                     |
 | G2 first presented frame p50 / p95                  | 258 / 394 ms                            | 220 / 293 ms                  | 245.8 / 316.3 ms                       |
 | G3 idle PSS (start → after 10 min)                  | 210 → 210 MB, flat over 600 s; GPU 86 MB | 242 → 254 MB                  | —                                      |
-| G4 `library` / `settings` / `console` frame p50/p95 | not captured (open item)                | 5.56/5.56, 5.56/5.56, 33.3/44.4 ms | 211/418, 117/344, 61.2/128.4 ms   |
+| G4 `library` frame p50 / p95                        | 33.3 / 44.4 ms (741 frames)             | 5.56 / 5.56 ms                | 211 / 418 ms                           |
+| G4 `settings` frame p50 / p95                       | 33.3 / 44.4 ms (725 frames)             | 5.56 / 5.56 ms                | 117 / 344 ms                           |
+| G4 `console` frame p50 / p95 (scroll during replay) | 33.3 / 44.4 ms (741 frames)             | 33.3 / 44.4 ms                | 61.2 / 128.4 ms                        |
 | G5 `search` p50 / p95                               | 11.7 / 14.1 ms                          | 14.7 / 17.1 ms                | 184.3 / 244.0 ms                       |
 | G5 `toggle_favorite` p50 / p95                      | 13.5 / 17.4 ms                          | 15.2 / 17.4 ms                | 34.9 / 48.9 ms                         |
 | G5 `toggle_optimization` p50 / p95                  | 13.6 / 18.0 ms                          | 15.8 / 17.3 ms                | 130.8 / 196.8 ms                       |
@@ -118,12 +136,23 @@ iced C numbers are from [`iced.md`](iced.md); Tauri B numbers are the E1 baselin
 | G8 replay frame p50 / p95 / p99                     | 16.7 / 17.6 / 22.3 ms (1,236 frames)    | 11.1 / 16.7 / 16.7 ms (1,822) | 347.1 / 1009.4 / 1269.0 ms (46 frames) |
 | G8 memory growth / peak PSS                         | 2.5 / 229 MB                            | 2.3 / 270 MB                  | 993.8 / 3119.1 MB                      |
 | G9 resize frame p50 / p95                           | 33.3 / 38.9 ms                          | 5.56 / 33.3 ms                | 33 / 39 ms                             |
+| G10 bundle / installed / stripped binary            | 10.3 / 42.2 / 42.1 MB (runtime delta 0) | not captured                  | not captured                           |
 
 Notes:
 
 - READY means the same thing as in the iced spike: summaries loaded, then two frames gpui drew (`Window::on_next_frame` scheduled from render). It is not a presentation confirmation. The like-for-like start-up figure is `first_present_ms`. G2 iteration 1 is a cold-ish outlier (502 ms); the p50 is the better comparison.
 - **G8 at ~60 Hz.** gpui presented 1,236 frames over the 10 s replay, against iced's 1,822 at 180 Hz. Frame p50 16.7 ms is three refresh intervals: gpui is v-synced but throttles to about 60 fps while the console appends and scrolls. iced kept a p50 of two intervals. Why gpui paces at 60 Hz here was not traced (frame scheduling, wgpu present mode or the batch cadence of 16 ms).
 - **G9 resize p50 33.3 ms** (6 intervals) against iced 5.56 ms: during KWin resize steps gpui presents at about 30 Hz. Tauri B matches gpui here.
+- **G1** is five separate runner invocations of `--metric G1 --collect presentation --cold-cache-ack --iterations 1`.
+  - Before each, the operator (this spike, on E1) ran `sync && echo 3 | sudo tee /proc/sys/vm/drop_caches` (2026-11-25 17:14:44–17:15:08 EST, all exit 0).
+  - `G1.csv` merges the five rows and recomputes the summary row with the runner's own `bench_capture.stats` percentiles. The bench README documents no other merge convention, and no earlier G1 capture exists.
+  - Cold start costs about 680 ms more than warm (p50 939 against 261 ms). The first presented frame tracks READY within about 3 ms: gpui presents nothing until its first full frame.
+- **G10** used `--runtime-delta-mb 0`, because the GNOME 50 runtime is already installed, as specified for iced in YAN-2444. It also needed two runner fixes on this branch (see [Bench harness findings](#bench-harness-findings)). The stripped binary is 42.1 MB, against 44.1 MB for the host build: the SDK's older toolchain libraries link less.
+- **G4 scrolls at about 30 Hz.** On all three pages frame p50 is 33.3 ms (6 refresh intervals), p95 44.4 ms, and 97–99 % of intervals exceed 1.5 periods.
+  - The wheel notches come every 33 ms, so gpui presents about one frame per notch instead of animating at the panel rate.
+  - Same 30 Hz class as G9 resize, and below the ~60 Hz of the G8 replay. iced scrolled `library` and `settings` at one interval (5.56 ms).
+  - This is the clearest frame-pacing gap between the two toolkits on E1. Not traced: it is a cadence question for gpui's frame scheduling, and no acceptance item asks for it (open item).
+  - G4 ran on the binary with the palette fix (`f6c12fe7`). An earlier G4 run without it is superseded: its `settings` row (500 ms p50) measured the library page under a still-open palette ([Bench harness findings](#bench-harness-findings)).
 - G5 used `CROSSHOOK_BENCH_CLOCK_FLOOR_NS=1000`, as for iced (exact CLOCK_MONOTONIC µs marks).
 - `gpu_growth_mb` 0.0 is from DRM fdinfo (`gpu_source=fdinfo`), not `nvidia-smi` as for iced.
 
@@ -153,7 +182,14 @@ NVIDIA's EGL exposes a GL adapter but no surface format gpui accepts. That is th
 
 ## Evidence items
 
-- **File dialog.** gpui's own `cx.prompt_for_paths` goes through `ashpd::desktop::file_chooser::OpenFileRequest` in gpui-pre-linux. No rfd and no GTK: `cargo tree -i gtk` and `-i glib-sys` are empty. `SPIKE_SMOKE_PICK=1` opens the chooser at startup and prints `SPIKE_PICK_RESULT …`. It was not exercised inside a Flatpak (no Flatpak staging; open item).
+- **File dialog.** gpui's own `cx.prompt_for_paths` goes through `ashpd::desktop::file_chooser::OpenFileRequest` in gpui-pre-linux. No rfd and no GTK: `cargo tree -i gtk` and `-i glib-sys` are empty. `SPIKE_SMOKE_PICK=1` opens the chooser at startup and prints `SPIKE_PICK_RESULT …`.
+
+  **Flatpak smoke test**, `flatpak run --branch=spike-gpui` with `SPIKE_SMOKE_PICK=1`, isolated launcher `HOME`, `--nofilesystem=host:reset`:
+  - `dbus-monitor` saw one `method call … destination=org.freedesktop.portal.Desktop … interface=org.freedesktop.portal.FileChooser; member=OpenFile` from the sandboxed app.
+  - KWin's window list (`/WindowsRunner` Match + `getWindowInfo`, as the bench does) then showed a new window with caption `Open File` and `resourceClass` `org.freedesktop.impl.portal.desktop.kde`, next to the spike window (`resourceClass` `dev.crosshook.CrossHook`).
+  - A one-shot KWin script closed the dialog. The portal answered with `org.freedesktop.portal.Request.Response` code 1 (user cancelled), and the app printed `SPIKE_PICK_RESULT No file picked`.
+  - Nothing was picked, because the smoke test cannot click.
+  - The whole path is the sandboxed app → xdg-desktop-portal → the KDE portal backend, with no GTK in the app.
 - **Icons.** `gpui-kit-assets` embeds the Lucide catalog through `rust-embed` (`Assets` = the 106-icon default set, `AllAssets` = the full catalog; `LICENSE-LUCIDE`, ISC). It is registered with `Application::with_assets(Assets)`, and `IconName::*` is used directly as an element. No `currentColor` handling was needed: the svg takes the text colour. Lucide comes with the toolkit here; iced needed a hand-copied subset.
 - **Back/forward.** `gpui_base::History<T>` is stock (back/forward entries, truncation on push, max entries), and Kit also ships `NavStack` with transitions. The spike's history is that type plus Alt+←/→ bindings (about 20 lines). Estimate for M1-49: under half a day, less than iced's because the type exists.
 
@@ -173,7 +209,7 @@ NVIDIA's EGL exposes a GL adapter but no surface format gpui accepts. That is th
 
 - `gpui-pre` is a single-maintainer, unofficial crates.io snapshot of Zed's in-tree `gpui`, republished weekly. It went from 0.3.8 (2026-10-05, zed@279fe07) to 0.3.14 (2026-11-23, zed@f126950): 7 releases in 7 weeks. Each release pins its own `gpui-pre-*` family exactly, so any bump moves the whole family.
 - GPUI Kit (Longbridge) went 0.7.1 → 0.11.0 in the same period: 10 releases, 4 minor bumps.
-- The spike stays on the issue's pins. A bump to 0.3.14 / 0.11.0 was not attempted (time box); what it breaks is an open item.
+- The spike stays on the issue's pins. A bump to 0.3.14 / 0.11.0 was not attempted: the brief made it optional, and the pinned stack had to be measured first. What the bump breaks is an open item.
 - Upstream Zed does not publish `gpui` to crates.io. Depending on gpui means choosing between this snapshot channel, a git pin of the Zed monorepo, or a fork. Every one of these requires an owner on our side.
 
 ## Licences
@@ -182,25 +218,34 @@ NVIDIA's EGL exposes a GL adapter but no surface format gpui accepts. That is th
 - gpui_tokio (vendored): Apache-2.0; the Zed `LICENSE-APACHE` is copied and attribution kept.
 - GPUI Kit (`gpui-kit`, `gpui-base`, `gpui-component`, `gpui-kit-assets`): Apache-2.0.
 - Lucide icons: ISC (`LICENSE-LUCIDE` in gpui-kit-assets).
-- No GPL in the spike's own additions. `cargo deny` was not run on the spike branch (open item).
+- No GPL in the spike's own additions. `cargo deny` was not run on the spike branch. It is not one of this spike's acceptance items, and the repo's `deny.toml` does not cover a throwaway crate (open item).
 
 ## Bench harness findings
 
 - The bench shim's `wl_proxy_add_dispatcher` hook and `dlsym` redirect from the iced spike (cherry-picked) work unchanged for gpui's wayland-rs client: the K/M/G records appear.
 - The runner needs `WAYLAND_DISPLAY` in its environment. When launched from a shell without it, gpui fell back to X11/headless and READY never came (`READY_TIMEOUT`). This was a local operator error, not a harness bug.
-- **G4 pointer leave (open item).**
-  - On every G4 attempt the shim records `M leave` about 1.5 s after the priming notch, with no configure, keyboard leave or new toplevel. The driver then stops with `FOCUS_LOST: pointer focus is not on the app window during the scroll`.
-  - G8 uses the same priming notch and wheel cadence on a 1600×1000 window and captured twice. G5 (keyboard only) also captured.
-  - Suspects: a gpui surface (tooltip or hover layer) that takes the pointer at the 1280×900 cursor position (640, 450), which lands on a library card or the inspector boundary; or gpui's pointer-constraint/cursor handling.
-  - Not traced in the time box.
+- **G4 `FOCUS_LOST` and the `wl_pointer.leave` (resolved).** Six G4 runs in the first pass and five in the second stopped with `FOCUS_LOST: pointer focus is not on the app window during the scroll`. Tracing with `WAYLAND_DEBUG=client` on the app, in a probe that replays the G4 `library` drive:
+  - Real motion events: `wl_pointer.motion` walked the cursor from (640, 420) to the left edge (x≈0) and to the top edge, then `wl_pointer.leave`. The runner's uinput device only emits wheel notches and never moves the pointer.
+  - No new surfaces: the client created exactly two `wl_surface`s (the main surface and the cursor surface) and no `xdg_popup` or subsurface, so neither Kit nor gpui opened a tooltip or hover layer.
+  - Not app-driven: the app made no pointer-constraint or warp request.
+  - Control run, same placement, nothing injected: 54, then 318 and 149 `wl_pointer.motion` events and 1–2 leaves in 12 s, so the cursor moved without any bench input.
+  - The source is a physical pointer device on E1 (Logitech USB receiver or the Keychron K4 HE's mouse interface) sending motion while the operator was away. That matches the "hands off the keyboard and mouse" prerequisite.
+  - A G4 loop ran the idle control before every attempt and skipped attempts whose control saw motion. Two attempts after a quiet control still failed (the motion started mid-run); the captures came after quiet controls. G8 had captured earlier because it happened to run in a quiet period.
+  - A runner-side fix (an idle-motion pre-check before the timed scroll) is an open item; the gpui app needs no change for G4.
+- **Palette Enter did nothing (app bug, found through G4 `settings`).** The first G4 capture reported `settings` p50 500 ms. Its frame logs showed ~230 one-interval frames, then a frame every 500 ms (the Kit input's cursor blink), so the page was not scrolling. A screenshot probe of the bench's key sequence (Ctrl+K, type `settings`, Enter) showed the palette staying open on the library page.
+  - Cause: the spike binds `enter` to its own `Confirm` with no key context. gpui ranks a context-free binding at the deepest context depth, so it outranks the Kit input's `Input`-context Enter. `Confirm` reached `Shell::activate`, which had no case for the palette.
+  - A first fix (`bf258010`) submitted through the Kit dialog's `on_ok`. It passed a headless test that dispatched `Confirm` directly, but did nothing on real key input; a G4 re-run at that commit still measured the blink.
+  - Fix (`f6c12fe7`): `activate` submits the palette, and `palette_submit` also closes Kit's dialog layer.
+  - The test `palette_navigates_and_settings_page_scrolls` now sends a native Enter key-down/up (`simulate_keystrokes("enter")` enters as IME text) and checks `has_active_dialog`. It fails without each half of the fix. The probe screenshot confirms the release binary reaches and scrolls Settings.
+  - Lesson for the comparison: gpui's binding precedence (no context wins) differs from iced's widget-first key handling, and Kit's headless helpers can hide the difference.
 - `scripts/check-host-gateway.sh` gains the spike crate's `src/` in `SCAN_DIRS` (passes).
 
 ## Open items
 
-- **G4 capture**: trace the `wl_pointer.leave` gpui receives about 1.5 s into the G4 library/settings/console scroll, then capture G4.
-- **G8 / G9 cadence**: find why gpui presents at about 60 Hz during console replay and about 30 Hz during resize on a 180 Hz panel.
-- **Flatpak staging and G10**: build the binary in `org.gnome.Sdk//50`, install it as `--branch=spike-gpui`, run `SPIKE_SMOKE_PICK=1 flatpak run --branch=spike-gpui dev.crosshook.CrossHook` for the portal smoke test, then measure G10.
-- **G1**: run with a manual page-cache drop before each launch.
+- **G4/G8/G9 cadence**: find why gpui presents at about 30 Hz while scrolling and resizing, and about 60 Hz during console replay, on a 180 Hz panel (iced: one interval on library scroll).
+- **Bench pointer-quiet check**: add a pre-run check for host pointer motion to the G4/G8 drivers, so a moving physical mouse reports `POINTER_BUSY` instead of `FOCUS_LOST`.
+- **Runner G10 fixes to `main`**: upstream the `strip -o` and `flatpak info APP//BRANCH` fixes with tests.
+- **Flatpak G1–G9**: the Flatpak was staged and smoke-tested, but the G-metrics were taken natively, as iced's were. Flatpak captures were not attempted: no acceptance item requires them, and M0-06 owns the cross-environment matrix.
 - **zbus backend (F1)**: decide one zbus backend for the process before any gpui (or iced+ashpd) UI ships next to `crosshook-core`.
 - **Pin bump**: measure what moving to gpui-pre 0.3.14 / gpui-kit 0.11.0 breaks, as a churn sample.
 - **Physical gamepad**: drive the gilrs path with a real controller on E1/E2 (only unit-tested here).
