@@ -130,17 +130,22 @@ fn dpad_reaches_culled_cards_via_grid_model() {
 fn wheel_over_console_scrolls_the_log() {
     let mut app = app();
     app.window = Size::new(1600.0, 972.0);
-    app.console.append((0..10_000).map(|i| format!("line {i}")).collect());
-    let mut sim = Simulator::with_size(iced_test::core::Settings::default(), app.window, app.view());
+    app.console
+        .append((0..10_000).map(|i| format!("line {i}")).collect());
+    let mut sim =
+        Simulator::with_size(iced_test::core::Settings::default(), app.window, app.view());
     sim.point_at(iced::Point::new(800.0, 832.0));
     for delta in [1.0, -1.0] {
         let _ = sim.scroll(iced::mouse::ScrollDelta::Lines { x: 0.0, y: delta });
     }
     let msgs: Vec<_> = sim.into_messages().collect();
     assert!(
-        msgs.iter().any(|m| matches!(m, Message::ConsoleScrolled(_))),
+        msgs.iter()
+            .any(|m| matches!(m, Message::ConsoleScrolled(_))),
         "wheel over the console must scroll it; got {} messages: {:?}",
         msgs.len(),
-        msgs.iter().map(|m| format!("{m:?}").chars().take(40).collect::<String>()).collect::<Vec<_>>()
+        msgs.iter()
+            .map(|m| format!("{m:?}").chars().take(40).collect::<String>())
+            .collect::<Vec<_>>()
     );
 }
