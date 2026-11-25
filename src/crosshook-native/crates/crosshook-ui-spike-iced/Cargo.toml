@@ -15,7 +15,6 @@ iced = { git = "https://github.com/iced-rs/iced", rev = "a8231fd9ddf3570f95affba
     "wgpu",
     "tiny-skia",
     "wayland",
-    "wayland-dlopen",
     "x11",
     "crisp",
     "thread-pool",

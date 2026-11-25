@@ -320,6 +320,25 @@ int wl_proxy_add_dispatcher(struct wl_proxy *proxy, wl_dispatcher_func_t dispatc
     return fn(proxy, dispatcher, dispatcher_data, data);
 }
 
+/* wayland-rs built with `dlopen` (wgpu-hal forces it) resolves libwayland symbols with
+ * dlsym(handle, name), which bypasses LD_PRELOAD interposition. Redirect only the dispatcher
+ * hook to ours; every other lookup goes to the real dlsym unchanged. SPIKE BRANCH ONLY. */
+void *dlsym(void *handle, const char *name) {
+    typedef void *(*dlsym_fn)(void *, const char *);
+    static dlsym_fn real;
+    dlsym_fn fn = __atomic_load_n(&real, __ATOMIC_ACQUIRE);
+    if (!fn) {
+        fn = (dlsym_fn)dlvsym(RTLD_NEXT, "dlsym", "GLIBC_2.34");
+        if (!fn) fn = (dlsym_fn)dlvsym(RTLD_NEXT, "dlsym", "GLIBC_2.2.5");
+        if (!fn) abort();
+        __atomic_store_n(&real, fn, __ATOMIC_RELEASE);
+    }
+    if (handle != RTLD_NEXT && handle != RTLD_DEFAULT && name &&
+        strcmp(name, "wl_proxy_add_dispatcher") == 0)
+        return (void *)wl_proxy_add_dispatcher;
+    return fn(handle, name);
+}
+
 /* ---- exported hooks ---- */
 
 /* GTK may register listeners before the shim has initialized; wlp_tracking() lets those
