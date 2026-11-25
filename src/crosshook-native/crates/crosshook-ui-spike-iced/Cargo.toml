@@ -1,0 +1,34 @@
+[package]
+name = "crosshook-ui-spike-iced"
+version.workspace = true
+edition = "2024"
+rust-version.workspace = true
+publish = false
+description = "THROWAWAY M0-04 iced spike (YAN-773). Lives on spike/iced only; never merged to main."
+
+[dependencies]
+# Pinned iced master revision (2026-10-07). MSRV of this rev: 1.93.
+iced = { git = "https://github.com/iced-rs/iced", rev = "a8231fd9ddf3570f95affba2d45a9be092007f71", default-features = false, features = [
+    "tokio",
+    "image",
+    "svg",
+    "wgpu",
+    "tiny-skia",
+    "wayland",
+    "wayland-dlopen",
+    "x11",
+    "crisp",
+    "thread-pool",
+    "sysinfo",
+    "advanced",
+] }
+crosshook-core = { path = "../crosshook-core" }
+tokio = { version = "1", features = ["rt", "sync", "time"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+lru = "0.16"
+gilrs = "0.11"
+rfd = { version = "0.16", default-features = false, features = ["xdg-portal", "tokio", "wayland"] }
+libc = "0.2"
+
+[dev-dependencies]
+iced_test = { git = "https://github.com/iced-rs/iced", rev = "a8231fd9ddf3570f95affba2d45a9be092007f71" }
