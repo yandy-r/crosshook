@@ -4,14 +4,14 @@
 
 ## DMA-BUF A/B
 
-The four passes ran on 2026-11-25 on G7 (E1), with Fedora 45, kernel 7.3.4-300.fc45, KWin Wayland, and NVIDIA RTX 5070 Laptop GPU driver 620.73.04. The host WebKitGTK was 2.54.2. Each pass started with a fresh isolated profile tree from seed 42 and was checked at the desktop once the Library loaded.
+The four passes ran on 2026-11-25 on G7 (E1), with Fedora 45, kernel 7.3.4-300.fc45, KWin Wayland, and NVIDIA RTX 5070 Laptop GPU driver 620.73.04. The host WebKitGTK was 2.54.2. Each pass started with a fresh isolated profile tree from seed 42 and was checked at the desktop once the Library loaded. The setting in the table is `WEBKIT_DISABLE_DMABUF_RENDERER`.
 
 | Build   | Setting                                 | Outcome                                                                      |
 | ------- | --------------------------------------- | ---------------------------------------------------------------------------- |
 | Native  | Shipping default (application sets `1`) | Reached `READY`. Library worked.                                             |
-| Native  | `0`                                     | Reached `READY`. Library worked and felt faster to the operator.             |
+| Native  | Environment override `0`                | Reached `READY`. Library worked and felt faster to the operator.             |
 | Flatpak | Shipping default (manifest sets `1`)    | Reached `READY`. Library took a while to load and worked normally afterward. |
-| Flatpak | `0`                                     | Reached `READY`. Library took a while to load and worked normally afterward. |
+| Flatpak | `flatpak run --env` override `0`        | Reached `READY`. Library took a while to load and worked normally afterward. |
 
 Both Flatpak logs report the same Mesa EGL warning, `egl: failed to create dri2 screen`. No blank window or crash was observed in any pass. The launcher captured absolute `READY` timestamps without a launch timestamp, so this check provides no elapsed startup comparison. The effective buffer transport was not measured.
 
