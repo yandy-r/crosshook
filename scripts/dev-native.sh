@@ -45,15 +45,20 @@ setup_tauri_dev_port() {
   trap cleanup_tauri_dev_port EXIT
 }
 
+# The app's startup policy (`WebKitEnvPolicy`, src-tauri/src/env_policy.rs)
+# disables WebKitGTK's DMA-BUF renderer only when it detects an NVIDIA GPU, so
+# an exported WEBKIT_DISABLE_DMABUF_RENDERER is inherited unchanged here.
 run_tauri_dev() {
-  WEBKIT_DISABLE_DMABUF_RENDERER=1 CARGO_TARGET_DIR="$CARGO_TARGET_DIR" npm exec tauri dev --config "$TAURI_DEV_MERGE_CFG"
+  CARGO_TARGET_DIR="$CARGO_TARGET_DIR" npm exec tauri dev --config "$TAURI_DEV_MERGE_CFG"
 }
 
 usage() {
   cat <<'EOF'
 Usage: ./scripts/dev-native.sh [--browser|--web]
 
-Run the native Tauri dev app with the local WebKit workaround enabled.
+Run the native Tauri dev app. Its startup policy disables the WebKitGTK
+DMA-BUF renderer only when an NVIDIA GPU is detected; an exported
+WEBKIT_DISABLE_DMABUF_RENDERER is inherited unchanged and always wins.
 If the first launch fails in a Wayland session, retry once with X11.
 
   --browser, --web
@@ -114,7 +119,11 @@ export CARGO_TARGET_DIR
 setup_tauri_dev_port
 
 echo "Starting CrossHook Native dev app..."
-echo "  WEBKIT_DISABLE_DMABUF_RENDERER=1"
+if [[ -v WEBKIT_DISABLE_DMABUF_RENDERER ]]; then
+  echo "  WEBKIT_DISABLE_DMABUF_RENDERER=$WEBKIT_DISABLE_DMABUF_RENDERER (inherited from the environment; wins over the startup policy)"
+else
+  echo "  WEBKIT_DISABLE_DMABUF_RENDERER=<unset; the startup policy disables it only on NVIDIA GPUs>"
+fi
 echo "  CARGO_TARGET_DIR=$CARGO_TARGET_DIR"
 echo "  CROSSHOOK_TAURI_DEV_PORT=$CROSSHOOK_TAURI_DEV_PORT (devUrl http://localhost:$CROSSHOOK_TAURI_DEV_PORT)"
 echo "  CROSSHOOK_TAURI_HMR_PORT=$CROSSHOOK_TAURI_HMR_PORT"
@@ -126,8 +135,8 @@ fi
 if [[ -n "${WAYLAND_DISPLAY:-}" || "${XDG_SESSION_TYPE:-}" == "wayland" ]]; then
   echo
   echo "Wayland launch failed. Retrying with X11 fallback..."
-  echo "  GDK_BACKEND=x11 WEBKIT_DISABLE_DMABUF_RENDERER=1"
-  exec env GDK_BACKEND=x11 WEBKIT_DISABLE_DMABUF_RENDERER=1 CARGO_TARGET_DIR="$CARGO_TARGET_DIR" \
+  echo "  GDK_BACKEND=x11"
+  exec env GDK_BACKEND=x11 CARGO_TARGET_DIR="$CARGO_TARGET_DIR" \
     CROSSHOOK_TAURI_DEV_PORT="$CROSSHOOK_TAURI_DEV_PORT" \
     CROSSHOOK_TAURI_HMR_PORT="$CROSSHOOK_TAURI_HMR_PORT" \
     npm exec tauri dev --config "$TAURI_DEV_MERGE_CFG"

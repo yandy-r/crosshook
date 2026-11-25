@@ -166,7 +166,6 @@
 
   --crosshook-media-slot-preview-radius: 6px;
   --crosshook-skeleton-duration: 1.8s;
-  --crosshook-skeleton-color-from: var(--crosshook-color-surface);
   --crosshook-skeleton-color-to: var(--crosshook-color-bg-elevated);
 
   /* Command palette (⌘K overlay): shared dark-surface rgba tokens (borders, subtle fills, header gradient) */

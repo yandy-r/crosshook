@@ -22,7 +22,6 @@ On very wide displays, the Library gains a **fourth pane** on the right: the **c
 | Rail UI                    | `src/crosshook-native/src/components/layout/ContextRail.tsx`                        |
 | Shell layout               | `src/crosshook-native/src/components/layout/AppShell.tsx`                           |
 | Library vs detail mode     | `src/crosshook-native/src/context/InspectorSelectionContext.tsx`, `LibraryPage.tsx` |
-| Scroll polish              | `src/crosshook-native/src/hooks/useScrollEnhance.ts`                                |
 | Styles                     | `src/crosshook-native/src/styles/theme.css`                                         |
 
 ## Limitations

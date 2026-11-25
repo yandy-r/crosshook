@@ -107,9 +107,9 @@
   border-radius: var(--crosshook-radius-md);
   background: var(--crosshook-color-surface);
   cursor: default;
-  transition:
-    transform var(--crosshook-transition-fast) ease,
-    box-shadow var(--crosshook-transition-fast) ease;
+  /* Compositor-only hover: `transform` never repaints. `box-shadow` was dropped from the
+     transition and from :hover because animating it repaints the card every frame. */
+  transition: transform var(--crosshook-transition-fast) ease;
 }
 
 /* Opens game details; sits above artwork, below footer actions (footer stops propagation). */
@@ -128,7 +128,6 @@
 
 .crosshook-library-card:hover {
   transform: translateY(-2px);
-  box-shadow: var(--crosshook-shadow-soft);
 }
 
 .crosshook-library-card:focus-visible,
@@ -161,13 +160,16 @@
   position: absolute;
   inset: 0;
   z-index: 2;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, transparent 50%);
+  /* One static gradient, deepened on hover through `opacity` (compositor-only). Interpolating
+     the `background` gradient instead repaints the scrim region every frame of the hover. */
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.15) 60%);
+  opacity: 0.85;
   pointer-events: none;
-  transition: background var(--crosshook-transition-fast) ease;
+  transition: opacity var(--crosshook-transition-fast) ease;
 }
 
 .crosshook-library-card:hover .crosshook-library-card__scrim {
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.15) 60%);
+  opacity: 1;
 }
 
 .crosshook-library-card__footer {
@@ -240,15 +242,15 @@
   height: 32px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(8px);
+  /* Opaque token instead of a translucent fill that depended on backdrop blur. */
+  background: var(--crosshook-color-surface-strong);
   color: var(--crosshook-color-text);
   cursor: pointer;
   transition: background var(--crosshook-transition-fast) ease;
 }
 
 .crosshook-library-card__btn--glass:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--crosshook-color-bg-elevated);
 }
 
 .crosshook-library-card__btn--details {
@@ -428,15 +430,16 @@
   background: var(--crosshook-color-surface);
   border: 1px solid var(--crosshook-color-border);
   cursor: default;
+  /* Compositor-only hover: `transform` and `opacity`. `box-shadow` and `background` were
+     dropped because transitioning either repaints the row every frame. */
   transition:
     transform var(--crosshook-transition-fast) ease,
-    box-shadow var(--crosshook-transition-fast) ease,
-    background var(--crosshook-transition-fast) ease;
+    opacity var(--crosshook-transition-fast) ease;
 }
 
 .crosshook-library-list-row:hover {
-  background: var(--crosshook-color-surface-strong);
-  box-shadow: var(--crosshook-shadow-soft);
+  transform: translateY(-1px);
+  opacity: 0.96;
 }
 
 .crosshook-library-list-row:focus-visible,
@@ -709,9 +712,8 @@
   padding: 18px 14px;
   background:
     radial-gradient(ellipse 80% 100% at 95% 50%, rgba(74, 125, 181, 0.08), transparent 60%),
-    linear-gradient(180deg, rgba(18, 23, 42, 0.96), rgba(12, 17, 32, 0.96));
+    linear-gradient(180deg, var(--crosshook-color-surface-1), var(--crosshook-color-surface-strong));
   box-shadow: var(--crosshook-shadow-strong);
-  backdrop-filter: blur(18px);
   overflow: hidden;
 }
 

@@ -93,8 +93,7 @@ const confirmationBackdropStyle: CSSProperties = {
   display: 'grid',
   placeItems: 'center',
   padding: 24,
-  background: 'rgba(3, 8, 20, 0.76)',
-  backdropFilter: 'blur(10px)',
+  background: 'rgba(3, 8, 20, 0.84)',
 };
 
 const confirmationCardStyle: CSSProperties = {

@@ -812,14 +812,16 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
+  /* Compositor-only hover: `transform` and `opacity`. `background` and `box-shadow` were
+     dropped because transitioning either repaints the card every frame. */
   transition:
-    background var(--crosshook-transition-fast) ease,
-    box-shadow var(--crosshook-transition-fast) ease;
+    transform var(--crosshook-transition-fast) ease,
+    opacity var(--crosshook-transition-fast) ease;
 }
 
 .crosshook-hero-detail__profiles-card:hover {
-  background: var(--crosshook-color-surface-strong);
-  box-shadow: var(--crosshook-shadow-soft);
+  transform: translateY(-1px);
+  opacity: 0.96;
 }
 
 .crosshook-hero-detail__profiles-card:focus-visible {
@@ -831,6 +833,11 @@
   outline: 3px solid var(--crosshook-color-accent-strong);
   outline-offset: 2px;
   background: var(--crosshook-color-surface-strong);
+}
+
+/* The hover lift is motion this card did not have before; keep it still under reduced motion. */
+:root[data-crosshook-motion='reduced'] .crosshook-hero-detail__profiles-card:hover {
+  transform: none;
 }
 
 .crosshook-hero-detail__profiles-card-header {
@@ -894,7 +901,7 @@
 /* ── LaunchSubTabs chrome flattening ──────────────────────────────────────
  * When the legacy LaunchSubTabs component (crosshook-subtabs-shell) is
  * embedded inside Hero Detail's launch tab it must not produce its own
- * panel chrome (background gradient, border, box-shadow, backdrop-filter)
+ * panel chrome (background gradient, border, box-shadow)
  * or its cover-art backdrop — Hero Detail already provides those surfaces.
  *
  * Selectors that neutralise crosshook-panel and crosshook-subtabs-shell
@@ -902,13 +909,12 @@
  */
 
 /* Neutralise the .crosshook-panel base chrome (background, border, radius,
-   shadow, backdrop-filter, padding) on the subtabs shell root element. */
+   shadow, padding) on the subtabs shell root element. */
 .crosshook-hero-detail__launch-tab .crosshook-subtabs-shell {
   background: none;
   border: none;
   border-radius: 0;
   box-shadow: none;
-  backdrop-filter: none;
   padding: 0;
 }
 

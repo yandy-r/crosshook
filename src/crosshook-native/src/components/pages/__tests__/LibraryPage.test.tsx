@@ -11,6 +11,7 @@ import { LaunchStateProvider } from '@/context/LaunchStateContext';
 import { PreferencesProvider } from '@/context/PreferencesContext';
 import { ProfileProvider } from '@/context/ProfileContext';
 import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
+import { useRunningProfiles } from '@/hooks/useRunningProfiles';
 import { emitMockEvent } from '@/lib/events';
 import { renderWithMocks } from '@/test/render';
 import type { LibraryFilterIntent, OpenGameDetailIntent } from '@/types/navigation';
@@ -47,6 +48,9 @@ function LibraryPageWithInspector({
   onOpenCommandPalette,
 }: LibraryPageHarnessProps = {}) {
   const { inspectorSelection, libraryInspectorHandlers, libraryShellMode } = useInspectorSelection();
+  // LibraryPage no longer subscribes itself: like AppShell, the harness mounts
+  // the one `useRunningProfiles` subscription and hands the snapshot down.
+  const runningProfiles = useRunningProfiles();
   return (
     <div style={{ display: 'flex' }}>
       <div style={{ flex: '1 1 50%', minWidth: 0 }}>
@@ -54,6 +58,7 @@ function LibraryPageWithInspector({
           libraryFilterIntent={libraryFilterIntent}
           openGameDetailIntent={openGameDetailIntent}
           onOpenCommandPalette={onOpenCommandPalette}
+          runningProfiles={runningProfiles}
         />
       </div>
       <div style={{ flex: '0 0 320px' }}>
@@ -101,6 +106,17 @@ function renderLibraryHarness(
     </ProfileProvider>,
     options
   );
+}
+
+/** Crosses several macrotask boundaries so any queued subscription or snapshot request would have run. */
+async function settle(): Promise<void> {
+  for (let i = 0; i < 5; i += 1) {
+    await act(async () => {
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
+  }
 }
 
 describe('LibraryPage', () => {
@@ -264,6 +280,35 @@ describe('LibraryPage', () => {
       expect(screen.getByRole('button', { name: 'Select Test Game Alpha' })).toBeInTheDocument();
     });
     expect(screen.queryByRole('button', { name: 'Select Dev Game Beta' })).not.toBeInTheDocument();
+  });
+
+  it('does not subscribe to launch sessions on its own; the shell owns that subscription', async () => {
+    // Deliberately no LaunchStateProvider: it consumes the running-sessions store itself
+    // (via useLaunchState), which would mask a subscription made by the page.
+    const listRunningSessions = vi.fn(async () => ({ sessions: [], seq: 1 }));
+    renderWithMocks(
+      <ProfileProvider>
+        <PreferencesProvider>
+          <Tooltip.Provider delayDuration={0}>
+            <ProfileHealthProvider>
+              <HostReadinessProvider>
+                <CollectionsProvider>
+                  <InspectorSelectionProvider>
+                    <LibraryPage />
+                  </InspectorSelectionProvider>
+                </CollectionsProvider>
+              </HostReadinessProvider>
+            </ProfileHealthProvider>
+          </Tooltip.Provider>
+        </PreferencesProvider>
+      </ProfileProvider>,
+      { handlerOverrides: { list_running_sessions: listRunningSessions } }
+    );
+
+    await screen.findByRole('button', { name: 'Select Test Game Alpha' });
+    await settle();
+
+    expect(listRunningSessions).not.toHaveBeenCalled();
   });
 
   it('keeps game detail open on Profiles when Edit profile is triggered', async () => {

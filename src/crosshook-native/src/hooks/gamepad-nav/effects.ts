@@ -2,6 +2,7 @@ import { type MutableRefObject, useEffect } from 'react';
 
 import {
   AXIS_ACTIVATION_THRESHOLD,
+  GAMEPAD_ACTION_Y_BUTTON,
   GAMEPAD_BACK_BUTTON,
   GAMEPAD_CONFIRM_BUTTON,
   GAMEPAD_DPAD_DOWN,
@@ -12,6 +13,7 @@ import {
   GAMEPAD_RIGHT_BUMPER,
 } from './constants';
 import { getFocusZoneRoot, getNavigationRoot, getRootElement, isEditableElement, isModalNavigationRoot } from './dom';
+import { emitGamepadYAction } from './events';
 import type { FocusZone, GamepadStateMap } from './types';
 
 interface GamepadNavEffectsArgs {
@@ -148,6 +150,7 @@ function useSidebarFocusSync({
 }
 
 function useGamepadPolling({
+  rootRef,
   controllerMode,
   focusNext,
   focusPrevious,
@@ -158,6 +161,7 @@ function useGamepadPolling({
   lastGamepadState,
 }: Pick<
   GamepadNavEffectsArgs,
+  | 'rootRef'
   | 'controllerMode'
   | 'focusNext'
   | 'focusPrevious'
@@ -211,6 +215,10 @@ function useGamepadPolling({
           confirm();
         } else if (edge(GAMEPAD_BACK_BUTTON)) {
           back();
+        } else if (edge(GAMEPAD_ACTION_Y_BUTTON)) {
+          if (!isModalNavigationRoot(getNavigationRoot(rootRef))) {
+            emitGamepadYAction();
+          }
         } else {
           const vertical = gamepad.axes[1] ?? 0;
           const horizontal = gamepad.axes[0] ?? 0;
@@ -261,7 +269,17 @@ function useGamepadPolling({
     return () => {
       window.cancelAnimationFrame(frameId);
     };
-  }, [back, confirm, controllerMode, cycleSidebarView, focusNext, focusPrevious, lastGamepadState, switchZone]);
+  }, [
+    back,
+    confirm,
+    controllerMode,
+    cycleSidebarView,
+    focusNext,
+    focusPrevious,
+    lastGamepadState,
+    rootRef,
+    switchZone,
+  ]);
 }
 
 function useInitialActiveState(updateActiveState: () => void) {

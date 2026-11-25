@@ -5,6 +5,7 @@ import { useFocusManagement } from './gamepad-nav/focusManagement';
 import { isSteamDeckRuntime } from './gamepad-nav/steamDeck';
 import type { FocusZone, GamepadNavOptions, GamepadNavState, GamepadStateMap } from './gamepad-nav/types';
 
+export { subscribeGamepadYAction } from './gamepad-nav/events';
 export { isSteamDeckRuntime } from './gamepad-nav/steamDeck';
 export type { GamepadNavOptions, GamepadNavState } from './gamepad-nav/types';
 

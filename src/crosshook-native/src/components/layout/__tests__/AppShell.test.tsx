@@ -1,3 +1,4 @@
+import type { EventCallback, UnlistenFn } from '@tauri-apps/api/event';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -14,6 +15,22 @@ vi.mock('@/lib/ipc', async () => {
   const { mockCallCommand } = await import('@/test/render');
   return { callCommand: mockCallCommand };
 });
+
+// Records every `subscribeEvent` call while delegating to the real module, so the
+// browser event bus (and `emitMockEvent`) behaves exactly as it does unmocked.
+const subscribeEventMock = vi.hoisted(() =>
+  vi.fn<(name: string, handler: EventCallback<unknown>) => Promise<UnlistenFn>>()
+);
+
+vi.mock('@/lib/events', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/events')>();
+  subscribeEventMock.mockImplementation((name, handler) => actual.subscribeEvent(name, handler));
+  return { ...actual, subscribeEvent: subscribeEventMock };
+});
+
+function launchSessionSubscriptions(): number {
+  return subscribeEventMock.mock.calls.filter(([name]) => name === 'launch-session-changed').length;
+}
 
 function AppShellInAppProviders() {
   return (
@@ -241,6 +258,69 @@ describe('AppShell (integration)', () => {
         expect(screen.getByText('1 line')).toBeInTheDocument();
       });
       expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
+
+  it('subscribes to launch sessions once for the sidebar and the library, without polling', async () => {
+    setInnerWidth(1920);
+    setInnerHeight(1080);
+    const rectSpy = mockAppShellRect(1920, 1080);
+    const listRunningSessions = vi.fn(async () => ({ sessions: [], seq: 1 }));
+    try {
+      renderWithMocks(<AppShellInAppProviders />, {
+        handlerOverrides: { list_running_sessions: listRunningSessions },
+      });
+
+      // Wait until the shell is fully mounted: the sidebar and the library page's toolbar both read
+      // the shell's snapshot (the sidebar badge and the "Running" filter).
+      await screen.findByTestId('sidebar');
+      await screen.findByRole('button', { name: 'Running' });
+
+      await waitFor(() => {
+        expect(listRunningSessions).toHaveBeenCalledTimes(1);
+      });
+      expect(launchSessionSubscriptions()).toBe(1);
+
+      // Nothing re-fetches once the snapshot has settled: the store is event-driven, never polled.
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, 120);
+      });
+      expect(launchSessionSubscriptions()).toBe(1);
+      expect(listRunningSessions).toHaveBeenCalledTimes(1);
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
+
+  it('passes the shell running-profiles snapshot down to the library filter', async () => {
+    const user = userEvent.setup();
+    setInnerWidth(1920);
+    setInnerHeight(1080);
+    const rectSpy = mockAppShellRect(1920, 1080);
+    try {
+      renderWithMocks(<AppShellInAppProviders />, {
+        handlerOverrides: {
+          list_running_sessions: async () => ({
+            sessions: [{ session_id: 'alpha-game', profile_name: 'Test Game Alpha', session_kind: 'game' }],
+            seq: 1,
+          }),
+        },
+      });
+
+      const sidebar = await screen.findByTestId('sidebar');
+      // The shell's snapshot also feeds the sidebar badge, so the name carries the running count.
+      await user.click(within(sidebar).getByRole('button', { name: /^Currently Playing/ }));
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Running' })).toHaveAttribute('aria-pressed', 'true');
+      });
+
+      // The Running filter shows nothing until the shell's snapshot arrives through the prop.
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Select Test Game Alpha' })).toBeInTheDocument();
+      });
+      expect(screen.queryByRole('button', { name: 'Select Dev Game Beta' })).not.toBeInTheDocument();
     } finally {
       rectSpy.mockRestore();
     }

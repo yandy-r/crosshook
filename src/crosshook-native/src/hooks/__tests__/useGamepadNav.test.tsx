@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { type GamepadNavState, useGamepadNav } from '../useGamepadNav';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+// `subscribeGamepadYAction` is imported through the public module on purpose: the re-export is part of the hook's surface.
+import { type GamepadNavState, subscribeGamepadYAction, useGamepadNav } from '../useGamepadNav';
 
 interface HarnessProps {
   enabled?: boolean;
@@ -60,6 +61,10 @@ describe('useGamepadNav', () => {
     latestState = null;
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('cycles focus with capture-phase keyboard handling', () => {
     render(<GamepadNavHarness enabled={false} />);
 
@@ -90,6 +95,134 @@ describe('useGamepadNav', () => {
     });
 
     expect(editButton).toHaveFocus();
+  });
+
+  it('schedules no animation frames while controller mode is off, even with a gamepad connected', () => {
+    vi.useFakeTimers();
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame');
+    // Y is held down the whole time: with no polling loop there is nothing to detect it.
+    vi.spyOn(navigator, 'getGamepads').mockReturnValue([makeGamepad([3])] as unknown as Gamepad[]);
+    const onY = vi.fn();
+    const unsubscribe = subscribeGamepadYAction(onY);
+
+    render(<GamepadNavHarness enabled={false} />);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(rafSpy).not.toHaveBeenCalled();
+    expect(onY).not.toHaveBeenCalled();
+    unsubscribe();
+  });
+
+  it('stops the polling loop when controller mode is switched off', () => {
+    vi.useFakeTimers();
+    // Count executed polls (each frame reads the gamepad once), not `requestAnimationFrame` calls:
+    // re-running the effect cancels and re-schedules a frame without polling an extra time.
+    const getGamepadsSpy = vi
+      .spyOn(navigator, 'getGamepads')
+      .mockReturnValue([makeGamepad([])] as unknown as Gamepad[]);
+
+    const { rerender } = render(<GamepadNavHarness enabled />);
+    const advanceFrame = () =>
+      act(() => {
+        vi.advanceTimersByTime(20);
+      });
+
+    advanceFrame();
+    advanceFrame();
+    const pollsWhileOn = getGamepadsSpy.mock.calls.length;
+    expect(pollsWhileOn).toBeGreaterThan(1);
+
+    rerender(<GamepadNavHarness enabled={false} />);
+    advanceFrame();
+    advanceFrame();
+    advanceFrame();
+
+    // Not one further frame reads the gamepad once controller mode is off.
+    expect(getGamepadsSpy.mock.calls.length).toBe(pollsWhileOn);
+  });
+
+  it('notifies Y-action listeners on the rising edge of button 3 only', () => {
+    vi.useFakeTimers();
+    let yPressed = false;
+    vi.spyOn(navigator, 'getGamepads').mockImplementation(
+      () => [makeGamepad(yPressed ? [3] : [])] as unknown as Gamepad[]
+    );
+    const onY = vi.fn();
+    const unsubscribe = subscribeGamepadYAction(onY);
+
+    render(<GamepadNavHarness enabled />);
+    const advanceFrame = () =>
+      act(() => {
+        vi.advanceTimersByTime(20);
+      });
+
+    advanceFrame();
+    expect(onY).not.toHaveBeenCalled();
+
+    yPressed = true;
+    advanceFrame();
+    expect(onY).toHaveBeenCalledTimes(1);
+
+    // Still held: no new edge.
+    advanceFrame();
+    advanceFrame();
+    expect(onY).toHaveBeenCalledTimes(1);
+
+    yPressed = false;
+    advanceFrame();
+    expect(onY).toHaveBeenCalledTimes(1);
+
+    yPressed = true;
+    advanceFrame();
+    expect(onY).toHaveBeenCalledTimes(2);
+
+    unsubscribe();
+    yPressed = false;
+    advanceFrame();
+    yPressed = true;
+    advanceFrame();
+    expect(onY).toHaveBeenCalledTimes(2);
+  });
+
+  it('isolates a throwing Y-action listener so the poll loop and other listeners keep running', () => {
+    vi.useFakeTimers();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    let yPressed = true;
+    vi.spyOn(navigator, 'getGamepads').mockImplementation(
+      () => [makeGamepad(yPressed ? [3] : [])] as unknown as Gamepad[]
+    );
+
+    const healthy = vi.fn();
+    const unsubThrow = subscribeGamepadYAction(() => {
+      throw new Error('boom');
+    });
+    const unsubHealthy = subscribeGamepadYAction(healthy);
+
+    render(<GamepadNavHarness enabled />);
+
+    const advanceFrame = () => {
+      act(() => {
+        vi.advanceTimersByTime(16);
+      });
+    };
+
+    try {
+      advanceFrame();
+      expect(healthy).toHaveBeenCalledTimes(1);
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+
+      // Poll loop survived: releasing and pressing Y fires healthy again.
+      yPressed = false;
+      advanceFrame();
+      yPressed = true;
+      advanceFrame();
+      expect(healthy).toHaveBeenCalledTimes(2);
+    } finally {
+      unsubThrow();
+      unsubHealthy();
+    }
   });
 
   it('moves focus to content zone when back() is called from inspector zone', async () => {

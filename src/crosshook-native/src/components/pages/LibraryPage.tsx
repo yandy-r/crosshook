@@ -9,7 +9,6 @@ import { useCollectionMembers } from '../../hooks/useCollectionMembers';
 import { useLibraryProfiles } from '../../hooks/useLibraryProfiles';
 import { useLibrarySummaries } from '../../hooks/useLibrarySummaries';
 import { useOfflineReadiness } from '../../hooks/useOfflineReadiness';
-import { useRunningProfiles } from '../../hooks/useRunningProfiles';
 import {
   type LibraryCardData,
   type LibraryFilterKey,
@@ -32,13 +31,22 @@ interface LibraryPageProps {
   openGameDetailIntent?: OpenGameDetailIntent | null;
   onLibraryFilterChange?: (key: LibraryFilterKey) => void;
   onOpenCommandPalette?: (restoreFocusTo?: HTMLElement | null) => void;
+  /**
+   * Profiles with a running game session, owned by the shell's single
+   * `useRunningProfiles` subscription. Defaults to "none running" so the page
+   * can be rendered on its own; it never subscribes by itself.
+   */
+  runningProfiles?: ReadonlySet<string>;
 }
+
+const EMPTY_RUNNING_PROFILES: ReadonlySet<string> = new Set();
 
 export function LibraryPage({
   libraryFilterIntent,
   openGameDetailIntent,
   onLibraryFilterChange,
   onOpenCommandPalette,
+  runningProfiles = EMPTY_RUNNING_PROFILES,
 }: LibraryPageProps) {
   const {
     profiles,
@@ -65,7 +73,6 @@ export function LibraryPage({
   const libraryHasNoProfiles = !profilesLoading && profiles.length === 0;
   const { healthByName, loading: healthLoading } = useProfileHealthContext();
   const { setInspectorSelection, setLibraryInspectorHandlers, setLibraryShellMode } = useInspectorSelection();
-  const runningProfiles = useRunningProfiles();
   const offlineReadiness = useOfflineReadiness();
   const [pageMode, setPageMode] = useState<'library' | 'detail'>('library');
   const [detailName, setDetailName] = useState<string | null>(null);

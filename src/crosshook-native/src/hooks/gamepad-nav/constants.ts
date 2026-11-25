@@ -11,6 +11,8 @@ export const FOCUSABLE_SELECTOR = [
 
 export const GAMEPAD_CONFIRM_BUTTON = 0;
 export const GAMEPAD_BACK_BUTTON = 1;
+/** Standard-mapping top face button (Y on an Xbox/Steam Deck layout). Not a navigation key: pages subscribe to it for their own "secondary action". */
+export const GAMEPAD_ACTION_Y_BUTTON = 3;
 export const GAMEPAD_LEFT_BUMPER = 4;
 export const GAMEPAD_RIGHT_BUMPER = 5;
 export const GAMEPAD_DPAD_UP = 12;

@@ -177,8 +177,7 @@
   z-index: 2;
   border-top: 1px solid var(--crosshook-color-border);
   box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.28);
-  background: linear-gradient(180deg, rgba(16, 22, 42, 0.98), rgba(12, 17, 32, 0.98));
-  backdrop-filter: blur(16px);
+  background: linear-gradient(180deg, var(--crosshook-color-surface), var(--crosshook-color-surface-strong));
 }
 
 .crosshook-resize-handle {

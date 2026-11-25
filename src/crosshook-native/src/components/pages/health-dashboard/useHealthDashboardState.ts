@@ -1,5 +1,6 @@
 import type { MutableRefObject } from 'react';
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { subscribeGamepadYAction } from '../../../hooks/useGamepadNav';
 import { useOfflineReadiness } from '../../../hooks/useOfflineReadiness';
 import type { CachedHealthSnapshot, EnrichedHealthSummary } from '../../../types';
 import type { EnrichedProfileHealthReport } from '../../../types/health';
@@ -73,7 +74,6 @@ export function useHealthDashboardState({
   const [ariaAnnouncement, setAriaAnnouncement] = useState('');
 
   const recheckPendingRef = useRef(false);
-  const yButtonPrevRef = useRef(false);
 
   const deferredSearch = useDeferredValue(searchQuery);
 
@@ -215,31 +215,19 @@ export function useHealthDashboardState({
     };
   }, [cachedSnapshots, summary]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    let rafId = 0;
-
-    const poll = () => {
-      const gamepad = navigator.getGamepads?.()[0];
-      if (gamepad) {
-        const yPressed = Boolean(gamepad.buttons[3]?.pressed);
-        const wasPressed = yButtonPrevRef.current;
-        if (yPressed && !wasPressed && !loading) {
+  // The controller Y button is "recheck all profiles". The shared gamepad-nav
+  // poll edge-detects the press once (and only while controller mode is on),
+  // so this hook just reacts; it runs no polling loop of its own.
+  useEffect(
+    () =>
+      subscribeGamepadYAction(() => {
+        if (!loading) {
           recheckPendingRef.current = true;
           void batchValidate();
         }
-        yButtonPrevRef.current = yPressed;
-      }
-      rafId = window.requestAnimationFrame(poll);
-    };
-
-    rafId = window.requestAnimationFrame(poll);
-
-    return () => {
-      window.cancelAnimationFrame(rafId);
-    };
-  }, [loading, batchValidate]);
+      }),
+    [loading, batchValidate]
+  );
 
   useEffect(() => {
     if (loading) {
