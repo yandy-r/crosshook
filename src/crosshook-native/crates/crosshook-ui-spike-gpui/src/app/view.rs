@@ -245,10 +245,19 @@ pub fn modal_body(
 }
 
 /// The command palette: a Kit `Dialog` holding a Kit `Input`; Enter navigates.
+/// Kit's dialog binds Enter to its own `Confirm` (closes the dialog before the input's
+/// `PressEnter` reaches the app), so the palette submits through the dialog's `on_ok`.
 pub fn palette_body(dialog: Dialog, palette: &Entity<InputState>, shell: &Entity<Shell>) -> Dialog {
+    let submit = shell.clone();
+    let query = palette.clone();
     dialog
         .title("Go to…")
         .w(px(420.))
+        .on_ok(move |_, window, cx| {
+            let q = query.read(cx).value().to_string();
+            submit.update(cx, |s, cx| s.palette_submit(&q, window, cx));
+            true
+        })
         .child(super::nav::nav_actions(
             div()
                 .id("palette-body")

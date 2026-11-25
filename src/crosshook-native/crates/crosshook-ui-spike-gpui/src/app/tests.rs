@@ -160,6 +160,43 @@ fn modal_traps_focus_and_escape_restores_opener(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn palette_navigates_and_settings_page_scrolls(cx: &mut TestAppContext) {
+    let (win, shell) = open(cx);
+    cx.run_until_parked();
+    keys(win, cx, "ctrl-k");
+    assert!(
+        shell.read_with(cx, |s, _| s.overlay.is_some()),
+        "palette opened"
+    );
+    cx.simulate_input(win.into(), "settings");
+    cx.run_until_parked();
+    let focus = cx
+        .update_window(win.into(), |_, w, cx| {
+            shell.read(cx).widget_target_dbg(w, cx)
+        })
+        .ok()
+        .flatten();
+    assert_eq!(focus, Some(Target::Palette), "the palette input has focus");
+    // `simulate_keystrokes("enter")` reaches a focused Kit input as IME newline text, not a
+    // key-down (GPUI Kit TESTING.md), so dispatch what a real Enter resolves to in the dialog.
+    cx.dispatch_action(
+        win.into(),
+        gpui_component::dialog::Confirm { secondary: false },
+    );
+    cx.run_until_parked();
+    let (ov, route) = shell.read_with(cx, |s, _| (s.overlay, s.route()));
+    assert!(ov.is_none(), "palette closed (route={route:?})");
+    assert_eq!(shell.read_with(cx, |s, _| s.route()), Route::Settings);
+    cx.update_window(win.into(), |_, w, _| w.refresh()).ok();
+    cx.run_until_parked();
+    let max = shell.read_with(cx, |s, _| s.settings_scroll.max_offset().y);
+    assert!(
+        max > gpui::px(0.),
+        "settings page must be scrollable, max offset {max:?}"
+    );
+}
+
+#[gpui::test]
 fn console_ring_stays_bounded(cx: &mut TestAppContext) {
     let (_win, shell) = open(cx);
     let console = shell.read_with(cx, |s, _| s.console.clone());

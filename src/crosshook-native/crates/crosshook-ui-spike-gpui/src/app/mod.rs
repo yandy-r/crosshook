@@ -343,15 +343,23 @@ impl Shell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // Inside Kit's dialog Enter is the dialog's `Confirm` (handled by `palette_submit`
+        // through `on_ok`); this path only fires if the input is used outside a dialog.
         if let InputEvent::PressEnter { .. } = ev {
-            let q = state.read(cx).value().trim().to_lowercase();
-            let route = Route::ALL
-                .into_iter()
-                .find(|r| !q.is_empty() && r.label().to_lowercase().starts_with(&q));
-            self.close_overlay(window, cx);
-            if let Some(route) = route {
-                self.navigate(route, cx);
-            }
+            let q = state.read(cx).value().to_string();
+            self.palette_submit(&q, window, cx);
+        }
+    }
+
+    /// Palette submit: close the overlay, then go to the first route whose label starts with `q`.
+    pub fn palette_submit(&mut self, q: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let q = q.trim().to_lowercase();
+        let route = Route::ALL
+            .into_iter()
+            .find(|r| !q.is_empty() && r.label().to_lowercase().starts_with(&q));
+        self.overlay_closed(window, cx);
+        if let Some(route) = route {
+            self.navigate(route, cx);
         }
     }
 

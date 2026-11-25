@@ -28,6 +28,13 @@ impl Shell {
         }
     }
 
+    #[cfg(test)]
+    pub fn widget_target_dbg(&self, window: &Window, cx: &gpui::App) -> Option<Target> {
+        window
+            .focused(cx)
+            .and_then(|f| self.widget_target(&f, window, cx))
+    }
+
     /// Kit widgets own their handles: find which one (inputs, select) holds focus.
     fn widget_target(
         &self,
