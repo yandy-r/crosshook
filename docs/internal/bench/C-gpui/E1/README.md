@@ -5,7 +5,7 @@ Runner output from the gpui decision spike (M0-05, [YAN-836](https://linear.app/
 | File     | Metric                                                                        | Run finished (`meta.json` `captured_at`) | Spike commit |
 | -------- | ----------------------------------------------------------------------------- | ---------------------------------------- | ------------ |
 | `G2.csv` | Warm start, 10 iterations, `--collect presentation`                           | 2026-11-25 21:50 UTC                     | `75aa6fc8`   |
-| `G3.csv` | Idle PSS/USS/GPU, 600 s                                                       | see `G3.csv` note in the spike write-up  | `75aa6fc8`   |
+| `G3.csv` | Idle PSS/USS/GPU, 600 s                                                       | 2026-11-25 21:59 UTC                     | `75aa6fc8`   |
 | `G5.csv` | 5 scenarios × 20 trials × 2 iterations, `CROSSHOOK_BENCH_CLOCK_FLOOR_NS=1000` | 2026-11-25 21:55 UTC                     | `75aa6fc8`   |
 | `G8.csv` | `replay_scroll`, 2 iterations                                                 | 2026-11-25 21:56 UTC                     | `75aa6fc8`   |
 | `G9.csv` | Resize, 2 iterations                                                          | 2026-11-25 21:50 UTC                     | `75aa6fc8`   |

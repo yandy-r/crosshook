@@ -47,7 +47,7 @@ Build figures are local observations on E1 (i9-14900HX, 32 threads; dependency s
 
 ## Effort
 
-About 2 hours of wall time with an AI pair (15:57 to 18:00 EST, 2026-11-25), out of a 3-day box. The code took about 1 hour. Most of the rest was the zbus panic (F1), test-harness behaviour and bench runs. The time box was respected; the unfinished items below are findings, not extensions.
+About 1.3 hours of wall time with an AI pair (15:57 to 17:15 EST, 2026-11-25), out of a ~3-day (5-point) box. The code took about 1 hour. Most of the rest was the zbus panic (F1), test-harness behaviour and bench runs. The time box was respected; the unfinished items below are findings, not extensions.
 
 ## Code size
 
@@ -80,7 +80,7 @@ The line counts are close to iced's, but they buy different things:
 
 | Criterion | Result | Evidence |
 | --------- | ------ | -------- |
-| Time box respected, actual hours recorded | **Pass** | About 2 h of a ~3-day box; unfinished items recorded below |
+| Time box respected, actual hours recorded | **Pass** | About 1.3 h of a ~3-day box; unfinished items recorded below |
 | Same metrics as M0-04 on E1 under `docs/internal/bench/C-gpui/E1/` | **Partial** | G2, G3, G5, G8, G9 captured. G4 failed every attempt on a pointer-leave the driver treats as `FOCUS_LOST` (open item). G1 was not run (sudo cache drop). G6/G7 cannot be produced on E1 (no producer, `perf` missing), as for iced and Tauri B. G10 needs the Flatpak bundle, which was not staged |
 | Focus coverage (share of slice widgets reachable by D-pad and keyboard) | **Pass: 100 %, in headless tests** | Targets cover every interactive widget of the slice: 3 nav, back/forward, search, every card and its favourite, 15 form fields, 2 inspector actions, 2 modal buttons, palette. The `#[gpui::test]` suite drives real keystrokes through the real keymap and Kit Root. F6/Shift-F6 cycle zones with memory; arrows walk the library grid (cards culled by the list stay reachable); Tab moves gpui focus and the engine follows; Enter activates; Alt-←/→ walk history. A D-pad sweep reaches all 15 settings fields. Gamepad buttons map to the same actions (unit-tested; no physical pad driven on E1) |
 | G6 stalls from core work | **Not measured** | No G6 producer on E1. By construction no core call can run on the foreground executor (next row) |
@@ -108,7 +108,7 @@ iced C numbers are from [`iced.md`](iced.md); Tauri B numbers are the E1 baselin
 | --------------------------------------------------- | --------------------------------------- | ----------------------------- | -------------------------------------- |
 | G2 warm start to READY p50 / p95                    | 261 / 410 ms                            | 281 / 333 ms                  | 1038.1 / 1100.5 ms                     |
 | G2 first presented frame p50 / p95                  | 258 / 394 ms                            | 220 / 293 ms                  | 245.8 / 316.3 ms                       |
-| G3 idle PSS (start → after 10 min)                  | G3_PLACEHOLDER                          | 242 → 254 MB                  | —                                      |
+| G3 idle PSS (start → after 10 min)                  | 210 → 210 MB, flat over 600 s; GPU 86 MB | 242 → 254 MB                  | —                                      |
 | G4 `library` / `settings` / `console` frame p50/p95 | not captured (open item)                | 5.56/5.56, 5.56/5.56, 33.3/44.4 ms | 211/418, 117/344, 61.2/128.4 ms   |
 | G5 `search` p50 / p95                               | 11.7 / 14.1 ms                          | 14.7 / 17.1 ms                | 184.3 / 244.0 ms                       |
 | G5 `toggle_favorite` p50 / p95                      | 13.5 / 17.4 ms                          | 15.2 / 17.4 ms                | 34.9 / 48.9 ms                         |
@@ -137,7 +137,17 @@ gpui 0.3.8 on Linux always renders through wgpu (29.0.4). The relevant behaviour
 
 The spike's `--renderer vulkan|gl|lavapipe|llvmpipe-gl` therefore steers the loaders: `VK_ICD_FILENAMES`, `__EGL_VENDOR_LIBRARY_FILENAMES`, `LIBGL_ALWAYS_SOFTWARE`. `--device 0xNNNN` sets `ZED_DEVICE_ID`, and an explicit env value wins. The adapter is logged at startup as `SPIKE_RENDERER backend=… adapter=… software=… driver=… driver_info=…`, from gpui's "Selected GPU adapter" log line plus `Window::gpu_specs()`.
 
-MATRIX_PLACEHOLDER
+Native E1, one READY run per mode (each `SPIKE_RENDERER` line is quoted from the app's stderr):
+
+| Mode (env it sets)                                                                                                 | Result                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| default / `--renderer vulkan`                                                                                      | `backend=Vulkan adapter="NVIDIA GeForce RTX 5070 Laptop GPU" driver_info="620.73.04"`, READY in 0.86 s. Mesa radv is probed first and warns "not a conformant Vulkan implementation"                                                                                                         |
+| `--device 0x7550` (`ZED_DEVICE_ID`, AMD Navi 48 dGPU)                                                              | `backend=Vulkan adapter="AMD Radeon RX 9070 XT (RADV GFX1201)"`, READY. The device filter works                                                                                                                                                                                             |
+| `--renderer gl` (`VK_ICD_FILENAMES=/dev/null`, NVIDIA EGL)                                                         | **Fails**: `Adapter NVIDIA GeForce RTX 5070 Laptop GPU/PCIe/SSE2 (Gl) failed: no compatible surface formats` → `No GPU adapter found that can configure the display surface`. No window opens; `open_window` returns `Err` and `cx.quit()` is called, yet the process stayed alive until the 30 s timeout killed it |
+| `--renderer lavapipe` (`VK_ICD_FILENAMES=lvp_icd.x86_64.json`)                                                     | `backend=Vulkan adapter="llvmpipe (LLVM 23.1.5, 256 bits)" software=true`, READY in 0.44 s. NVIDIA's GL adapter is tried first and rejected with the same surface-format error                                                                                                              |
+| `--renderer llvmpipe-gl` (Vulkan hidden, `__EGL_VENDOR_LIBRARY_FILENAMES=50_mesa.json`, `LIBGL_ALWAYS_SOFTWARE=1`) | `backend=Gl adapter="llvmpipe (LLVM 23.1.5, 256 bits)" software=true driver_info="4.6 (Core Profile) Mesa 26.2.7"`, READY in 0.39 s. gpui's GL path runs on llvmpipe's GL 4.6; the `zed#50996` storage-block limit is not hit there                                                         |
+
+NVIDIA's EGL exposes a GL adapter but no surface format gpui accepts. That is the same failure class iced hit (`GraphicsAdapterNotFound` through NVIDIA's EGL), surfacing differently. With Vulkan hidden, only a CPU adapter works: lavapipe, or llvmpipe through the Mesa EGL vendor. In the `gl` row the process also kept running after `open_window` failed until the 30 s timeout. The quit had to come from the app, so the broken-GPU path needs explicit handling.
 
 `zed#50996` ("Zed crashes on non-Vulkan GPU: Too many vertex shader storage blocks") is open upstream. gpui's GL path uses storage buffers (`shaders_storage.wgsl`), and drivers that cap vertex-stage storage blocks fail there. The broken-GPU fallback (M5-03) cannot rely on wgpu-GL as the safety net. gpui-pre 0.3.8 has no tiny-skia/CPU renderer; its only software path is a CPU Vulkan or GL adapter (lavapipe or llvmpipe).
 
