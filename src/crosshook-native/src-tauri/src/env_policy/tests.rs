@@ -191,6 +191,14 @@ mod apply {
         assert_eq!(host.calls, vec!["set:WEBKIT_DISABLE_DMABUF_RENDERER"]);
     }
 
+    #[test]
+    fn empty_user_value_on_non_nvidia_is_removed_for_default_renderer() {
+        let mut host = FakeHost::with(&[(DMABUF, "")]);
+        assert_eq!(run(false, &mut host), DmabufDecision::EnabledDefault);
+        assert_eq!(host.dmabuf(), None);
+        assert_eq!(host.calls, vec!["remove:WEBKIT_DISABLE_DMABUF_RENDERER"]);
+    }
+
     #[cfg(unix)]
     #[test]
     fn non_utf8_user_value_is_still_an_override() {

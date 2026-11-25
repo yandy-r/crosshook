@@ -93,20 +93,25 @@ impl WebKitEnvPolicy {
 impl EnvPolicy for WebKitEnvPolicy {
     fn apply(&self, env: &mut PreRuntimeEnv<'_>) {
         let gdk = env.var_os("GDK_BACKEND");
+        let webkit_raw = env.var_os(WEBKIT_DISABLE_DMABUF_RENDERER);
+        let webkit_non_empty = webkit_raw.as_deref().is_some_and(|value| !value.is_empty());
         let actions = decide(
             env.var_os("WAYLAND_DISPLAY").is_some(),
             gdk.as_deref().and_then(|value| value.to_str()),
-            env.var_os(WEBKIT_DISABLE_DMABUF_RENDERER)
-                .is_some_and(|value| !value.is_empty()),
+            webkit_non_empty,
             self.has_nvidia,
         );
         // WebKitGTK's DMA-BUF renderer draws nothing on NVIDIA (blank screen), so
         // it is disabled there before WebKit initializes. Non-NVIDIA systems keep
         // DMA-BUF enabled by default; users on affected multi-GPU/eGPU setups can
         // still set `WEBKIT_DISABLE_DMABUF_RENDERER=1` explicitly, and any
-        // non-empty user value always wins.
+        // non-empty user value always wins. WebKitGTK 2.44+ disables DMA-BUF for
+        // any present value other than "0" (including ""), so clear an inherited
+        // empty value when selecting the default-enabled path.
         if actions.disable_dmabuf() {
             env.set(WEBKIT_DISABLE_DMABUF_RENDERER, "1");
+        } else if actions.dmabuf == DmabufDecision::EnabledDefault && webkit_raw.is_some() {
+            env.remove(WEBKIT_DISABLE_DMABUF_RENDERER);
         }
         // With WebKitGTK 2.44+, native Wayland is more reliable and avoids EGL
         // rendering failures on Intel+NVIDIA hybrid GPU systems where XWayland

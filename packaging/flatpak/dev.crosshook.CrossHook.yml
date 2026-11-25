@@ -55,8 +55,9 @@ finish-args:
   # WebKitGTK DMA-BUF renderer: deliberately not forced here. CrossHook's
   # startup policy (`WebKitEnvPolicy`) sets WEBKIT_DISABLE_DMABUF_RENDERER=1
   # only when it detects an NVIDIA GPU (/sys/class/drm/*/device/vendor ==
-  # 0x10de). An explicit user override still wins:
-  #   flatpak override --user --env=WEBKIT_DISABLE_DMABUF_RENDERER=0|1 dev.crosshook.CrossHook
+  # 0x10de). An explicit user override still wins (replace `1` with `0` to
+  # force DMA-BUF on):
+  #   flatpak override --user --env=WEBKIT_DISABLE_DMABUF_RENDERER=1 dev.crosshook.CrossHook
 
   # Filesystem — home + external drives where Steam libraries live
   - --filesystem=home

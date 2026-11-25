@@ -225,6 +225,30 @@ describe('useGamepadNav', () => {
     }
   });
 
+  it('delivers the Y action even when a navigation button is pressed in the same frame', () => {
+    vi.useFakeTimers();
+    vi.spyOn(navigator, 'getGamepads').mockReturnValue([makeGamepad([13, 3])] as unknown as Gamepad[]);
+
+    const onY = vi.fn();
+    const unsubscribe = subscribeGamepadYAction(onY);
+
+    try {
+      render(<GamepadNavHarness enabled />);
+      const launchButton = screen.getByRole('button', { name: 'Launch' });
+      const editButton = screen.getByRole('button', { name: 'Edit' });
+      launchButton.focus();
+
+      act(() => {
+        vi.advanceTimersByTime(16);
+      });
+
+      expect(editButton).toHaveFocus();
+      expect(onY).toHaveBeenCalledTimes(1);
+    } finally {
+      unsubscribe();
+    }
+  });
+
   it('moves focus to content zone when back() is called from inspector zone', async () => {
     function InspectorHarness({ onBack }: HarnessProps) {
       const nav = useGamepadNav({ enabled: true, onBack });

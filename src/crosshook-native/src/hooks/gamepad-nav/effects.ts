@@ -215,10 +215,6 @@ function useGamepadPolling({
           confirm();
         } else if (edge(GAMEPAD_BACK_BUTTON)) {
           back();
-        } else if (edge(GAMEPAD_ACTION_Y_BUTTON)) {
-          if (!isModalNavigationRoot(getNavigationRoot(rootRef))) {
-            emitGamepadYAction();
-          }
         } else {
           const vertical = gamepad.axes[1] ?? 0;
           const horizontal = gamepad.axes[0] ?? 0;
@@ -244,6 +240,10 @@ function useGamepadPolling({
               focusNext();
             }
           }
+        }
+
+        if (edge(GAMEPAD_ACTION_Y_BUTTON) && !isModalNavigationRoot(getNavigationRoot(rootRef))) {
+          emitGamepadYAction();
         }
 
         lastGamepadState.current.set(gamepad.index, {
