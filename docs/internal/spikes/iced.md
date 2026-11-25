@@ -31,17 +31,17 @@ This is evidence, not a decision. ADR-0005 still needs the gpui control spike (M
 
 Build figures below are local observations on E1 (no build logs are committed).
 
-| Item | Value |
-| --- | --- |
-| iced | git `a8231fd9ddf3570f95affba2d45a9be092007f71` (master, 2026-10-07, `0.15.0-dev`) |
-| iced features | `tokio`, `image`, `svg`, `wgpu`, `tiny-skia`, `wayland`, `x11`, `crisp`, `thread-pool`, `sysinfo`, `advanced` |
-| iced MSRV at this rev | 1.93 (repo toolchain 1.95.0) |
-| Other deps | `gilrs 0.11`, `rfd 0.16` (`xdg-portal`, `tokio`, `wayland`; no `gtk3`), `lru 0.16`, `image 0.25` (jpeg, png), `crosshook-core` |
-| Lockfile churn | `web-sys`, `js-sys`, `wasm-bindgen`, `wasm-bindgen-futures` had to move up for iced to resolve next to `reqwest` |
-| Unique crates (`cargo tree -e normal,build`, host target, name+version) | 436 |
-| Clean release build | 63 s on E1 (i9-14900HX, 32 threads; dependency sources already fetched) |
-| Incremental release build (one file touched) | 4.9 s |
-| Release binary | 32.2 MB; 25.0 MB stripped |
+| Item                                                                    | Value                                                                                                                          |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| iced                                                                    | git `a8231fd9ddf3570f95affba2d45a9be092007f71` (master, 2026-10-07, `0.15.0-dev`)                                              |
+| iced features                                                           | `tokio`, `image`, `svg`, `wgpu`, `tiny-skia`, `wayland`, `x11`, `crisp`, `thread-pool`, `sysinfo`, `advanced`                  |
+| iced MSRV at this rev                                                   | 1.93 (repo toolchain 1.95.0)                                                                                                   |
+| Other deps                                                              | `gilrs 0.11`, `rfd 0.16` (`xdg-portal`, `tokio`, `wayland`; no `gtk3`), `lru 0.16`, `image 0.25` (jpeg, png), `crosshook-core` |
+| Lockfile churn                                                          | `web-sys`, `js-sys`, `wasm-bindgen`, `wasm-bindgen-futures` had to move up for iced to resolve next to `reqwest`               |
+| Unique crates (`cargo tree -e normal,build`, host target, name+version) | 436                                                                                                                            |
+| Clean release build                                                     | 63 s on E1 (i9-14900HX, 32 threads; dependency sources already fetched)                                                        |
+| Incremental release build (one file touched)                            | 4.9 s                                                                                                                          |
+| Release binary                                                          | 32.2 MB; 25.0 MB stripped                                                                                                      |
 
 A host build on E1 links glibc 2.44 symbols (`sinh`, `cosh`), which the GNOME 50 runtime (glibc 2.42) does not have. Building inside `org.gnome.Sdk//50` brings the requirement down to `GLIBC_2.39`. The M1 build scripts must build the native UI inside the SDK (or vendor one), as M7-05 plans for the final runtime.
 
@@ -53,14 +53,14 @@ About 3 hours of wall time with an AI pair, from an empty crate to every E1 capt
 
 `wc -l` on the spike branch at `3cd03955` (3,807 lines of Rust in total, including 151 lines of simulator tests):
 
-| Area | Lines | Files |
-| --- | --- | --- |
-| Focus layer (targets, pure engine, tree collector, wrapper widget, tests) | 607 | `src/focus/*.rs` |
-| Library grid culling and card view | 226 | `src/library/grid.rs`, `src/library/view.rs` |
-| Log console (ring, culled widget, paced replay) | 414 | `src/console/*.rs` |
-| Modal and scrim | 43 | `src/app/view.rs` (`modal`, `scrim`) |
-| Gamepad (gilrs thread, mapping) | 135 | `src/gamepad.rs` |
-| Bench protocol and probe | 408 | `src/bench.rs`, `src/app/bench_flow.rs`, `src/app/probe.rs` |
+| Area                                                                      | Lines | Files                                                       |
+| ------------------------------------------------------------------------- | ----- | ----------------------------------------------------------- |
+| Focus layer (targets, pure engine, tree collector, wrapper widget, tests) | 607   | `src/focus/*.rs`                                            |
+| Library grid culling and card view                                        | 226   | `src/library/grid.rs`, `src/library/view.rs`                |
+| Log console (ring, culled widget, paced replay)                           | 414   | `src/console/*.rs`                                          |
+| Modal and scrim                                                           | 43    | `src/app/view.rs` (`modal`, `scrim`)                        |
+| Gamepad (gilrs thread, mapping)                                           | 135   | `src/gamepad.rs`                                            |
+| Bench protocol and probe                                                  | 408   | `src/bench.rs`, `src/app/bench_flow.rs`, `src/app/probe.rs` |
 
 The focus layer is the custom-widget cost the ADR should weigh. It works as follows:
 
@@ -71,16 +71,16 @@ The focus layer is the custom-widget cost the ADR should weigh. It works as foll
 
 ## Acceptance criteria
 
-| Criterion | Result | Evidence |
-| --- | --- | --- |
-| D-pad and keyboard reach every interactive widget, including modal trap and zone cycling, without forking iced core widgets | **Pass, with one caveat** | 31 tests pass, 6 of them through the headless `iced_test` simulator: Tab visits every collected target in tree order and wraps; F6 cycles sidebar, content, inspector with memory; the modal traps Tab and Escape returns focus to the opener; D-pad reaches cards that culling removed from the widget tree; the wheel scrolls the console. No widget is forked. Caveat: the `pick_list` is reachable, but A cycles its value instead of opening its menu (pain point 4). |
-| E1 library scroll p95 ≤ 1 refresh interval (G4) | **Pass (within quantisation)** | `library` p95 5.558 ms against a 5.554 ms interval: 4 µs over, within the presentation timestamp jitter (p50 5.556 ms) |
-| Console replay keeps memory bounded (G8 ≤ 15 MB growth) | **Pass** | G8 `memory_growth_mb` 2.31, peak PSS 270 MB |
-| Zero UI-thread stalls over 16 ms from core work (G6) | **Not measured** | G6 has no producer on E1 (`perf` missing, kernel tracing root-only; see the bench README). By design every `crosshook-core` call runs through `Task::perform` + `spawn_blocking`. Frame data alone cannot prove the absence of core stalls: G4 `console` (p99 44.4 ms) and G9 (p95 33.3 ms) do contain long frames, whose cause was not traced. |
-| Renderer override works for wgpu-Vulkan, wgpu-GL and tiny-skia; adapter logged | **Partial** | See [Renderer override](#renderer-override): Vulkan and tiny-skia work natively and in the Flatpak; wgpu-GL finds no adapter through NVIDIA's EGL. |
-| `cargo tree -i gtk` / `-i glib-sys` empty; portal file dialog inside the Flatpak | **Partial** | Both trees are empty (the same check on `crosshook-native` finds `gtk v0.18.2`). The Flatpak smoke test of the dialog was blocked by a systemd user-manager fault on E1 (see [Open items](#open-items)). |
-| G1–G10 on E1 committed to `docs/internal/bench/C-iced/E1/` | **Partial** | G2, G3, G4, G5, G8, G9 captured. G1 needs a manual cache drop (sudo), G6/G7 cannot be produced on E1, and G10 needs the Flatpak bundle. |
-| This report | **Done** | — |
+| Criterion                                                                                                                   | Result                         | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| --------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D-pad and keyboard reach every interactive widget, including modal trap and zone cycling, without forking iced core widgets | **Pass, with one caveat**      | 31 tests pass, 6 of them through the headless `iced_test` simulator: Tab visits every collected target in tree order and wraps; F6 cycles sidebar, content, inspector with memory; the modal traps Tab and Escape returns focus to the opener; D-pad reaches cards that culling removed from the widget tree; the wheel scrolls the console. No widget is forked. Caveat: the `pick_list` is reachable, but A cycles its value instead of opening its menu (pain point 4). |
+| E1 library scroll p95 ≤ 1 refresh interval (G4)                                                                             | **Pass (within quantisation)** | `library` p95 5.558 ms against a 5.554 ms interval: 4 µs over, within the presentation timestamp jitter (p50 5.556 ms)                                                                                                                                                                                                                                                                                                                                                     |
+| Console replay keeps memory bounded (G8 ≤ 15 MB growth)                                                                     | **Pass**                       | G8 `memory_growth_mb` 2.31, peak PSS 270 MB                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Zero UI-thread stalls over 16 ms from core work (G6)                                                                        | **Not measured**               | G6 has no producer on E1 (`perf` missing, kernel tracing root-only; see the bench README). By design every `crosshook-core` call runs through `Task::perform` + `spawn_blocking`. Frame data alone cannot prove the absence of core stalls: G4 `console` (p99 44.4 ms) and G9 (p95 33.3 ms) do contain long frames, whose cause was not traced.                                                                                                                            |
+| Renderer override works for wgpu-Vulkan, wgpu-GL and tiny-skia; adapter logged                                              | **Partial**                    | See [Renderer override](#renderer-override): Vulkan and tiny-skia work natively and in the Flatpak; wgpu-GL finds no adapter through NVIDIA's EGL.                                                                                                                                                                                                                                                                                                                         |
+| `cargo tree -i gtk` / `-i glib-sys` empty; portal file dialog inside the Flatpak                                            | **Partial**                    | Both trees are empty (the same check on `crosshook-native` finds `gtk v0.18.2`). The Flatpak smoke test of the dialog was blocked by a systemd user-manager fault on E1 (see [Open items](#open-items)).                                                                                                                                                                                                                                                                   |
+| G1–G10 on E1 committed to `docs/internal/bench/C-iced/E1/`                                                                  | **Partial**                    | G2, G3, G4, G5, G8, G9 captured. G1 needs a manual cache drop (sudo), G6/G7 cannot be produced on E1, and G10 needs the Flatpak bundle.                                                                                                                                                                                                                                                                                                                                    |
+| This report                                                                                                                 | **Done**                       | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 ## E1 results
 
@@ -88,24 +88,24 @@ E1, 2026-11-24/25, 3840×2160 @ 180.06 Hz (KWin 6.8, NVIDIA RTX 5070 Laptop, dri
 
 The Tauri B column is the E1 baseline B evidence already in [`../bench/README.md`](../bench/README.md) (native, same host, 2026-11-16). The G2 rows come from its First-content supplemental table (native, 10 iterations). That baseline was captured as evidence, not as a gate, and it was not re-run for this comparison.
 
-| Metric | iced C (this spike) | Tauri B (native, README) |
-| --- | --- | --- |
-| G2 warm start to READY p50 / p95 | 281 / 333 ms | 1038.1 / 1100.5 ms |
-| G2 first presented frame p50 / p95 | 220 / 293 ms | 245.8 / 316.3 ms |
-| G3 idle PSS (empty start → after 10 min) | 242 → 254 MB, flat after 10 s | — |
-| G4 `library` frame p50 / p95 | 5.56 / 5.56 ms | 211 / 418 ms |
-| G4 `settings` frame p50 / p95 | 5.56 / 5.56 ms | 117 / 344 ms |
-| G4 `console` frame p50 / p95 (scroll during replay) | 33.3 / 44.4 ms | 61.2 / 128.4 ms |
-| G5 `search` p50 / p95 | 14.7 / 17.1 ms | 184.3 / 244.0 ms |
-| G5 `toggle_favorite` p50 / p95 | 15.2 / 17.4 ms | 34.9 / 48.9 ms |
-| G5 `toggle_optimization` p50 / p95 | 15.8 / 17.3 ms | 130.8 / 196.8 ms |
-| G5 `dpad` p50 / p95 | 14.0 / 18.1 ms | 57.3 / 80.1 ms |
-| G5 `route_switch` p50 / p95 | 16.4 / 18.3 ms | 155.0 / 187.6 ms |
-| G8 replay frame p50 / p95 / p99 | 11.1 / 16.7 / 16.7 ms (1,822 frames) | 347.1 / 1009.4 / 1269.0 ms (46 frames) |
-| G8 memory growth / peak PSS | 2.3 / 270 MB | 993.8 / 3119.1 MB |
-| G9 resize frame p50 / p95 | 5.56 / 33.3 ms | 33 / 39 ms |
-| Idle CPU (20 s sample, window open, nothing moving)¹ | 1 tick (0.05 %) | — |
-| 30-min idle soak, NVIDIA, default renderer¹ | no crash (`timeout` exit 124, no panic output) | — |
+| Metric                                               | iced C (this spike)                            | Tauri B (native, README)               |
+| ---------------------------------------------------- | ---------------------------------------------- | -------------------------------------- |
+| G2 warm start to READY p50 / p95                     | 281 / 333 ms                                   | 1038.1 / 1100.5 ms                     |
+| G2 first presented frame p50 / p95                   | 220 / 293 ms                                   | 245.8 / 316.3 ms                       |
+| G3 idle PSS (empty start → after 10 min)             | 242 → 254 MB, flat after 10 s                  | —                                      |
+| G4 `library` frame p50 / p95                         | 5.56 / 5.56 ms                                 | 211 / 418 ms                           |
+| G4 `settings` frame p50 / p95                        | 5.56 / 5.56 ms                                 | 117 / 344 ms                           |
+| G4 `console` frame p50 / p95 (scroll during replay)  | 33.3 / 44.4 ms                                 | 61.2 / 128.4 ms                        |
+| G5 `search` p50 / p95                                | 14.7 / 17.1 ms                                 | 184.3 / 244.0 ms                       |
+| G5 `toggle_favorite` p50 / p95                       | 15.2 / 17.4 ms                                 | 34.9 / 48.9 ms                         |
+| G5 `toggle_optimization` p50 / p95                   | 15.8 / 17.3 ms                                 | 130.8 / 196.8 ms                       |
+| G5 `dpad` p50 / p95                                  | 14.0 / 18.1 ms                                 | 57.3 / 80.1 ms                         |
+| G5 `route_switch` p50 / p95                          | 16.4 / 18.3 ms                                 | 155.0 / 187.6 ms                       |
+| G8 replay frame p50 / p95 / p99                      | 11.1 / 16.7 / 16.7 ms (1,822 frames)           | 347.1 / 1009.4 / 1269.0 ms (46 frames) |
+| G8 memory growth / peak PSS                          | 2.3 / 270 MB                                   | 993.8 / 3119.1 MB                      |
+| G9 resize frame p50 / p95                            | 5.56 / 33.3 ms                                 | 33 / 39 ms                             |
+| Idle CPU (20 s sample, window open, nothing moving)¹ | 1 tick (0.05 %)                                | —                                      |
+| 30-min idle soak, NVIDIA, default renderer¹          | no crash (`timeout` exit 124, no panic output) | —                                      |
 
 ¹ Local observation on E1, not a runner capture; nothing committed. `/proc/<pid>/stat` utime+stime over 20 s, and `timeout 1800` on the release binary with stderr captured.
 
@@ -120,12 +120,12 @@ Notes:
 
 `--renderer wgpu-vulkan|wgpu-gl|tiny-skia` sets `ICED_BACKEND` and `WGPU_BACKEND`. An explicit environment value wins over the flag. The active backend and adapter are logged at startup as `SPIKE_RENDERER backend=… adapter=…`.
 
-| Mode | Native E1 | Flatpak (GNOME 50) |
-| --- | --- | --- |
-| default | Vulkan, NVIDIA GeForce RTX 5070 Laptop GPU | Vulkan, NVIDIA GeForce RTX 5070 Laptop GPU |
-| `wgpu-vulkan` | Vulkan, NVIDIA | — |
-| `wgpu-gl` | **fails**: `GraphicsAdapterNotFound` (wgpu found no GL adapter through NVIDIA's EGL); works with `__EGL_VENDOR_LIBRARY_FILENAMES=…/50_mesa.json` (llvmpipe) | — |
-| `tiny-skia` | tiny-skia, CPU | tiny-skia, CPU; READY then exit 0 |
+| Mode          | Native E1                                                                                                                                                   | Flatpak (GNOME 50)                         |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| default       | Vulkan, NVIDIA GeForce RTX 5070 Laptop GPU                                                                                                                  | Vulkan, NVIDIA GeForce RTX 5070 Laptop GPU |
+| `wgpu-vulkan` | Vulkan, NVIDIA                                                                                                                                              | —                                          |
+| `wgpu-gl`     | **fails**: `GraphicsAdapterNotFound` (wgpu found no GL adapter through NVIDIA's EGL); works with `__EGL_VENDOR_LIBRARY_FILENAMES=…/50_mesa.json` (llvmpipe) | —                                          |
+| `tiny-skia`   | tiny-skia, CPU                                                                                                                                              | tiny-skia, CPU; READY then exit 0          |
 
 The wgpu-GL failure is the NVIDIA GL path that M5-03 (broken-GPU fallback) must handle. iced's fallback renderer chooses tiny-skia when wgpu fails, but only if `ICED_BACKEND` does not pin `wgpu`. Vulkan probing also loads the Mesa `radv` ICD for the AMD iGPU and prints its "not a conformant Vulkan implementation" warning before choosing NVIDIA.
 

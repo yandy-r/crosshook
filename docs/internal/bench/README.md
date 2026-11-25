@@ -430,9 +430,9 @@ Dry-run works for all ten metrics; real captures are partial:
 
 ### Variant results
 
-| Variant | Environment | Results | Notes |
-| ------- | ----------- | ------- | ----- |
-| `C-iced` | E1 native | [`C-iced/E1/`](C-iced/E1/) (G2, G3, G4, G5, G8, G9) | iced decision spike (M0-04); method, caveats and harness changes in [`../spikes/iced.md`](../spikes/iced.md) |
+| Variant  | Environment | Results                                             | Notes                                                                                                        |
+| -------- | ----------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `C-iced` | E1 native   | [`C-iced/E1/`](C-iced/E1/) (G2, G3, G4, G5, G8, G9) | iced decision spike (M0-04); method, caveats and harness changes in [`../spikes/iced.md`](../spikes/iced.md) |
 
 ## Tests
 
