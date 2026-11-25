@@ -62,6 +62,10 @@ impl App {
     }
 
     pub fn focus_to(&mut self, target: Target) -> Task<Message> {
+        let moved_between_cards = matches!(
+            (&self.focus.focused, &target),
+            (Some(Target::Card(a)), Target::Card(b)) if a != b
+        );
         self.focus.set(target.clone());
         let mut tasks = Vec::new();
         if target.is_text_input() {
@@ -83,7 +87,7 @@ impl App {
                 ));
             }
         }
-        if matches!(target, Target::Card(i) if i != 0) {
+        if moved_between_cards {
             tasks.push(self.bench_rendered("dpad"));
         }
         Task::batch(tasks)
