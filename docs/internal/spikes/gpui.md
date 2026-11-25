@@ -110,10 +110,10 @@ The line counts are close to iced's, but they buy different things:
 
 ## E1 results
 
-E1, 2026-11-25, 3840×2160 @ 180.06 Hz (KWin 6.8, NVIDIA RTX 5070 Laptop, driver 620.73.04), `--fixtures` seed 42 (500 profiles). Every committed run exited 0 and ended `captured`. All but G4 ran on a clean tree; G4's `meta.json` says `dirty: true` because only this write-up and the E1 README were being edited, and no source file was modified. CSVs are in [`../bench/C-gpui/E1/`](../bench/C-gpui/E1/), and each run's commit is listed in that directory's README.
+E1, 2026-11-25, 3840×2160 @ 180.06 Hz (KWin 6.8, NVIDIA RTX 5070 Laptop, driver 620.73.04), `--fixtures` seed 42 (500 profiles). Every committed run exited 0 and ended `captured` with a clean tree (`dirty: false`). CSVs are in [`../bench/C-gpui/E1/`](../bench/C-gpui/E1/), and each run's commit is listed in that directory's README.
 
 - G1–G3, G5, G8 and G9 use the native release binary built from `75aa6fc8` (G1 ran at `f4fec19c`, same app code).
-- G4 uses the native binary from `f6c12fe7`, which adds only the palette Enter fix. Nothing it changes runs during G2, G3, G5, G8 or G9, which never open the palette.
+- G4 ran at `caf4d25b` with the native binary built from `f6c12fe7`, which adds only the palette Enter fix (`caf4d25b` changes only docs). Nothing it changes runs during G2, G3, G5, G8 or G9, which never open the palette.
 - G10 uses the SDK-built binary and its bundle.
 
 iced C numbers are from [`iced.md`](iced.md); Tauri B numbers are the E1 baseline B evidence in [`../bench/README.md`](../bench/README.md) (native, 2026-11-16, captured as evidence, not as a gate).
@@ -125,9 +125,9 @@ iced C numbers are from [`iced.md`](iced.md); Tauri B numbers are the E1 baselin
 | G2 warm start to READY p50 / p95                    | 261 / 410 ms                            | 281 / 333 ms                  | 1038.1 / 1100.5 ms                     |
 | G2 first presented frame p50 / p95                  | 258 / 394 ms                            | 220 / 293 ms                  | 245.8 / 316.3 ms                       |
 | G3 idle PSS (start → after 10 min)                  | 210 → 210 MB, flat over 600 s; GPU 86 MB | 242 → 254 MB                  | —                                      |
-| G4 `library` frame p50 / p95                        | 33.3 / 44.4 ms (741 frames)             | 5.56 / 5.56 ms                | 211 / 418 ms                           |
-| G4 `settings` frame p50 / p95                       | 33.3 / 44.4 ms (725 frames)             | 5.56 / 5.56 ms                | 117 / 344 ms                           |
-| G4 `console` frame p50 / p95 (scroll during replay) | 33.3 / 44.4 ms (741 frames)             | 33.3 / 44.4 ms                | 61.2 / 128.4 ms                        |
+| G4 `library` frame p50 / p95                        | 33.3 / 44.4 ms (739 frames)             | 5.56 / 5.56 ms                | 211 / 418 ms                           |
+| G4 `settings` frame p50 / p95                       | 33.3 / 44.4 ms (722 frames)             | 5.56 / 5.56 ms                | 117 / 344 ms                           |
+| G4 `console` frame p50 / p95 (scroll during replay) | 33.3 / 44.4 ms (739 frames)             | 33.3 / 44.4 ms                | 61.2 / 128.4 ms                        |
 | G5 `search` p50 / p95                               | 11.7 / 14.1 ms                          | 14.7 / 17.1 ms                | 184.3 / 244.0 ms                       |
 | G5 `toggle_favorite` p50 / p95                      | 13.5 / 17.4 ms                          | 15.2 / 17.4 ms                | 34.9 / 48.9 ms                         |
 | G5 `toggle_optimization` p50 / p95                  | 13.6 / 18.0 ms                          | 15.8 / 17.3 ms                | 130.8 / 196.8 ms                       |
@@ -152,7 +152,7 @@ Notes:
   - The wheel notches come every 33 ms, so gpui presents about one frame per notch instead of animating at the panel rate.
   - Same 30 Hz class as G9 resize, and below the ~60 Hz of the G8 replay. iced scrolled `library` and `settings` at one interval (5.56 ms).
   - This is the clearest frame-pacing gap between the two toolkits on E1. Not traced: it is a cadence question for gpui's frame scheduling, and no acceptance item asks for it (open item).
-  - G4 ran on the binary with the palette fix (`f6c12fe7`). An earlier G4 run without it is superseded: its `settings` row (500 ms p50) measured the library page under a still-open palette ([Bench harness findings](#bench-harness-findings)).
+  - G4 ran on the binary with the palette fix (`f6c12fe7`), on a clean tree at `caf4d25b`. A run with the same binary but a dirty tree (docs being edited) was discarded as non-evidence and re-run. An earlier G4 run without the fix is superseded: its `settings` row (500 ms p50) measured the library page under a still-open palette ([Bench harness findings](#bench-harness-findings)).
 - G5 used `CROSSHOOK_BENCH_CLOCK_FLOOR_NS=1000`, as for iced (exact CLOCK_MONOTONIC µs marks).
 - `gpu_growth_mb` 0.0 is from DRM fdinfo (`gpu_source=fdinfo`), not `nvidia-smi` as for iced.
 
