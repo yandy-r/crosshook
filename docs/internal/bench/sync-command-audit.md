@@ -22,36 +22,36 @@ Auditing `main` after the `crosshook-app` refactor found four command paths that
 
 Every command observed synchronously in [`A/sync-command-ranking.md`](A/sync-command-ranking.md) (sorted by `v0.6.1` max duration):
 
-| M0-02 command | `v0.6.1` max (ms) | Current status on `main` | Execution boundary |
-| --- | ---: | --- | --- |
-| `community_sync` | 192.163 | `async fn` -> `CommunityService::sync` | Supervised job + `run_blocking` |
-| `batch_validate_profiles` | 129.620 | `async fn` -> `HealthService::batch_summary` | `run_job` (`spawn_blocking`) |
-| `check_generalized_readiness` | 13.122 | `async fn` -> `OnboardingService::check_generalized_readiness` | `run_job` (`spawn_blocking`) |
-| `profile_list_summaries` | 12.837 | `async fn` -> `ProfileWriter::list_summaries` | `run_blocking` |
-| `community_list_profiles` | 11.651 | `async fn` -> `CommunityService::list_profiles` | `run_blocking` |
-| `list_launchers` | 7.296 | `async fn` -> `LauncherExportService::list` | `run_blocking` |
-| `check_game_running` | 6.955 | Removed in PR #628 (`f8e291ea`) | Replaced by event-driven `launch-session-changed` |
-| `discovery_catalog` | 4.157 | `async fn` -> `DiscoveryService::catalog` | `run_blocking` |
-| `community_list_indexed_profiles` | 3.875 | `async fn` -> `CommunityService::list_indexed_profiles` | `run_blocking` |
-| `get_cached_offline_readiness_snapshots` | 1.580 | `async fn` -> `HealthService::cached_offline_readiness_snapshots` | `run_blocking` |
-| `get_capabilities` | 0.779 | `async fn` -> `OnboardingService::capabilities` | `run_job` (`spawn_blocking`) |
-| `get_cached_health_snapshots` | 0.777 | `async fn` -> `HealthService::cached_health_snapshots` | `run_blocking` |
-| `profile_list` | 0.434 | `async fn` -> `ProfileWriter::list` | `run_blocking` |
-| `list_launch_history_for_profile` | 0.369 | `async fn` -> `LaunchService::launch_history` | `run_blocking` |
-| `list_running_profiles` | 0.180 | Replaced by `list_running_sessions` | In-memory `LaunchSessionRegistry` snapshot |
-| `profile_set_favorite` | 0.156 | `async fn` -> `ProfileWriter::set_favorite` | `ProfileWriter::commit` (`run_blocking`) |
-| `profile_load` | 0.155 | `async fn` -> `ProfileWriter::load` + `CollectionsService::apply_defaults` | `run_blocking` |
-| `profile_list_favorites` | 0.147 | `async fn` -> `ProfileWriter::list_favorites` | `run_blocking` |
-| `detect_protontricks_binary` | 0.127 | `async fn` -> `PrefixDepsService::detect_binary` | `run_blocking` |
-| `collection_list` | 0.122 | `async fn` -> `CollectionsService::list` | `run_blocking` |
-| `get_cached_host_readiness_snapshot` | 0.111 | `async fn` -> `OnboardingService::cached_host_readiness_snapshot` | `run_blocking` |
-| `profile_list_bundled_optimization_presets` | 0.089 | `async fn` -> `ProfileWriter::list_bundled_optimization_presets` | `run_blocking` |
-| `metadata_store_status` | 0.057 | `async fn` -> `DiagnosticsService::metadata_status` | `run_blocking` (fixed in M0-03) |
-| `list_proton_installs` | 0.049 | `async fn` -> `SteamService::list_proton_installs` | `run_blocking` |
-| `check_launcher_exists` | 0.030 | `async fn` -> `LauncherExportService::check_exists` | `run_blocking` |
-| `protonup_list_providers` | 0.022 | `async fn` -> `ProtonUpService::list_providers` | Pure static provider descriptors (in-memory) |
-| `default_steam_client_install_path` | 0.021 | `async fn` -> `SteamService::default_client_install_path` | `run_blocking` |
-| `get_trainer_type_catalog` | 0.017 | `async fn` -> `OfflineService::trainer_type_catalog` | Pure static catalog descriptors (in-memory) |
+| M0-02 command                               | `v0.6.1` max (ms) | Current status on `main`                                                   | Execution boundary                                |
+| ------------------------------------------- | ----------------: | -------------------------------------------------------------------------- | ------------------------------------------------- |
+| `community_sync`                            |           192.163 | `async fn` -> `CommunityService::sync`                                     | Supervised job + `run_blocking`                   |
+| `batch_validate_profiles`                   |           129.620 | `async fn` -> `HealthService::batch_summary`                               | `run_job` (`spawn_blocking`)                      |
+| `check_generalized_readiness`               |            13.122 | `async fn` -> `OnboardingService::check_generalized_readiness`             | `run_job` (`spawn_blocking`)                      |
+| `profile_list_summaries`                    |            12.837 | `async fn` -> `ProfileWriter::list_summaries`                              | `run_blocking`                                    |
+| `community_list_profiles`                   |            11.651 | `async fn` -> `CommunityService::list_profiles`                            | `run_blocking`                                    |
+| `list_launchers`                            |             7.296 | `async fn` -> `LauncherExportService::list`                                | `run_blocking`                                    |
+| `check_game_running`                        |             6.955 | Removed in PR #628 (`f8e291ea`)                                            | Replaced by event-driven `launch-session-changed` |
+| `discovery_catalog`                         |             4.157 | `async fn` -> `DiscoveryService::catalog`                                  | `run_blocking`                                    |
+| `community_list_indexed_profiles`           |             3.875 | `async fn` -> `CommunityService::list_indexed_profiles`                    | `run_blocking`                                    |
+| `get_cached_offline_readiness_snapshots`    |             1.580 | `async fn` -> `HealthService::cached_offline_readiness_snapshots`          | `run_blocking`                                    |
+| `get_capabilities`                          |             0.779 | `async fn` -> `OnboardingService::capabilities`                            | `run_job` (`spawn_blocking`)                      |
+| `get_cached_health_snapshots`               |             0.777 | `async fn` -> `HealthService::cached_health_snapshots`                     | `run_blocking`                                    |
+| `profile_list`                              |             0.434 | `async fn` -> `ProfileWriter::list`                                        | `run_blocking`                                    |
+| `list_launch_history_for_profile`           |             0.369 | `async fn` -> `LaunchService::launch_history`                              | `run_blocking`                                    |
+| `list_running_profiles`                     |             0.180 | Replaced by `list_running_sessions`                                        | In-memory `LaunchSessionRegistry` snapshot        |
+| `profile_set_favorite`                      |             0.156 | `async fn` -> `ProfileWriter::set_favorite`                                | `ProfileWriter::commit` (`run_blocking`)          |
+| `profile_load`                              |             0.155 | `async fn` -> `ProfileWriter::load` + `CollectionsService::apply_defaults` | `run_blocking`                                    |
+| `profile_list_favorites`                    |             0.147 | `async fn` -> `ProfileWriter::list_favorites`                              | `run_blocking`                                    |
+| `detect_protontricks_binary`                |             0.127 | `async fn` -> `PrefixDepsService::detect_binary`                           | `run_blocking`                                    |
+| `collection_list`                           |             0.122 | `async fn` -> `CollectionsService::list`                                   | `run_blocking`                                    |
+| `get_cached_host_readiness_snapshot`        |             0.111 | `async fn` -> `OnboardingService::cached_host_readiness_snapshot`          | `run_blocking`                                    |
+| `profile_list_bundled_optimization_presets` |             0.089 | `async fn` -> `ProfileWriter::list_bundled_optimization_presets`           | `run_blocking`                                    |
+| `metadata_store_status`                     |             0.057 | `async fn` -> `DiagnosticsService::metadata_status`                        | `run_blocking` (fixed in M0-03)                   |
+| `list_proton_installs`                      |             0.049 | `async fn` -> `SteamService::list_proton_installs`                         | `run_blocking`                                    |
+| `check_launcher_exists`                     |             0.030 | `async fn` -> `LauncherExportService::check_exists`                        | `run_blocking`                                    |
+| `protonup_list_providers`                   |             0.022 | `async fn` -> `ProtonUpService::list_providers`                            | Pure static provider descriptors (in-memory)      |
+| `default_steam_client_install_path`         |             0.021 | `async fn` -> `SteamService::default_client_install_path`                  | `run_blocking`                                    |
+| `get_trainer_type_catalog`                  |             0.017 | `async fn` -> `OfflineService::trainer_type_catalog`                       | Pure static catalog descriptors (in-memory)       |
 
 Additional commands named in M0-03's original scope (`get_profile_health`, `community_prepare_import`, `probe_host_tool_details`, `export_launchers`, `export_diagnostics`, `profile_config_diff`, `apply_batch_migration`, `lutris_import_profiles`, `scan_prefix_storage`, `check_offline_readiness`, `batch_offline_readiness`) are all `async fn` delegating to `crosshook-app` services backed by `run_blocking` or `run_job`.
 
@@ -59,22 +59,22 @@ Additional commands named in M0-03's original scope (`get_profile_health`, `comm
 
 Of the 152 `async fn` Tauri commands, 138 `.await` a blocking-pool or async service operation (`run_blocking`, `run_job`, `spawn_blocking`, or async I/O such as the document portal). The remaining 14 execute without `.await` because they perform no production disk, SQLite, network, or subprocess I/O:
 
-| Command | Module | Reason no `.await` is required |
-| --- | --- | --- |
-| `list_running_sessions` | `commands/launch.rs` | In-memory `LaunchSessionRegistry` snapshot under short mutex |
-| `launch_reset_sessions` | `commands/launch.rs` | In-memory `LaunchSessionRegistry` cancel broadcast |
-| `build_steam_launch_options_command` | `commands/launch.rs` | Pure in-memory string assembly over static catalogs |
-| `check_gamescope_session` | `commands/launch.rs` | Reads process environment variables only |
-| `get_trainer_type_catalog` | `commands/offline.rs` | Returns compiled static catalog entries (M0-02 p95 0.017 ms) |
-| `protonup_list_providers` | `commands/protonup.rs` | Returns compiled static provider descriptors (M0-02 p95 0.022 ms) |
-| `protonup_cancel_install` | `commands/protonup.rs` | In-memory owner check + `CancellationToken::cancel()` |
-| `cancel_run_executable` | `commands/run_executable.rs` | In-memory owner lookup + `CancellationToken::cancel()` |
-| `stop_run_executable` | `commands/run_executable.rs` | In-memory owner lookup + kill `CancellationToken::cancel()` |
-| `cancel_update` | `commands/update.rs` | In-memory owner lookup + `CancellationToken::cancel()` |
-| `bench_ready` | `commands/bench.rs` | Benchmark-only (`CROSSHOOK_BENCH=1`); no-op in production |
-| `bench_begin` | `commands/bench.rs` | Benchmark-only (`CROSSHOOK_BENCH=1`); no-op in production |
-| `bench_mark` | `commands/bench.rs` | Benchmark-only (`CROSSHOOK_BENCH=1`); no-op in production |
-| `bench_clock` | `commands/bench.rs` | Benchmark-only (`CROSSHOOK_BENCH=1`); no-op in production |
+| Command                              | Module                       | Reason no `.await` is required                                    |
+| ------------------------------------ | ---------------------------- | ----------------------------------------------------------------- |
+| `list_running_sessions`              | `commands/launch.rs`         | In-memory `LaunchSessionRegistry` snapshot under short mutex      |
+| `launch_reset_sessions`              | `commands/launch.rs`         | In-memory `LaunchSessionRegistry` cancel broadcast                |
+| `build_steam_launch_options_command` | `commands/launch.rs`         | Pure in-memory string assembly over static catalogs               |
+| `check_gamescope_session`            | `commands/launch.rs`         | Reads process environment variables only                          |
+| `get_trainer_type_catalog`           | `commands/offline.rs`        | Returns compiled static catalog entries (M0-02 p95 0.017 ms)      |
+| `protonup_list_providers`            | `commands/protonup.rs`       | Returns compiled static provider descriptors (M0-02 p95 0.022 ms) |
+| `protonup_cancel_install`            | `commands/protonup.rs`       | In-memory owner check + `CancellationToken::cancel()`             |
+| `cancel_run_executable`              | `commands/run_executable.rs` | In-memory owner lookup + `CancellationToken::cancel()`            |
+| `stop_run_executable`                | `commands/run_executable.rs` | In-memory owner lookup + kill `CancellationToken::cancel()`       |
+| `cancel_update`                      | `commands/update.rs`         | In-memory owner lookup + `CancellationToken::cancel()`            |
+| `bench_ready`                        | `commands/bench.rs`          | Benchmark-only (`CROSSHOOK_BENCH=1`); no-op in production         |
+| `bench_begin`                        | `commands/bench.rs`          | Benchmark-only (`CROSSHOOK_BENCH=1`); no-op in production         |
+| `bench_mark`                         | `commands/bench.rs`          | Benchmark-only (`CROSSHOOK_BENCH=1`); no-op in production         |
+| `bench_clock`                        | `commands/bench.rs`          | Benchmark-only (`CROSSHOOK_BENCH=1`); no-op in production         |
 
 ## Benchmark scope note (G6 / E2-D)
 
