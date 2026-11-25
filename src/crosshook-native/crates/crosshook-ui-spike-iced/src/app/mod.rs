@@ -186,7 +186,13 @@ impl App {
             renderer: String::new(),
             seen_focus: false,
         };
-        (app, Task::batch([load, info]))
+        // Spike evidence hook: open the portal file chooser at startup (Flatpak smoke test).
+        let smoke = if std::env::var_os("SPIKE_SMOKE_PICK").is_some() {
+            Task::done(Message::PickFile)
+        } else {
+            Task::none()
+        };
+        (app, Task::batch([load, info, smoke]))
     }
 
     pub fn route(&self) -> Route {

@@ -194,6 +194,9 @@ impl App {
             Message::Picked(path) => {
                 self.status =
                     path.map_or_else(|| "No file picked".into(), |p| format!("Picked {p}"));
+                if std::env::var_os("SPIKE_SMOKE_PICK").is_some() {
+                    eprintln!("SPIKE_PICK_RESULT {}", self.status);
+                }
                 Task::none()
             }
             Message::Renderer(info) => {
