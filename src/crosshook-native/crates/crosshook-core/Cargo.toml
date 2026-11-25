@@ -58,7 +58,9 @@ ts-rs = { version = "12.0.1", optional = true, features = ["chrono-impl", "uuid-
 # client; we scope it to the `tokio` feature to match the rest of the crate
 # and disable `async-io` defaults. The `thiserror`-like impls are
 # hand-written to keep the dep surface minimal.
-zbus = { version = "5", default-features = false, features = ["tokio"] }
+# SPIKE (spike/gpui only, finding F1): `tokio` here unifies into every zbus user in a gpui binary
+# (gpui-linux portal listener, ashpd, accesskit_unix), which then panic on gpui-owned threads.
+zbus = { version = "5", default-features = false, features = ["async-io"] }
 zvariant = { version = "5", default-features = false }
 zeroize = "1"
 

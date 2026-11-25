@@ -1,0 +1,35 @@
+[package]
+name = "crosshook-ui-spike-gpui"
+version.workspace = true
+edition = "2024"
+rust-version.workspace = true
+publish = false
+description = "THROWAWAY M0-05 gpui spike (YAN-836). Lives on spike/gpui only; never merged to main."
+
+[dependencies]
+# Exact pins from the issue: gpui-pre 0.3.8 is the crates.io snapshot of zed@279fe07; it pins the
+# matching gpui-pre-* =0.3.8 crates itself. gpui-kit =0.7.1 only asks for `^0.7.1` of its sibling
+# crates (cargo then picks gpui-base/gpui-component/gpui-kit-assets 0.7.2 and
+# gpui-component-macros 0.7.3), so those are pinned exactly here as well.
+gpui = { package = "gpui-pre", version = "=0.3.8" }
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.8", features = ["wayland", "x11", "font-kit"] }
+gpui_util = { package = "gpui-pre-util", version = "=0.3.8" } # vendored gpui_tokio uses `defer`
+gpui-kit = { version = "=0.7.1" }
+gpui-base = "=0.7.1"
+gpui-component = "=0.7.1"
+gpui-component-macros = "=0.7.1"
+gpui-kit-assets = "=0.7.1"
+crosshook-core = { path = "../crosshook-core" }
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "time"] }
+anyhow = "1"
+futures = "0.3"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+smallvec = "1"
+lru = "0.16"
+gilrs = "0.11"
+log = "0.4"
+libc = "0.2"
+
+[dev-dependencies]
+gpui = { package = "gpui-pre", version = "=0.3.8", features = ["test-support"] }
+gpui-kit = { version = "=0.7.1", features = ["test-support"] }

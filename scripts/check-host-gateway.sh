@@ -16,6 +16,7 @@ SCAN_DIRS=(
   "$REPO_ROOT/src/crosshook-native/crates/crosshook-ui/src"
   "$REPO_ROOT/src/crosshook-native/crates/crosshook-widgets/src"
   "$REPO_ROOT/src/crosshook-native/crates/crosshook-view-model/src"
+  "$REPO_ROOT/src/crosshook-native/crates/crosshook-ui-spike-gpui/src"
 )
 GATEWAY_FILES=(
   "$REPO_ROOT/src/crosshook-native/crates/crosshook-core/src/platform/gateway.rs"

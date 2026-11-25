@@ -4,6 +4,7 @@ members = [
     "crates/crosshook-core",
     "crates/crosshook-cli",
     "crates/crosshook-view-model",
+    "crates/crosshook-ui-spike-gpui",
     "src-tauri",
 ]
 resolver = "2"
