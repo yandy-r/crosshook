@@ -14,7 +14,7 @@ This is evidence, not a decision.
 ## Findings for M0-07
 
 - **gpui has an upstream AccessKit integration, but does not pass gate 8.** Orca names buttons; several form controls are unnamed or not announced, and the modal, grid cards, and log lack accessible nodes. The live-region probe announces on AT-SPI activation but does not yet establish focus-preserving announcements.
-- **iced has no viable AccessKit path at the tested pin.** The upstream build has no AT-SPI tree, the pop-os fork needs API and adapter work, and the draft PR does not resolve dependencies.
+- **iced has no viable AccessKit path at the tested pin.** The registry probe did not find the upstream spike by name, the pop-os fork needs API and adapter work, and the draft PR does not resolve dependencies.
 - **Both spikes committed Japanese text in all 12 desktop test cells.** These cover fcitx5 and ibus under nested sway, host XWayland, and nested gamescope XWayland. This is not a pass for gate 9: Steam Deck Game Mode and the Steam keyboard were not tested.
 
 ## Environment
@@ -52,7 +52,7 @@ Notes:
 
 ### iced, upstream (pinned `a8231fd9`)
 
-No AT-SPI application is registered at all. The spike never appears in the registry ([registry captures](a11y-ime-probe/evidence/iced-upstream-registry.txt)). Every control: **Fail**. Upstream tracking issue: iced-rs/iced [#552](https://github.com/iced-rs/iced/issues/552), open since 2020.
+The registry query for `crosshook-ui-spike-iced` found no matching application ([registry captures](a11y-ime-probe/evidence/iced-upstream-registry.txt)). The captures do not rule out registration under another name. Individual controls were not assessed. Upstream tracking issue: iced-rs/iced [#552](https://github.com/iced-rs/iced/issues/552), open since 2020.
 
 ### iced path (a): `pop-os/iced` fork with `a11y`
 
@@ -103,10 +103,11 @@ The host session uses `plasma-keyboard` as its input method, so on the host KWin
 
 ## What was not measured
 
-These need hardware or a session the probe does not have. They are listed here, not faked:
+The available evidence does not cover these checks:
 
-- **E2-D (Deck Desktop, KDE) Orca run** and **E2-G Game Mode Steam OSK (Steam+X).** There is no Steam Deck ([`environments.md`](../bench/environments.md)). Nested gamescope tests desktop IME through XIM, not Steam’s on-screen keyboard. See [YAN-846](https://linear.app/itcn/issue/YAN-846) for the rest of the E2 matrix.
+- **E2-D (Deck Desktop, KDE) Orca run** and **E2-G Game Mode Steam OSK (Steam+X).** The maintainer deferred these checks because no Steam Deck is available ([`environments.md`](../bench/environments.md)). Nested gamescope tests desktop IME through XIM, not Steam’s on-screen keyboard. See [YAN-846](https://linear.app/itcn/issue/YAN-846) for the rest of the E2 matrix.
 - **Orca on E1 GNOME Wayland.** E1 runs KDE Plasma, so the Orca rows are KDE (KWin Wayland), the same desktop as E2-D.
+- **IME preedit and candidate placement.** The 12 desktop cells verify committed text only; they do not measure preedit display or candidate positioning.
 - **Screen captures per failing case.** The AT-SPI dumps and the Orca speech log are text evidence that can be diffed; the screenshots used to read the IME candidates are not committed (they show the owner's desktop).
 
 ## Failures, upstream issues and mitigation estimates
