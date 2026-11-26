@@ -216,7 +216,7 @@ NVIDIA's EGL exposes a GL adapter but no surface format gpui accepts. That is th
 - `gpui-pre` is an unofficial crates.io snapshot of Zed's in-tree `gpui`, republished weekly. After 0.3.8 (2026-10-05, zed@279fe07) it had 6 releases in about 7 weeks, up to 0.3.14 (2026-11-23, zed@f126950). Each release pins its own `gpui-pre-*` family exactly, so any bump moves the whole family.
 - GPUI Kit (Longbridge) had 8 releases after 0.7.1 in the same period (0.7.2 to 0.11.0), with 4 minor bumps.
 - **One owner for both.** The crates.io API (`/api/v1/crates/<name>/owners`, checked 2026-11-25) lists a single owner for `gpui-pre` and for `gpui-kit`: the same individual account (`huacnlee`), with no team. The gpui snapshot channel and the component kit both depend on one person.
-- The spike stays on the issue's pins. A bump to 0.3.14 / 0.11.0 was not attempted: the brief made it optional, and the pinned stack had to be measured first. What the bump breaks is an open item.
+- The benchmarked spike stays on its original pins. The isolated upgrade below measures source and dependency churn; it does not update the benchmark results.
 - Zed does own crates.io `gpui` (owners include the `zed-industries` team), but it is stale at 0.2.2 (2025-10-22); newer builds exist on crates.io only as `gpui-pre` snapshots. Depending on current gpui means choosing between this snapshot channel, a git pin of the Zed monorepo, or a fork. Every one of these requires an owner on our side.
 
 ## Licences
@@ -225,7 +225,32 @@ NVIDIA's EGL exposes a GL adapter but no surface format gpui accepts. That is th
 - gpui_tokio (vendored): Apache-2.0; the Zed `LICENSE-APACHE` is copied and attribution kept.
 - GPUI Kit (`gpui-kit`, `gpui-base`, `gpui-component`, `gpui-kit-assets`): Apache-2.0.
 - Lucide icons: ISC (`LICENSE-LUCIDE` in gpui-kit-assets).
-- No GPL in the spike's own additions. `cargo deny` was not run on the spike branch. It is not one of this spike's acceptance items, and the repo's `deny.toml` does not cover a throwaway crate (open item).
+- No GPL in the spike's own additions. This is not a dependency-policy pass; see the workspace audit below.
+
+## Measured upgrade: gpui-pre 0.3.14 / GPUI Kit 0.11.0
+
+[YAN-2477](https://linear.app/itcn/issue/YAN-2477) / [GitHub #652](https://github.com/yandy-r/crosshook/issues/652) tested these exact versions in a throwaway worktree at `6c822ca7` on Linux. The `spike/gpui` ref and the `main` lockfile were not changed.
+
+- **Resolution:** all five Kit packages listed above moved to `0.11.0`. The gpui snapshot family moved to `0.3.14`, except its separately versioned `gpui-pre-reqwest`, which stayed at `0.12.15`. Cargo also moved `wgpu` from `29.0.4` to `30.0.1` and `taffy` from `0.13.0` to `0.15.1`.
+- **Compiler output:** after editing the exact pins and refreshing the lockfile with `cargo update -p gpui-pre --precise 0.3.14`, Cargo resolved and the first check passed. There were **zero compile errors** and three deprecation warnings in `console/view.rs`. Replacing `ScrollWheelEvent` with `ScrollEvent` and `on_scroll_wheel` with `on_scroll` cleared the warnings.
+- **Churn (`git diff --numstat`):** Rust +4/−4 in one file; spike manifest +10/−10; generated `Cargo.lock` +902/−671.
+- **Elapsed:** about **0.072 h (4.3 min)** of wall time from the first command through the build checks on this host, including compiler time; excludes the later audit and final formatting. This is one run, not a maintenance estimate.
+
+From the native Cargo workspace, `cargo check --locked -j6 -p crosshook-ui-spike-gpui --all-targets` passed on both the baseline and final graph. `cargo test --locked -j6 -p crosshook-ui-spike-gpui --no-run` linked the test executable. This sample did not run the tests or recheck real-display behaviour, rendering performance, or Flatpak compatibility.
+
+### Dependency-policy audit
+
+`cargo deny --manifest-path src/crosshook-native/Cargo.toml --locked check` (cargo-deny 0.20.2, unchanged workspace policy) reported **five licence errors and one advisory error** on each graph; bans and sources passed after the bump. These are workspace graph findings, not a list of libraries linked into the Linux executable.
+
+| Finding | Baseline | Upgraded |
+| --- | --- | --- |
+| `cbindgen 0.28.0` and `dwrote 0.11.5`: MPL-2.0 | Rejected | Rejected |
+| `enum-iterator 2.3.0` and `enum-iterator-derive 1.5.0`: 0BSD | Rejected | Rejected |
+| `libbz2-rs-sys 0.2.7`: `bzip2-1.0.6` | Rejected | No finding |
+| `libfuzzer-sys 0.4.13`: NCSA clause, through `image` → `ravif` → `rav1e` | No finding | Rejected |
+| `lru 0.16.4`: RUSTSEC-2026-0253, a direct spike dependency | Reported | Reported |
+
+The upgraded audit paths for these findings lead to the spike. This bump had little source churn but moved the renderer and changed which licences the workspace gate rejects. If gpui is selected, resolve the advisory and licence findings before adopting this graph, then rerun the display and packaging checks; the compile sample is not a toolkit decision.
 
 ## Bench harness findings
 
@@ -256,9 +281,7 @@ NVIDIA's EGL exposes a GL adapter but no surface format gpui accepts. That is th
 - **Runner G10 fixes to `main`**: upstream the `strip -o` and `flatpak info APP//BRANCH` fixes with tests.
 - **Flatpak G1–G9**: the Flatpak was staged and smoke-tested, but the G-metrics were taken natively, as iced's were. Flatpak captures were not attempted: no acceptance item requires them, and M0-06 owns the cross-environment matrix.
 - **zbus backend (F1)**: decide one zbus backend for the process before any gpui (or iced+ashpd) UI ships next to `crosshook-core`.
-- **Pin bump**: measure what moving to gpui-pre 0.3.14 / gpui-kit 0.11.0 breaks, as a churn sample.
 - **Physical gamepad**: drive the gilrs path with a real controller on E1/E2 (only unit-tested here).
-- **`cargo deny`**: run `cargo deny check` on the spike branch to list licence and advisory findings for the gpui tree.
 - **IME/AccessKit**: M0-09 owns the XIM-under-gamescope and AccessKit probes; not exercised here.
 
 ## Persistence
