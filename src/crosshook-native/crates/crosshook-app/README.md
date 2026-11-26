@@ -90,8 +90,8 @@ exposes `#[doc(hidden)]` seams for tests: the `PreRuntimeHost` trait +
 against a fake host, no real environment mutation), and the core `trace` log
 the `tests/bootstrap_ordering.rs` harness asserts ordering rules R1–R6
 against (own `main`, re-exec per scenario). Production builds keep the host
-seam crate-private and omit the misordered path. `claim_bus_name_at` and
-`activate_named` (same feature) drive the D-Bus round trip in
+seam crate-private and omit the misordered path. `claim_bus_name_at`,
+`claim_bus_name_without_handler_at` and `activate_named` (same feature) drive the D-Bus round trip in
 `tests/instance_activation.rs` against a per-process test name. The `cargo tree` normal-edge
 feature checks in CI and `scripts/lint.sh` reject `bootstrap-trace` in shipped builds;
 `verify:no-mocks` separately guards frontend mock code.
@@ -788,7 +788,7 @@ UI; the diagnostics archive is a regular file the user chose to create.
 
 `crosshook-core`, `tokio` (rt-multi-thread, sync, time, macros, process),
 `tokio-util` (rt), `futures-core`, `nix` (fs, inotify, poll, process, signal, time, user), `zbus`
-(tokio; the same version `crosshook-core` uses), `uuid` (v4), `thiserror`, `serde` (derive),
+(`async-io`, never `tokio`; the same version and backend as `crosshook-core`, see ADR-0002 § Negative), `uuid` (v4), `thiserror`, `serde` (derive),
 `serde_json`, `toml`, `tracing`, and `static_assertions`. Dev: `tempfile`,
 `tar`, `flate2`, `tokio` (test-util, macros, rt, io-util).
-`scripts/check-app-deps.sh` guards against UI-toolkit leakage.
+`scripts/check-app-deps.sh` guards against UI-toolkit leakage and a `tokio`-backed zbus.

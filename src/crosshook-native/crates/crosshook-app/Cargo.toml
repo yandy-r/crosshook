@@ -29,7 +29,8 @@ thiserror = "2"
 toml = "1.1.0"
 tracing = "0.1"
 uuid = { version = "1", features = ["v4"] }
-zbus = { version = "5", default-features = false, features = ["tokio"] }
+# `async-io`, never `tokio`: see the zbus note in crosshook-core/Cargo.toml.
+zbus = { version = "5", default-features = false, features = ["async-io"] }
 
 [dev-dependencies]
 crosshook-app = { path = ".", features = ["test-seams"] }

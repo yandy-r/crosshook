@@ -22,7 +22,7 @@ use file::{attempt, open_all, watch_closes, Attempt, OpenedLock};
 pub(crate) use bus::claim_bus_name;
 #[cfg(feature = "test-seams")]
 #[doc(hidden)]
-pub use bus::{activate_named, claim_bus_name_at};
+pub use bus::{activate_named, claim_bus_name_at, claim_bus_name_without_handler_at};
 pub use bus::{
     activate_running_instance, ActivationError, ActivationHandler, ActivationRequest,
     ActivationStatus, BusClaim, ClaimOutcome,
