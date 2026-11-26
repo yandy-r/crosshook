@@ -242,13 +242,13 @@ From the native Cargo workspace, `cargo check --locked -j6 -p crosshook-ui-spike
 
 `cargo deny --manifest-path src/crosshook-native/Cargo.toml --locked check` (cargo-deny 0.20.2, unchanged workspace policy) reported **five licence errors and one advisory error** on each graph; bans and sources passed after the bump. These are workspace graph findings, not a list of libraries linked into the Linux executable.
 
-| Finding | Baseline | Upgraded |
-| --- | --- | --- |
-| `cbindgen 0.28.0` and `dwrote 0.11.5`: MPL-2.0 | Rejected | Rejected |
-| `enum-iterator 2.3.0` and `enum-iterator-derive 1.5.0`: 0BSD | Rejected | Rejected |
-| `libbz2-rs-sys 0.2.7`: `bzip2-1.0.6` | Rejected | No finding |
-| `libfuzzer-sys 0.4.13`: NCSA clause, through `image` → `ravif` → `rav1e` | No finding | Rejected |
-| `lru 0.16.4`: RUSTSEC-2026-0253, a direct spike dependency | Reported | Reported |
+| Finding                                                                  | Baseline   | Upgraded   |
+| ------------------------------------------------------------------------ | ---------- | ---------- |
+| `cbindgen 0.28.0` and `dwrote 0.11.5`: MPL-2.0                           | Rejected   | Rejected   |
+| `enum-iterator 2.3.0` and `enum-iterator-derive 1.5.0`: 0BSD             | Rejected   | Rejected   |
+| `libbz2-rs-sys 0.2.7`: `bzip2-1.0.6`                                     | Rejected   | No finding |
+| `libfuzzer-sys 0.4.13`: NCSA clause, through `image` → `ravif` → `rav1e` | No finding | Rejected   |
+| `lru 0.16.4`: RUSTSEC-2026-0253, a direct spike dependency               | Reported   | Reported   |
 
 The upgraded audit paths for these findings lead to the spike. This bump had little source churn but moved the renderer and changed which licences the workspace gate rejects. If gpui is selected, resolve the advisory and licence findings before adopting this graph, then rerun the display and packaging checks; the compile sample is not a toolkit decision.
 
