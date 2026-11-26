@@ -252,6 +252,10 @@ class InstrumentTests(unittest.TestCase):
         self.assertAlmostEqual(instruments.size_mb("1.0 MB"), 1e6 / 1024**2)
         with patch.object(instruments, "output", side_effect=["/battery_BAT0\n", "energy-rate: 7.5 W\n"]):
             self.assertEqual(instruments.battery_power_w(), 7.5)
+        with patch.object(instruments, "output", return_value="/DisplayDevice\n"):
+            with self.assertRaisesRegex(instruments.InstrumentError, "BATTERY_REQUIRED"):
+                instruments.battery_power_w()
+            self.assertEqual(instruments.battery_power_w(required=False), "unavailable")
         with patch.object(instruments.shutil, "which", return_value="/usr/bin/nvidia-smi"), \
                 patch.object(instruments, "output", return_value=(
                     "# gpu pid type fb ccpm command\n# Idx # C/G MB MB name\n"

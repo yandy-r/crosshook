@@ -78,9 +78,16 @@ def gpu_memory_mb(pids: set[int]) -> float | str:
     return totals.mb if totals.numeric else "unavailable"
 
 
-def battery_power_w() -> float:
+def battery_power_w(required: bool = True) -> float | str:
+    """Battery discharge rate in W.
+
+    A host without a battery fails with `BATTERY_REQUIRED` when power is a gate
+    (the Deck, E2); elsewhere it reports `unavailable`, like `gpu_mb`.
+    """
     paths = [line.strip() for line in output(["upower", "--enumerate"]).splitlines() if "battery" in line]
     if not paths:
+        if not required:
+            return "unavailable"
         raise InstrumentError("BATTERY_REQUIRED: no upower battery")
     for path in paths:
         match = re.search(r"energy-rate:\s+([0-9.]+)\s*W", output(["upower", "--show-info", path]))
