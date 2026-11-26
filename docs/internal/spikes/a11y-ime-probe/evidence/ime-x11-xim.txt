@@ -1,0 +1,34 @@
+### XWayland (XIM) + fcitx5/Mozc: zenity
+engine: mozc
+zenity: ニホンゴ
+# exit=0
+
+### XWayland (XIM) + fcitx5/Mozc: gpui
+gpui running
+focused IC: True
+fcitx5 ICs: ['IC [redacted] program:crosshook-ui-spike-gpui frontend:xim cap:4000000000 focus:1']
+engine: mozc
+SPIKE_SEARCH_TEXT: ['SPIKE_SEARCH_TEXT "ニホンゴ"']
+# exit=0
+
+### XWayland (XIM) + fcitx5/Mozc: iced
+iced running
+focused IC: True
+fcitx5 ICs: ['IC [redacted] program:crosshook-ui-spike-iced frontend:xim cap:4000000000 focus:1']
+engine: mozc
+SPIKE_SEARCH_TEXT: ['SPIKE_SEARCH_TEXT "ニホンゴ"']
+# exit=0
+
+### XWayland (XIM) + ibus/Anthy: gpui
+gpui running
+engine: anthy
+SPIKE_SEARCH_TEXT:
+SPIKE_SEARCH_TEXT "日本語"
+# exit=0
+
+### XWayland (XIM) + ibus/Anthy: iced
+iced running
+engine: anthy
+SPIKE_SEARCH_TEXT:
+SPIKE_SEARCH_TEXT "日本語"
+# exit=0

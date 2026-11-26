@@ -1,0 +1,56 @@
+### gpui live regions via click: Orca speech, focus, live-region children
+live-region children before: {'status bar': [], 'notification': []}
+button 'Back to grid'
+  speech on focus : ["'Back to grid button'"]
+  speech on click : ["'CrossHook (gpui spike) frame'"]
+  still focused   : False
+  live-region children: {'status bar': [], 'notification': []}
+button 'Announce launch (probe)'
+  speech on focus : ["'Announce launch (probe) button'"]
+  speech on click : ["'Launch started'", "'CrossHook (gpui spike) frame'"]
+  still focused   : False
+  live-region children: {'status bar': ['Launch started'], 'notification': []}
+button 'Announce error (probe)'
+  speech on focus : ["'Announce error (probe) button'"]
+  speech on click : ["'Launch failed: trainer not found'", "'CrossHook (gpui spike) frame'"]
+  still focused   : False
+  live-region children: {'status bar': ['Launch started'], 'notification': ['Launch failed: trainer not found']}
+# exit=0
+
+### gpui live regions via enter: Orca speech, focus, live-region children
+live-region children before: {'status bar': ['Launch started'], 'notification': ['Launch failed: trainer not found']}
+button 'Back to grid'
+  speech on focus : ["'Back to grid button'"]
+  speech on enter : ["'return'", "'Launch failed: trainer not found'"]
+  still focused   : True
+  live-region children: {'status bar': ['Launch started'], 'notification': ['Launch failed: trainer not found']}
+button 'Announce launch (probe)'
+  speech on focus : ["'Announce launch (probe) button'"]
+  speech on enter : ["'return'", "'Launch failed: trainer not found'"]
+  still focused   : True
+  live-region children: {'status bar': ['Launch started'], 'notification': ['Launch failed: trainer not found']}
+button 'Announce error (probe)'
+  speech on focus : ["'Announce error (probe) button'"]
+  speech on enter : ["'return'", "'Launch failed: trainer not found'"]
+  still focused   : True
+  live-region children: {'status bar': ['Launch started'], 'notification': ['Launch failed: trainer not found']}
+# exit=0
+
+### gpui live regions: AT-SPI tree after the runs
+application 'crosshook-ui-spike-gpui' []
+  frame 'CrossHook (gpui spike)' [sensitive]
+    button 'Library' [sensitive,focusable]
+    button 'Settings' [sensitive,focusable]
+    button 'Console' [sensitive,focusable]
+    button 'Back' [sensitive,focusable]
+    button 'Fwd' [sensitive,focusable]
+    entry 'Search games' [sensitive,focusable,editable] attrs=placeholder-text:Search games text=<no Text interface>
+    button 'Back to grid' [sensitive,focusable]
+    button 'Command palette' [sensitive,focusable]
+    button 'Announce launch (probe)' [sensitive,focusable]
+    button 'Announce error (probe)' [sensitive,focusable,focused]
+    status bar '' [sensitive]
+      label 'Launch started' [sensitive]
+    notification '' [sensitive]
+      label 'Launch failed: trainer not found' [sensitive]
+# exit=0

@@ -1,0 +1,39 @@
+### sway (text-input-v3) + fcitx5/Mozc: zenity
+engine: mozc
+zenity: ニホンゴ
+# exit=0
+
+### sway (text-input-v3) + fcitx5/Mozc: gpui
+gpui running
+focused IC: True
+fcitx5 ICs: ['IC [redacted] program:dev.crosshook.CrossHook frontend:wayland_v2 cap:72 focus:1', 'IC [redacted] program: frontend:wayland_v2 cap:72 focus:0']
+engine: mozc
+SPIKE_SEARCH_TEXT: ['SPIKE_SEARCH_TEXT "ニホンゴ"']
+# exit=0
+
+### sway (text-input-v3) + fcitx5/Mozc: iced
+iced running
+focused IC: True
+fcitx5 ICs: ['IC [redacted] program:dev.crosshook.CrossHook frontend:wayland_v2 cap:72 focus:1', 'IC [redacted] program: frontend:wayland_v2 cap:72 focus:0']
+engine: mozc
+SPIKE_SEARCH_TEXT: ['SPIKE_SEARCH_TEXT "ニホンゴ"']
+# exit=0
+
+### sway (text-input-v3) + ibus/Anthy: zenity
+engine: anthy
+zenity: 日本語
+# exit=0
+
+### sway (text-input-v3) + ibus/Anthy: gpui
+gpui running
+engine: anthy
+SPIKE_SEARCH_TEXT:
+SPIKE_SEARCH_TEXT "日本語"
+# exit=0
+
+### sway (text-input-v3) + ibus/Anthy: iced
+iced running
+engine: anthy
+SPIKE_SEARCH_TEXT:
+SPIKE_SEARCH_TEXT "日本語"
+# exit=0

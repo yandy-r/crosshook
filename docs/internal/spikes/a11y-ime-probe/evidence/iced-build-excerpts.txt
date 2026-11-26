@@ -1,0 +1,26 @@
+### pop-os/iced: Cargo diagnostics after dependency resolution
+error[E0432]: unresolved import `iced::Widget`
+error[E0432]: unresolved import `iced::Widget`
+error[E0432]: unresolved import `iced::Widget`
+error[E0433]: cannot find `scrollable` in `operation`
+error[E0433]: cannot find `scrollable` in `operation`
+error[E0433]: cannot find `Animation` in `operation`
+error[E0433]: cannot find `Ellipsis` in `text`
+error[E0405]: cannot find trait `Meta` in module `widget`
+error[E0405]: cannot find trait `Meta` in module `widget`
+error[E0053]: method `layout` has an incompatible type for trait
+error[E0050]: method `update` has 8 parameters but the declaration in trait `iced::advanced::Widget::update` has 9
+error[E0277]: the trait bound `Renderer: iced::advanced::Renderer` is not satisfied
+error[E0053]: method `layout` has an incompatible type for trait
+error[E0050]: method `operate` has 6 parameters but the declaration in trait `iced::advanced::Widget::operate` has 5
+error[E0050]: method `update` has 8 parameters but the declaration in trait `iced::advanced::Widget::update` has 9
+error[E0050]: method `overlay` has 7 parameters but the declaration in trait `iced::advanced::Widget::overlay` has 6
+error: could not compile `crosshook-ui-spike-iced` (bin "crosshook-ui-spike-iced") due to 16 previous errors
+
+### PR #1849: dependency resolution
+error: failed to get `winit` as a dependency of package `iced_winit v0.9.1 (https://github.com/pop-os/iced?rev=bf0deae0f291698eef2dc1330131bd2984ba56aa#bf0deae0)`
+  failed to find branch `iced`
+  cannot locate remote-tracking branch 'origin/iced'; class=Reference (4); code=NotFound (-3)
+error: failed to get `winit` as a dependency of package `iced_winit v0.9.1 (https://github.com/pop-os/iced?rev=bf0deae0f291698eef2dc1330131bd2984ba56aa#bf0deae0)`
+  failed to find branch `iced`
+  cannot locate remote-tracking branch 'origin/iced'; class=Reference (4); code=NotFound (-3)

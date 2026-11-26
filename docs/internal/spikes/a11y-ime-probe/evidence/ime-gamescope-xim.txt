@@ -1,0 +1,29 @@
+### nested gamescope (XWayland, XIM) + fcitx5: gpui
+gamescope display: :2
+engine: mozc
+  IC [redacted] program:crosshook-ui-spike-gpui frontend:xim cap:4000000000 focus:1
+SPIKE_SEARCH_TEXT:
+SPIKE_SEARCH_TEXT "ニホンゴ"
+# exit=0
+
+### nested gamescope (XWayland, XIM) + fcitx5: iced
+gamescope display: :2
+engine: mozc
+  IC [redacted] program:crosshook-ui-spike-iced frontend:xim cap:4000000000 focus:1
+SPIKE_SEARCH_TEXT:
+SPIKE_SEARCH_TEXT "ニホンゴ"
+# exit=0
+
+### nested gamescope (XWayland, XIM) + ibus: gpui
+gamescope display: :2
+engine: anthy
+SPIKE_SEARCH_TEXT:
+SPIKE_SEARCH_TEXT "日本語"
+# exit=0
+
+### nested gamescope (XWayland, XIM) + ibus: iced
+gamescope display: :2
+engine: anthy
+SPIKE_SEARCH_TEXT:
+SPIKE_SEARCH_TEXT "日本語"
+# exit=0

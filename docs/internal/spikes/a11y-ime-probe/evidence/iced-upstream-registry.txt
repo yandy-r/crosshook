@@ -1,0 +1,7 @@
+### iced (upstream pin a8231fd9) on KWin Wayland: AT-SPI registry
+# no AT-SPI application matching 'crosshook-ui-spike-iced'
+# exit=2
+
+### iced (upstream pin a8231fd9) on XWayland: AT-SPI registry
+# no AT-SPI application matching 'crosshook-ui-spike-iced'
+# exit=2

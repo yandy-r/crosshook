@@ -1,0 +1,74 @@
+### gpui Library page: focus each node, Orca speech
+frame 'CrossHook (gpui spike)' [sensitive,focusable,focused]	grab=True	(silent)
+button 'Library' [sensitive,focusable,focused]	grab=True	'Library button'
+button 'Settings' [sensitive,focusable,focused]	grab=True	'Settings button'
+button 'Console' [sensitive,focusable,focused]	grab=True	'Console button'
+button 'Back' [sensitive,focusable,focused]	grab=True	'Back button'
+button 'Fwd' [sensitive,focusable,focused]	grab=True	'Fwd button'
+entry 'Search games' [sensitive,focusable,editable] attrs=placeholder-text:Search games text=<no Text interface>	grab=True	'CrossHook (gpui spike) frame'
+button 'Back to grid' [sensitive,focusable,focused]	grab=True	'Back to grid button'
+button 'Command palette' [sensitive,focusable,focused]	grab=True	'Command palette button'
+button 'Announce launch (probe)' [sensitive,focusable,focused]	grab=True	'Announce launch (probe) button'
+button 'Announce error (probe)' [sensitive,focusable,focused]	grab=True	'Announce error (probe) button'
+status bar '' [sensitive]	grab=True	(silent)
+notification '' [sensitive]	grab=True	(silent)
+# exit=0
+
+### gpui Settings page: focus each node, Orca speech
+frame 'CrossHook (gpui spike)' [sensitive,focusable,focused]	grab=True	(silent)
+button 'Library' [sensitive,focusable,focused]	grab=True	'Library button'
+button 'Settings' [sensitive,focusable,focused]	grab=True	'Settings button'
+button 'Console' [sensitive,focusable,focused]	grab=True	'Console button'
+button 'Back' [sensitive,focusable,focused]	grab=True	'Back button'
+button 'Fwd' [sensitive,focusable,focused]	grab=True	'Fwd button'
+toggle button '' [sensitive,focusable,focused]	grab=True	'toggle button not pressed'
+spin button '' [sensitive,focusable,focused,editable] text=<no Text interface>	grab=True	'spin button'
+button 'Decrement' [sensitive]	grab=True	(silent)
+entry 'Internal width' [sensitive,focusable,editable] attrs=placeholder-text:Internal width text=<no Text interface>	grab=True	(silent)
+button 'Increment' [sensitive]	grab=True	(silent)
+spin button '' [sensitive,focusable,focused,editable] text=<no Text interface>	grab=True	'spin button'
+button 'Decrement' [sensitive]	grab=True	(silent)
+entry 'Internal height' [sensitive,focusable,editable] attrs=placeholder-text:Internal height text=<no Text interface>	grab=True	(silent)
+button 'Increment' [sensitive]	grab=True	(silent)
+spin button '' [sensitive,focusable,focused,editable] text=<no Text interface>	grab=True	'spin button'
+button 'Decrement' [sensitive]	grab=True	(silent)
+entry 'Output width' [sensitive,focusable,editable] attrs=placeholder-text:Output width text=<no Text interface>	grab=True	(silent)
+button 'Increment' [sensitive]	grab=True	(silent)
+spin button '' [sensitive,focusable,focused,editable] text=<no Text interface>	grab=True	'spin button'
+button 'Decrement' [sensitive]	grab=True	(silent)
+entry 'Output height' [sensitive,focusable,editable] attrs=placeholder-text:Output height text=<no Text interface>	grab=True	(silent)
+button 'Increment' [sensitive]	grab=True	(silent)
+spin button '' [sensitive,focusable,focused,editable] text=<no Text interface>	grab=True	'spin button'
+button 'Decrement' [sensitive]	grab=True	(silent)
+entry 'Frame-rate limit' [sensitive,focusable,editable] attrs=placeholder-text:Frame-rate limit text=<no Text interface>	grab=True	(silent)
+button 'Increment' [sensitive]	grab=True	(silent)
+spin button '' [sensitive,focusable,focused,editable] text=<no Text interface>	grab=True	'spin button'
+button 'Decrement' [sensitive]	grab=True	(silent)
+entry 'FSR sharpness' [sensitive,focusable,editable] attrs=placeholder-text:FSR sharpness text=<no Text interface>	grab=True	(silent)
+button 'Increment' [sensitive]	grab=True	(silent)
+combo box '' [sensitive,focusable,focused] text=<no Text interface>	grab=True	'combo box'
+toggle button '' [sensitive,focusable,focused]	grab=True	'toggle button not pressed'
+toggle button '' [sensitive,focusable,focused]	grab=True	'toggle button not pressed'
+toggle button '' [sensitive,focusable,focused]	grab=True	'toggle button not pressed'
+toggle button '' [sensitive,focusable,focused]	grab=True	'toggle button not pressed'
+toggle button 'Disable Steam overlay (optimization)' [sensitive,focusable,focused]	grab=True	'Disable Steam overlay (optimization) toggle button not pressed'
+button 'Save' [sensitive,focusable,focused]	grab=True	'Save button'
+button 'Pick file…' [sensitive,focusable,focused]	grab=True	'Pick file… button'
+button 'Back to grid' [sensitive,focusable,focused]	grab=True	'Back to grid button'
+button 'Command palette' [sensitive,focusable,focused]	grab=True	'Command palette button'
+button 'Announce launch (probe)' [sensitive,focusable,focused]	grab=True	'Announce launch (probe) button'
+button 'Announce error (probe)' [sensitive,focusable,focused]	grab=True	'Announce error (probe) button'
+status bar '' [sensitive]	grab=True	(silent)
+notification '' [sensitive]	grab=True	(silent)
+# exit=0
+
+### gpui Settings page: switch state through AT-SPI click and Space
+switch[0] name: '' pressed: False
+after AT-SPI click, pressed: True
+Orca on focus: []
+after Space, pressed: True | Orca: ["'space'"]
+spin button[0]: Value iface: no (NotImplementedError) | Text iface: no (NotImplementedError)
+entry 'Internal width': Text iface: no (NotImplementedError) | EditableText: no (NotImplementedError)
+entry 'Internal height': Text iface: no (NotImplementedError) | EditableText: no (NotImplementedError)
+combo box[0]: name: '' children: 0 | Value iface: no (NotImplementedError)
+# exit=0
