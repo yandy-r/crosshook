@@ -19,7 +19,8 @@ const BUS_UNAVAILABLE: &str = "session bus unavailable";
 /// holds the lock: it also catches a native run beside the Flatpak, whose
 /// lock files differ. A missing bus degrades; `block_on` is never attempted
 /// from inside a runtime (it would panic) or on a current-thread runtime
-/// (nothing would serve `Activate` afterwards).
+/// (the activation relay's timers and handlers would only run while some
+/// caller drives that runtime).
 pub(super) fn instance_bus_step(
     app: &App,
     choice: InstanceBus,

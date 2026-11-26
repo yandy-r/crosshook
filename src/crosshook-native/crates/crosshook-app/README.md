@@ -788,7 +788,7 @@ UI; the diagnostics archive is a regular file the user chose to create.
 
 `crosshook-core`, `tokio` (rt-multi-thread, sync, time, macros, process),
 `tokio-util` (rt), `futures-core`, `nix` (fs, inotify, poll, process, signal, time, user), `zbus`
-(tokio; the same version `crosshook-core` uses), `uuid` (v4), `thiserror`, `serde` (derive),
+(`async-io`, never `tokio`; the same version and backend as `crosshook-core`, see ADR-0002 § Negative), `uuid` (v4), `thiserror`, `serde` (derive),
 `serde_json`, `toml`, `tracing`, and `static_assertions`. Dev: `tempfile`,
 `tar`, `flate2`, `tokio` (test-util, macros, rt, io-util).
-`scripts/check-app-deps.sh` guards against UI-toolkit leakage.
+`scripts/check-app-deps.sh` guards against UI-toolkit leakage and a `tokio`-backed zbus.

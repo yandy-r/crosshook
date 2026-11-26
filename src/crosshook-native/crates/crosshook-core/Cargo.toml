@@ -55,10 +55,12 @@ tempfile = "3"
 ts-rs = { version = "12.0.1", optional = true, features = ["chrono-impl", "uuid-impl", "serde-compat"] }
 
 # Flatpak desktop-portal clients (ADR-0002). `zbus` pulls a pure-Rust D-Bus
-# client; we scope it to the `tokio` feature to match the rest of the crate
-# and disable `async-io` defaults. The `thiserror`-like impls are
-# hand-written to keep the dep surface minimal.
-zbus = { version = "5", default-features = false, features = ["tokio"] }
+# client. The whole process uses zbus's `async-io` backend, never `tokio`:
+# Cargo unifies zbus features across the binary, and with `tokio` every zbus
+# user (native UI toolkits, ashpd, accesskit_unix) panics on threads that have
+# no Tokio runtime. zbus then drives each connection on its own thread, so
+# the Tokio callers here still work. `scripts/check-app-deps.sh` enforces this.
+zbus = { version = "5", default-features = false, features = ["async-io"] }
 zvariant = { version = "5", default-features = false }
 zeroize = "1"
 

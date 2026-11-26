@@ -71,10 +71,17 @@ impl ActivationRelay {
             }
             Err(Ready::Done(outcome)) => return outcome,
         };
-        match tokio::time::timeout(PENDING_WAIT, receiver).await {
-            Ok(Ok(status)) => RelayOutcome::Handled(status),
-            Ok(Err(_)) => RelayOutcome::Closed,
-            Err(_) => RelayOutcome::StillStarting,
+        // zbus (async-io backend) polls this on its own executor thread, which
+        // has no Tokio context, so the timer runs on the stored runtime and
+        // only runtime-agnostic channels are awaited here (YAN-2475).
+        let timed = self
+            .runtime
+            .spawn(async move { tokio::time::timeout(PENDING_WAIT, receiver).await });
+        match timed.await {
+            Ok(Ok(Ok(status))) => RelayOutcome::Handled(status),
+            Ok(Ok(Err(_))) => RelayOutcome::Closed,
+            // Timed out, or the runtime is shutting down and dropped the task.
+            Ok(Err(_)) | Err(_) => RelayOutcome::StillStarting,
         }
     }
 

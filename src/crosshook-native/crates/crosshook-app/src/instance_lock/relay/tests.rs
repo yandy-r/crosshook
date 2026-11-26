@@ -149,3 +149,73 @@ async fn guard_installs_handler_through_the_relay() {
         .await;
     assert!(matches!(handoff, Err(HandoffError::NotHeld)));
 }
+
+/// zbus (async-io backend) runs interface methods on its own executor thread,
+/// which has no Tokio context; the relay must not need one (YAN-2475).
+#[test]
+fn request_without_handler_works_off_the_runtime() {
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(1)
+        .enable_all()
+        .build()
+        .unwrap();
+    let relay = Arc::new(ActivationRelay::new(runtime.handle().clone()));
+    let outcome = std::thread::spawn({
+        let relay = Arc::clone(&relay);
+        move || {
+            assert!(Handle::try_current().is_err(), "no ambient Tokio context");
+            let started = Instant::now();
+            let outcome = futures_executor_block_on(relay.request(request("x")));
+            (outcome, started.elapsed())
+        }
+    })
+    .join()
+    .expect("the relay must not panic without a Tokio context");
+    assert_eq!(outcome.0, RelayOutcome::StillStarting);
+    assert!(outcome.1 >= PENDING_WAIT);
+}
+
+/// zbus's executor thread: buffered, then the handler arrives from the UI.
+#[test]
+fn buffered_request_off_the_runtime_is_answered_by_the_handler() {
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(1)
+        .enable_all()
+        .build()
+        .unwrap();
+    let relay = Arc::new(ActivationRelay::new(runtime.handle().clone()));
+    let waiting = std::thread::spawn({
+        let relay = Arc::clone(&relay);
+        move || futures_executor_block_on(relay.request(request("early")))
+    });
+    while relay.state().waiters.is_empty() {
+        std::thread::yield_now();
+    }
+    let recorder = Arc::new(Recorder::default());
+    relay.set_handler(Arc::new(Arc::clone(&recorder)));
+    assert_eq!(
+        waiting.join().expect("no panic off the runtime"),
+        RelayOutcome::Handled(ActivationStatus::Activated)
+    );
+    assert_eq!(*recorder.0.lock().unwrap(), vec![request("early")]);
+}
+
+/// Minimal park-based executor: stands in for zbus's non-Tokio thread.
+fn futures_executor_block_on<F: std::future::Future>(future: F) -> F::Output {
+    use std::task::{Context, Poll, Wake, Waker};
+    struct ThreadWaker(std::thread::Thread);
+    impl Wake for ThreadWaker {
+        fn wake(self: Arc<Self>) {
+            self.0.unpark();
+        }
+    }
+    let waker = Waker::from(Arc::new(ThreadWaker(std::thread::current())));
+    let mut cx = Context::from_waker(&waker);
+    let mut future = std::pin::pin!(future);
+    loop {
+        match future.as_mut().poll(&mut cx) {
+            Poll::Ready(output) => return output,
+            Poll::Pending => std::thread::park(),
+        }
+    }
+}

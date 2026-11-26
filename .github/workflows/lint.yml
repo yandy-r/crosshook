@@ -54,7 +54,7 @@ jobs:
       - name: Single-instance D-Bus round trip (private session bus)
         # Without a session bus the test skips; run it on a private bus so the
         # claim and Activate paths are exercised for real.
-        run: dbus-run-session -- cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-app --test instance_activation
+        run: dbus-run-session -- cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-app --test instance_activation --test zbus_backend
 
       - name: UI-free dependency guardrail
         run: |

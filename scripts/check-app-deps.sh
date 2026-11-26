@@ -14,6 +14,9 @@
 # cairo, atk, soup3, javascriptcore, rfd, tao, muda and families). deny.toml
 # can only confine those by direct parent; this check is transitive (GitHub #26).
 # Trees cover every target platform (`--target all`).
+# It also pins zbus to the `async-io` backend for the whole workspace: Cargo
+# unifies zbus features per binary, and `tokio` makes every zbus user on a
+# non-tokio thread (native UI toolkits, ashpd, accesskit_unix) panic (YAN-2475).
 #
 # Usage: ./scripts/check-app-deps.sh [--help|-h] [--selftest]
 # Exit codes: 0 = clean, 1 = banned dependency / cargo failure / selftest failure.
@@ -59,6 +62,8 @@ Fails if a UI-free crate's transitive dependencies include a banned crate:
 Every package also rejects the rest of the gtk3 stack (gdk, gio, gobject,
 pango, cairo, atk, soup3, javascriptcore, rfd, tao, muda and families).
 Dependency trees cover every target platform (cargo tree --target all).
+Every zbus in the workspace must use the async-io backend and must not
+enable the tokio feature (Cargo unifies zbus features across a binary).
 
 Options:
   -h, --help    Print this help and exit 0.
@@ -89,6 +94,39 @@ check_tree() {
     return 1
   fi
   return "$bad"
+}
+
+# check_zbus_backend: reads `cargo tree -i zbus --depth 0 --format '{p}|{f}'`
+# output on stdin (one `zbus vX|feat,feat` line per zbus version). Returns 1
+# if any zbus enables `tokio` or lacks `async-io`. Empty input (no zbus) passes.
+check_zbus_backend() {
+  local line pkg feats bad=0
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    pkg="${line%%|*}"
+    feats=",${line#*|},"
+    if [[ "$feats" == *,tokio,* ]]; then
+      echo "zbus backend: $pkg enables the tokio feature (use async-io only)" >&2
+      bad=1
+    elif [[ "$feats" != *,async-io,* ]]; then
+      echo "zbus backend: $pkg does not enable the async-io feature" >&2
+      bad=1
+    fi
+  done
+  return "$bad"
+}
+
+# zbus_selftest_cases: prints `<0|1>|<label>|<tree>` cases for check_zbus_backend.
+zbus_selftest_cases() {
+  cat <<'EOF'
+0|async-io only|zbus v5.14.0|async-executor,async-fs,async-io,async-lock,async-process,async-task,blocking
+0|no zbus in the workspace|
+1|tokio only|zbus v5.14.0|tokio
+1|both backends unified|zbus v5.14.0|async-io,tokio
+1|no backend feature|zbus v5.14.0|
+1|second zbus version with tokio|zbus v5.14.0|async-io\nzbus v4.4.0|tokio
+0|tokio-prefixed feature is not tokio|zbus v5.14.0|async-io,tokio-extra
+EOF
 }
 
 # parse_check <entry>: splits a CHECKS row into the globals pkg, edges and
@@ -182,6 +220,15 @@ selftest() {
     done <<<"$cases"
   done
 
+  while IFS='|' read -r want label tree; do
+    got=0
+    check_zbus_backend <<<"$(printf '%b' "$tree")" 2>/dev/null || got=$?
+    if [[ "$got" != "$want" ]]; then
+      echo "selftest FAILED: zbus backend: $label (want $want, got $got)" >&2
+      ok=0
+    fi
+  done <<<"$(zbus_selftest_cases)"
+
   if (( ok )); then
     echo "selftest passed: allowed trees accepted, banned trees rejected."
     return 0
@@ -214,4 +261,27 @@ for entry in "${CHECKS[@]}"; do
     failed=1
   fi
 done
+
+# zbus backend: one line per zbus version in the workspace, with its features.
+all_pkgs="$(cargo tree --manifest-path "$MANIFEST" --workspace -e normal,build,dev --target all --prefix none --format '{p}')" || {
+  echo "error: cargo tree failed for the zbus backend check" >&2
+  exit 1
+}
+# One `-i zbus@<version>` per version: a bare `-i zbus` is ambiguous when the
+# graph holds two zbus versions (deny.toml allows multiple versions).
+zbus_tree=""
+while IFS= read -r zbus_version; do
+  [[ -z "$zbus_version" ]] && continue
+  line="$(cargo tree --manifest-path "$MANIFEST" --workspace -i "zbus@$zbus_version" -e normal,build,dev --target all --depth 0 --prefix none --format '{p}|{f}')" || {
+    echo "error: cargo tree -i zbus@$zbus_version failed" >&2
+    exit 1
+  }
+  zbus_tree+="$line"$'\n'
+done < <(sed -n 's/^zbus v\([^ ]*\).*/\1/p' <<<"$all_pkgs" | sort -u)
+if check_zbus_backend <<<"$zbus_tree"; then
+  echo "app-deps check passed: zbus uses the async-io backend workspace-wide."
+else
+  echo "app-deps check FAILED: zbus must use async-io, not tokio, workspace-wide (YAN-2475)." >&2
+  failed=1
+fi
 exit "$failed"

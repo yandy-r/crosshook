@@ -131,6 +131,9 @@ struct ApplicationIface {
     relay: Arc<ActivationRelay>,
 }
 
+/// Served on zbus's own executor thread (async-io backend), with no Tokio
+/// context: use the relay's stored runtime handle, never ambient `tokio::`
+/// context APIs (`tokio::time`, `tokio::spawn`, `Handle::current`).
 #[zbus::interface(name = "org.freedesktop.Application")]
 impl ApplicationIface {
     /// `Activate(a{sv} platform_data)`: raise the main window. The reply is
@@ -225,6 +228,15 @@ pub(crate) async fn claim_bus_name(relay: Arc<ActivationRelay>) -> ClaimOutcome 
 pub async fn claim_bus_name_at(name: &str, handler: impl ActivationHandler) -> ClaimOutcome {
     let relay = Arc::new(ActivationRelay::new(tokio::runtime::Handle::current()));
     relay.set_handler(Arc::new(handler));
+    claim_at(name, relay).await
+}
+
+/// Test seam: claims an arbitrary (unique) name with no handler installed, as
+/// bootstrap does before the UI exists, so `Activate` takes the buffered path.
+#[cfg(feature = "test-seams")]
+#[doc(hidden)]
+pub async fn claim_bus_name_without_handler_at(name: &str) -> ClaimOutcome {
+    let relay = Arc::new(ActivationRelay::new(tokio::runtime::Handle::current()));
     claim_at(name, relay).await
 }
 

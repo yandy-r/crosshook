@@ -9,8 +9,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use crosshook_app::instance_lock::{
-    activate_named, claim_bus_name_at, ActivationError, ActivationHandler, ActivationRequest,
-    ActivationStatus, ClaimOutcome,
+    activate_named, claim_bus_name_at, claim_bus_name_without_handler_at, ActivationError,
+    ActivationHandler, ActivationRequest, ActivationStatus, ClaimOutcome,
 };
 use tokio::sync::Notify;
 
@@ -186,6 +186,21 @@ async fn activation_round_trip_over_the_session_bus() {
     tokio::time::timeout(Duration::from_secs(2), notified)
         .await
         .expect("successor handler called");
+
+    // 6d. Owned before the UI installed a handler (bootstrap order): the
+    // buffered request runs on zbus's own executor thread, with no Tokio
+    // context, and is answered "still starting" after the pending wait
+    // instead of panicking and timing out (YAN-2475).
+    let starting = format!("{name}.starting");
+    let ClaimOutcome::Owned(_starting_claim) = claim_bus_name_without_handler_at(&starting).await
+    else {
+        panic!("handler-less claim must own {starting}");
+    };
+    let result = activate_named(&starting, token("x"), Duration::from_secs(3)).await;
+    assert!(
+        matches!(result, Err(ActivationError::Starting)),
+        "{result:?}"
+    );
 
     // 7. The synchronous entry point refuses to run inside a runtime.
     let result = crosshook_app::instance_lock::activate_running_instance(
