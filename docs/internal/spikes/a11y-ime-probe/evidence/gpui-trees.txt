@@ -1,0 +1,99 @@
+### gpui: AT-SPI tree, Library page
+application 'crosshook-ui-spike-gpui' []
+  frame 'CrossHook (gpui spike)' [sensitive,focusable,focused]
+    button 'Library' [sensitive,focusable]
+    button 'Settings' [sensitive,focusable]
+    button 'Console' [sensitive,focusable]
+    button 'Back' [sensitive,focusable]
+    button 'Fwd' [sensitive,focusable]
+    entry 'Search games' [sensitive,focusable,editable] attrs=placeholder-text:Search games text=<no Text interface>
+    button 'Back to grid' [sensitive,focusable]
+    button 'Command palette' [sensitive,focusable]
+    button 'Announce launch (probe)' [sensitive,focusable]
+    button 'Announce error (probe)' [sensitive,focusable]
+    status bar '' [sensitive]
+    notification '' [sensitive]
+# exit=0
+
+### gpui: AT-SPI tree, Settings page
+application 'crosshook-ui-spike-gpui' []
+  frame 'CrossHook (gpui spike)' [sensitive,focusable,focused]
+    button 'Library' [sensitive,focusable]
+    button 'Settings' [sensitive,focusable]
+    button 'Console' [sensitive,focusable]
+    button 'Back' [sensitive,focusable]
+    button 'Fwd' [sensitive,focusable]
+    toggle button '' [sensitive,focusable]
+    spin button '' [sensitive,focusable,editable] text=<no Text interface>
+      button 'Decrement' [sensitive]
+      entry 'Internal width' [sensitive,focusable,editable] attrs=placeholder-text:Internal width text=<no Text interface>
+      button 'Increment' [sensitive]
+    spin button '' [sensitive,focusable,editable] text=<no Text interface>
+      button 'Decrement' [sensitive]
+      entry 'Internal height' [sensitive,focusable,editable] attrs=placeholder-text:Internal height text=<no Text interface>
+      button 'Increment' [sensitive]
+    spin button '' [sensitive,focusable,editable] text=<no Text interface>
+      button 'Decrement' [sensitive]
+      entry 'Output width' [sensitive,focusable,editable] attrs=placeholder-text:Output width text=<no Text interface>
+      button 'Increment' [sensitive]
+    spin button '' [sensitive,focusable,editable] text=<no Text interface>
+      button 'Decrement' [sensitive]
+      entry 'Output height' [sensitive,focusable,editable] attrs=placeholder-text:Output height text=<no Text interface>
+      button 'Increment' [sensitive]
+    spin button '' [sensitive,focusable,editable] text=<no Text interface>
+      button 'Decrement' [sensitive]
+      entry 'Frame-rate limit' [sensitive,focusable,editable] attrs=placeholder-text:Frame-rate limit text=<no Text interface>
+      button 'Increment' [sensitive]
+    spin button '' [sensitive,focusable,editable] text=<no Text interface>
+      button 'Decrement' [sensitive]
+      entry 'FSR sharpness' [sensitive,focusable,editable] attrs=placeholder-text:FSR sharpness text=<no Text interface>
+      button 'Increment' [sensitive]
+    combo box '' [sensitive,focusable] text=<no Text interface>
+    toggle button '' [sensitive,focusable]
+    toggle button '' [sensitive,focusable]
+    toggle button '' [sensitive,focusable]
+    toggle button '' [sensitive,focusable]
+    toggle button 'Disable Steam overlay (optimization)' [sensitive,focusable]
+    button 'Save' [sensitive,focusable]
+    button 'Pick file…' [sensitive,focusable]
+    button 'Back to grid' [sensitive,focusable]
+    button 'Command palette' [sensitive,focusable]
+    button 'Announce launch (probe)' [sensitive,focusable]
+    button 'Announce error (probe)' [sensitive,focusable]
+    status bar '' [sensitive]
+    notification '' [sensitive]
+# exit=0
+
+### gpui: AT-SPI tree, Console page
+application 'crosshook-ui-spike-gpui' []
+  frame 'CrossHook (gpui spike)' [sensitive,focusable,focused]
+    button 'Library' [sensitive,focusable]
+    button 'Settings' [sensitive,focusable]
+    button 'Console' [sensitive,focusable]
+    button 'Back' [sensitive,focusable]
+    button 'Fwd' [sensitive,focusable]
+    button 'Back to grid' [sensitive,focusable]
+    button 'Command palette' [sensitive,focusable]
+    button 'Announce launch (probe)' [sensitive,focusable]
+    button 'Announce error (probe)' [sensitive,focusable]
+    status bar '' [sensitive]
+    notification '' [sensitive]
+# exit=0
+
+### gpui: AT-SPI tree, command palette dialog open
+application 'crosshook-ui-spike-gpui' []
+  frame 'CrossHook (gpui spike)' [sensitive,focusable,focused]
+    button 'Library' [sensitive,focusable]
+    button 'Settings' [sensitive,focusable]
+    button 'Console' [sensitive,focusable]
+    button 'Back' [sensitive,focusable]
+    button 'Fwd' [sensitive,focusable]
+    button 'Back to grid' [sensitive,focusable]
+    button 'Command palette' [sensitive,focusable]
+    button 'Announce launch (probe)' [sensitive,focusable]
+    button 'Announce error (probe)' [sensitive,focusable]
+    status bar '' [sensitive]
+    notification '' [sensitive]
+    entry 'library, settings, console' [sensitive,focusable,editable] attrs=placeholder-text:library, settings, console text=<no Text interface>
+    button 'Close' [sensitive,focusable]
+# exit=0
