@@ -17,6 +17,10 @@ impl App {
                 self.refilter();
                 self.flow.loaded();
                 let mut tasks = vec![self.pump_covers()];
+                // M0-09 probe: put focus in the search field for scripted IME input.
+                if std::env::var_os("SPIKE_FOCUS_SEARCH").is_some() {
+                    tasks.push(self.focus_to(Target::Search));
+                }
                 if let Some(first) = self.summaries.first() {
                     let name = first.name.clone();
                     self.form_profile = Some(name.clone());
@@ -48,6 +52,8 @@ impl App {
                 self.pump_covers()
             }
             Message::Search(query) => {
+                // M0-09 probe: IME commit evidence.
+                eprintln!("SPIKE_SEARCH_TEXT {query:?}");
                 self.query = query;
                 self.refilter();
                 self.focus.set(Target::Search);
