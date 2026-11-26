@@ -96,13 +96,15 @@ check_tree() {
   return "$bad"
 }
 
-# check_zbus_backend: reads `cargo tree -i zbus --depth 0 --format '{p}|{f}'`
+# check_zbus_backend: reads `cargo tree -i zbus@<v> --depth 0 --format '{p}|{f}'`
 # output on stdin (one `zbus vX|feat,feat` line per zbus version). Returns 1
-# if any zbus enables `tokio` or lacks `async-io`. Empty input (no zbus) passes.
+# if any zbus enables `tokio` or lacks `async-io`, or if no zbus line is read
+# (crosshook-core depends on zbus, so an empty set means the check broke).
 check_zbus_backend() {
-  local line pkg feats bad=0
+  local line pkg feats bad=0 seen=0
   while IFS= read -r line; do
     [[ -z "$line" ]] && continue
+    seen=1
     pkg="${line%%|*}"
     feats=",${line#*|},"
     if [[ "$feats" == *,tokio,* ]]; then
@@ -113,6 +115,10 @@ check_zbus_backend() {
       bad=1
     fi
   done
+  if (( ! seen )); then
+    echo "zbus backend: no zbus found in the workspace dependency tree" >&2
+    return 1
+  fi
   return "$bad"
 }
 
@@ -120,7 +126,7 @@ check_zbus_backend() {
 zbus_selftest_cases() {
   cat <<'EOF'
 0|async-io only|zbus v5.14.0|async-executor,async-fs,async-io,async-lock,async-process,async-task,blocking
-0|no zbus in the workspace|
+1|no zbus found (check broke)|
 1|tokio only|zbus v5.14.0|tokio
 1|both backends unified|zbus v5.14.0|async-io,tokio
 1|no backend feature|zbus v5.14.0|
@@ -263,7 +269,8 @@ for entry in "${CHECKS[@]}"; do
 done
 
 # zbus backend: one line per zbus version in the workspace, with its features.
-all_pkgs="$(cargo tree --manifest-path "$MANIFEST" --workspace -e normal,build,dev --target all --prefix none --format '{p}')" || {
+# --all-features: a `zbus/tokio` behind a non-default feature counts too.
+all_pkgs="$(cargo tree --manifest-path "$MANIFEST" --workspace --all-features -e normal,build,dev --target all --prefix none --format '{p}')" || {
   echo "error: cargo tree failed for the zbus backend check" >&2
   exit 1
 }
@@ -272,7 +279,7 @@ all_pkgs="$(cargo tree --manifest-path "$MANIFEST" --workspace -e normal,build,d
 zbus_tree=""
 while IFS= read -r zbus_version; do
   [[ -z "$zbus_version" ]] && continue
-  line="$(cargo tree --manifest-path "$MANIFEST" --workspace -i "zbus@$zbus_version" -e normal,build,dev --target all --depth 0 --prefix none --format '{p}|{f}')" || {
+  line="$(cargo tree --manifest-path "$MANIFEST" --workspace -i "zbus@$zbus_version" --all-features -e normal,build,dev --target all --depth 0 --prefix none --format '{p}|{f}')" || {
     echo "error: cargo tree -i zbus@$zbus_version failed" >&2
     exit 1
   }

@@ -8,8 +8,9 @@
 //! instead; `scripts/check-app-deps.sh` guards the feature, and this test
 //! proves the behaviour on a real session bus.
 //!
-//! Without a session bus (CI) the test prints a skip reason and returns; run it
-//! locally under `dbus-run-session -- cargo test -p crosshook-app --test zbus_backend`.
+//! Without `DBUS_SESSION_BUS_ADDRESS` the test prints a skip reason and returns.
+//! With it set (CI runs it under `dbus-run-session`), an unreachable or wedged
+//! bus fails the test, so the path cannot pass vacuously.
 
 use std::future::Future;
 use std::sync::Arc;
@@ -62,8 +63,7 @@ fn session_bus_call_works_without_a_tokio_runtime() {
     let outcome = match receiver.recv_timeout(std::time::Duration::from_secs(5)) {
         Ok(outcome) => outcome,
         Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-            eprintln!("skip: session bus did not answer within 5 s");
-            return;
+            panic!("session bus did not answer within 5 s");
         }
         Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
             worker
@@ -73,8 +73,6 @@ fn session_bus_call_works_without_a_tokio_runtime() {
         }
     };
 
-    match outcome {
-        Ok(id) => assert!(!id.is_empty(), "bus id must be non-empty"),
-        Err(error) => eprintln!("skip: session bus unreachable: {error}"),
-    }
+    let id = outcome.expect("session-bus call from a non-Tokio thread");
+    assert!(!id.is_empty(), "bus id must be non-empty");
 }

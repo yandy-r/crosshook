@@ -90,8 +90,8 @@ exposes `#[doc(hidden)]` seams for tests: the `PreRuntimeHost` trait +
 against a fake host, no real environment mutation), and the core `trace` log
 the `tests/bootstrap_ordering.rs` harness asserts ordering rules R1–R6
 against (own `main`, re-exec per scenario). Production builds keep the host
-seam crate-private and omit the misordered path. `claim_bus_name_at` and
-`activate_named` (same feature) drive the D-Bus round trip in
+seam crate-private and omit the misordered path. `claim_bus_name_at`,
+`claim_bus_name_without_handler_at` and `activate_named` (same feature) drive the D-Bus round trip in
 `tests/instance_activation.rs` against a per-process test name. The `cargo tree` normal-edge
 feature checks in CI and `scripts/lint.sh` reject `bootstrap-trace` in shipped builds;
 `verify:no-mocks` separately guards frontend mock code.

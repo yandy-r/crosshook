@@ -80,8 +80,12 @@ impl ActivationRelay {
         match timed.await {
             Ok(Ok(Ok(status))) => RelayOutcome::Handled(status),
             Ok(Ok(Err(_))) => RelayOutcome::Closed,
-            // Timed out, or the runtime is shutting down and dropped the task.
-            Ok(Err(_)) | Err(_) => RelayOutcome::StillStarting,
+            Ok(Err(_)) => RelayOutcome::StillStarting,
+            // The runtime is shutting down and dropped the task.
+            Err(error) => {
+                tracing::debug!(%error, "activation pending-wait task did not finish");
+                RelayOutcome::StillStarting
+            }
         }
     }
 

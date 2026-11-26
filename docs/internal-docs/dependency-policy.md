@@ -32,6 +32,12 @@ it without gtk3 while Tauri does. Native file dialogs go through
 xdg-desktop-portal (`ashpd`). When `src-tauri` is removed, drop the `wrappers`
 entries and turn the bans into plain denies.
 
+zbus must use its `async-io` backend workspace-wide and never enable `tokio`:
+Cargo unifies zbus features per binary, and a `tokio`-backed zbus panics in
+every zbus user that runs on a non-Tokio thread (native UI toolkits, `ashpd`,
+`accesskit_unix`). `scripts/check-app-deps.sh` enforces it with all workspace
+features enabled (YAN-2475, ADR-0002 § Negative).
+
 ## MSRV
 
 `rust-version` in `[workspace.package]` is the MSRV and matches the toolchain
