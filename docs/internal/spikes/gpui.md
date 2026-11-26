@@ -229,18 +229,18 @@ NVIDIA's EGL exposes a GL adapter but no surface format gpui accepts. That is th
 
 ## Measured upgrade: gpui-pre 0.3.14 / GPUI Kit 0.11.0
 
-[YAN-2477](https://linear.app/itcn/issue/YAN-2477) / [GitHub #652](https://github.com/yandy-r/crosshook/issues/652) tested these exact versions in a throwaway worktree at `6c822ca7` on Linux. The `spike/gpui` ref and the `main` lockfile were not changed.
+[YAN-2477](https://linear.app/itcn/issue/YAN-2477) / [GitHub #652](https://github.com/yandy-r/crosshook/issues/652) tested these exact versions on 2026-11-26 UTC on x86_64 Linux with Rust 1.95.0. The upgraded worktree started at `6c822ca7`; the baseline audit used a separate pristine copy of that revision. The `spike/gpui` ref and the `main` lockfile were not changed.
 
 - **Resolution:** all five Kit packages listed above moved to `0.11.0`. The gpui snapshot family moved to `0.3.14`, except its separately versioned `gpui-pre-reqwest`, which stayed at `0.12.15`. Cargo also moved `wgpu` from `29.0.4` to `30.0.1` and `taffy` from `0.13.0` to `0.15.1`.
 - **Compiler output:** after editing the exact pins and refreshing the lockfile with `cargo update -p gpui-pre --precise 0.3.14`, Cargo resolved and the first check passed. There were **zero compile errors** and three deprecation warnings in `console/view.rs`. Replacing `ScrollWheelEvent` with `ScrollEvent` and `on_scroll_wheel` with `on_scroll` cleared the warnings.
-- **Churn (`git diff --numstat`):** Rust +4/−4 in one file; spike manifest +10/−10; generated `Cargo.lock` +902/−671.
-- **Elapsed:** about **0.072 h (4.3 min)** of wall time from the first command through the build checks on this host, including compiler time; excludes the later audit and final formatting. This is one run, not a maintenance estimate.
+- **Churn (`git diff --numstat`):** Rust +4/−4 in one file; spike manifest +10/−10; generated `Cargo.lock` +902/−671 for this targeted update (Cargo reported 43 additions, 45 removals and 53 updates).
+- **Elapsed:** about **0.072 h (4.3 min)** of wall time from the approximate start through the compile checks, test link, dependency audit and graph queries. The final formatting and recheck were outside that window. This is one run, not a maintenance estimate.
 
 From the native Cargo workspace, `cargo check --locked -j6 -p crosshook-ui-spike-gpui --all-targets` passed on both the baseline and final graph. `cargo test --locked -j6 -p crosshook-ui-spike-gpui --no-run` linked the test executable. This sample did not run the tests or recheck real-display behaviour, rendering performance, or Flatpak compatibility.
 
 ### Dependency-policy audit
 
-`cargo deny --manifest-path src/crosshook-native/Cargo.toml --locked check` (cargo-deny 0.20.2, unchanged workspace policy) reported **five licence errors and one advisory error** on each graph; bans and sources passed after the bump. These are workspace graph findings, not a list of libraries linked into the Linux executable.
+`cargo deny --manifest-path src/crosshook-native/Cargo.toml --locked check` (cargo-deny 0.20.2, unchanged workspace policy; local advisory DB at `b9b8a3c`, dated 2026-11-25) reported **five licence errors and one advisory error** on each graph; bans and sources passed on both graphs. These are workspace graph findings, not a list of libraries linked into the Linux executable.
 
 | Finding                                                                  | Baseline   | Upgraded   |
 | ------------------------------------------------------------------------ | ---------- | ---------- |
@@ -250,7 +250,7 @@ From the native Cargo workspace, `cargo check --locked -j6 -p crosshook-ui-spike
 | `libfuzzer-sys 0.4.13`: NCSA clause, through `image` → `ravif` → `rav1e` | No finding | Rejected   |
 | `lru 0.16.4`: RUSTSEC-2026-0253, a direct spike dependency               | Reported   | Reported   |
 
-The upgraded audit paths for these findings lead to the spike. This bump had little source churn but moved the renderer and changed which licences the workspace gate rejects. If gpui is selected, resolve the advisory and licence findings before adopting this graph, then rerun the display and packaging checks; the compile sample is not a toolkit decision.
+The upgraded audit paths lead to the spike, not to the Classic shell. `libfuzzer-sys` was already in the baseline lockfile but not reported on that audited graph. The upgrade changed both the renderer version and the dependency audit results despite little source churn. If gpui is selected, resolve the advisory and licence findings before adopting this graph, then rerun the display and packaging checks; the compile sample is not a toolkit decision.
 
 ## Bench harness findings
 
