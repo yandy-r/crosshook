@@ -142,6 +142,19 @@ impl Shell {
             }
             Target::Field(_) | Target::Search => {}
             Target::InspectorAction(0) => self.focus_to(Target::Card(0), window, cx),
+            // M0-09 probe: announce without moving focus (no real launch).
+            Target::InspectorAction(2) => {
+                self.announcer
+                    .announce(crate::announcer::Politeness::Polite, "Launch started");
+                cx.notify();
+            }
+            Target::InspectorAction(3) => {
+                self.announcer.announce(
+                    crate::announcer::Politeness::Assertive,
+                    "Launch failed: trainer not found",
+                );
+                cx.notify();
+            }
             Target::InspectorAction(_) => self.open_overlay(Overlay::Palette, window, cx),
             Target::Overlay(0) => self.pick_file(window, cx),
             Target::Overlay(_) => self.close_overlay(window, cx),

@@ -7,6 +7,7 @@
 //! dialog, Lucide icons, back/forward history, and the bench READY/BENCH_* protocol.
 
 mod actions;
+mod announcer;
 mod app;
 mod bench;
 mod console;

@@ -50,7 +50,8 @@ impl Render for Shell {
             .bg(rgb(0x0b0e13))
             .text_color(rgb(0xe6e9ee))
             .child(body)
-            .child(bottom);
+            .child(bottom)
+            .child(self.announcer.render());
         super::nav::nav_actions(root, &cx.entity())
     }
 }
@@ -163,6 +164,22 @@ impl Shell {
             window,
             cx,
         );
+        let a2 = self.button(
+            Target::InspectorAction(2),
+            "Announce launch (probe)",
+            None,
+            false,
+            window,
+            cx,
+        );
+        let a3 = self.button(
+            Target::InspectorAction(3),
+            "Announce error (probe)",
+            None,
+            false,
+            window,
+            cx,
+        );
         v_flex()
             .w(px(INSPECTOR_W))
             .flex_shrink_0()
@@ -174,6 +191,8 @@ impl Shell {
             .child(div().text_xs().child(app_id))
             .child(a0)
             .child(a1)
+            .child(a2)
+            .child(a3)
             .child(div().text_xs().child(format!(
                 "Covers cached: {} ({:.1} MiB, {} evicted)",
                 self.covers.len(),

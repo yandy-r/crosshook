@@ -106,6 +106,8 @@ pub struct Shell {
     pub form_profile: Option<String>,
     pub console: Entity<ConsoleView>,
     pub status: SharedString,
+    /// M0-09 probe: live-region announcer (polite status, assertive alert).
+    pub announcer: crate::announcer::Announcer,
     pub renderer: SharedString,
     pub seen_focus: bool,
     /// Next G5 trial to arm after the change frame was built.
@@ -190,6 +192,7 @@ impl Shell {
             form_profile: None,
             console: cx.new(|_| ConsoleView::new()),
             status: "Loading library…".into(),
+            announcer: crate::announcer::Announcer::default(),
             renderer: SharedString::default(),
             seen_focus: false,
             rearm: None,
@@ -268,6 +271,10 @@ impl Shell {
             }));
         }
         self.flow.loaded();
+        // M0-09 probe: put focus in the search field for scripted IME input.
+        if std::env::var_os("SPIKE_FOCUS_SEARCH").is_some() {
+            self.focus_to(crate::focus::Target::Search, window, cx);
+        }
         cx.notify();
     }
 
@@ -327,7 +334,10 @@ impl Shell {
         cx: &mut Context<Self>,
     ) {
         if matches!(ev, InputEvent::Change) {
-            self.query = state.read(cx).value().to_lowercase();
+            let raw = state.read(cx).value().to_string();
+            // M0-09 probe: IME commit evidence (raw field text, before lower-casing).
+            eprintln!("SPIKE_SEARCH_TEXT {raw:?}");
+            self.query = raw.to_lowercase();
             self.refilter();
             self.grid_scroll
                 .scroll_to_item(0, gpui::ScrollStrategy::Top);
@@ -435,6 +445,10 @@ impl Shell {
             self.paths.clone(),
         ) else {
             self.status = "Fix the highlighted fields first".into();
+            self.announcer.announce(
+                crate::announcer::Politeness::Assertive,
+                "Fix the highlighted fields first",
+            );
             return;
         };
         let job =
@@ -442,10 +456,15 @@ impl Shell {
         self.tasks.push(cx.spawn_in(window, async move |this, cx| {
             let result = job.await;
             let _ = this.update(cx, |this, cx| {
-                this.status = match result {
-                    Ok(()) => "Profile saved".into(),
-                    Err(e) => format!("Profile error: {e}").into(),
+                let (politeness, text): (_, SharedString) = match result {
+                    Ok(()) => (crate::announcer::Politeness::Polite, "Profile saved".into()),
+                    Err(e) => (
+                        crate::announcer::Politeness::Assertive,
+                        format!("Profile error: {e}").into(),
+                    ),
                 };
+                this.announcer.announce(politeness, text.clone());
+                this.status = text;
                 cx.notify();
             });
         }));
