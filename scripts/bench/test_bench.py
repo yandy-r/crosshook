@@ -253,8 +253,13 @@ class InstrumentTests(unittest.TestCase):
         import bench_instruments as instruments
         real_output = instruments.output
 
+        flatpak_calls = []
+
         def fake_flatpak(command, timeout=10):
-            return "1.0 MB\n" if command[0] == "flatpak" else real_output(command, timeout)
+            if command[0] != "flatpak":
+                return real_output(command, timeout)
+            flatpak_calls.append(command)
+            return "1048576\n"
 
         with tempfile.TemporaryDirectory() as directory:
             binary, bundle = Path(directory) / "app", Path(directory) / "app.flatpak"
@@ -263,7 +268,10 @@ class InstrumentTests(unittest.TestCase):
             with patch.object(instruments, "output", side_effect=fake_flatpak):
                 row = instruments.sizes(binary, bundle, "master", 0.0)
         self.assertGreater(row["binary_mb"], 0)
+        self.assertEqual(row["installed_mb"], 1.0)
         self.assertEqual(row["status"], "measured")
+        # `flatpak info` takes the branch in the ref; it has no --branch option.
+        self.assertEqual(flatpak_calls, [["flatpak", "info", "--show-size", "dev.crosshook.CrossHook//master"]])
 
     def test_parsers(self):
         import bench_instruments as instruments
