@@ -2,6 +2,7 @@
 import csv
 import json
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -247,6 +248,23 @@ class GuardTests(unittest.TestCase):
 
 
 class InstrumentTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("strip") and Path("/bin/true").is_file(), "needs binutils strip")
+    def test_sizes_strips_with_the_real_strip(self):
+        import bench_instruments as instruments
+        real_output = instruments.output
+
+        def fake_flatpak(command, timeout=10):
+            return "1.0 MB\n" if command[0] == "flatpak" else real_output(command, timeout)
+
+        with tempfile.TemporaryDirectory() as directory:
+            binary, bundle = Path(directory) / "app", Path(directory) / "app.flatpak"
+            shutil.copy("/bin/true", binary)
+            bundle.write_bytes(b"x" * 1024)
+            with patch.object(instruments, "output", side_effect=fake_flatpak):
+                row = instruments.sizes(binary, bundle, "master", 0.0)
+        self.assertGreater(row["binary_mb"], 0)
+        self.assertEqual(row["status"], "measured")
+
     def test_parsers(self):
         import bench_instruments as instruments
         self.assertAlmostEqual(instruments.size_mb("1.0 MB"), 1e6 / 1024**2)
