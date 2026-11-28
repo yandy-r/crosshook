@@ -18,7 +18,7 @@ Captured 2026-11-27 on one host, after a system update (environment below). Raw 
 | Fixtures      | `bench_fixtures --seed 42`: 500 profiles, 50,000-line log; same-seed `diff -r` clean                                                                                                         |
 | Runner        | B with `scripts/bench/run.sh` on this branch; C-iced and C-gpui with each spike branch's own runner (the one that produced their M0-04/M0-05 E1 data)                                          |
 
-**Display path caveat.** Every E1 window was rendered on NVIDIA but shown on DP-1, which the AMD card scans out (KWin places new windows on its primary output). The earlier A, C-iced and C-gpui E1 captures had the same host setup. A pure-NVIDIA E1 run (DP-1 disabled) was planned as a spot check and is **not run**; see [Open items](#open-items).
+**Display path caveat.** Every E1 window was rendered on NVIDIA but shown on DP-1, which the AMD card scans out (KWin places new windows on its primary output). The earlier A, C-iced and C-gpui E1 captures had the same host setup. A pure-NVIDIA spot check (AMD output disabled, so NVIDIA renders and scans out) ran on 2026-11-28 after a reboot; see [Pure-NVIDIA spot check](#pure-nvidia-spot-check-e1). Output names change between boots (DP-1/DP-3 for the AMD card, HDMI-A-1/HDMI-A-2 for NVIDIA).
 
 **Host stability caveat.** The AMD card's PCIe link logged correctable AER errors all day and failed twice with an uncorrectable error (2026-11-26 21:19 and 2026-11-27 20:42), both times while C-iced was driving RADV in G4. The second failure oopsed the kernel (`amdgpu_device_halt_activities`); the iced process stayed in uninterruptible sleep in `amdgpu_info_ioctl`. A fatal PCIe bus error is a link or hardware fault, so this is recorded as a host fault, not a toolkit crash.
 
@@ -40,7 +40,7 @@ E3 here is a dual-GPU host with KWin's primary GPU being NVIDIA, not a single-GP
 
 | Variant | Renderer                         | E1                                                                    | E1-mismatch: mismatched / missing                                | E2-D, E2-G | E3                                                                                                     | E3-sw                                       |
 | ------- | -------------------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
-| B       | WebKitGTK (GL)                   | pass, except G4 `console` ([finding 1](#1-b-g4-console-stops-presenting)) | pass / pass                                                      | pending    | pass, except G4 ([finding 1](#1-b-g4-console-stops-presenting)); DMA-BUF must be off                    | pass, except G4 ([finding 1](#1-b-g4-console-stops-presenting)) |
+| B       | WebKitGTK (GL)                   | pass; G4 `console` fails on the AMD output, passes NVIDIA-only ([finding 1](#1-b-g4-console-stops-presenting)) | pass / pass                                                      | pending    | pass, except G4 ([finding 1](#1-b-g4-console-stops-presenting)); DMA-BUF must be off                    | pass, except G4 ([finding 1](#1-b-g4-console-stops-presenting)) |
 | C-iced  | wgpu-Vulkan                      | **pass**: 30-min soak, 0 crashes (`#2572` check)                        | falls back to **tiny-skia** / RADV                               | pending    | G1, G2, G3, G5 pass; G4, G8, G9 **fail** ([finding 3](#3-c-iced-on-e3-discards-frames-then-host-fault)) | —                                           |
 | C-iced  | wgpu-GL                          | **fail**: `GraphicsAdapterNotFound` on NVIDIA EGL ([finding 4](#4-gl-on-nvidia-egl))  | —                                                                | pending    | renders on radeonsi (probe only)                                                                       | **pass**: auto-selected GL on llvmpipe      |
 | C-iced  | tiny-skia (CPU)                  | **pass**: 30-min soak                                                  | (the mismatched fallback above)                                  | pending    | —                                                                                                      | not selected automatically (GL won)         |
@@ -116,6 +116,21 @@ The spikes' E1 G-metrics were not re-captured in M0-06; their M0-04/M0-05 captur
 
 G1 is 20 single-iteration runs with the page cache dropped before each (`sysctl vm.drop_caches=3`). G7 CPU is the 600 s average including start-up; wakeups/s are `perf sched:sched_wakeup` for the app tree (`perf` installed and `perf_event_paranoid` lowered for this boot only). G10 runtime delta is 0 because GNOME 50 was already installed: not a first-install figure.
 
+### Pure-NVIDIA spot check (E1)
+
+2026-11-28, fresh boot, AMD output (DP-3 this boot) disabled with `kscreen-doctor`, so only NVIDIA's HDMI-A-1 was active. Data: [`B/E1-nvidia-only/`](B/E1-nvidia-only/), [`C-iced/E1-soak/iced-vulkan-E1-nvidia-only.txt`](C-iced/E1-soak/iced-vulkan-E1-nvidia-only.txt).
+
+| Run                              | NVIDIA-only                                        | Cross-GPU E1 (above)            |
+| -------------------------------- | -------------------------------------------------- | ------------------------------- |
+| C-iced wgpu-Vulkan 30-min soak   | **pass** (exit 124, full replay, 0 crash markers)  | pass                            |
+| B G4 `library` p50/p95/p99 (×20) | 199.9 / 210.9 / 216.7                              | 199.9 / 216.6 / 222.1           |
+| B G4 `settings` p50/p95/p99 (×20) | 116.7 / 255.4 / 299.9                             | 111.1 / 244.4 / 302.1           |
+| B G4 `console` p50/p95/p99 (×1)  | **captured**: 77.6 / 133.3 / 140.1                 | not captured (finding 1)        |
+| B G8 p50/p95/p99 (×20)           | 166.5 / 261.0 / 266.6                              | 194.4 / 205.5 / 222.1           |
+| B G8 growth / peak PSS (MB)      | 74.8 / 847                                         | 55.2 / 824                      |
+
+The display path does not change B's `library`/`settings` pacing or the gate verdicts. G8 shifts in both directions (lower p50, higher p95), so treat B's G8 spread as run-to-run variation of about ±25 %.
+
 ## Findings
 
 Each failure has a reproduction recipe. A fatal PCIe error is a host fault and has no toolkit issue.
@@ -125,7 +140,8 @@ Each failure has a reproduction recipe. A fatal PCIe error is a host fault and h
 - **What:** in every environment (E1 native, E1 Flatpak, E3, E3-sw) the G4 `console` scenario fails with `FOCUS_LOST: presentation log stopped growing`, at the first iteration, about 3.8 s into the scroll. `library`, `settings` and `health` pass. The same binary passed `console` on 2026-11-26, before the update.
 - **Evidence:** the window was on top (screenshots every ~1 s); its pixels stayed identical for 7 s while input was still injected; commits ran at 60 Hz, then stopped. The console header froze at 47,595 received lines, below the 50,000-line replay. The view draws at most 2,000 lines (`CONSOLE_MAX_LINES`, M0-08).
 - **Reproduce:** `scripts/bench/run.sh --variant B --env E1 --refresh-hz 180.06 --binary <B> --fixtures <seed-42> --metric G4 --collect presentation --scenario console --iterations 1`.
-- **Status:** cause not isolated: either the web view stalls, or the scroll reaches the end of the 2,000-line buffer after the replay ends so nothing repaints and the runner's 2 s growth watchdog fires. Follow-up issue to file. No toolkit issue applies (B is Classic).
+- **NVIDIA-only:** with the AMD output disabled (2026-11-28, after a reboot), the same binary captured `console` (1 iteration: p50 77.6, p95 133.3, p99 140.1 ms, 78 frames). Every failing run had its window on the AMD-driven output (E1 and E3-sw cross-GPU, E3 rendered on AMD with KWin compositing on NVIDIA); the 2026-11-26 pass was on the same output before the update.
+- **Status:** points at the cross-GPU display path after the 2026-11-27 update (KWin 6.8.3, WebKitGTK 2.54.3, NVIDIA 620.73.04), not at the console code; not proven, because the NVIDIA-only run was also a fresh boot and a single iteration. Follow-up issue to file. No toolkit issue applies (B is Classic).
 
 ### 2. C-gpui opens no window without a usable GPU
 
@@ -200,7 +216,6 @@ Thresholds from [`docs/research/native-ui-migration/README.md`](../../research/n
 
 ## Open items
 
-- **Pure-NVIDIA E1 spot check** (DP-1 disabled): a 30-min C-iced Vulkan soak and B G4/G8 with render and scan-out on NVIDIA. Not run: the AMD link failure left the kernel tainted; run after a reboot.
 - **Re-run C-iced E3 G4/G8/G9** on a stable Mesa host (finding 3).
 - **File a follow-up** for B G4 `console` (finding 1), and decide on filing the NVIDIA EGL report upstream (finding 4).
 - **Spike G7** (H5): run the spike runners with the batteryless-host fix, or port it to the spike branches.

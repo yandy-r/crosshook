@@ -72,7 +72,7 @@ Moved to [YAN-2492](https://linear.app/itcn/issue/YAN-2492) until a Steam Deck i
 | Check               | E1                                                                                          | E3, E3-sw                                         |
 | ------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------- |
 | 1. Launch, renderer | done: [`probes/`](probes/)                                                                  | done: [`probes/`](probes/)                        |
-| 2. Soak             | done: four 30-min soaks, all pass                                                           | not run (E1-only check)                           |
+| 2. Soak             | done: five 30-min soaks (one NVIDIA-only), all pass                                                        | not run (E1-only check)                           |
 | 3. Colours          | not run: no reference-token comparison was made; the screenshot probe checks only "not black" | not run                                           |
 | 4. Redraw           | not run                                                                                     | not run                                           |
 | 5. Input and focus  | not run in M0-06; see the spike write-ups and M0-09                                         | not run                                           |

@@ -1,0 +1,13 @@
+label=iced-vulkan-E1-nvidia-only
+binary=~/.claude-worktrees/crosshook-spike-iced/src/crosshook-native/target/release/crosshook-ui-spike-iced
+args=--renderer wgpu-vulkan
+start=2026-11-27T23:34:29-05:00
+end=2026-11-28T00:04:29-05:00
+seconds=1800
+exit=124
+ready=yes
+replay=start:50000 done:50000 
+crash_markers=0
+renderer=SPIKE_RENDERER backend=Vulkan adapter=NVIDIA GeForce RTX 5070 Laptop GPU
+kernel=7.3.6-300.fc45.x86_64
+verdict=PASS

@@ -435,7 +435,7 @@ Dry-run works for all ten metrics; real captures are partial:
 | -------- | ------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
 | `C-iced` | E1 native                | [`C-iced/E1/`](C-iced/E1/) (G2, G3, G4, G5, G8, G9)          | iced decision spike (M0-04); method, caveats and harness changes in [`../spikes/iced.md`](../spikes/iced.md) |
 | `C-gpui` | E1 native, Flatpak (G10) | [`C-gpui/E1/`](C-gpui/E1/) (G1, G2, G3, G4, G5, G8, G9, G10) | gpui control spike (M0-05); method, caveats and harness changes in [`../spikes/gpui.md`](../spikes/gpui.md)  |
-| `B`      | E1 native, E1 Flatpak, E3, E3-sw | [`B/`](B/) | spike matrix (M0-06); summary, findings and gate evaluation in [`spike-matrix.md`](spike-matrix.md) |
+| `B`      | E1 native, E1 Flatpak, E1 NVIDIA-only, E3, E3-sw | [`B/`](B/) | spike matrix (M0-06); summary, findings and gate evaluation in [`spike-matrix.md`](spike-matrix.md) |
 | `C-iced` | E1 soaks, E3, E3-sw | [`C-iced/`](C-iced/) | spike matrix (M0-06) |
 | `C-gpui` | E1 soaks, E3, E3-sw | [`C-gpui/`](C-gpui/) | spike matrix (M0-06) |
 
