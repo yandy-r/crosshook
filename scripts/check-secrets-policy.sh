@@ -56,12 +56,13 @@ check_tree() (
     [[ -n "$line" ]] && fail "retired env tooling referenced: $line"
   done <<<"$hits"
 
-  # 2. Tracked env files.
-  files="$(git ls-files | grep -E '(^|/)\.env(\.[^/]*)?$' | grep -v -x -F '.env.op' |
-    grep -v -E '\.example$' || true)"
-  while IFS= read -r line; do
-    [[ -n "$line" ]] && fail "tracked env or key file: $line"
-  done <<<"$files"
+  # 2. Tracked env files. -z gives raw, NUL-delimited paths, so non-ASCII
+  # names are not quoted past the pattern.
+  while IFS= read -r -d '' line; do
+    [[ "$line" =~ (^|/)\.env(\.[^/]*)?$ ]] || continue
+    [[ "$line" == .env.op || "$line" == *.example ]] && continue
+    fail "tracked env or key file: $line"
+  done < <(git ls-files -z)
 
   # 3. The reference template holds op:// references only.
   if git ls-files --error-unmatch .env.op >/dev/null 2>&1; then
@@ -145,7 +146,7 @@ selftest() (
     expect_fail 'retired env tooling referenced' "retired reference: $fixture"
   done
 
-  for fixture in .env .env.local config/.env.production .env.keys; do
+  for fixture in .env .env.local config/.env.production .env.keys '配置/.env'; do
     fresh
     mkdir -p "$scratch/repo/$(dirname "$fixture")"
     printf 'X=1\n' >"$scratch/repo/$fixture"
