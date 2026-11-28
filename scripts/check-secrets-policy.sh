@@ -26,7 +26,7 @@ RETIRED_TOOL="dotenv""x"
 RETIRED_PATTERN="${RETIRED_TOOL}|DOTENV_[A-Z0-9_]+|\\.env\\.(keys|encrypted)"
 
 check_tree() (
-  local repo="$1" failures=0 hits files line lineno name
+  local repo="$1" failures=0 hits line lineno name
   cd "$repo"
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
     echo "error: $repo is not a git work tree" >&2
