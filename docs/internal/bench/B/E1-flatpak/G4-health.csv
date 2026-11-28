@@ -1,0 +1,2 @@
+scenario,p50_ms,p95_ms,p99_ms,stddev_ms,over_interval_percent,frames,status
+health,83.305,238.809,249.915,65.65700240240308,100.0,975,captured

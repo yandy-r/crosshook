@@ -1,0 +1,1 @@
+E1-gl-iced | ready=0 | alive=no | grey=42.8259 | nodes: none |  | Error: GraphicsCreationFailed(List([GraphicsAdapterNotFound { backend: "wgpu", reason: RequestFailed("no adapter was found for the options requested: \"RequestAdapterOptions { power_preference: None, 

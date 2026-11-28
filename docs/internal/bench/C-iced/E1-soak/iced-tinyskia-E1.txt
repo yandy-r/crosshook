@@ -1,0 +1,13 @@
+label=iced-tinyskia-E1
+binary=~/.claude-worktrees/crosshook-spike-iced/src/crosshook-native/target/release/crosshook-ui-spike-iced
+args=--renderer tiny-skia
+start=2026-11-27T16:41:16-05:00
+end=2026-11-27T17:11:16-05:00
+seconds=1800
+exit=124
+ready=yes
+replay=start:50000 done:50000 
+crash_markers=0
+renderer=SPIKE_RENDERER backend=tiny-skia adapter=CPU
+kernel=7.3.6-300.fc45.x86_64
+verdict=PASS

@@ -1,0 +1,1011 @@
+{
+  "binary_sha256": "c34f17ee34fbfe0e6948dc7d444973a6d000a27a9620842e3727bc25018f4c6f",
+  "boot_id": "11c53781-cc05-42e6-a04f-93c1276362b0",
+  "collector": "wlpresent/1",
+  "commit": "68617cadc98cee12401f56f227af8d6b29266e68",
+  "dirty": false,
+  "drive_stats": {
+    "G8": {
+      "replay_scroll": [
+        {
+          "driven_s": 10.022,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 1,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-nativ",
+              "pid": 1750110,
+              "start_time": 1778024
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1750165,
+              "start_time": 1778035
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1750166,
+              "start_time": 1778035
+            },
+            {
+              "comm": "glycin-svg",
+              "pid": 1750167,
+              "start_time": 1778035
+            },
+            {
+              "comm": "WebKitNetworkPr",
+              "pid": 1750471,
+              "start_time": 1778037
+            },
+            {
+              "comm": "WebKitWebProces",
+              "pid": 1750473,
+              "start_time": 1778038
+            }
+          ],
+          "session": {
+            "launch_ns": 17780241848402,
+            "pid": 1750110,
+            "run_id": "2db68cba1baf497790c0eba6fbfd5206"
+          },
+          "settle_s": 5.241,
+          "start_to_done_s": 10.001,
+          "web_process_sampled": true
+        },
+        {
+          "driven_s": 10.022,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 2,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-nativ",
+              "pid": 1751293,
+              "start_time": 1781284
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1751348,
+              "start_time": 1781295
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1751349,
+              "start_time": 1781295
+            },
+            {
+              "comm": "glycin-svg",
+              "pid": 1751350,
+              "start_time": 1781295
+            },
+            {
+              "comm": "WebKitNetworkPr",
+              "pid": 1751654,
+              "start_time": 1781298
+            },
+            {
+              "comm": "WebKitWebProces",
+              "pid": 1751656,
+              "start_time": 1781298
+            }
+          ],
+          "session": {
+            "launch_ns": 17812841928744,
+            "pid": 1751293,
+            "run_id": "2db68cba1baf497790c0eba6fbfd5206"
+          },
+          "settle_s": 5.158,
+          "start_to_done_s": 10.001,
+          "web_process_sampled": true
+        },
+        {
+          "driven_s": 10.021,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 3,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-nativ",
+              "pid": 1752331,
+              "start_time": 1784550
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1752527,
+              "start_time": 1784562
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1752528,
+              "start_time": 1784562
+            },
+            {
+              "comm": "glycin-svg",
+              "pid": 1752529,
+              "start_time": 1784563
+            },
+            {
+              "comm": "WebKitNetworkPr",
+              "pid": 1752834,
+              "start_time": 1784565
+            },
+            {
+              "comm": "WebKitWebProces",
+              "pid": 1752836,
+              "start_time": 1784565
+            }
+          ],
+          "session": {
+            "launch_ns": 17845503371113,
+            "pid": 1752331,
+            "run_id": "2db68cba1baf497790c0eba6fbfd5206"
+          },
+          "settle_s": 5.131,
+          "start_to_done_s": 10.001,
+          "web_process_sampled": true
+        },
+        {
+          "driven_s": 10.022,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 4,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-nativ",
+              "pid": 1755866,
+              "start_time": 1787819
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1755921,
+              "start_time": 1787830
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1755923,
+              "start_time": 1787830
+            },
+            {
+              "comm": "glycin-svg",
+              "pid": 1755924,
+              "start_time": 1787830
+            },
+            {
+              "comm": "WebKitNetworkPr",
+              "pid": 1756228,
+              "start_time": 1787833
+            },
+            {
+              "comm": "WebKitWebProces",
+              "pid": 1756230,
+              "start_time": 1787833
+            }
+          ],
+          "session": {
+            "launch_ns": 17878193724664,
+            "pid": 1755866,
+            "run_id": "2db68cba1baf497790c0eba6fbfd5206"
+          },
+          "settle_s": 5.163,
+          "start_to_done_s": 10.002,
+          "web_process_sampled": true
+        },
+        {
+          "driven_s": 10.021,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 5,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-nativ",
+              "pid": 1756882,
+              "start_time": 1791084
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1756937,
+              "start_time": 1791095
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1756938,
+              "start_time": 1791095
+            },
+            {
+              "comm": "glycin-svg",
+              "pid": 1756939,
+              "start_time": 1791095
+            },
+            {
+              "comm": "WebKitNetworkPr",
+              "pid": 1757243,
+              "start_time": 1791098
+            },
+            {
+              "comm": "WebKitWebProces",
+              "pid": 1757245,
+              "start_time": 1791098
+            }
+          ],
+          "session": {
+            "launch_ns": 17910840761961,
+            "pid": 1756882,
+            "run_id": "2db68cba1baf497790c0eba6fbfd5206"
+          },
+          "settle_s": 5.19,
+          "start_to_done_s": 10.001,
+          "web_process_sampled": true
+        },
+        {
+          "driven_s": 10.021,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 6,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-nativ",
+              "pid": 1758061,
+              "start_time": 1794351
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1758117,
+              "start_time": 1794361
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1758119,
+              "start_time": 1794361
+            },
+            {
+              "comm": "glycin-svg",
+              "pid": 1758120,
+              "start_time": 1794361
+            },
+            {
+              "comm": "WebKitNetworkPr",
+              "pid": 1758424,
+              "start_time": 1794364
+            },
+            {
+              "comm": "WebKitWebProces",
+              "pid": 1758426,
+              "start_time": 1794364
+            }
+          ],
+          "session": {
+            "launch_ns": 17943511589975,
+            "pid": 1758061,
+            "run_id": "2db68cba1baf497790c0eba6fbfd5206"
+          },
+          "settle_s": 5.189,
+          "start_to_done_s": 10.001,
+          "web_process_sampled": true
+        },
+        {
+          "driven_s": 10.023,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 7,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-nativ",
+              "pid": 1759206,
+              "start_time": 1797614
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1759262,
+              "start_time": 1797624
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1759263,
+              "start_time": 1797624
+            },
+            {
+              "comm": "glycin-svg",
+              "pid": 1759264,
+              "start_time": 1797624
+            },
+            {
+              "comm": "WebKitNetworkPr",
+              "pid": 1759568,
+              "start_time": 1797627
+            },
+            {
+              "comm": "WebKitWebProces",
+              "pid": 1759570,
+              "start_time": 1797627
+            }
+          ],
+          "session": {
+            "launch_ns": 17976142094969,
+            "pid": 1759206,
+            "run_id": "2db68cba1baf497790c0eba6fbfd5206"
+          },
+          "settle_s": 5.162,
+          "start_to_done_s": 10.001,
+          "web_process_sampled": true
+        },
+        {
+          "driven_s": 10.024,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 8,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-nativ",
+              "pid": 1760224,
+              "start_time": 1800880
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1760280,
+              "start_time": 1800891
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1760281,
+              "start_time": 1800891
+            },
+            {
+              "comm": "glycin-svg",
+              "pid": 1760282,
+              "start_time": 1800891
+            },
+            {
+              "comm": "WebKitNetworkPr",
+              "pid": 1760586,
+              "start_time": 1800894
+            },
+            {
+              "comm": "WebKitWebProces",
+              "pid": 1760588,
+              "start_time": 1800894
+            }
+          ],
+          "session": {
+            "launch_ns": 18008800207685,
+            "pid": 1760224,
+            "run_id": "2db68cba1baf497790c0eba6fbfd5206"
+          },
+          "settle_s": 5.156,
+          "start_to_done_s": 10.001,
+          "web_process_sampled": true
+        },
+        {
+          "driven_s": 10.021,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 9,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-nativ",
+              "pid": 1761558,
+              "start_time": 1804146
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1761613,
+              "start_time": 1804157
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1761614,
+              "start_time": 1804157
+            },
+            {
+              "comm": "glycin-svg",
+              "pid": 1761615,
+              "start_time": 1804157
+            },
+            {
+              "comm": "WebKitNetworkPr",
+              "pid": 1761919,
+              "start_time": 1804159
+            },
+            {
+              "comm": "WebKitWebProces",
+              "pid": 1761921,
+              "start_time": 1804160
+            }
+          ],
+          "session": {
+            "launch_ns": 18041461316199,
+            "pid": 1761558,
+            "run_id": "2db68cba1baf497790c0eba6fbfd5206"
+          },
+          "settle_s": 5.112,
+          "start_to_done_s": 10.001,
+          "web_process_sampled": true
+        },
+        {
+          "driven_s": 10.021,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 10,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-nativ",
+              "pid": 1762638,
+              "start_time": 1807411
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1762693,
+              "start_time": 1807422
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1762694,
+              "start_time": 1807422
+            },
+            {
+              "comm": "glycin-svg",
+              "pid": 1762695,
+              "start_time": 1807422
+            },
+            {
+              "comm": "WebKitNetworkPr",
+              "pid": 1762999,
+              "start_time": 1807424
+            },
+            {
+              "comm": "WebKitWebProces",
+              "pid": 1763001,
+              "start_time": 1807425
+            }
+          ],
+          "session": {
+            "launch_ns": 18074111585724,
+            "pid": 1762638,
+            "run_id": "2db68cba1baf497790c0eba6fbfd5206"
+          },
+          "settle_s": 5.215,
+          "start_to_done_s": 10.001,
+          "web_process_sampled": true
+        },
+        {
+          "driven_s": 10.021,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 11,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-nativ",
+              "pid": 1766187,
+              "start_time": 1810677
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1766242,
+              "start_time": 1810688
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1766243,
+              "start_time": 1810688
+            },
+            {
+              "comm": "glycin-svg",
+              "pid": 1766244,
+              "start_time": 1810688
+            },
+            {
+              "comm": "WebKitNetworkPr",
+              "pid": 1766549,
+              "start_time": 1810690
+            },
+            {
+              "comm": "WebKitWebProces",
+              "pid": 1766551,
+              "start_time": 1810691
+            }
+          ],
+          "session": {
+            "launch_ns": 18106773876594,
+            "pid": 1766187,
+            "run_id": "2db68cba1baf497790c0eba6fbfd5206"
+          },
+          "settle_s": 5.202,
+          "start_to_done_s": 10.001,
+          "web_process_sampled": true
+        },
+        {
+          "driven_s": 10.021,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 12,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-nativ",
+              "pid": 1767208,
+              "start_time": 1813942
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1767263,
+              "start_time": 1813954
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1767264,
+              "start_time": 1813955
+            },
+            {
+              "comm": "glycin-svg",
+              "pid": 1767265,
+              "start_time": 1813955
+            },
+            {
+              "comm": "WebKitNetworkPr",
+              "pid": 1767569,
+              "start_time": 1813957
+            },
+            {
+              "comm": "WebKitWebProces",
+              "pid": 1767571,
+              "start_time": 1813957
+            }
+          ],
+          "session": {
+            "launch_ns": 18139425682664,
+            "pid": 1767208,
+            "run_id": "2db68cba1baf497790c0eba6fbfd5206"
+          },
+          "settle_s": 5.145,
+          "start_to_done_s": 10.002,
+          "web_process_sampled": true
+        },
+        {
+          "driven_s": 10.022,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 13,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-nativ",
+              "pid": 1768400,
+              "start_time": 1817209
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1768601,
+              "start_time": 1817220
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1768602,
+              "start_time": 1817220
+            },
+            {
+              "comm": "glycin-svg",
+              "pid": 1768603,
+              "start_time": 1817221
+            },
+            {
+              "comm": "WebKitNetworkPr",
+              "pid": 1768907,
+              "start_time": 1817223
+            },
+            {
+              "comm": "WebKitWebProces",
+              "pid": 1768909,
+              "start_time": 1817223
+            }
+          ],
+          "session": {
+            "launch_ns": 18172092086530,
+            "pid": 1768400,
+            "run_id": "2db68cba1baf497790c0eba6fbfd5206"
+          },
+          "settle_s": 5.135,
+          "start_to_done_s": 10.001,
+          "web_process_sampled": true
+        },
+        {
+          "driven_s": 10.022,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 14,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-nativ",
+              "pid": 1771785,
+              "start_time": 1820478
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1771840,
+              "start_time": 1820489
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1771841,
+              "start_time": 1820489
+            },
+            {
+              "comm": "glycin-svg",
+              "pid": 1771843,
+              "start_time": 1820489
+            },
+            {
+              "comm": "WebKitNetworkPr",
+              "pid": 1772147,
+              "start_time": 1820491
+            },
+            {
+              "comm": "WebKitWebProces",
+              "pid": 1772149,
+              "start_time": 1820492
+            }
+          ],
+          "session": {
+            "launch_ns": 18204787558421,
+            "pid": 1771785,
+            "run_id": "2db68cba1baf497790c0eba6fbfd5206"
+          },
+          "settle_s": 5.23,
+          "start_to_done_s": 10.001,
+          "web_process_sampled": true
+        },
+        {
+          "driven_s": 10.02,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 15,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-nativ",
+              "pid": 1772951,
+              "start_time": 1823743
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1773006,
+              "start_time": 1823754
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1773008,
+              "start_time": 1823754
+            },
+            {
+              "comm": "glycin-svg",
+              "pid": 1773009,
+              "start_time": 1823754
+            },
+            {
+              "comm": "WebKitNetworkPr",
+              "pid": 1773313,
+              "start_time": 1823757
+            },
+            {
+              "comm": "WebKitWebProces",
+              "pid": 1773315,
+              "start_time": 1823757
+            }
+          ],
+          "session": {
+            "launch_ns": 18237432883944,
+            "pid": 1772951,
+            "run_id": "2db68cba1baf497790c0eba6fbfd5206"
+          },
+          "settle_s": 5.215,
+          "start_to_done_s": 10.001,
+          "web_process_sampled": true
+        },
+        {
+          "driven_s": 10.02,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 16,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-nativ",
+              "pid": 1773971,
+              "start_time": 1827009
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1774026,
+              "start_time": 1827020
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1774027,
+              "start_time": 1827020
+            },
+            {
+              "comm": "glycin-svg",
+              "pid": 1774028,
+              "start_time": 1827020
+            },
+            {
+              "comm": "WebKitNetworkPr",
+              "pid": 1774332,
+              "start_time": 1827022
+            },
+            {
+              "comm": "WebKitWebProces",
+              "pid": 1774334,
+              "start_time": 1827022
+            }
+          ],
+          "session": {
+            "launch_ns": 18270096392081,
+            "pid": 1773971,
+            "run_id": "2db68cba1baf497790c0eba6fbfd5206"
+          },
+          "settle_s": 5.137,
+          "start_to_done_s": 10.002,
+          "web_process_sampled": true
+        },
+        {
+          "driven_s": 10.023,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 17,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-nativ",
+              "pid": 1775313,
+              "start_time": 1830275
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1775368,
+              "start_time": 1830286
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1775369,
+              "start_time": 1830286
+            },
+            {
+              "comm": "glycin-svg",
+              "pid": 1775371,
+              "start_time": 1830286
+            },
+            {
+              "comm": "WebKitNetworkPr",
+              "pid": 1775675,
+              "start_time": 1830289
+            },
+            {
+              "comm": "WebKitWebProces",
+              "pid": 1775677,
+              "start_time": 1830289
+            }
+          ],
+          "session": {
+            "launch_ns": 18302754691403,
+            "pid": 1775313,
+            "run_id": "2db68cba1baf497790c0eba6fbfd5206"
+          },
+          "settle_s": 5.166,
+          "start_to_done_s": 10.001,
+          "web_process_sampled": true
+        },
+        {
+          "driven_s": 10.023,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 18,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-nativ",
+              "pid": 1776355,
+              "start_time": 1833543
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1776410,
+              "start_time": 1833554
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1776411,
+              "start_time": 1833554
+            },
+            {
+              "comm": "glycin-svg",
+              "pid": 1776412,
+              "start_time": 1833554
+            },
+            {
+              "comm": "WebKitNetworkPr",
+              "pid": 1776716,
+              "start_time": 1833557
+            },
+            {
+              "comm": "WebKitWebProces",
+              "pid": 1776718,
+              "start_time": 1833557
+            }
+          ],
+          "session": {
+            "launch_ns": 18335435839276,
+            "pid": 1776355,
+            "run_id": "2db68cba1baf497790c0eba6fbfd5206"
+          },
+          "settle_s": 5.201,
+          "start_to_done_s": 10.001,
+          "web_process_sampled": true
+        },
+        {
+          "driven_s": 10.023,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 19,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-nativ",
+              "pid": 1777662,
+              "start_time": 1836809
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1777717,
+              "start_time": 1836820
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1777718,
+              "start_time": 1836820
+            },
+            {
+              "comm": "glycin-svg",
+              "pid": 1777719,
+              "start_time": 1836820
+            },
+            {
+              "comm": "WebKitNetworkPr",
+              "pid": 1778023,
+              "start_time": 1836822
+            },
+            {
+              "comm": "WebKitWebProces",
+              "pid": 1778025,
+              "start_time": 1836823
+            }
+          ],
+          "session": {
+            "launch_ns": 18368092651157,
+            "pid": 1777662,
+            "run_id": "2db68cba1baf497790c0eba6fbfd5206"
+          },
+          "settle_s": 5.135,
+          "start_to_done_s": 10.001,
+          "web_process_sampled": true
+        },
+        {
+          "driven_s": 10.022,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 20,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-nativ",
+              "pid": 1778825,
+              "start_time": 1840075
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1778881,
+              "start_time": 1840086
+            },
+            {
+              "comm": "bwrap",
+              "pid": 1778882,
+              "start_time": 1840086
+            },
+            {
+              "comm": "glycin-svg",
+              "pid": 1778883,
+              "start_time": 1840086
+            },
+            {
+              "comm": "WebKitNetworkPr",
+              "pid": 1779187,
+              "start_time": 1840088
+            },
+            {
+              "comm": "WebKitWebProces",
+              "pid": 1779189,
+              "start_time": 1840089
+            }
+          ],
+          "session": {
+            "launch_ns": 18400750465913,
+            "pid": 1778825,
+            "run_id": "2db68cba1baf497790c0eba6fbfd5206"
+          },
+          "settle_s": 5.222,
+          "start_to_done_s": 10.001,
+          "web_process_sampled": true
+        }
+      ]
+    }
+  },
+  "drivers": "uinput+kwin/1",
+  "environment": "E3",
+  "fixtures_seed": 42,
+  "flatpak": false,
+  "run_id": "2db68cba1baf497790c0eba6fbfd5206",
+  "scenarios": {
+    "G8": [
+      "replay_scroll"
+    ]
+  },
+  "schema": "crosshook-bench-provenance/1",
+  "shim": {
+    "built_in": "host",
+    "so_sha256": "d0140d53b5af2a007f9045909b2caf2d846d1c63191147f99396074aa457e90b",
+    "source_sha256": "bb6f809c1d6b5cda4eed99bd86b2825aa2ea7fe6dd38ccd6d3ffc2042e218fad"
+  },
+  "status": "captured",
+  "variant": "B"
+}

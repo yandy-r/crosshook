@@ -170,9 +170,8 @@ Notes per row:
 ### What E1 cannot produce
 
 - **G6** has no producer. The runner can only ingest a `stall_ms` CSV from a raw run directory, and nothing writes one, so no real G6 capture exists. A real run without `--capture-csv` stops with `MISSING_TOOL: perf` or `CAPTURE_REQUIRED`; use `--dry-run` for the schema fixture.
-- **G7** needs `perf` for the wakeup count, and `perf` is missing on E1 ([`environments.md`](environments.md)). The run exits 30 with `MISSING_TOOL: perf`. Kernel tracing is also root-only there (`perf_event_paranoid=2`), and the runner never uses `sudo`.
-- **E2-D, E2-G and E3** have no hardware, so no recipe applies to them yet.
-- **G3 and G10** have commands but no recorded E1 result here.
+- **G7** needs `perf` for the wakeup count (installed on E1 since 2026-11-26) and wakeup-trace access. Kernel tracing is root-only by default (`perf_event_paranoid=2`) and the runner never uses `sudo`, so the operator lowers it for one boot before a G7 run ([`environments.md`](environments.md)). Without `perf` the run exits 30 with `MISSING_TOOL: perf`.
+- **E2-D and E2-G** have no hardware ([YAN-2492](https://linear.app/itcn/issue/YAN-2492)). E3 and E3-sw ran on the E1 host with an external AMD GPU ([`environments.md`](environments.md#e3--mesa-amdintel-desktop)).
 
 ## Presentation collector
 
@@ -428,7 +427,7 @@ Dry-run works for all ten metrics; real captures are partial:
 | G9           | Implemented: `--collect presentation` resizes through KWin and windows the presented intervals (native and Flatpak verified on E1).                                                                                                                                                               | Same compositor and hardware limits as G4.                                                                                                                                                                                                                                                                  |
 | G10          | Stripped binary (`strip`), bundle file size, `flatpak info --show-size`, and `--runtime-delta-mb` (measured input), `status=measured`.                                                                                                                                                            | `--runtime-delta-mb` must come from a measured runtime download on the target network; not derivable by the runner.                                                                                                                                                                                         |
 | Fixtures     | Files and contract declared.                                                                                                                                                                                                                                                                      | `bench_fixtures` example must complete and prove same-seed determinism (`diff -r`) before any real capture.                                                                                                                                                                                                 |
-| E2-D/E2-G/E3 | Not inventoried.                                                                                                                                                                                                                                                                                  | Deck and Mesa hardware access.                                                                                                                                                                                                                                                                              |
+| E2-D/E2-G    | Not inventoried.                                                                                                                                                                                                                                                                                  | Deck hardware access ([YAN-2492](https://linear.app/itcn/issue/YAN-2492)).                                                                                                                                                                                                                                                                              |
 
 ### Variant results
 
@@ -436,6 +435,9 @@ Dry-run works for all ten metrics; real captures are partial:
 | -------- | ------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
 | `C-iced` | E1 native                | [`C-iced/E1/`](C-iced/E1/) (G2, G3, G4, G5, G8, G9)          | iced decision spike (M0-04); method, caveats and harness changes in [`../spikes/iced.md`](../spikes/iced.md) |
 | `C-gpui` | E1 native, Flatpak (G10) | [`C-gpui/E1/`](C-gpui/E1/) (G1, G2, G3, G4, G5, G8, G9, G10) | gpui control spike (M0-05); method, caveats and harness changes in [`../spikes/gpui.md`](../spikes/gpui.md)  |
+| `B`      | E1 native, E1 Flatpak, E3, E3-sw | [`B/`](B/) | spike matrix (M0-06); summary, findings and gate evaluation in [`spike-matrix.md`](spike-matrix.md) |
+| `C-iced` | E1 soaks, E3, E3-sw | [`C-iced/`](C-iced/) | spike matrix (M0-06) |
+| `C-gpui` | E1 soaks, E3, E3-sw | [`C-gpui/`](C-gpui/) | spike matrix (M0-06) |
 
 ## Tests
 

@@ -1,0 +1,3 @@
+CrossHook: flatpak per-app isolation mode
+CrossHook: WebKit DMA-BUF renderer policy: disabled_for_nvidia (nvidia_gpu=true)
+READY 15459950765683

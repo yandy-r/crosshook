@@ -1,0 +1,131 @@
+{
+  "binary_sha256": "c34f17ee34fbfe0e6948dc7d444973a6d000a27a9620842e3727bc25018f4c6f",
+  "boot_id": "11c53781-cc05-42e6-a04f-93c1276362b0",
+  "collector": "wlpresent/1",
+  "commit": "68617cadc98cee12401f56f227af8d6b29266e68",
+  "dirty": false,
+  "drive_stats": {
+    "G4": {
+      "settings": [
+        {
+          "driven_s": 5.897,
+          "injected": 180,
+          "iteration": 1
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 2
+        },
+        {
+          "driven_s": 5.897,
+          "injected": 180,
+          "iteration": 3
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 4
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 5
+        },
+        {
+          "driven_s": 5.899,
+          "injected": 180,
+          "iteration": 6
+        },
+        {
+          "driven_s": 5.896,
+          "injected": 180,
+          "iteration": 7
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 8
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 9
+        },
+        {
+          "driven_s": 5.897,
+          "injected": 180,
+          "iteration": 10
+        },
+        {
+          "driven_s": 5.897,
+          "injected": 180,
+          "iteration": 11
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 12
+        },
+        {
+          "driven_s": 5.893,
+          "injected": 180,
+          "iteration": 13
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 14
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 15
+        },
+        {
+          "driven_s": 5.897,
+          "injected": 180,
+          "iteration": 16
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 17
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 18
+        },
+        {
+          "driven_s": 5.897,
+          "injected": 180,
+          "iteration": 19
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 20
+        }
+      ]
+    }
+  },
+  "drivers": "uinput+kwin/1",
+  "environment": "E1",
+  "fixtures_seed": 42,
+  "flatpak": false,
+  "run_id": "f82b132c8f1b4863b3f5e02bc54bc30c",
+  "scenarios": {
+    "G4": [
+      "settings"
+    ]
+  },
+  "schema": "crosshook-bench-provenance/1",
+  "shim": {
+    "built_in": "host",
+    "so_sha256": "d0140d53b5af2a007f9045909b2caf2d846d1c63191147f99396074aa457e90b",
+    "source_sha256": "bb6f809c1d6b5cda4eed99bd86b2825aa2ea7fe6dd38ccd6d3ffc2042e218fad"
+  },
+  "status": "captured",
+  "variant": "B"
+}

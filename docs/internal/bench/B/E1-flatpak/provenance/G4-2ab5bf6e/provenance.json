@@ -1,0 +1,131 @@
+{
+  "boot_id": "11c53781-cc05-42e6-a04f-93c1276362b0",
+  "collector": "wlpresent/1",
+  "commit": "68617cadc98cee12401f56f227af8d6b29266e68",
+  "dirty": false,
+  "drive_stats": {
+    "G4": {
+      "health": [
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 1
+        },
+        {
+          "driven_s": 5.899,
+          "injected": 180,
+          "iteration": 2
+        },
+        {
+          "driven_s": 5.899,
+          "injected": 180,
+          "iteration": 3
+        },
+        {
+          "driven_s": 5.899,
+          "injected": 180,
+          "iteration": 4
+        },
+        {
+          "driven_s": 5.899,
+          "injected": 180,
+          "iteration": 5
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 6
+        },
+        {
+          "driven_s": 5.899,
+          "injected": 180,
+          "iteration": 7
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 8
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 9
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 10
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 11
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 12
+        },
+        {
+          "driven_s": 5.899,
+          "injected": 180,
+          "iteration": 13
+        },
+        {
+          "driven_s": 5.899,
+          "injected": 180,
+          "iteration": 14
+        },
+        {
+          "driven_s": 5.899,
+          "injected": 180,
+          "iteration": 15
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 16
+        },
+        {
+          "driven_s": 5.9,
+          "injected": 180,
+          "iteration": 17
+        },
+        {
+          "driven_s": 5.899,
+          "injected": 180,
+          "iteration": 18
+        },
+        {
+          "driven_s": 5.899,
+          "injected": 180,
+          "iteration": 19
+        },
+        {
+          "driven_s": 5.899,
+          "injected": 180,
+          "iteration": 20
+        }
+      ]
+    }
+  },
+  "drivers": "uinput+kwin/1",
+  "environment": "E1",
+  "fixtures_seed": 42,
+  "flatpak": true,
+  "flatpak_overrides": {},
+  "run_id": "2ab5bf6e78cc43b48b9e1ff62fef00b1",
+  "scenarios": {
+    "G4": [
+      "health"
+    ]
+  },
+  "schema": "crosshook-bench-provenance/1",
+  "shim": {
+    "built_in": "org.gnome.Sdk//50",
+    "so_sha256": "4d9523cc651186d1ee21be95842e74dc25cb1b1b68e0d4e729e261124e93336c",
+    "source_sha256": "bb6f809c1d6b5cda4eed99bd86b2825aa2ea7fe6dd38ccd6d3ffc2042e218fad"
+  },
+  "status": "captured",
+  "variant": "B"
+}

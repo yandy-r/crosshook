@@ -1,0 +1,2 @@
+scenario,p50_ms,p95_ms,p99_ms,stddev_ms,over_interval_percent,frames,status
+resize,27.77,38.876,44.431,14.118997514625823,99.7481813094572,3574,captured

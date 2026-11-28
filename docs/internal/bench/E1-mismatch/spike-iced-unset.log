@@ -1,0 +1,4 @@
+WARNING: radv is not a conformant Vulkan implementation, testing use only.
+WARNING: radv is not a conformant Vulkan implementation, testing use only.
+SPIKE_RENDERER backend=Vulkan adapter=NVIDIA GeForce RTX 5070 Laptop GPU
+READY 15518419181515

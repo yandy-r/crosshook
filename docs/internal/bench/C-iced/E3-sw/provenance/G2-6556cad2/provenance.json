@@ -1,0 +1,19 @@
+{
+  "binary_sha256": "fe02b1594c09bb2b8f3b3b8308f8dfac2da5b84b69b1d0a7f7eb133fe1ddef9b",
+  "boot_id": "11c53781-cc05-42e6-a04f-93c1276362b0",
+  "collector": "wlpresent/1",
+  "commit": "3cd03955fe06324daa51c1cbc9eca6ed72fdb161",
+  "dirty": false,
+  "environment": "E3-sw",
+  "fixtures_seed": 42,
+  "flatpak": false,
+  "run_id": "6556cad2ee7a45479f0cd58864518561",
+  "schema": "crosshook-bench-provenance/1",
+  "shim": {
+    "built_in": "host",
+    "so_sha256": "cd9503801a34680122b8fb1c990cd9f1c52648839f92cef5f812ee215b101ef4",
+    "source_sha256": "58a7b2276897ae9853740309a12e7502b404d0c3846fd8cbc628ffe57570d1e7"
+  },
+  "status": "captured",
+  "variant": "C-iced"
+}
