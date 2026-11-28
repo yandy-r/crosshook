@@ -78,9 +78,16 @@ def gpu_memory_mb(pids: set[int]) -> float | str:
     return totals.mb if totals.numeric else "unavailable"
 
 
-def battery_power_w() -> float:
+def battery_power_w(required: bool = True) -> float | str:
+    """Battery discharge rate in W.
+
+    A host without a battery fails with `BATTERY_REQUIRED` when power is a gate
+    (the Deck, E2); elsewhere it reports `unavailable`, like `gpu_mb`.
+    """
     paths = [line.strip() for line in output(["upower", "--enumerate"]).splitlines() if "battery" in line]
     if not paths:
+        if not required:
+            return "unavailable"
         raise InstrumentError("BATTERY_REQUIRED: no upower battery")
     for path in paths:
         match = re.search(r"energy-rate:\s+([0-9.]+)\s*W", output(["upower", "--show-info", path]))
@@ -104,10 +111,11 @@ def sizes(binary: Path, bundle: Path, branch: str, runtime_delta_mb: float) -> d
         raise InstrumentError("RUNTIME_DELTA_INVALID")
     with tempfile.TemporaryDirectory(prefix="crosshook-strip-") as directory:
         stripped = Path(directory) / "binary"
-        output(["strip", "--strip-unneeded", "--output", str(stripped), str(binary)], 60)
+        # `-o`, not `--output`: newer binutils reject `--output` as ambiguous.
+        output(["strip", "--strip-unneeded", "-o", str(stripped), str(binary)], 60)
         stripped_mb = stripped.stat().st_size / 1024**2
-    installed = output(["flatpak", "info", "--show-size", f"--branch={branch}",
-                        "dev.crosshook.CrossHook"])
+    # `flatpak info` takes the branch in the ref; it has no --branch option.
+    installed = output(["flatpak", "info", "--show-size", f"dev.crosshook.CrossHook//{branch}"])
     return {"binary_mb": stripped_mb, "bundle_mb": bundle.stat().st_size / 1024**2,
             "installed_mb": size_mb(installed), "runtime_delta_mb": runtime_delta_mb,
             "status": "measured"}

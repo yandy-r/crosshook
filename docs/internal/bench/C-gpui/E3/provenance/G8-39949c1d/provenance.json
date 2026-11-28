@@ -1,0 +1,511 @@
+{
+  "binary_sha256": "5b447fc44bb31e898e944b7901771dce1d1c666ec51c3b9b09b97047bcf58db6",
+  "boot_id": "11c53781-cc05-42e6-a04f-93c1276362b0",
+  "collector": "wlpresent/1",
+  "commit": "6c822ca7fd81a6c38e8efbccbd4cef1d49a47727",
+  "dirty": false,
+  "drive_stats": {
+    "G8": {
+      "replay_scroll": [
+        {
+          "driven_s": 10.023,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 1,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-ui-sp",
+              "pid": 2075070,
+              "start_time": 2299804
+            }
+          ],
+          "session": {
+            "launch_ns": 22998040165308,
+            "pid": 2075070,
+            "run_id": "39949c1dc7774970a8bd2b5fbae4aef4"
+          },
+          "settle_s": 0.049,
+          "start_to_done_s": 10.0,
+          "web_process_sampled": false
+        },
+        {
+          "driven_s": 10.021,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 2,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-ui-sp",
+              "pid": 2075640,
+              "start_time": 2301952
+            }
+          ],
+          "session": {
+            "launch_ns": 23019520499962,
+            "pid": 2075640,
+            "run_id": "39949c1dc7774970a8bd2b5fbae4aef4"
+          },
+          "settle_s": 0.05,
+          "start_to_done_s": 10.0,
+          "web_process_sampled": false
+        },
+        {
+          "driven_s": 10.023,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 3,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-ui-sp",
+              "pid": 2076339,
+              "start_time": 2304093
+            }
+          ],
+          "session": {
+            "launch_ns": 23040936192088,
+            "pid": 2076339,
+            "run_id": "39949c1dc7774970a8bd2b5fbae4aef4"
+          },
+          "settle_s": 0.05,
+          "start_to_done_s": 10.0,
+          "web_process_sampled": false
+        },
+        {
+          "driven_s": 10.023,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 4,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-ui-sp",
+              "pid": 2076940,
+              "start_time": 2306236
+            }
+          ],
+          "session": {
+            "launch_ns": 23062362164411,
+            "pid": 2076940,
+            "run_id": "39949c1dc7774970a8bd2b5fbae4aef4"
+          },
+          "settle_s": 0.05,
+          "start_to_done_s": 10.0,
+          "web_process_sampled": false
+        },
+        {
+          "driven_s": 10.022,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 5,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-ui-sp",
+              "pid": 2079948,
+              "start_time": 2308378
+            }
+          ],
+          "session": {
+            "launch_ns": 23083784445414,
+            "pid": 2079948,
+            "run_id": "39949c1dc7774970a8bd2b5fbae4aef4"
+          },
+          "settle_s": 0.048,
+          "start_to_done_s": 10.0,
+          "web_process_sampled": false
+        },
+        {
+          "driven_s": 10.022,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 6,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-ui-sp",
+              "pid": 2080738,
+              "start_time": 2310519
+            }
+          ],
+          "session": {
+            "launch_ns": 23105199530705,
+            "pid": 2080738,
+            "run_id": "39949c1dc7774970a8bd2b5fbae4aef4"
+          },
+          "settle_s": 0.049,
+          "start_to_done_s": 10.0,
+          "web_process_sampled": false
+        },
+        {
+          "driven_s": 10.022,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 7,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-ui-sp",
+              "pid": 2081336,
+              "start_time": 2312661
+            }
+          ],
+          "session": {
+            "launch_ns": 23126618305132,
+            "pid": 2081336,
+            "run_id": "39949c1dc7774970a8bd2b5fbae4aef4"
+          },
+          "settle_s": 0.049,
+          "start_to_done_s": 10.0,
+          "web_process_sampled": false
+        },
+        {
+          "driven_s": 10.024,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 8,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-ui-sp",
+              "pid": 2081948,
+              "start_time": 2314804
+            }
+          ],
+          "session": {
+            "launch_ns": 23148046034657,
+            "pid": 2081948,
+            "run_id": "39949c1dc7774970a8bd2b5fbae4aef4"
+          },
+          "settle_s": 0.053,
+          "start_to_done_s": 10.0,
+          "web_process_sampled": false
+        },
+        {
+          "driven_s": 10.022,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 9,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-ui-sp",
+              "pid": 2082768,
+              "start_time": 2316948
+            }
+          ],
+          "session": {
+            "launch_ns": 23169487715155,
+            "pid": 2082768,
+            "run_id": "39949c1dc7774970a8bd2b5fbae4aef4"
+          },
+          "settle_s": 0.049,
+          "start_to_done_s": 10.0,
+          "web_process_sampled": false
+        },
+        {
+          "driven_s": 10.023,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 10,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-ui-sp",
+              "pid": 2083349,
+              "start_time": 2319091
+            }
+          ],
+          "session": {
+            "launch_ns": 23190909956835,
+            "pid": 2083349,
+            "run_id": "39949c1dc7774970a8bd2b5fbae4aef4"
+          },
+          "settle_s": 0.045,
+          "start_to_done_s": 10.0,
+          "web_process_sampled": false
+        },
+        {
+          "driven_s": 10.024,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 11,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-ui-sp",
+              "pid": 2083967,
+              "start_time": 2321233
+            }
+          ],
+          "session": {
+            "launch_ns": 23212336197153,
+            "pid": 2083967,
+            "run_id": "39949c1dc7774970a8bd2b5fbae4aef4"
+          },
+          "settle_s": 0.046,
+          "start_to_done_s": 10.0,
+          "web_process_sampled": false
+        },
+        {
+          "driven_s": 10.021,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 12,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-ui-sp",
+              "pid": 2084818,
+              "start_time": 2323376
+            }
+          ],
+          "session": {
+            "launch_ns": 23233769380264,
+            "pid": 2084818,
+            "run_id": "39949c1dc7774970a8bd2b5fbae4aef4"
+          },
+          "settle_s": 0.045,
+          "start_to_done_s": 10.0,
+          "web_process_sampled": false
+        },
+        {
+          "driven_s": 10.023,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 13,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-ui-sp",
+              "pid": 2085431,
+              "start_time": 2325520
+            }
+          ],
+          "session": {
+            "launch_ns": 23255205238749,
+            "pid": 2085431,
+            "run_id": "39949c1dc7774970a8bd2b5fbae4aef4"
+          },
+          "settle_s": 0.046,
+          "start_to_done_s": 10.0,
+          "web_process_sampled": false
+        },
+        {
+          "driven_s": 10.023,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 14,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-ui-sp",
+              "pid": 2086042,
+              "start_time": 2327664
+            }
+          ],
+          "session": {
+            "launch_ns": 23276639721485,
+            "pid": 2086042,
+            "run_id": "39949c1dc7774970a8bd2b5fbae4aef4"
+          },
+          "settle_s": 0.049,
+          "start_to_done_s": 10.0,
+          "web_process_sampled": false
+        },
+        {
+          "driven_s": 10.023,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 15,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-ui-sp",
+              "pid": 2086773,
+              "start_time": 2329808
+            }
+          ],
+          "session": {
+            "launch_ns": 23298080995508,
+            "pid": 2086773,
+            "run_id": "39949c1dc7774970a8bd2b5fbae4aef4"
+          },
+          "settle_s": 0.054,
+          "start_to_done_s": 10.0,
+          "web_process_sampled": false
+        },
+        {
+          "driven_s": 10.024,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 16,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-ui-sp",
+              "pid": 2087347,
+              "start_time": 2331949
+            }
+          ],
+          "session": {
+            "launch_ns": 23319491050080,
+            "pid": 2087347,
+            "run_id": "39949c1dc7774970a8bd2b5fbae4aef4"
+          },
+          "settle_s": 0.047,
+          "start_to_done_s": 10.0,
+          "web_process_sampled": false
+        },
+        {
+          "driven_s": 10.023,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 17,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-ui-sp",
+              "pid": 2087938,
+              "start_time": 2334093
+            }
+          ],
+          "session": {
+            "launch_ns": 23340931249256,
+            "pid": 2087938,
+            "run_id": "39949c1dc7774970a8bd2b5fbae4aef4"
+          },
+          "settle_s": 0.047,
+          "start_to_done_s": 10.0,
+          "web_process_sampled": false
+        },
+        {
+          "driven_s": 10.024,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 18,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-ui-sp",
+              "pid": 2088651,
+              "start_time": 2336237
+            }
+          ],
+          "session": {
+            "launch_ns": 23362372711548,
+            "pid": 2088651,
+            "run_id": "39949c1dc7774970a8bd2b5fbae4aef4"
+          },
+          "settle_s": 0.049,
+          "start_to_done_s": 10.0,
+          "web_process_sampled": false
+        },
+        {
+          "driven_s": 10.024,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 19,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-ui-sp",
+              "pid": 2089249,
+              "start_time": 2338381
+            }
+          ],
+          "session": {
+            "launch_ns": 23383812195319,
+            "pid": 2089249,
+            "run_id": "39949c1dc7774970a8bd2b5fbae4aef4"
+          },
+          "settle_s": 0.05,
+          "start_to_done_s": 10.0,
+          "web_process_sampled": false
+        },
+        {
+          "driven_s": 10.021,
+          "follow": "on",
+          "gpu_denied_max": 0,
+          "gpu_source": "fdinfo",
+          "iteration": 20,
+          "notches": 305,
+          "nvidia_smi_path": null,
+          "sampled_pids": [
+            {
+              "comm": "crosshook-ui-sp",
+              "pid": 2092230,
+              "start_time": 2340528
+            }
+          ],
+          "session": {
+            "launch_ns": 23405279849924,
+            "pid": 2092230,
+            "run_id": "39949c1dc7774970a8bd2b5fbae4aef4"
+          },
+          "settle_s": 0.053,
+          "start_to_done_s": 10.0,
+          "web_process_sampled": false
+        }
+      ]
+    }
+  },
+  "drivers": "uinput+kwin/1",
+  "environment": "E3",
+  "fixtures_seed": 42,
+  "flatpak": false,
+  "run_id": "39949c1dc7774970a8bd2b5fbae4aef4",
+  "scenarios": {
+    "G8": [
+      "replay_scroll"
+    ]
+  },
+  "schema": "crosshook-bench-provenance/1",
+  "shim": {
+    "built_in": "host",
+    "so_sha256": "cd9503801a34680122b8fb1c990cd9f1c52648839f92cef5f812ee215b101ef4",
+    "source_sha256": "58a7b2276897ae9853740309a12e7502b404d0c3846fd8cbc628ffe57570d1e7"
+  },
+  "status": "captured",
+  "variant": "C-gpui"
+}

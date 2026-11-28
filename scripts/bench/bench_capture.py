@@ -360,7 +360,8 @@ def capture(metric: str, args, command: list[str], env: dict[str, str], command_
                 elif elapsed > 0:
                     rows.append({"elapsed_s": elapsed,
                                  "cpu_percent": (cpu_ticks(proc.pid)-ticks)/os.sysconf("SC_CLK_TCK")/elapsed*100,
-                                 "wakeups_s": "pending", "power_w": battery_power_w(), "status": "measured"})
+                                 "wakeups_s": "pending", "power_w": battery_power_w(required=args.env.startswith("E2")),
+                                 "status": "measured"})
                 if elapsed >= args.duration:
                     break
                 time.sleep(min(10, args.duration-elapsed))

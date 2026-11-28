@@ -1,0 +1,13 @@
+label=gpui-lavapipe-E1
+binary=~/.claude-worktrees/crosshook-spike-gpui/target/release/crosshook-ui-spike-gpui
+args=--renderer lavapipe
+start=2026-11-27T16:41:24-05:00
+end=2026-11-27T17:11:24-05:00
+seconds=1800
+exit=124
+ready=yes
+replay=start:50000 done:50000 
+crash_markers=0
+renderer=SPIKE_RENDERER backend=Vulkan adapter="llvmpipe (LLVM 23.1.5, 256 bits)" software=true driver="llvmpipe" driver_info="Mesa 26.2.7 (LLVM 23.1.5)"
+kernel=7.3.6-300.fc45.x86_64
+verdict=PASS

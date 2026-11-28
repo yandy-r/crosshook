@@ -1,0 +1,337 @@
+{
+  "binary_sha256": "5b447fc44bb31e898e944b7901771dce1d1c666ec51c3b9b09b97047bcf58db6",
+  "boot_id": "11c53781-cc05-42e6-a04f-93c1276362b0",
+  "collector": "wlpresent/1",
+  "commit": "6c822ca7fd81a6c38e8efbccbd4cef1d49a47727",
+  "dirty": false,
+  "drive_stats": {
+    "G4": {
+      "console": [
+        {
+          "driven_s": 5.895,
+          "injected": 180,
+          "iteration": 1
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 2
+        },
+        {
+          "driven_s": 5.899,
+          "injected": 180,
+          "iteration": 3
+        },
+        {
+          "driven_s": 5.897,
+          "injected": 180,
+          "iteration": 4
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 5
+        },
+        {
+          "driven_s": 5.896,
+          "injected": 180,
+          "iteration": 6
+        },
+        {
+          "driven_s": 5.897,
+          "injected": 180,
+          "iteration": 7
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 8
+        },
+        {
+          "driven_s": 5.899,
+          "injected": 180,
+          "iteration": 9
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 10
+        },
+        {
+          "driven_s": 5.897,
+          "injected": 180,
+          "iteration": 11
+        },
+        {
+          "driven_s": 5.897,
+          "injected": 180,
+          "iteration": 12
+        },
+        {
+          "driven_s": 5.897,
+          "injected": 180,
+          "iteration": 13
+        },
+        {
+          "driven_s": 5.897,
+          "injected": 180,
+          "iteration": 14
+        },
+        {
+          "driven_s": 5.896,
+          "injected": 180,
+          "iteration": 15
+        },
+        {
+          "driven_s": 5.896,
+          "injected": 180,
+          "iteration": 16
+        },
+        {
+          "driven_s": 5.896,
+          "injected": 180,
+          "iteration": 17
+        },
+        {
+          "driven_s": 5.897,
+          "injected": 180,
+          "iteration": 18
+        },
+        {
+          "driven_s": 5.896,
+          "injected": 180,
+          "iteration": 19
+        },
+        {
+          "driven_s": 5.897,
+          "injected": 180,
+          "iteration": 20
+        }
+      ],
+      "library": [
+        {
+          "driven_s": 5.899,
+          "injected": 180,
+          "iteration": 1
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 2
+        },
+        {
+          "driven_s": 5.896,
+          "injected": 180,
+          "iteration": 3
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 4
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 5
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 6
+        },
+        {
+          "driven_s": 5.899,
+          "injected": 180,
+          "iteration": 7
+        },
+        {
+          "driven_s": 5.897,
+          "injected": 180,
+          "iteration": 8
+        },
+        {
+          "driven_s": 5.9,
+          "injected": 180,
+          "iteration": 9
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 10
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 11
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 12
+        },
+        {
+          "driven_s": 5.899,
+          "injected": 180,
+          "iteration": 13
+        },
+        {
+          "driven_s": 5.896,
+          "injected": 180,
+          "iteration": 14
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 15
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 16
+        },
+        {
+          "driven_s": 5.899,
+          "injected": 180,
+          "iteration": 17
+        },
+        {
+          "driven_s": 5.897,
+          "injected": 180,
+          "iteration": 18
+        },
+        {
+          "driven_s": 5.897,
+          "injected": 180,
+          "iteration": 19
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 20
+        }
+      ],
+      "settings": [
+        {
+          "driven_s": 5.899,
+          "injected": 180,
+          "iteration": 1
+        },
+        {
+          "driven_s": 5.897,
+          "injected": 180,
+          "iteration": 2
+        },
+        {
+          "driven_s": 5.897,
+          "injected": 180,
+          "iteration": 3
+        },
+        {
+          "driven_s": 5.897,
+          "injected": 180,
+          "iteration": 4
+        },
+        {
+          "driven_s": 5.899,
+          "injected": 180,
+          "iteration": 5
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 6
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 7
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 8
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 9
+        },
+        {
+          "driven_s": 5.899,
+          "injected": 180,
+          "iteration": 10
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 11
+        },
+        {
+          "driven_s": 5.897,
+          "injected": 180,
+          "iteration": 12
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 13
+        },
+        {
+          "driven_s": 5.897,
+          "injected": 180,
+          "iteration": 14
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 15
+        },
+        {
+          "driven_s": 5.898,
+          "injected": 180,
+          "iteration": 16
+        },
+        {
+          "driven_s": 5.897,
+          "injected": 180,
+          "iteration": 17
+        },
+        {
+          "driven_s": 5.899,
+          "injected": 180,
+          "iteration": 18
+        },
+        {
+          "driven_s": 5.897,
+          "injected": 180,
+          "iteration": 19
+        },
+        {
+          "driven_s": 5.897,
+          "injected": 180,
+          "iteration": 20
+        }
+      ]
+    }
+  },
+  "drivers": "uinput+kwin/1",
+  "environment": "E3",
+  "fixtures_seed": 42,
+  "flatpak": false,
+  "run_id": "cdc38b3e23744a6ab54a9aa47a937f10",
+  "scenarios": {
+    "G4": [
+      "library",
+      "console",
+      "settings"
+    ]
+  },
+  "schema": "crosshook-bench-provenance/1",
+  "shim": {
+    "built_in": "host",
+    "so_sha256": "cd9503801a34680122b8fb1c990cd9f1c52648839f92cef5f812ee215b101ef4",
+    "source_sha256": "58a7b2276897ae9853740309a12e7502b404d0c3846fd8cbc628ffe57570d1e7"
+  },
+  "status": "captured",
+  "variant": "C-gpui"
+}

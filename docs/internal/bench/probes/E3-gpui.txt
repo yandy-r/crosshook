@@ -1,0 +1,1 @@
+E3-gpui | ready=1 | alive=yes | grey=38.4186 | nodes:  2 renderD128  3 renderD129  | SPIKE_RENDERER backend=Vulkan adapter="AMD Radeon RX 9070 XT (RADV GFX1201)" software=false driver="radv" driver_info="Mesa 26.2.7" | 

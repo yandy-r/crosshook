@@ -1,0 +1,1 @@
+E3-iced | ready=1 | alive=yes | grey=45.618 | nodes:  1 renderD128  3 renderD129  | SPIKE_RENDERER backend=Vulkan adapter=AMD Radeon RX 9070 XT (RADV GFX1201) | 

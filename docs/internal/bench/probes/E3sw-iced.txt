@@ -1,0 +1,1 @@
+E3sw-iced | ready=1 | alive=yes | grey=45.6128 | nodes: none | SPIKE_RENDERER backend=Gl adapter=llvmpipe (LLVM 23.1.5, 256 bits) | 

@@ -1,0 +1,1 @@
+E3sw-gpui | ready=1 | alive=yes | grey=38.4081 | nodes: none | SPIKE_RENDERER backend=Gl adapter="llvmpipe (LLVM 23.1.5, 256 bits)" software=true driver="" driver_info="4.6 (Core Profile) Mesa 26.2.7" | 

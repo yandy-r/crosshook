@@ -1,0 +1,23 @@
+[INFO wgpu_hal::gles::egl] EGL says it can present to the window but not natively
+WARNING: radv is not a conformant Vulkan implementation, testing use only.
+WARNING: radv is not a conformant Vulkan implementation, testing use only.
+[INFO wgpu_hal::vulkan::adapter] Found 6 cooperative matrix configurations supported by wgpu
+[INFO wgpu_hal::vulkan::adapter] Found 6 cooperative matrix configurations supported by wgpu
+[INFO wgpu_hal::vulkan::adapter] Found 2 cooperative matrix configurations supported by wgpu
+[INFO wgpu_hal::vulkan::adapter] Found 2 cooperative matrix configurations supported by wgpu
+[INFO wgpu_hal::vulkan::adapter] Found 2 cooperative matrix configurations supported by wgpu
+[INFO wgpu_hal::vulkan::adapter] Found 2 cooperative matrix configurations supported by wgpu
+[INFO gpui_wgpu::wgpu_context] Found 7 GPU adapter(s):
+[INFO gpui_wgpu::wgpu_context]   - NVIDIA GeForce RTX 5070 Laptop GPU (vendor=0x10de, device=0x2d18, backend=Vulkan, type=DiscreteGpu)
+[INFO gpui_wgpu::wgpu_context]   - NVIDIA GeForce RTX 5070 Laptop GPU (vendor=0x10de, device=0x2d18, backend=Vulkan, type=DiscreteGpu)
+[INFO gpui_wgpu::wgpu_context]   - AMD Radeon RX 9070 XT (RADV GFX1201) (vendor=0x1002, device=0x7550, backend=Vulkan, type=DiscreteGpu)
+[INFO gpui_wgpu::wgpu_context]   - AMD Radeon RX 9070 XT (RADV GFX1201) (vendor=0x1002, device=0x7550, backend=Vulkan, type=DiscreteGpu)
+[INFO gpui_wgpu::wgpu_context]   - NVIDIA GeForce RTX 5070 Laptop GPU/PCIe/SSE2 (vendor=0x10de, device=0x0000, backend=Gl, type=Other)
+[INFO gpui_wgpu::wgpu_context]   - llvmpipe (LLVM 21.1.8, 256 bits) (vendor=0x10005, device=0x0000, backend=Vulkan, type=Cpu)
+[INFO gpui_wgpu::wgpu_context]   - llvmpipe (LLVM 21.1.8, 256 bits) (vendor=0x10005, device=0x0000, backend=Vulkan, type=Cpu)
+[INFO gpui_wgpu::wgpu_context] Testing adapter: NVIDIA GeForce RTX 5070 Laptop GPU (Vulkan)...
+[INFO gpui_wgpu::wgpu_context] Selected GPU (passed configuration test): NVIDIA GeForce RTX 5070 Laptop GPU (Vulkan)
+[INFO gpui_wgpu::wgpu_context] Selected GPU adapter: "NVIDIA GeForce RTX 5070 Laptop GPU" (Vulkan)
+SPIKE_RENDERER backend=Vulkan adapter="NVIDIA GeForce RTX 5070 Laptop GPU" software=false driver="NVIDIA" driver_info="620.73.04"
+spike: gilrs unavailable; gamepad disabled
+READY 15607044009780

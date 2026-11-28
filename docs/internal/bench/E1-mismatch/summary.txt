@@ -1,0 +1,9 @@
+yan846-b | unset | exit=124 | ready=1 | GL mounts: default egl glvnd lib nvidia-620-73-04 OpenCL vdpau vulkan  | CrossHook: WebKit DMA-BUF renderer policy: disabled_for_nvidia (nvidia_gpu=true) | 
+yan846-b | nvidia-620-70-06 | exit=124 | ready=1 | GL mounts: egl glvnd lib nvidia-620-70-06 OpenCL vulkan  | CrossHook: WebKit DMA-BUF renderer policy: disabled_for_nvidia (nvidia_gpu=true) | 
+yan846-b | default | exit=124 | ready=1 | GL mounts: default glvnd lib OpenCL vdpau vulkan  | CrossHook: WebKit DMA-BUF renderer policy: disabled_for_nvidia (nvidia_gpu=true) | MESA-EGL: warning: egl: failed to create dri2 screen
+spike-iced | unset | exit=124 | ready=1 | GL mounts: default egl glvnd lib nvidia-620-73-04 OpenCL vdpau vulkan  | SPIKE_RENDERER backend=Vulkan adapter=NVIDIA GeForce RTX 5070 Laptop GPU | 
+spike-iced | nvidia-620-70-06 | exit=124 | ready=1 | GL mounts: egl glvnd lib nvidia-620-70-06 OpenCL vulkan  | SPIKE_RENDERER backend=tiny-skia adapter=CPU | 
+spike-iced | default | exit=124 | ready=1 | GL mounts: default glvnd lib OpenCL vdpau vulkan  | SPIKE_RENDERER backend=Vulkan adapter=AMD Radeon RX 9070 XT (RADV GFX1201) | MESA-EGL: warning: egl: failed to create dri2 screen
+spike-gpui | unset | exit=124 | ready=1 | GL mounts: default egl glvnd lib nvidia-620-73-04 OpenCL vdpau vulkan  | SPIKE_RENDERER backend=Vulkan adapter="NVIDIA GeForce RTX 5070 Laptop GPU" software=false driver="NVIDIA" driver_info="620.73.04" | 
+spike-gpui | nvidia-620-70-06 | exit=124 | ready=0 | GL mounts: egl glvnd lib nvidia-620-70-06 OpenCL vulkan  |  | spike: could not open window: Failed to create surface: Failed to create surface for any enabled backend: {}
+spike-gpui | default | exit=124 | ready=1 | GL mounts: default glvnd lib OpenCL vdpau vulkan  | SPIKE_RENDERER backend=Vulkan adapter="AMD Radeon RX 9070 XT (RADV GFX1201)" software=false driver="radv" driver_info="Mesa 26.2.7 (git-b69adc2adf)" | MESA-EGL: warning: egl: failed to create dri2 screen

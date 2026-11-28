@@ -1,0 +1,1 @@
+E3sw-B | ready=1 | alive=yes | grey=32.633 | nodes: none | CrossHook: WebKit DMA-BUF renderer policy: user_override (nvidia_gpu=true) | 

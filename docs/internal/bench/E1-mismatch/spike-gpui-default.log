@@ -1,0 +1,25 @@
+MESA-EGL: warning: pci id for fd 24: 10de:2d18, driver (null)
+pci id for fd 27: 10de:2d18, driver (null)
+pci id for fd 28: 10de:2d18, driver (null)
+MESA-EGL: warning: egl: failed to create dri2 screen
+pci id for fd 27: 10de:2d18, driver (null)
+pci id for fd 28: 10de:2d18, driver (null)
+MESA-EGL: warning: egl: failed to create dri2 screen
+WARNING: radv is not a conformant Vulkan implementation, testing use only.
+WARNING: radv is not a conformant Vulkan implementation, testing use only.
+[INFO wgpu_hal::vulkan::adapter] Found 2 cooperative matrix configurations supported by wgpu
+[INFO wgpu_hal::vulkan::adapter] Found 2 cooperative matrix configurations supported by wgpu
+[INFO wgpu_hal::vulkan::adapter] Found 2 cooperative matrix configurations supported by wgpu
+[INFO wgpu_hal::vulkan::adapter] Found 2 cooperative matrix configurations supported by wgpu
+[INFO gpui_wgpu::wgpu_context] Found 5 GPU adapter(s):
+[INFO gpui_wgpu::wgpu_context]   - AMD Radeon RX 9070 XT (RADV GFX1201) (vendor=0x1002, device=0x7550, backend=Vulkan, type=DiscreteGpu)
+[INFO gpui_wgpu::wgpu_context]   - AMD Radeon RX 9070 XT (RADV GFX1201) (vendor=0x1002, device=0x7550, backend=Vulkan, type=DiscreteGpu)
+[INFO gpui_wgpu::wgpu_context]   - llvmpipe (LLVM 21.1.8, 256 bits) (vendor=0x10005, device=0x0000, backend=Vulkan, type=Cpu)
+[INFO gpui_wgpu::wgpu_context]   - llvmpipe (LLVM 21.1.8, 256 bits) (vendor=0x10005, device=0x0000, backend=Vulkan, type=Cpu)
+[INFO gpui_wgpu::wgpu_context]   - llvmpipe (LLVM 21.1.8, 256 bits) (vendor=0x10005, device=0x0000, backend=Gl, type=Cpu)
+[INFO gpui_wgpu::wgpu_context] Testing adapter: AMD Radeon RX 9070 XT (RADV GFX1201) (Vulkan)...
+[INFO gpui_wgpu::wgpu_context] Selected GPU (passed configuration test): AMD Radeon RX 9070 XT (RADV GFX1201) (Vulkan)
+[INFO gpui_wgpu::wgpu_context] Selected GPU adapter: "AMD Radeon RX 9070 XT (RADV GFX1201)" (Vulkan)
+SPIKE_RENDERER backend=Vulkan adapter="AMD Radeon RX 9070 XT (RADV GFX1201)" software=false driver="radv" driver_info="Mesa 26.2.7 (git-b69adc2adf)"
+spike: gilrs unavailable; gamepad disabled
+READY 15665823711793

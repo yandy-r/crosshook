@@ -1,0 +1,10 @@
+CrossHook: flatpak per-app isolation mode
+CrossHook: WebKit DMA-BUF renderer policy: disabled_for_nvidia (nvidia_gpu=true)
+MESA-EGL: warning: pci id for fd 41: 10de:2d18, driver (null)
+pci id for fd 42: 10de:2d18, driver (null)
+pci id for fd 43: 10de:2d18, driver (null)
+MESA-EGL: warning: egl: failed to create dri2 screen
+pci id for fd 42: 10de:2d18, driver (null)
+pci id for fd 43: 10de:2d18, driver (null)
+MESA-EGL: warning: egl: failed to create dri2 screen
+READY 15489414136888
