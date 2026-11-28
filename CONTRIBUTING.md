@@ -214,9 +214,35 @@ Use only labels from this taxonomy -- do not create new ones.
 
 ## Security
 
-- **Never** commit `.env`, `.env.encrypted`, or `.env.keys`
+- **Never** commit `.env` or any other env file; secrets come from 1Password (below)
 - Report vulnerabilities privately via
   [GitHub Security Advisories](https://github.com/yandy-r/crosshook/security/advisories/new)
+
+### Local secrets
+
+CrossHook needs no secrets to build, test or run today. When a local workflow does, the
+secret lives in 1Password and the repository holds only a reference to it:
+
+1. Store the value in a 1Password item and add one line per variable to
+   [`.env.op`](.env.op): `NAME=op://<vault>/<item>/<field>`. Never put a value there.
+2. Install the [1Password CLI](https://developer.1password.com/docs/cli/get-started/) (`op`)
+   and turn on the desktop app's CLI integration, so `op whoami` succeeds.
+3. Run the command through the loader:
+
+   ```bash
+   ./scripts/with-secrets.sh <command> [args...]
+   ./scripts/with-secrets.sh --check   # reports whether references exist and op is ready
+   ```
+
+   With references in `.env.op`, the loader runs the command under
+   `op run --env-file=.env.op`, so secrets reach only that process. Without references it runs
+   the command directly. With references but `op` missing or signed out, it stops before running
+   anything. `.envrc` (direnv) never exports secrets; an untracked `.env` may hold non-secret
+   local overrides only.
+
+`./scripts/check-secrets-policy.sh` (part of `./scripts/lint.sh` and CI) fails on tracked env
+files, literal values in `.env.op`, and references to the retired encrypted-env tool. No CI job
+needs secrets; if one ever does, it uses a 1Password service account (`OP_SERVICE_ACCOUNT_TOKEN`).
 
 ## License
 
