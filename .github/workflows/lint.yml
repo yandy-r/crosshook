@@ -173,6 +173,15 @@ jobs:
       - name: Mock coverage contract gate self-test
         run: ./scripts/check-mock-coverage.sh --self-test
 
+      - name: Secrets policy (1Password)
+        run: ./scripts/check-secrets-policy.sh
+
+      - name: Secrets policy self-test
+        run: ./scripts/check-secrets-policy.sh --selftest
+
+      - name: Secrets loader tests
+        run: bash scripts/tests/with-secrets/run.sh
+
   bench-shim:
     name: Bench shim (compile check)
     # The shim needs libwayland-client >= 1.24 (wl_proxy_get_interface); Ubuntu 24.04 ships 1.22.

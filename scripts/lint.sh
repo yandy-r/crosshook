@@ -31,6 +31,7 @@ Run linters across the full stack.
   --startup-path     Startup ordering guardrail only (always full-tree scan)
   --async-commands   Async #[tauri::command] guardrail only (src-tauri; always full-tree scan)
   --agent-rules      Agent rule files drift check only (CLAUDE.md/AGENTS.md sync, crate map; always full-tree)
+  --secrets-policy   1Password secrets policy check only (always full-tree scan)
   --all              All checks (default)
 EOF
 }
@@ -47,6 +48,7 @@ RUN_SCHEMA_VERSION=0
 RUN_STARTUP_PATH=0
 RUN_ASYNC_COMMANDS=0
 RUN_AGENT_RULES=0
+RUN_SECRETS_POLICY=0
 EXIT_CODE=0
 
 while [[ $# -gt 0 ]]; do
@@ -64,7 +66,8 @@ while [[ $# -gt 0 ]]; do
     --startup-path) RUN_STARTUP_PATH=1; shift ;;
     --async-commands) RUN_ASYNC_COMMANDS=1; shift ;;
     --agent-rules) RUN_AGENT_RULES=1; shift ;;
-    --all) RUN_RUST=1; RUN_TS=1; RUN_SHELL=1; RUN_HOST_GATEWAY=1; RUN_LEGACY_PALETTE=1; RUN_SCHEMA_VERSION=1; RUN_STARTUP_PATH=1; RUN_ASYNC_COMMANDS=1; RUN_AGENT_RULES=1; shift ;;
+    --secrets-policy) RUN_SECRETS_POLICY=1; shift ;;
+    --all) RUN_RUST=1; RUN_TS=1; RUN_SHELL=1; RUN_HOST_GATEWAY=1; RUN_LEGACY_PALETTE=1; RUN_SCHEMA_VERSION=1; RUN_STARTUP_PATH=1; RUN_ASYNC_COMMANDS=1; RUN_AGENT_RULES=1; RUN_SECRETS_POLICY=1; shift ;;
     --help|-h) usage; exit 0 ;;
     *) echo "Unknown arg: $1" >&2; usage >&2; exit 1 ;;
   esac
@@ -82,7 +85,7 @@ fi
 SCOPED=$(( SCOPE_STAGED || SCOPE_UNSTAGED ))
 
 # Default to all if nothing specified
-if (( !RUN_RUST && !RUN_TS && !RUN_SHELL && !RUN_HOST_GATEWAY && !RUN_LEGACY_PALETTE && !RUN_SCHEMA_VERSION && !RUN_STARTUP_PATH && !RUN_ASYNC_COMMANDS && !RUN_AGENT_RULES )); then
+if (( !RUN_RUST && !RUN_TS && !RUN_SHELL && !RUN_HOST_GATEWAY && !RUN_LEGACY_PALETTE && !RUN_SCHEMA_VERSION && !RUN_STARTUP_PATH && !RUN_ASYNC_COMMANDS && !RUN_AGENT_RULES && !RUN_SECRETS_POLICY )); then
   RUN_RUST=1
   RUN_TS=1
   RUN_SHELL=1
@@ -92,6 +95,7 @@ if (( !RUN_RUST && !RUN_TS && !RUN_SHELL && !RUN_HOST_GATEWAY && !RUN_LEGACY_PAL
   RUN_STARTUP_PATH=1
   RUN_ASYNC_COMMANDS=1
   RUN_AGENT_RULES=1
+  RUN_SECRETS_POLICY=1
 fi
 
 if (( RUN_RUST )); then
@@ -263,6 +267,14 @@ if (( RUN_AGENT_RULES )); then
     echo "note: scope flags do not narrow agent-rules; running full-tree check."
   fi
   "$ROOT_DIR/scripts/check-agent-rules-sync.sh" || EXIT_CODE=1
+fi
+
+if (( RUN_SECRETS_POLICY )); then
+  echo "=== Secrets policy ==="
+  if (( SCOPED )); then
+    echo "note: scope flags do not narrow secrets-policy; running full-tree check."
+  fi
+  "$ROOT_DIR/scripts/check-secrets-policy.sh" || EXIT_CODE=1
 fi
 
 exit "$EXIT_CODE"

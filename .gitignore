@@ -1,6 +1,8 @@
+# Local env files; only the op:// reference template is tracked.
 .env
-.env.encrypted
-.env.keys
+.env.*
+!.env.op
+!.env.example
 
 # Native build outputs
 dist/
