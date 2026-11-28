@@ -71,11 +71,11 @@ Not inventoried. No hardware values recorded here until first capture.
 
 Captured 2026-11-27 (M0-06) on the E1 host with a second GPU, not on a dedicated Mesa desktop:
 
-| Component | Observed value                                                                                                                                          |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GPU       | AMD Radeon RX 9070 XT (RDNA 4, GFX1201) on an external PCIe link, `renderD128`; NVIDIA stays the boot VGA device and KWin's main render device          |
-| Driver    | amdgpu (kernel 7.3.6-300.fc45), Mesa 26.2.7 (RADV, radeonsi)                                                                                            |
-| Display   | DP-1 on the AMD card, KWin's primary output, 3840×2160 @ 180.06 Hz, scale 1.05                                                                         |
+| Component | Observed value                                                                                                                                                                   |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GPU       | AMD Radeon RX 9070 XT (RDNA 4, GFX1201) on an external PCIe link, `renderD128`; NVIDIA stays the boot VGA device and KWin's main render device                                   |
+| Driver    | amdgpu (kernel 7.3.6-300.fc45), Mesa 26.2.7 (RADV, radeonsi)                                                                                                                     |
+| Display   | DP-1 on the AMD card, KWin's primary output, 3840×2160 @ 180.06 Hz, scale 1.05                                                                                                   |
 | Selection | Spikes: `VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/radeon_icd.x86_64.json`. B: `DRI_PRIME=1`, `__EGL_VENDOR_LIBRARY_FILENAMES=…/50_mesa.json`, `WEBKIT_DISABLE_DMABUF_RENDERER=1` |
 
 Caveats: compositing stays on NVIDIA, so this is a cross-GPU path, not a single-GPU Mesa desktop; B's WebKitGTK window is black with DMA-BUF on in this setup. The AMD link logged correctable PCIe AER errors throughout and failed fatally twice (2026-11-26 21:19 and 2026-11-27 20:42, both during C-iced G4 on RADV), the second time with a kernel oops; see [`spike-matrix.md`](spike-matrix.md#3-c-iced-on-e3-discards-frames-then-host-fault). Re-run E3 on a stable single-GPU Mesa host before treating its frame-pacing results as final.

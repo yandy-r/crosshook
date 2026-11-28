@@ -6,27 +6,27 @@ Run every item **twice per device**, on two different launches. Record each resu
 
 ## Variants and builds
 
-| Variant  | Native binary                                                          | Flatpak branch (`dev.crosshook.CrossHook`) |
-| -------- | ---------------------------------------------------------------------- | ------------------------------------------ |
-| `B`      | `./scripts/build-release-binary.sh` on `main`                          | local branch (never `master`)              |
-| `C-iced` | `cargo build --release -p crosshook-ui-spike-iced` on `spike/iced`     | `spike-iced`                               |
-| `C-gpui` | `cargo build --release -p crosshook-ui-spike-gpui` on `spike/gpui`     | `spike-gpui`                               |
+| Variant  | Native binary                                                      | Flatpak branch (`dev.crosshook.CrossHook`) |
+| -------- | ------------------------------------------------------------------ | ------------------------------------------ |
+| `B`      | `./scripts/build-release-binary.sh` on `main`                      | local branch (never `master`)              |
+| `C-iced` | `cargo build --release -p crosshook-ui-spike-iced` on `spike/iced` | `spike-iced`                               |
+| `C-gpui` | `cargo build --release -p crosshook-ui-spike-gpui` on `spike/gpui` | `spike-gpui`                               |
 
 Every run uses an isolated XDG tree materialized from the seed-42 fixtures (`bench_fixtures materialize --from <fixtures> --root <root>`), never the real user stores.
 
 ## Renderer selection
 
-| Variant  | Renderer       | How                                                                                                                                                |
-| -------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `C-iced` | wgpu-Vulkan    | `--renderer wgpu-vulkan`                                                                                                                           |
-| `C-iced` | wgpu-GL        | `--renderer wgpu-gl`                                                                                                                               |
-| `C-iced` | software       | `--renderer tiny-skia`                                                                                                                             |
-| `C-gpui` | Vulkan         | `--renderer vulkan`                                                                                                                                |
-| `C-gpui` | GL             | `--renderer gl`                                                                                                                                    |
-| `C-gpui` | software       | `--renderer lavapipe` (CPU Vulkan) or `--renderer llvmpipe-gl` (CPU GL)                                                                            |
-| `B`      | WebKitGTK      | Shipping default; DMA-BUF policy logged at startup (`WebKit DMA-BUF renderer policy: …`)                                                          |
-| all      | E3-sw          | `VK_ICD_FILENAMES=/dev/null LIBGL_ALWAYS_SOFTWARE=1` (the runner's `--env E3-sw` sets both)                                                        |
-| Flatpak  | E1-mismatch    | `flatpak run --env=FLATPAK_GL_DRIVERS=<name>`: `nvidia-<older>` for a mismatched extension, `default` for a missing one (Mesa userspace only)      |
+| Variant  | Renderer    | How                                                                                                                                           |
+| -------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `C-iced` | wgpu-Vulkan | `--renderer wgpu-vulkan`                                                                                                                      |
+| `C-iced` | wgpu-GL     | `--renderer wgpu-gl`                                                                                                                          |
+| `C-iced` | software    | `--renderer tiny-skia`                                                                                                                        |
+| `C-gpui` | Vulkan      | `--renderer vulkan`                                                                                                                           |
+| `C-gpui` | GL          | `--renderer gl`                                                                                                                               |
+| `C-gpui` | software    | `--renderer lavapipe` (CPU Vulkan) or `--renderer llvmpipe-gl` (CPU GL)                                                                       |
+| `B`      | WebKitGTK   | Shipping default; DMA-BUF policy logged at startup (`WebKit DMA-BUF renderer policy: …`)                                                      |
+| all      | E3-sw       | `VK_ICD_FILENAMES=/dev/null LIBGL_ALWAYS_SOFTWARE=1` (the runner's `--env E3-sw` sets both)                                                   |
+| Flatpak  | E1-mismatch | `flatpak run --env=FLATPAK_GL_DRIVERS=<name>`: `nvidia-<older>` for a mismatched extension, `default` for a missing one (Mesa userspace only) |
 
 The active adapter is logged at startup as `SPIKE_RENDERER backend=… adapter=…`. Record that line for every run; a run without it is **not run**, not a pass.
 
@@ -69,14 +69,14 @@ Moved to [YAN-2492](https://linear.app/itcn/issue/YAN-2492) until a Steam Deck i
 
 ## Status after the M0-06 run (2026-11-27)
 
-| Check               | E1                                                                                          | E3, E3-sw                                         |
-| ------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| 1. Launch, renderer | done: [`probes/`](probes/)                                                                  | done: [`probes/`](probes/)                        |
-| 2. Soak             | done: five 30-min soaks (one NVIDIA-only), all pass                                                        | not run (E1-only check)                           |
-| 3. Colours          | not run: no reference-token comparison was made; the screenshot probe checks only "not black" | not run                                           |
-| 4. Redraw           | not run                                                                                     | not run                                           |
-| 5. Input and focus  | not run in M0-06; see the spike write-ups and M0-09                                         | not run                                           |
-| 6. Flatpak          | done: [`E1-mismatch/`](E1-mismatch/)                                                        | —                                                 |
-| 7. Deck             | [YAN-2492](https://linear.app/itcn/issue/YAN-2492)                                          | —                                                 |
+| Check               | E1                                                                                            | E3, E3-sw                  |
+| ------------------- | --------------------------------------------------------------------------------------------- | -------------------------- |
+| 1. Launch, renderer | done: [`probes/`](probes/)                                                                    | done: [`probes/`](probes/) |
+| 2. Soak             | done: five 30-min soaks (one NVIDIA-only), all pass                                           | not run (E1-only check)    |
+| 3. Colours          | not run: no reference-token comparison was made; the screenshot probe checks only "not black" | not run                    |
+| 4. Redraw           | not run                                                                                       | not run                    |
+| 5. Input and focus  | not run in M0-06; see the spike write-ups and M0-09                                           | not run                    |
+| 6. Flatpak          | done: [`E1-mismatch/`](E1-mismatch/)                                                          | —                          |
+| 7. Deck             | [YAN-2492](https://linear.app/itcn/issue/YAN-2492)                                            | —                          |
 
 Each check ran once per environment, not twice: the second pass was lost to the `/tmp` wipe and the AMD link failure ([`spike-matrix.md`](spike-matrix.md)).
