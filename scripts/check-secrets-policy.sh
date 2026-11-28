@@ -48,10 +48,12 @@ check_tree() (
 
   # 1. Retired tooling. Release notes and internal plans/research record what
   # was true when written, so they are not rewritten.
-  hits="$(tracked_grep -n -I -i -E "$RETIRED_PATTERN" -- . ':!CHANGELOG.md' \
+  # -o prints only the matched token (tool, file or variable name), never the
+  # rest of the line, which might hold a pasted credential value.
+  hits="$(tracked_grep -n -o -I -i -E "$RETIRED_PATTERN" -- . ':!CHANGELOG.md' \
     ':!docs/plans/**' ':!docs/research/**' ':!docs/internal/**' ":!$SELF_PATH")"
   while IFS= read -r line; do
-    [[ -n "$line" ]] && fail "retired env tooling referenced: ${line:0:160}"
+    [[ -n "$line" ]] && fail "retired env tooling referenced: $line"
   done <<<"$hits"
 
   # 2. Tracked env files.
@@ -131,6 +133,11 @@ selftest() (
   expect_pass 'historical record exempt'
 
   local fixture
+  fresh
+  printf 'DOTENV_PRIVATE_KEY=hunter2-literal\n' >"$scratch/repo/README.md"
+  expect_fail 'README.md:1:DOTENV_PRIVATE_KEY' 'retired variable reported by name'
+  [[ "$out" != *hunter2* ]] || die 'retired variable value printed'
+
   for fixture in "eval \"\$($RETIRED_TOOL get)\"" 'DOTENV_PRIVATE_KEY_DEV=x' 'DOTENV_PUBLIC_KEY' \
     '.env.keys' '.env.encrypted' "$(tr '[:lower:]' '[:upper:]' <<<"$RETIRED_TOOL")"; do
     fresh
